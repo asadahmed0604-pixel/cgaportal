@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EduGrads by CGA — Login</title>
+<meta name="description" content="Cambridge Grads Academy ka online learning system — recorded lessons, quizzes aur assignments.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=League+Spartan:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<main class="auth-shell">
+  <div class="auth-card">
+    <div class="auth-head" id="head"></div>
+    <div id="alert"></div>
+
+    <form id="loginForm">
+      <label class="field"><span>Email</span>
+        <input type="email" name="email" autocomplete="email" required placeholder="aapka@email.com"></label>
+      <label class="field"><span>Password</span>
+        <input type="password" name="password" autocomplete="current-password" required placeholder="••••••••"></label>
+      <button class="btn" style="width:100%" type="submit">Log in</button>
+      <div class="auth-switch">Naye student hain? <button type="button" id="toRegister">Account banayein</button></div>
+    </form>
+
+    <form id="registerForm" hidden>
+      <label class="field"><span>Poora naam</span>
+        <input name="name" required placeholder="Jaise: Ahmed Raza"></label>
+      <label class="field"><span>Email</span>
+        <input type="email" name="email" autocomplete="email" required placeholder="aapka@email.com"></label>
+      <label class="field"><span>WhatsApp number</span>
+        <input name="phone" placeholder="03XX XXXXXXX"></label>
+      <label class="field"><span>Level</span>
+        <select name="level">
+          <option>O Level</option><option>A Level</option><option>Pre O Level</option>
+        </select></label>
+      <label class="field"><span>Password</span>
+        <input type="password" name="password" autocomplete="new-password" required minlength="6" placeholder="Kam az kam 6 characters"></label>
+      <button class="btn" style="width:100%" type="submit">Account banayein</button>
+      <div class="auth-switch">Pehle se account hai? <button type="button" id="toLogin">Log in karein</button></div>
+    </form>
+
+    <p class="footer-note">Madad chahiye? Office 10:00–20:00 · 0302 9255003</p>
+  </div>
+</main>
+
+<script src="/js/common.js"></script>
+<script>
+el('#head').innerHTML = BRAND_MARK +
+  '<h1>EduGrads</h1><p>Cambridge Grads Academy ka online classroom — lessons, quizzes aur assignments, aik hi jagah.</p>';
+
+const alertBox = el('#alert');
+const show = (msg, ok) => {
+  alertBox.innerHTML = '<div class="note' + (ok ? ' ok' : '') + '" style="margin-bottom:16px">' + esc(msg) + '</div>';
+};
+
+el('#toRegister').onclick = () => {
+  el('#loginForm').hidden = true; el('#registerForm').hidden = false; alertBox.innerHTML = '';
+  el('#head h1').textContent = 'Account banayein';
+};
+el('#toLogin').onclick = () => {
+  el('#registerForm').hidden = true; el('#loginForm').hidden = false; alertBox.innerHTML = '';
+  el('#head h1').textContent = 'EduGrads';
+};
+
+function values(form) {
+  const o = {};
+  new FormData(form).forEach((v, k) => o[k] = v);
+  return o;
+}
+
+const go = (role) => location.href = ['teacher', 'admin'].includes(role) ? '/console' : '/dashboard';
+
+el('#loginForm').onsubmit = async (e) => {
+  e.preventDefault();
+  const btn = el('button[type=submit]', e.target); btn.disabled = true;
+  try { const r = await api.post('/api/auth/login', values(e.target)); go(r.role); }
+  catch (err) { show(err.message); btn.disabled = false; }
+};
+
+el('#registerForm').onsubmit = async (e) => {
+  e.preventDefault();
+  const btn = el('button[type=submit]', e.target); btn.disabled = true;
+  try { await api.post('/api/auth/register', values(e.target)); location.href = '/dashboard'; }
+  catch (err) { show(err.message); btn.disabled = false; }
+};
+
+/* pehle se logged in ho to seedha andar */
+api.get('/api/me').then(u => go(u.role)).catch(() => {});
+</script>
+</body>
+</html>

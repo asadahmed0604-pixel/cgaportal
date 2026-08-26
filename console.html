@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EduGrads Console — CGA</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=League+Spartan:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<div id="shell"></div>
+<main class="wrap">
+  <div id="hello" style="margin-bottom:20px"></div>
+  <nav class="tabs" role="tablist">
+    <button class="tab" role="tab" data-view="overview" aria-selected="true">Overview</button>
+    <button class="tab" role="tab" data-view="subjects" aria-selected="false">Subjects</button>
+    <button class="tab" role="tab" data-view="students" aria-selected="false">Students</button>
+    <button class="tab" role="tab" data-view="marking" aria-selected="false">Marking</button>
+    <button class="tab" role="tab" data-view="notices" aria-selected="false">Announcements</button>
+  </nav>
+  <div id="view"></div>
+  <p class="footer-note">EduGrads Console · Cambridge Grads Academy</p>
+</main>
+<script src="/js/common.js"></script>
+<script src="/js/console.js"></script>
+</body>
+</html>
