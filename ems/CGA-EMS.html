@@ -1,0 +1,2588 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CGA EMS — Cambridge Grads Academy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=League+Spartan:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+:root{
+  /* Cambridge Grads Academy branding — green #159670 · navy #174B60 · yellow #FFCC68 */
+  --red:#159670; --red-dark:#0F7657; --red-tint:#E6F5F0; --danger:#C0392B;
+  --black:#174B60; --ink:#12313D; --muted:#6d6d6d;
+  --accent:#FFCC68; --accent-dark:#E0A62F;
+  --bg:#ffffff; --panel:#ffffff; --line:#e6e6e6; --soft:#f6f8f8;
+  --ok:#159670; --ok-tint:#E6F5F0;
+  --radius:12px;
+  font-size:15px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"League Spartan","Segoe UI",Arial,Helvetica,sans-serif;background:var(--bg);color:var(--ink);display:flex;min-height:100vh}
+button{font-family:inherit;cursor:pointer;border:none;border-radius:8px;font-size:.92rem}
+input,select,textarea{font-family:inherit;font-size:.95rem;padding:9px 11px;border:1px solid #cfcfcf;border-radius:8px;background:#fff;color:var(--ink);width:100%}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--red);outline-offset:1px;border-color:var(--red)}
+label{font-size:.8rem;font-weight:600;color:#333;display:block;margin-bottom:5px;letter-spacing:.02em}
+h2{font-size:1.35rem;font-weight:800;letter-spacing:-.01em}
+h3{font-size:1.02rem;font-weight:700}
+
+/* ---------- Sidebar ---------- */
+.sidebar{width:232px;background:var(--black);color:#fff;display:flex;flex-direction:column;position:sticky;top:0;height:100vh;flex-shrink:0}
+.brand{padding:20px 18px 16px;border-bottom:1px solid #235F78}
+.brand .logo{display:flex;align-items:center;gap:10px}
+.brand .mark{width:38px;height:38px;background:var(--red);color:#fff;border-radius:9px;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:1.05rem;overflow:hidden;flex-shrink:0}
+.brand .mark.has-logo{background:#fff;padding:2px}
+.brand .mark img{width:100%;height:100%;object-fit:contain;display:block}
+.brand b{font-size:1rem;line-height:1.2;display:block}
+.brand small{color:#9CBCC9;font-size:.7rem;letter-spacing:.08em;text-transform:uppercase}
+.nav{flex:1;overflow-y:auto;padding:10px 0}
+.nav button{display:flex;align-items:center;gap:10px;width:100%;background:none;color:#c9c9c9;padding:11px 18px;text-align:left;border-radius:0;font-size:.93rem;border-left:3px solid transparent}
+.nav button:hover{background:#1E5E77;color:#fff}
+.nav button.active{background:#1E5E77;color:#fff;border-left:3px solid var(--accent);font-weight:600}
+.nav .ico{width:20px;text-align:center;font-size:1rem}
+.side-foot{padding:12px 18px;border-top:1px solid #235F78;color:#9CBCC9;font-size:.72rem}
+
+/* ---------- Main ---------- */
+.main{flex:1;padding:26px 30px;min-width:0}
+.page{display:none}
+.page.show{display:block;animation:fade .18s ease}
+@keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.page-head{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:20px;flex-wrap:wrap}
+.page-head h2{position:relative;padding-bottom:8px}
+.page-head h2::after{content:"";position:absolute;left:0;bottom:0;width:44px;height:3px;background:var(--red);border-radius:2px}
+.sub{color:var(--muted);font-size:.85rem;margin-top:4px}
+
+/* ---------- Buttons ---------- */
+.btn-red{background:var(--red);color:#fff;padding:10px 16px;font-weight:600}
+.btn-red:hover{background:var(--red-dark)}
+.btn-black{background:var(--black);color:#fff;padding:10px 16px;font-weight:600}
+.btn-black:hover{background:#1E5E77}
+.btn-line{background:#fff;color:var(--ink);border:1px solid #c9c9c9;padding:9px 14px;font-weight:600}
+.btn-line:hover{border-color:var(--black)}
+.btn-danger{background:var(--danger);color:#fff;padding:10px 16px;font-weight:600}
+.btn-danger:hover{background:#9C2C1F}
+.btn-sm{padding:6px 10px;font-size:.8rem;border-radius:6px}
+.btn-red:focus-visible,.btn-black:focus-visible,.btn-line:focus-visible{outline:2px solid var(--red);outline-offset:2px}
+
+/* ---------- Cards / grid ---------- */
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px;margin-bottom:22px}
+.card{background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px}
+.card .k{font-size:.74rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em}
+.card .v{font-size:1.7rem;font-weight:800;margin-top:6px}
+.card .v.red{color:var(--red)}
+.card .v.green{color:var(--ok)}
+.card .hint{font-size:.78rem;color:var(--muted);margin-top:4px}
+.panel{background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:18px;margin-bottom:18px}
+.panel h3{margin-bottom:12px;padding-bottom:8px;border-bottom:2px solid var(--black);display:inline-block}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.field{margin-bottom:12px}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:end;margin-bottom:14px}
+.toolbar .field{margin-bottom:0;min-width:150px}
+
+/* ---------- Tables ---------- */
+.tbl-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--radius);background:#fff}
+table{width:100%;border-collapse:collapse;font-size:.88rem}
+th{background:var(--black);color:#fff;text-align:left;padding:10px 12px;font-size:.75rem;text-transform:uppercase;letter-spacing:.06em;white-space:nowrap}
+td{padding:10px 12px;border-top:1px solid var(--line);vertical-align:middle}
+tr:hover td{background:var(--soft)}
+.empty{padding:26px;text-align:center;color:var(--muted);font-size:.9rem}
+
+/* ---------- Badges ---------- */
+.badge{display:inline-block;padding:3px 10px;border-radius:999px;font-size:.72rem;font-weight:700;letter-spacing:.03em}
+.b-active{background:var(--black);color:#fff}
+.b-graduate{background:var(--ok-tint);color:var(--ok);border:1px solid var(--ok)}
+.b-left{background:var(--danger);color:#fff}
+.b-freeze{background:#e3e3e3;color:#444}
+.b-paid{background:var(--ok-tint);color:var(--ok);border:1px solid var(--ok)}
+.b-unpaid{background:var(--danger);color:#fff}
+.b-P{background:var(--black);color:#fff}
+.b-A{background:var(--danger);color:#fff}
+.b-L{background:#e3e3e3;color:#444}
+
+/* ---------- Avatars ---------- */
+.avatar{width:38px;height:38px;border-radius:50%;object-fit:cover;border:2px solid var(--black);background:var(--soft)}
+.avatar-lg{width:96px;height:96px;border-radius:12px;object-fit:cover;border:3px solid var(--black)}
+.avatar-ph{display:inline-flex;align-items:center;justify-content:center;font-weight:800;color:#fff;background:var(--red)}
+
+/* ---------- Modal ---------- */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:flex-start;justify-content:center;padding:34px 16px;z-index:50;overflow-y:auto}
+.overlay.show{display:flex}
+.modal{background:#fff;border-radius:14px;width:100%;max-width:760px;padding:22px 24px;position:relative;animation:fade .18s ease}
+.modal.wide{max-width:920px}
+.modal h3{font-size:1.15rem;margin-bottom:16px;padding-bottom:10px;border-bottom:3px solid var(--red)}
+.modal .x{position:absolute;top:14px;right:14px;background:var(--black);color:#fff;width:30px;height:30px;border-radius:50%;font-size:1rem;line-height:1}
+.modal-foot{display:flex;justify-content:flex-end;gap:10px;margin-top:18px;padding-top:14px;border-top:1px solid var(--line)}
+
+/* ---------- Profile ---------- */
+.profile-top{display:flex;gap:18px;align-items:flex-start;margin-bottom:16px;flex-wrap:wrap}
+.profile-top .info{flex:1;min-width:220px}
+.kv{display:grid;grid-template-columns:150px 1fr;gap:4px 10px;font-size:.88rem}
+.kv .k{color:var(--muted);font-weight:600}
+.stat-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;margin:14px 0}
+.stat{border:1px solid var(--line);border-radius:8px;padding:10px;text-align:center}
+.stat b{display:block;font-size:1.25rem}
+.stat span{font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.att-bar{height:10px;background:#eee;border-radius:99px;overflow:hidden;margin-top:6px}
+.att-bar i{display:block;height:100%;background:var(--red)}
+.tabs{display:flex;gap:6px;margin:14px 0 10px;border-bottom:2px solid var(--black)}
+.tabs button{background:none;padding:8px 14px;border-radius:8px 8px 0 0;font-weight:600;color:var(--muted)}
+.tabs button.on{background:var(--black);color:#fff}
+.tabpane{display:none}
+.tabpane.on{display:block}
+.note{background:var(--red-tint);border-left:4px solid var(--red);padding:10px 12px;border-radius:0 8px 8px 0;font-size:.85rem;margin-bottom:12px}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.chip{background:var(--soft);border:1px solid var(--line);border-radius:999px;padding:4px 12px;font-size:.78rem;font-weight:600;display:inline-flex;align-items:center;gap:8px}
+.chip button{background:none;color:var(--danger);font-weight:900;font-size:.9rem;padding:0}
+.att-opts{display:flex;gap:4px}
+.att-opts button{padding:5px 10px;border:1px solid #c9c9c9;background:#fff;border-radius:6px;font-size:.78rem;font-weight:700}
+.att-opts button.selP{background:var(--black);color:#fff;border-color:var(--black)}
+.att-opts button.selA{background:var(--danger);color:#fff;border-color:var(--danger)}
+.att-opts button.selL{background:#bdbdbd;color:#fff;border-color:#bdbdbd}
+.toast{position:fixed;bottom:22px;right:22px;background:var(--black);color:#fff;padding:12px 18px;border-radius:10px;border-left:4px solid var(--red);font-size:.9rem;display:none;z-index:99}
+.toast.show{display:block;animation:fade .2s ease}
+
+/* ---------- Challan print ---------- */
+#challanPrint{display:none}
+@media print{
+  body > *:not(#challanPrint){display:none !important}
+  #challanPrint{display:block;position:static;width:100%}
+  @page{size:A4;margin:8mm}
+  /* 2 challans per page — compact sizing */
+  .ch-sheet .challan{max-width:100%;font-size:.78rem;page-break-inside:avoid;break-inside:avoid}
+  .ch-sheet .ch-head{padding:8px 14px}
+  .ch-sheet .ch-body{padding:8px 14px}
+  .ch-sheet .challan table td{padding:4px 8px}
+  .ch-sheet .ch-foot{padding:6px 14px}
+  .ch-sheet .ch-amt{font-size:1.05rem}
+  .ch-cut{max-width:100%}
+}
+.ch-copy{background:#fff;color:var(--black);padding:3px 10px;border-radius:6px;font-weight:800;font-size:.68rem;letter-spacing:.06em;display:inline-block;margin-top:6px}
+.ch-cut{text-align:center;color:#777;font-size:.75rem;max-width:640px;margin:10px auto;border-top:2px dashed #999;padding-top:3px}
+.challan{border:2px solid var(--black);max-width:640px;margin:0 auto;padding:0;font-size:.9rem}
+.challan .ch-head{background:var(--black);color:#fff;padding:14px 18px;display:flex;justify-content:space-between;align-items:center}
+.challan .ch-head .red{color:#fff;background:var(--red);padding:4px 10px;border-radius:6px;font-weight:800;font-size:.8rem}
+.challan .ch-body{padding:16px 18px}
+.challan table td{border:1px solid #999;padding:8px 10px}
+.challan .ch-amt{font-size:1.3rem;font-weight:900;color:var(--red)}
+.challan .ch-foot{border-top:2px dashed #999;padding:12px 18px;display:flex;justify-content:space-between;font-size:.78rem;color:#444}
+
+/* ---------- Gallery ---------- */
+.gallery-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:14px}
+.gcard{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;cursor:pointer;transition:box-shadow .15s, transform .15s;text-align:center}
+.gcard:hover{box-shadow:0 6px 18px rgba(0,0,0,.12);transform:translateY(-2px)}
+.gcard .gphoto{width:100%;height:150px;object-fit:cover;display:block;background:#eee}
+.gcard .gph{width:100%;height:150px;display:flex;align-items:center;justify-content:center;font-size:2.6rem;font-weight:900;color:#fff;background:var(--red)}
+.gcard .gbody{padding:10px 8px}
+.gcard .gname{font-weight:700;font-size:.9rem;line-height:1.25}
+.gcard .greg{font-size:.72rem;color:var(--muted);margin:2px 0 6px}
+.gcard .gcourse{font-size:.7rem;color:#444;margin-bottom:6px;min-height:2em}
+
+/* ---------- Photo Lightbox ---------- */
+.lightbox{position:fixed;inset:0;background:rgba(0,0,0,.88);display:none;align-items:center;justify-content:center;z-index:300;cursor:zoom-out}
+.lightbox.show{display:flex}
+.lightbox img{max-width:94vw;max-height:92vh;object-fit:contain;border-radius:6px;box-shadow:0 10px 40px rgba(0,0,0,.5)}
+.lightbox .lx-close{position:absolute;top:14px;right:18px;background:rgba(255,255,255,.15);color:#fff;width:38px;height:38px;border-radius:50%;font-size:1.1rem}
+.avatar,.avatar-lg,.gphoto{cursor:zoom-in}
+
+/* ---------- Search suggestion dropdown (challan student search) ---------- */
+.sugg{position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #cfcfcf;border-radius:8px;box-shadow:0 10px 24px rgba(0,0,0,.14);max-height:240px;overflow-y:auto;z-index:60;display:none}
+.sugg.show{display:block}
+.sugg button{display:block;width:100%;text-align:left;background:none;padding:9px 12px;border-radius:0;border-bottom:1px solid #f0f0f0;font-size:.88rem}
+.sugg button:hover{background:var(--red-tint)}
+.sugg .sm{color:var(--muted);font-size:.75rem}
+.card.click{cursor:pointer;transition:box-shadow .15s,border-color .15s}
+.card.click:hover{box-shadow:0 4px 14px rgba(21,150,112,.18);border-color:var(--red)}
+
+@media (max-width:900px){
+  body{flex-direction:column}
+  .sidebar{width:100%;height:auto;position:static;flex-direction:row;overflow-x:auto;align-items:center}
+  .brand{border:none;flex-shrink:0}
+  .nav{display:flex;padding:0}
+  .nav button{white-space:nowrap;border-left:none;border-bottom:3px solid transparent}
+  .nav button.active{border-left:none;border-bottom:3px solid var(--red)}
+  .side-foot{display:none}
+  .grid2,.grid3,.grid4{grid-template-columns:1fr}
+  .main{padding:16px}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+<aside class="sidebar">
+  <div class="brand">
+    <div class="logo">
+      <div class="mark" id="brandMark">CGA</div>
+      <div><b id="brandName">Cambridge Grads Academy</b><small>EMS · Education Management</small></div>
+    </div>
+  </div>
+  <nav class="nav" id="nav">
+    <button data-page="dashboard" class="active"><span class="ico">▦</span> Dashboard</button>
+    <button data-page="students"><span class="ico">🎓</span> Students</button>
+    <button data-page="gallery"><span class="ico">🖼</span> Gallery</button>
+    <button data-page="attendance"><span class="ico">🗓</span> Attendance</button>
+    <button data-page="fees"><span class="ico">₨</span> Fee / Billing</button>
+    <button data-page="homework"><span class="ico">📚</span> Homework</button>
+    <button data-page="inquiries"><span class="ico">☎</span> Inquiries</button>
+    <button data-page="exams"><span class="ico">📝</span> Exams</button>
+    <button data-page="employees"><span class="ico">👥</span> Employees</button>
+    <button data-page="finance"><span class="ico">💰</span> Income / Expense</button>
+    <button data-page="reports"><span class="ico">📊</span> Monthly Report</button>
+    <button data-page="settings"><span class="ico">⚙</span> Settings</button>
+  </nav>
+  <div class="side-foot">CGA EMS · Offline system — data is saved in this browser</div>
+</aside>
+
+<main class="main">
+
+<!-- ================= DASHBOARD ================= -->
+<section class="page show" id="page-dashboard">
+  <div class="page-head"><div><h2>Dashboard</h2><div class="sub" id="todayLine"></div></div></div>
+  <div class="cards">
+    <div class="card"><div class="k">Active Students</div><div class="v" id="dActive">0</div><div class="hint" id="dTotal"></div></div>
+    <div class="card"><div class="k">🌅 Morning Students</div><div class="v" id="dMornStu">0</div><div class="hint" id="dMornStuT"></div></div>
+    <div class="card"><div class="k">🌆 Evening Students</div><div class="v" id="dEveStu">0</div><div class="hint" id="dEveStuT"></div></div>
+    <div class="card"><div class="k">👥 Total Staff</div><div class="v" id="dStaff">0</div><div class="hint" id="dStaffHint"></div></div>
+    <div class="card"><div class="k">Unpaid Challans</div><div class="v red" id="dUnpaid">0</div><div class="hint" id="dUnpaidAmt"></div></div>
+    <div class="card"><div class="k">Income (This Month)</div><div class="v green" id="dIncome">0</div><div class="hint">Paid fees + other income</div></div>
+    <div class="card"><div class="k">Expense (This Month)</div><div class="v red" id="dExpense">0</div><div class="hint" id="dNet"></div></div>
+    <div class="card"><div class="k">🌅 Morning (School) Income</div><div class="v" id="dMornInc">0</div><div class="hint">Paid fees — Morning shift (this month)</div></div>
+    <div class="card"><div class="k">🌆 Evening (Academy) Income</div><div class="v" id="dEveInc">0</div><div class="hint">Paid fees — Evening shift (this month)</div></div>
+  </div>
+  <div class="grid2">
+    <div class="panel"><h3>Students per Class</h3><div class="tbl-wrap"><table><thead><tr><th>Class</th><th>🌅 Morning</th><th>🌆 Evening</th><th>Active</th><th>Total</th></tr></thead><tbody id="dCourseRows"></tbody></table></div></div>
+    <div class="panel"><h3>Recent Inquiries</h3><div class="tbl-wrap"><table><thead><tr><th>Name</th><th>Class</th><th>Phone</th><th>Date</th></tr></thead><tbody id="dInqRows"></tbody></table></div></div>
+  </div>
+</section>
+
+<!-- ================= STUDENTS ================= -->
+<section class="page" id="page-students">
+  <div class="page-head">
+    <div><h2>Students</h2><div class="sub">Enrollment & profile management</div></div>
+    <button class="btn-red" onclick="openStudentForm()">+ New Enrollment</button>
+  </div>
+  <div class="toolbar">
+    <div class="field" style="flex:1;min-width:200px"><label>Search</label><input id="stuSearch" placeholder="Name / Reg No / Phone" oninput="renderStudents()"></div>
+    <div class="field"><label>Class</label><select id="stuFCourse" onchange="renderStudents()"><option value="">All Classes</option></select></div>
+    <div class="field"><label>Shift</label><select id="stuFShift" onchange="renderStudents()"><option value="">All Shifts</option><option>Morning</option><option>Evening</option></select></div>
+    <div class="field"><label>Status</label><select id="stuFStatus" onchange="renderStudents()"><option value="">All</option><option>Active</option><option>Graduate</option><option>Left</option><option>Freeze</option></select></div>
+  </div>
+  <div class="cards">
+    <div class="card"><div class="k">Total Students</div><div class="v" id="sTotal">0</div><div class="hint" id="sTotalHint"></div></div>
+    <div class="card"><div class="k">🌅 Morning Students</div><div class="v" id="sMorn">0</div><div class="hint" id="sMornHint"></div></div>
+    <div class="card"><div class="k">🌆 Evening Students</div><div class="v" id="sEve">0</div><div class="hint" id="sEveHint"></div></div>
+  </div>
+  <div class="sub" id="stuCount" style="margin-bottom:8px"></div>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>#</th><th></th><th>Reg No</th><th>Name</th><th>Father</th><th>Class</th><th>Shift</th><th>Subjects / Group</th><th>Fee</th><th>Status</th><th>Actions</th></tr></thead>
+    <tbody id="stuRows"></tbody>
+  </table></div>
+</section>
+
+<!-- ================= GALLERY ================= -->
+<section class="page" id="page-gallery">
+  <div class="page-head">
+    <div><h2>Gallery</h2><div class="sub">Students ki photos — status ke hisaab se dekhein</div></div>
+  </div>
+  <div class="toolbar">
+    <div class="field"><label>Status</label><select id="galFStatus" onchange="renderGallery()"><option value="Active" selected>Active</option><option>Graduate</option><option>Left</option><option>Freeze</option><option value="">All Students</option></select></div>
+    <div class="field"><label>Class</label><select id="galFCourse" onchange="renderGallery()"><option value="">All Classes</option></select></div>
+    <div class="field"><label>Shift</label><select id="galFShift" onchange="renderGallery()"><option value="">All Shifts</option><option>Morning</option><option>Evening</option></select></div>
+    <div class="field" style="flex:1;min-width:180px"><label>Search</label><input id="galSearch" placeholder="Name / Reg No" oninput="renderGallery()"></div>
+  </div>
+  <div class="sub" id="galCount" style="margin-bottom:12px"></div>
+  <div class="gallery-grid" id="galGrid"></div>
+</section>
+
+<!-- ================= ATTENDANCE ================= -->
+<section class="page" id="page-attendance">
+  <div class="page-head"><div><h2>Attendance</h2><div class="sub">Working days: Monday – Friday · Saturday & Sunday off</div></div></div>
+  <div class="panel">
+    <div class="toolbar">
+      <div class="field"><label>Date</label><input type="date" id="attDate" onchange="loadAttendance()"></div>
+      <div class="field"><label>Shift</label><select id="attShift" onchange="loadAttendance()"><option value="Morning">Morning — School System</option><option value="Evening">Evening — Academy</option></select></div>
+      <button class="btn-black" onclick="markAll('P')">All Present</button>
+      <button class="btn-red" onclick="saveAttendance()">Save Attendance</button>
+    </div>
+    <div id="attWarn"></div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Reg No</th><th>Student</th><th>Class</th><th>Status</th><th>Time</th></tr></thead>
+      <tbody id="attRows"></tbody>
+    </table></div>
+  </div>
+  <div class="panel" style="margin-top:16px">
+    <h3>Attendance Report Export</h3>
+    <p class="sub" style="margin:4px 0 12px">Poore month ka attendance register Excel (CSV) ya PDF mein download karein.</p>
+    <div class="toolbar">
+      <div class="field"><label>Month</label><input type="month" id="attRepMonth"></div>
+      <div class="field"><label>Shift</label><select id="attRepShift"><option value="Morning">Morning</option><option value="Evening">Evening</option><option value="">Both Shifts</option></select></div>
+      <button class="btn-black" onclick="exportAttCSV()">⬇ Export Excel (CSV)</button>
+      <button class="btn-red" onclick="exportAttPDF()">🖨 Export PDF / Print</button>
+    </div>
+  </div>
+</section>
+
+<!-- ================= HOMEWORK ================= -->
+<section class="page" id="page-homework">
+  <div class="page-head">
+    <div><h2>Homework / Assignments</h2><div class="sub">Class & shift ke hisaab se homework dein — student profile par khud show hoga</div></div>
+    <button class="btn-red" onclick="openHwForm()">+ New Homework</button>
+  </div>
+  <div class="toolbar">
+    <div class="field"><label>Class</label><select id="hwFCourse" onchange="renderHomework()"><option value="">All Classes</option></select></div>
+    <div class="field"><label>Shift</label><select id="hwFShift" onchange="renderHomework()"><option value="">All</option><option>Morning</option><option>Evening</option></select></div>
+  </div>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Date Given</th><th>Title</th><th>Class</th><th>Shift</th><th>Due Date</th><th>Detail</th><th>Submitted</th><th>Actions</th></tr></thead>
+    <tbody id="hwRows"></tbody>
+  </table></div>
+</section>
+
+<!-- ================= FEES ================= -->
+<section class="page" id="page-fees">
+  <div class="page-head">
+    <div><h2>Fee / Billing</h2><div class="sub">Challans, paid & unpaid record</div></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn-black" onclick="openDefaulters()">⚠ Defaulter List</button>
+      <button class="btn-black" onclick="openBulkChallan()">⚡ Generate All Challans</button>
+      <button class="btn-red" onclick="openChallanForm()">+ New Fee Challan</button>
+    </div>
+  </div>
+  <div class="cards">
+    <div class="card click" onclick="openDefaulters()" title="Defaulter list dekhne ke liye click karein"><div class="k">⚠ Defaulters</div><div class="v red" id="feeDefN">0</div><div class="hint" id="feeDefAmt"></div></div>
+    <div class="card"><div class="k">Paid (This Month)</div><div class="v" id="feePaidM">0</div></div>
+    <div class="card"><div class="k">Unpaid (All)</div><div class="v red" id="feeUnpaidAll">0</div></div>
+    <div class="card"><div class="k">🌅 Morning Paid (This Month)</div><div class="v" id="feeMornM">0</div></div>
+    <div class="card"><div class="k">🌆 Evening Paid (This Month)</div><div class="v" id="feeEveM">0</div></div>
+  </div>
+  <div class="toolbar">
+    <div class="field"><label>Status</label><select id="feeFStatus" onchange="renderFees()"><option value="">All</option><option value="Paid">Paid</option><option value="Unpaid">Unpaid</option></select></div>
+    <div class="field"><label>Fee Month</label><input type="month" id="feeFMonth" onchange="renderFees()"></div>
+    <div class="field" style="flex:1"><label>Search Student</label><input id="feeSearch" placeholder="Name / Reg No" oninput="renderFees()"></div>
+  </div>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Challan #</th><th>Student</th><th>Fee Month</th><th>Amount (Rs)</th><th>Due Date</th><th>Status</th><th>Paid Date</th><th>Actions</th></tr></thead>
+    <tbody id="feeRows"></tbody>
+  </table></div>
+</section>
+
+<!-- ================= INQUIRIES ================= -->
+<section class="page" id="page-inquiries">
+  <div class="page-head">
+    <div><h2>Inquiries</h2><div class="sub">Phone call inquiries record</div></div>
+    <button class="btn-red" onclick="openInqForm()">+ New Inquiry</button>
+  </div>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Date</th><th>Name</th><th>Phone</th><th>Interested Class</th><th>Agreed Fee</th><th>City / Area</th><th>Detail</th><th>Actions</th></tr></thead>
+    <tbody id="inqRows"></tbody>
+  </table></div>
+</section>
+
+<!-- ================= EXAMS ================= -->
+<section class="page" id="page-exams">
+  <div class="page-head">
+    <div><h2>Exams</h2><div class="sub">Exam marks record</div></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn-black" onclick="openClassResult()">📊 Class Result</button>
+      <button class="btn-black" onclick="openReportCard()">🎓 Report Card / Transcript</button>
+      <button class="btn-red" onclick="openExamForm()">+ Add Exam Marks</button>
+    </div>
+  </div>
+  <div class="toolbar">
+    <div class="field"><label>Class</label><select id="examFCourse" onchange="renderExams()"><option value="">All Classes</option></select></div>
+    <div class="field"><label>Shift</label><select id="examFShift" onchange="renderExams()"><option value="">All</option><option>Morning</option><option>Evening</option></select></div>
+    <div class="field"><label>Month</label><input type="month" id="examFMonth" onchange="renderExams()"></div>
+    <div class="field" style="flex:1"><label>Search Student</label><input id="examSearch" placeholder="Name / Reg No" oninput="renderExams()"></div>
+  </div>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Date</th><th>Student</th><th>Exam</th><th>Subject / Topic</th><th>Obtained</th><th>Total</th><th>%</th><th>Result</th><th>Comment</th><th>Actions</th></tr></thead>
+    <tbody id="examRows"></tbody>
+  </table></div>
+</section>
+
+<!-- ================= EMPLOYEES ================= -->
+<section class="page" id="page-employees">
+  <div class="page-head">
+    <div><h2>Employees</h2><div class="sub">Admin · Teachers · Coordinator · Supportive Staff</div></div>
+    <button class="btn-red" onclick="openEmpForm()">+ New Employee</button>
+  </div>
+  <div class="toolbar">
+    <div class="field"><label>Category</label><select id="empFCat" onchange="renderEmployees()"><option value="">All</option><option>Admin</option><option>Teacher</option><option>Coordinator</option><option>Supportive Staff</option></select></div>
+  </div>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>#</th><th></th><th>Name</th><th>Category</th><th>Phone</th><th>Joining Date</th><th>Assignments (Class · Shift)</th><th>Actions</th></tr></thead>
+    <tbody id="empRows"></tbody>
+  </table></div>
+
+  <div class="panel" style="margin-top:16px">
+    <h3>👥 Staff Attendance</h3>
+    <p class="sub" style="margin:4px 0 12px">Working days: Monday – Friday · Saturday & Sunday off</p>
+    <div class="toolbar">
+      <div class="field"><label>Date</label><input type="date" id="empAttDate" onchange="loadEmpAttendance()"></div>
+      <button class="btn-black" onclick="empMarkAll('P')">All Present</button>
+      <button class="btn-red" onclick="saveEmpAttendance()">Save Attendance</button>
+    </div>
+    <div id="empAttWarn"></div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>#</th><th></th><th>Employee</th><th>Category</th><th>Status</th><th>Time</th></tr></thead>
+      <tbody id="empAttRows"></tbody>
+    </table></div>
+  </div>
+
+  <div class="panel" style="margin-top:16px">
+    <h3>Staff Attendance Report Export</h3>
+    <p class="sub" style="margin:4px 0 12px">Poore month ka staff attendance register Excel (CSV) ya PDF mein download karein.</p>
+    <div class="toolbar">
+      <div class="field"><label>Month</label><input type="month" id="empAttRepMonth"></div>
+      <button class="btn-black" onclick="exportEmpAttCSV()">⬇ Export Excel (CSV)</button>
+      <button class="btn-red" onclick="exportEmpAttPDF()">🖨 Export PDF / Print</button>
+    </div>
+  </div>
+</section>
+
+<!-- ================= FINANCE ================= -->
+<section class="page" id="page-finance">
+  <div class="page-head">
+    <div><h2>Income / Expense</h2><div class="sub">Petty expenses & other income (manual entry)</div></div>
+    <button class="btn-red" onclick="openTxnForm()">+ Add Entry</button>
+  </div>
+  <div class="note">Student fee jab <b>Paid</b> mark hoti hai to wo income mein khud shamil ho jati hai — usay yahan dobara add na karein. Yahan sirf petty expenses aur other income likhein.</div>
+  <div class="cards">
+    <div class="card"><div class="k">Total Income</div><div class="v green" id="finInc">0</div><div class="hint" id="finIncHint"></div></div>
+    <div class="card"><div class="k">Fee Income</div><div class="v" id="finFee">0</div><div class="hint">Paid challans</div></div>
+    <div class="card"><div class="k">Other Income</div><div class="v" id="finOther">0</div><div class="hint">Manual entries</div></div>
+    <div class="card"><div class="k">Total Expense</div><div class="v red" id="finExp">0</div><div class="hint" id="finExpHint"></div></div>
+    <div class="card"><div class="k">Net (Profit / Loss)</div><div class="v" id="finNet">0</div><div class="hint" id="finNetHint"></div></div>
+  </div>
+  <div class="toolbar">
+    <div class="field"><label>Type</label><select id="txnFType" onchange="renderFinance()"><option value="">All</option><option value="Income">Income</option><option value="Expense">Expense</option></select></div>
+    <div class="field"><label>Month</label><input type="month" id="txnFMonth" onchange="renderFinance()"></div>
+  </div>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>#</th><th>Date</th><th>Type</th><th>Description</th><th>Amount (Rs)</th><th>Actions</th></tr></thead>
+    <tbody id="txnRows"></tbody>
+  </table></div>
+
+  <div class="panel" style="margin-top:16px">
+    <h3>📊 Profit & Loss Report Export</h3>
+    <p class="sub" style="margin:4px 0 12px">Selected month ki mukammal Profit & Loss sheet — tamam income (fees + other) aur expenses ki detail ke sath — Excel (CSV) ya PDF mein download karein.</p>
+    <div class="toolbar">
+      <div class="field"><label>Month</label><input type="month" id="plMonth"></div>
+      <button class="btn-black" onclick="exportPLCSV()">⬇ Export Excel (CSV)</button>
+      <button class="btn-red" onclick="exportPLPDF()">🖨 Export PDF / Print</button>
+    </div>
+  </div>
+</section>
+
+<!-- ================= REPORTS ================= -->
+<section class="page" id="page-reports">
+  <div class="page-head"><div><h2>Monthly Report</h2><div class="sub">Income, expense & net profit</div></div></div>
+  <div class="toolbar">
+    <div class="field"><label>Select Month</label><input type="month" id="repMonth" onchange="renderReport()"></div>
+  </div>
+  <div class="cards">
+    <div class="card"><div class="k">Fee Income</div><div class="v" id="rFee">0</div><div class="hint" id="rFeeCount"></div></div>
+    <div class="card"><div class="k">🌅 Morning Slot</div><div class="v" id="rMorn">0</div><div class="hint" id="rMornCount"></div></div>
+    <div class="card"><div class="k">🌆 Evening Slot</div><div class="v" id="rEve">0</div><div class="hint" id="rEveCount"></div></div>
+    <div class="card"><div class="k">Other Income</div><div class="v" id="rOther">0</div></div>
+    <div class="card"><div class="k">Total Expense</div><div class="v red" id="rExp">0</div></div>
+    <div class="card"><div class="k">Net (Profit / Loss)</div><div class="v" id="rNet">0</div></div>
+  </div>
+  <div class="grid2">
+    <div class="panel"><h3>Income Detail</h3><div class="tbl-wrap"><table><thead><tr><th>Date</th><th>Description</th><th>Amount</th></tr></thead><tbody id="rIncRows"></tbody></table></div></div>
+    <div class="panel"><h3>Expense Detail</h3><div class="tbl-wrap"><table><thead><tr><th>Date</th><th>Description</th><th>Amount</th></tr></thead><tbody id="rExpRows"></tbody></table></div></div>
+  </div>
+</section>
+
+<!-- ================= SETTINGS ================= -->
+<section class="page" id="page-settings">
+  <div class="page-head"><div><h2>Settings</h2><div class="sub">Academy details & data backup</div></div></div>
+  <div class="panel" style="max-width:560px">
+    <h3>Academy Details (challan par print hongi)</h3>
+    <div class="field"><label>Academy Name</label><input id="setName"></div>
+    <div class="field"><label>Address</label><input id="setAddr"></div>
+    <div class="field"><label>Phone</label><input id="setPhone"></div>
+    <button class="btn-red" onclick="saveSettings()">Save Settings</button>
+  </div>
+
+  <div class="panel" style="max-width:560px">
+    <h3>Academy Logo</h3>
+    <p class="sub" style="margin-bottom:10px">cga.com.pk wala logo yahan upload karein — phir har challan, report card, register aur profile par khud chhapega.</p>
+    <div id="logoPrev" style="margin-bottom:10px"></div>
+    <input type="file" id="logoFile" accept="image/*" onchange="pickLogo(this)" style="display:none">
+    <button class="btn-red" onclick="document.getElementById('logoFile').click()">⬆ Upload Logo</button>
+    <button class="btn-line" onclick="removeLogo()">Remove</button>
+  </div>
+
+  <div class="panel">
+    <h3>Subjects Offered</h3>
+    <p class="sub" style="margin-bottom:12px">Ye wahi list hai jo student enrollment ke waqt subject dropdown mein aati hai. Level ke hisaab se filter hoti hai — Junior (Pre O / Grade 5–8), O Level (FT1, FT2, O1–O3), A Level (AS, A2, Composite).</p>
+    <div class="toolbar">
+      <div class="field" style="flex:1;min-width:190px"><label>Subject Name</label><input id="ns_name" placeholder="e.g. Additional Mathematics"></div>
+      <div class="field"><label>Level</label><select id="ns_level"><option>Junior</option><option selected>O Level</option><option>A Level</option></select></div>
+      <div class="field"><label>Default Fee (Rs)</label><input type="number" id="ns_fee" style="max-width:150px" placeholder="optional"></div>
+      <button class="btn-black" onclick="addCatalogSubject()">+ Add to List</button>
+    </div>
+    <div id="subjAdmin"></div>
+  </div>
+  <div class="panel" style="max-width:560px">
+    <h3>Data Backup & Transfer (Laptop → Laptop)</h3>
+    <p class="sub" style="margin-bottom:12px">Data isi browser mein save hota hai. Mahiney mein aik dafa backup file zaroor download karein.</p>
+    <div class="note" style="margin-bottom:12px"><b>Dosre laptop par data le jane ka tareeqa:</b><br>
+      1. Is laptop par <b>"⬇ Download Backup"</b> dabayein — ek JSON file download hogi.<br>
+      2. Wo JSON file (aur ye HTML file) USB/email se dosre laptop par le jayein.<br>
+      3. Dosre laptop par ye HTML file kholein aur <b>"⬆ Import Backup"</b> daba kar wo JSON file select karein.<br>
+      4. Sara data — students, photos, fees, attendance, exams, homework — waisa ka waisa aa jayega.</div>
+    <button class="btn-black" onclick="exportData()">⬇ Download Backup (JSON)</button>
+    <button class="btn-line" onclick="document.getElementById('importFile').click()">⬆ Import Backup</button>
+    <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(this)">
+  </div>
+</section>
+
+</main>
+
+<!-- ============ MODALS ============ -->
+<div class="overlay" id="modalOverlay"><div class="modal" id="modalBox"></div></div>
+<div class="lightbox" id="photoLightbox" onclick="closePhoto()"><button class="lx-close" onclick="closePhoto()" aria-label="Close">✕</button><img id="lxImg" alt=""></div>
+<div class="toast" id="toast"></div>
+<div id="challanPrint"></div>
+
+<script>
+/* ================= DATA STORE ================= */
+/* Morning = Main School System · Evening = Academy */
+const CLASSES_BY_SHIFT = {
+  Morning: [
+    "FT1",
+    "FT2",
+    "O1",
+    "O2",
+    "A Levels"
+  ],
+  Evening: [
+    "Pre O Levels",
+    "Grade 5",
+    "Grade 6",
+    "Grade 7",
+    "Grade 8",
+    "O1",
+    "O2",
+    "O3 (Appearing Batch)",
+    "AS",
+    "A2",
+    "AS & A2 (Composite)"
+  ]
+};
+const COURSES = [...new Set([...CLASSES_BY_SHIFT.Morning, ...CLASSES_BY_SHIFT.Evening])];
+const SHIFTS = {Morning:"School System", Evening:"Academy"};
+const SHIFT_START = {Morning:"08:00", Evening:"15:00"};
+
+/* ---------- Class → level (subject list isi se filter hoti hai) ---------- */
+const CLASS_LEVEL = {
+  "FT1":"O Level", "FT2":"O Level", "O1":"O Level", "O2":"O Level", "O3 (Appearing Batch)":"O Level",
+  "A Levels":"A Level", "AS":"A Level", "A2":"A Level", "AS & A2 (Composite)":"A Level",
+  "Pre O Levels":"Junior", "Grade 5":"Junior", "Grade 6":"Junior", "Grade 7":"Junior", "Grade 8":"Junior"
+};
+const levelOfClass = c => CLASS_LEVEL[c] || "O Level";
+
+/* ---------- Subjects offered (Settings se edit ho sakti hain) ---------- */
+const DEFAULT_SUBJECTS = [
+  ["English","Junior"],["Urdu","Junior"],["Mathematics","Junior"],["Science","Junior"],
+  ["Islamiat","Junior"],["Social Studies","Junior"],["Computer","Junior"],
+  ["Mathematics (D)","O Level"],["Additional Mathematics","O Level"],["Physics","O Level"],
+  ["Chemistry","O Level"],["Biology","O Level"],["Computer Science","O Level"],
+  ["English Language","O Level"],["Urdu","O Level"],["Islamiyat","O Level"],
+  ["Pakistan Studies","O Level"],["Accounting","O Level"],["Business Studies","O Level"],
+  ["Economics","O Level"],["Statistics","O Level"],["Sociology","O Level"],
+  ["Literature in English","O Level"],["Environmental Management","O Level"],["Global Perspectives","O Level"],
+  ["Mathematics","A Level"],["Further Mathematics","A Level"],["Physics","A Level"],
+  ["Chemistry","A Level"],["Biology","A Level"],["Computer Science","A Level"],
+  ["Accounting","A Level"],["Business","A Level"],["Economics","A Level"],
+  ["Psychology","A Level"],["Sociology","A Level"],["Law","A Level"],
+  ["English Language","A Level"],["English Literature","A Level"],
+  ["Environmental Management","A Level"],["Global Perspectives & Research","A Level"]
+];
+const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level],i)=>({id:"sub"+i, name, level, defaultFee:0}));
+
+/* ---------- Subject groups — student ke subjects se KHUD detect hote hain ---------- */
+function subjTag(name){
+  const n = String(name||"").toLowerCase();
+  if(/further/.test(n))            return "fmath";
+  if(/additional/.test(n))         return "amath";
+  if(/math/.test(n))               return "math";
+  if(/physic/.test(n))             return "phy";
+  if(/chem/.test(n))               return "chem";
+  if(/bio/.test(n))                return "bio";
+  if(/comput|\bict\b/.test(n))    return "cs";
+  if(/account/.test(n))            return "acc";
+  if(/business/.test(n))           return "bus";
+  if(/econom/.test(n))             return "eco";
+  if(/sociolog/.test(n))           return "soc";
+  if(/psycholog/.test(n))          return "psy";
+  return "";
+}
+/* Tarteeb ahem hai — pehla match jeet-ta hai */
+const GROUP_RULES = [
+  {name:"Pre-Medical (Phy · Chem · Bio)",        req:["phy","chem","bio"]},
+  {name:"Pre-Engineering (Phy · Chem · Maths)",  req:["phy","chem","math"]},
+  {name:"Computer Science (Phy · Chem · CS)",    req:["phy","chem","cs"]},
+  {name:"Maths & Computing (Phy · Maths · CS)",  req:["phy","math","cs"]},
+  {name:"Commerce (Bus · Acc · Eco)",            req:["bus","acc","eco"]},
+  {name:"Commerce with Maths (Acc · Eco · Maths)", req:["acc","eco","math"]},
+  {name:"Social Sciences (Soc · Psy)",           req:["soc","psy"]}
+];
+function detectGroup(subjects){
+  const tags = new Set((subjects||[]).map(x=>subjTag(x.name)).filter(Boolean));
+  const hit = GROUP_RULES.find(g=>g.req.every(t=>tags.has(t)));
+  return hit? hit.name : ((subjects||[]).length? "Custom / General" : "—");
+}
+/* Group sirf Morning (school) shift ka concept hai — override ho to wohi, warna auto */
+const groupOf = s => !s || s.shift!=="Morning" ? "—" : (s.groupOverride || detectGroup(s.subjects));
+/* Student ki total monthly fee — Evening mein subject-wise fees ka total */
+function studentFee(s){
+  if(!s) return 0;
+  if(s.shift==="Evening" && (s.subjects||[]).length) return s.subjects.reduce((a,x)=>a+ (+x.fee||0),0);
+  return +s.monthlyFee||0;
+}
+
+const DEFAULT_DB = {
+  students:[], inquiries:[], fees:[], exams:[], employees:[], txns:[], homework:[],
+  subjects:[],             // [{id, name, level, defaultFee}] — Settings se manage hoti hain
+  attendance:{},           // { "2026-07-07": { studentId: {s:"P|A|L", t:"08:05", shift:"Morning"} } }
+  empAttendance:{},        // { "2026-07-07": { empId: {s:"P|A|L", t:"09:00"} } }
+  counters:{reg:1, ch:1},
+  settings:{name:"Cambridge Grads Academy", addr:"", phone:"", logo:""}
+};
+
+let DB;
+let storageOK = true;
+try{
+  localStorage.setItem("__t","1"); localStorage.removeItem("__t");
+  DB = JSON.parse(localStorage.getItem("schoolAcademyDB")) || structuredClone(DEFAULT_DB);
+}catch(e){ storageOK = false; DB = structuredClone(DEFAULT_DB); }
+// fill any missing keys after updates
+for(const k in DEFAULT_DB) if(DB[k]===undefined) DB[k]=structuredClone(DEFAULT_DB[k]);
+if(DB.settings.logo===undefined) DB.settings.logo = "";
+if(!DB.subjects || !DB.subjects.length) DB.subjects = seedSubjects();
+DB.students.forEach(s=>{ if(!s.subjects) s.subjects=[]; });
+
+function save(){
+  if(!storageOK){ toast("⚠ Warning: Is preview mein data save nahi hota. File download kar ke laptop par kholein."); return; }
+  try{ localStorage.setItem("schoolAcademyDB", JSON.stringify(DB)); }
+  catch(e){ toast("⚠ Data save nahi hua — storage full ho sakta hai. Backup download karein."); }
+}
+
+/* ================= HELPERS ================= */
+const $ = id => document.getElementById(id);
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+const esc = s => String(s??"").replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const money = n => "Rs " + Number(n||0).toLocaleString("en-PK");
+const todayStr = () => new Date().toISOString().slice(0,10);
+const thisMonth = () => todayStr().slice(0,7);
+function fmtD(d){ if(!d) return "—"; const x=new Date(d+"T00:00"); return x.toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"}); }
+function fmtM(m){ if(!m) return "—"; const [y,mo]=m.split("-"); return new Date(y,mo-1,1).toLocaleDateString("en-GB",{month:"long",year:"numeric"}); }
+const isWeekend = d => { const day=new Date(d+"T00:00").getDay(); return day===0||day===6; };
+const stuById = id => DB.students.find(s=>s.id===id);
+const empById = id => DB.employees.find(e=>e.id===id);
+const teacherName = id => { const t=empById(id); return t? t.name : "—"; };
+function toast(msg){ const t=$("toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove("show"),3200); }
+function avatarHTML(st, big){
+  const cls = big? "avatar-lg" : "avatar";
+  if(st.photo) return `<img class="${cls}" src="${st.photo}" alt="" onclick="event.stopPropagation();openPhoto(this.src)" title="Photo full size dekhne ke liye click karein">`;
+  const init = esc((st.name||"?").trim().charAt(0).toUpperCase());
+  return `<span class="${cls} avatar-ph" style="${big?'font-size:2rem':''}">${init}</span>`;
+}
+function openPhoto(src){ $("lxImg").src = src; $("photoLightbox").classList.add("show"); }
+function closePhoto(){ $("photoLightbox").classList.remove("show"); $("lxImg").src=""; }
+function courseOptions(sel, shift){ const list = shift? (CLASSES_BY_SHIFT[shift]||COURSES) : COURSES; return list.map(c=>`<option ${c===sel?"selected":""}>${c}</option>`).join(""); }
+/* Shift select change hone par class dropdown us shift ki classes dikhaye */
+function syncClassSel(shiftId, classId){
+  const sh=$(shiftId).value, cur=$(classId).value;
+  const list=CLASSES_BY_SHIFT[sh]||COURSES;
+  $(classId).innerHTML = list.map(c=>`<option ${c===cur?"selected":""}>${c}</option>`).join("");
+}
+
+/* Modal */
+function openModal(html, wide){
+  $("modalBox").className = "modal"+(wide?" wide":"");
+  $("modalBox").innerHTML = `<button class="x" onclick="closeModal()" aria-label="Close">✕</button>` + html;
+  $("modalOverlay").classList.add("show");
+}
+function closeModal(){ $("modalOverlay").classList.remove("show"); }
+$("modalOverlay").addEventListener("click", e=>{ if(e.target.id==="modalOverlay") closeModal(); });
+document.addEventListener("keydown", e=>{ if(e.key==="Escape") closeModal(); });
+
+/* Navigation */
+document.querySelectorAll("#nav button").forEach(b=>{
+  b.onclick = ()=>{
+    document.querySelectorAll("#nav button").forEach(x=>x.classList.remove("active"));
+    b.classList.add("active");
+    document.querySelectorAll(".page").forEach(p=>p.classList.remove("show"));
+    $("page-"+b.dataset.page).classList.add("show");
+    renderPage(b.dataset.page);
+  };
+});
+function renderPage(p){
+  ({dashboard:renderDashboard, students:renderStudents, gallery:renderGallery, attendance:loadAttendance,
+    fees:renderFees, homework:renderHomework, inquiries:renderInquiries, exams:renderExams,
+    employees:renderEmployees, finance:renderFinance, reports:renderReport,
+    settings:loadSettings}[p]||(()=>{}))();
+}
+
+/* ================= DASHBOARD ================= */
+function renderDashboard(){
+  $("todayLine").textContent = new Date().toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long",year:"numeric"});
+  const act = DB.students.filter(s=>s.status==="Active").length;
+  $("dActive").textContent = act;
+  $("dTotal").textContent = DB.students.length + " total students";
+  $("dStaff").textContent = DB.employees.length;
+  const tch = DB.employees.filter(e=>e.category==="Teacher").length;
+  $("dStaffHint").textContent = tch + " teachers · " + (DB.employees.length - tch) + " other staff";
+  const mAll = DB.students.filter(s=>s.shift==="Morning"), eAll = DB.students.filter(s=>s.shift==="Evening");
+  $("dMornStu").textContent = mAll.filter(s=>s.status==="Active").length;
+  $("dMornStuT").textContent = mAll.length + " total · Morning shift";
+  $("dEveStu").textContent = eAll.filter(s=>s.status==="Active").length;
+  $("dEveStuT").textContent = eAll.length + " total · Evening shift";
+  const unpaid = DB.fees.filter(f=>f.status==="Unpaid");
+  $("dUnpaid").textContent = unpaid.length;
+  $("dUnpaidAmt").textContent = money(unpaid.reduce((a,f)=>a+ +f.amount,0)) + " pending";
+  const m = thisMonth();
+  const inc = monthIncome(m), exp = monthExpense(m);
+  $("dIncome").textContent = money(inc.total);
+  $("dExpense").textContent = money(exp);
+  const net = inc.total-exp;
+  $("dNet").textContent = "Net: " + money(net);
+  const si = shiftIncome(m);
+  $("dMornInc").textContent = money(si.Morning.amt);
+  $("dEveInc").textContent = money(si.Evening.amt);
+  $("dCourseRows").innerHTML = COURSES.map(c=>{
+    const all = DB.students.filter(s=>s.course===c);
+    const actS = all.filter(s=>s.status==="Active");
+    const mo = actS.filter(s=>s.shift==="Morning").length;
+    const ev = actS.filter(s=>s.shift==="Evening").length;
+    return `<tr><td>${c}</td><td><b>${mo}</b></td><td><b>${ev}</b></td><td><b>${actS.length}</b></td><td>${all.length}</td></tr>`;
+  }).join("");
+  const inq = [...DB.inquiries].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,6);
+  $("dInqRows").innerHTML = inq.length? inq.map(i=>`<tr><td>${esc(i.name)}</td><td>${esc(i.course)}</td><td>${esc(i.phone)}</td><td>${fmtD(i.date)}</td></tr>`).join("") : `<tr><td colspan="4" class="empty">Abhi koi inquiry nahi</td></tr>`;
+}
+function monthIncome(m){
+  const fee = DB.fees.filter(f=>f.status==="Paid" && (f.paidDate||"").startsWith(m)).reduce((a,f)=>a+ +f.amount,0);
+  const other = DB.txns.filter(t=>t.type==="Income" && t.date.startsWith(m)).reduce((a,t)=>a+ +t.amount,0);
+  return {fee, other, total:fee+other};
+}
+/* Shift-wise (Morning/Evening) paid fee income for a month */
+function shiftIncome(m){
+  const r = {Morning:{amt:0,n:0}, Evening:{amt:0,n:0}};
+  DB.fees.filter(f=>f.status==="Paid" && (f.paidDate||"").startsWith(m)).forEach(f=>{
+    const st = stuById(f.studentId);
+    const sh = f.shift || (st? st.shift : "");   // challan par saved shift, warna student ki current shift
+    if(r[sh]){ r[sh].amt += +f.amount; r[sh].n++; }
+  });
+  return r;
+}
+function monthExpense(m){
+  return DB.txns.filter(t=>t.type==="Expense" && t.date.startsWith(m)).reduce((a,t)=>a+ +t.amount,0);
+}
+
+/* ================= STUDENTS ================= */
+let photoTemp = null;
+function renderStudents(){
+  const q = ($("stuSearch").value||"").toLowerCase();
+  const fc=$("stuFCourse").value, fs=$("stuFShift").value, fst=$("stuFStatus").value;
+  const rows = DB.students.filter(s=>{
+    if(fc && s.course!==fc) return false;
+    if(fs && s.shift!==fs) return false;
+    if(fst && s.status!==fst) return false;
+    if(q && !((s.name+" "+s.regNo+" "+s.phone+" "+(s.cnic||"")+" "+(s.fatherCnic||"")).toLowerCase().includes(q))) return false;
+    return true;
+  }).sort((a,b)=>a.regNo.localeCompare(b.regNo));
+  /* mini dashboard on students page */
+  const actAll = DB.students.filter(s=>s.status==="Active");
+  $("sTotal").textContent = DB.students.length;
+  $("sTotalHint").textContent = actAll.length + " active";
+  const mAll = DB.students.filter(s=>s.shift==="Morning"), eAll = DB.students.filter(s=>s.shift==="Evening");
+  $("sMorn").textContent = mAll.filter(s=>s.status==="Active").length;
+  $("sMornHint").textContent = mAll.length + " total · Morning";
+  $("sEve").textContent = eAll.filter(s=>s.status==="Active").length;
+  $("sEveHint").textContent = eAll.length + " total · Evening";
+  $("stuCount").textContent = rows.length + " students is list mein";
+  $("stuRows").innerHTML = rows.length? rows.map((s,i)=>`
+    <tr>
+      <td><b>${i+1}</b></td>
+      <td>${avatarHTML(s)}</td>
+      <td><b>${esc(s.regNo)}</b></td>
+      <td>${esc(s.name)}</td>
+      <td>${esc(s.fatherName)}</td>
+      <td>${esc(s.course)}</td>
+      <td>${esc(s.shift)}</td>
+      <td style="max-width:230px">${(s.subjects||[]).length
+        ? `<b>${s.subjects.length}</b> subjects<br><span class="sub">${esc(s.shift==="Morning"? groupOf(s) : s.subjects.map(x=>x.name).join(", "))}</span>`
+        : `<span class="sub">— koi subject nahi —</span>`}</td>
+      <td><b>${money(studentFee(s))}</b></td>
+      <td><span class="badge b-${s.status.toLowerCase()}">${s.status}</span></td>
+      <td style="white-space:nowrap">
+        <button class="btn-black btn-sm" onclick="openProfile('${s.id}')">Profile</button>
+        <button class="btn-line btn-sm" onclick="openStudentForm('${s.id}')">Edit</button>
+        <button class="btn-danger btn-sm" onclick="delStudent('${s.id}')">Delete</button>
+      </td>
+    </tr>`).join("") : `<tr><td colspan="11" class="empty">Koi student nahi mila — "New Enrollment" se pehla student add karein.</td></tr>`;
+}
+
+function openStudentForm(id, prefill){
+  const s = id? stuById(id) : (prefill||{});
+  photoTemp = s.photo || null;
+  const teachers = DB.employees.filter(e=>e.category==="Teacher");
+  openModal(`
+    <h3>${id? "Edit Student":"New Student Enrollment"}</h3>
+    <div class="grid2">
+      <div class="field"><label>Student Name *</label><input id="f_name" value="${esc(s.name||"")}"></div>
+      <div class="field"><label>Father Name *</label><input id="f_father" value="${esc(s.fatherName||"")}"></div>
+      <div class="field"><label>Student B-Form / CNIC No</label><input id="f_cnic" value="${esc(s.cnic||"")}" placeholder="xxxxx-xxxxxxx-x"></div>
+      <div class="field"><label>Father / Guardian CNIC No</label><input id="f_fcnic" value="${esc(s.fatherCnic||"")}" placeholder="xxxxx-xxxxxxx-x — siblings isi se match honge"></div>
+      <div class="field"><label>Student Phone</label><input id="f_phone" value="${esc(s.phone||"")}" placeholder="03xx-xxxxxxx"></div>
+      <div class="field"><label>Father Phone</label><input id="f_fphone" value="${esc(s.fatherPhone||"")}"></div>
+      <div class="field"><label>Mother Phone</label><input id="f_mphone" value="${esc(s.motherPhone||"")}"></div>
+      <div class="field"><label>Date of Birth</label><input type="date" id="f_dob" value="${s.dob||""}"></div>
+      <div class="field"><label>Education / Qualification</label><input id="f_edu" value="${esc(s.education||"")}" placeholder="e.g. Matric / Inter / BA / BSc"></div>
+      <div class="field"><label>Previous School / College / University</label><input id="f_prev" value="${esc(s.prevInst||"")}" placeholder="e.g. Govt. High School Lahore"></div>
+      <div class="field"><label>Date of Join *</label><input type="date" id="f_doj" value="${s.doj||todayStr()}"></div>
+      <div class="field"><label>Shift *</label><select id="f_shift" onchange="syncClassSel('f_shift','f_course');subjModeSync()">
+        <option value="Morning" ${s.shift==="Morning"?"selected":""}>Morning — School System</option>
+        <option value="Evening" ${s.shift==="Evening"?"selected":""}>Evening — Academy</option></select></div>
+      <div class="field"><label>Class *</label><select id="f_course" onchange="subjModeSync()">${courseOptions(s.course, s.shift||"Morning")}</select></div>
+      <div class="field" id="f_feeWrap"><label id="f_feeLbl">Monthly Fee (Rs)</label><input type="number" id="f_fee" value="${s.monthlyFee||""}" placeholder="e.g. 3000"></div>
+      <div class="field"><label>Class Teacher (overall)</label><select id="f_teacher"><option value="">— No teacher —</option>${teachers.map(t=>`<option value="${t.id}" ${s.teacherId===t.id?"selected":""}>${esc(t.name)}</option>`).join("")}</select></div>
+      <div class="field"><label>Status</label><select id="f_status">${["Active","Graduate","Left","Freeze"].map(x=>`<option ${s.status===x?"selected":""}>${x}</option>`).join("")}</select></div>
+      <div class="field"><label>Student Photo</label><input type="file" id="f_photo" accept="image/*" onchange="pickPhoto(this)"><div id="photoPrev" style="margin-top:6px">${photoTemp?`<img class="avatar-lg" src="${photoTemp}">`:""}</div></div>
+    </div>
+    <div class="field"><label>Address</label><textarea id="f_addr" rows="2">${esc(s.address||"")}</textarea></div>
+
+    <div class="panel" style="margin-bottom:0">
+      <h3 id="subjHead">Subjects</h3>
+      <div class="note" id="subjNote"></div>
+      <div class="toolbar">
+        <div class="field" style="flex:1;min-width:190px"><label>Subject</label><select id="f_subj"></select></div>
+        <div class="field" id="f_subjFeeWrap"><label>Fee (Rs)</label><input type="number" id="f_subjFee" style="max-width:130px" placeholder="e.g. 2500"></div>
+        <div class="field" style="flex:1;min-width:170px"><label>Teacher (is subject ka)</label><select id="f_subjTeacher"></select></div>
+        <button class="btn-black" onclick="addSubj()">+ Add Subject</button>
+      </div>
+      <div id="subjBox"></div>
+      <div id="groupBox" style="margin-top:12px"></div>
+    </div>
+
+    <div class="modal-foot">
+      <button class="btn-line" onclick="closeModal()">Cancel</button>
+      <button class="btn-red" onclick="saveStudent('${id||""}')">${id?"Update Student":"Enroll Student"}</button>
+    </div>`, true);
+  subjDraft = (s.subjects||[]).map(x=>({...x}));
+  grpOverride = s.groupOverride||"";
+  subjModeSync();
+}
+
+/* ---------- Subjects builder (student form) ---------- */
+let subjDraft = [];
+let grpOverride = "";
+const teacherOpts = (sel) => `<option value="">— No teacher —</option>` +
+  DB.employees.filter(e=>e.category==="Teacher")
+    .map(t=>`<option value="${t.id}" ${sel===t.id?"selected":""}>${esc(t.name)}</option>`).join("");
+
+/* Shift / class badalne par subject list, fee mode aur group line refresh */
+function subjModeSync(){
+  if(!$("f_subj")) return;
+  const shift = $("f_shift").value, lvl = levelOfClass($("f_course").value);
+  const evening = shift==="Evening";
+  const list = DB.subjects.filter(x=>x.level===lvl).sort((a,b)=>a.name.localeCompare(b.name));
+  const other = DB.subjects.filter(x=>x.level!==lvl).sort((a,b)=>(a.level+a.name).localeCompare(b.level+b.name));
+  $("f_subj").innerHTML =
+    `<optgroup label="${esc(lvl)}">${list.map(x=>`<option value="${esc(x.name)}" data-fee="${x.defaultFee||0}">${esc(x.name)}</option>`).join("")}</optgroup>` +
+    `<optgroup label="Other levels">${other.map(x=>`<option value="${esc(x.name)}" data-fee="${x.defaultFee||0}">${esc(x.name)} (${esc(x.level)})</option>`).join("")}</optgroup>`;
+  $("f_subjTeacher").innerHTML = teacherOpts("");
+  $("f_subjFeeWrap").style.display = evening? "block":"none";
+  $("subjHead").textContent = evening? "Subjects & Subject-wise Fee" : "Subjects & Group";
+  $("subjNote").innerHTML = evening
+    ? "<b>Evening (Academy):</b> har subject ki fee alag likhein aur us subject ka teacher chunein. Total monthly fee khud ban jayegi aur challan par subject-wise show hogi."
+    : "<b>Morning (School):</b> class ke subjects chunein — <b>group khud detect ho jayega</b> (Phy·Chem·Bio, Phy·Chem·CS, Bus·Acc·Eco waghera). Fee yahan ek hi monthly fee hai.";
+  $("f_feeLbl").textContent = evening? "Monthly Fee (Rs) — subjects ka total" : "Monthly Fee (Rs)";
+  $("f_fee").readOnly = evening;
+  drawSubjs();
+}
+function addSubj(){
+  const sel = $("f_subj"), name = sel.value;
+  if(!name){ toast("Subject select karein"); return; }
+  if(subjDraft.some(x=>x.name===name)){ toast("Ye subject pehle se add hai"); return; }
+  const evening = $("f_shift").value==="Evening";
+  const typed = +$("f_subjFee").value;
+  const fee = evening? (typed || +sel.selectedOptions[0].dataset.fee || 0) : 0;
+  subjDraft.push({name, fee, teacherId:$("f_subjTeacher").value||""});
+  $("f_subjFee").value = ""; $("f_subjTeacher").value = "";
+  drawSubjs();
+}
+function delSubj(i){ subjDraft.splice(i,1); drawSubjs(); }
+function setSubjFee(i,v){ subjDraft[i].fee = +v||0; subjTotalSync(); }
+function setSubjTeacher(i,v){ subjDraft[i].teacherId = v; }
+function subjTotalSync(){
+  const evening = $("f_shift").value==="Evening";
+  const tot = subjDraft.reduce((a,x)=>a+(+x.fee||0),0);
+  if($("subjTotal")) $("subjTotal").textContent = money(tot);
+  if(evening) $("f_fee").value = tot||"";
+}
+function drawSubjs(){
+  const box = $("subjBox"); if(!box) return;
+  const evening = $("f_shift").value==="Evening";
+  box.innerHTML = subjDraft.length? `<div class="tbl-wrap"><table>
+    <thead><tr><th>#</th><th>Subject</th>${evening?"<th>Fee (Rs)</th>":""}<th>Teacher</th><th></th></tr></thead>
+    <tbody>${subjDraft.map((x,i)=>`<tr>
+      <td><b>${i+1}</b></td>
+      <td><b>${esc(x.name)}</b></td>
+      ${evening?`<td style="max-width:130px"><input type="number" value="${x.fee||""}" oninput="setSubjFee(${i},this.value)" placeholder="0"></td>`:""}
+      <td style="max-width:190px"><select onchange="setSubjTeacher(${i},this.value)">${teacherOpts(x.teacherId)}</select></td>
+      <td><button class="btn-danger btn-sm" onclick="delSubj(${i})">✕</button></td>
+    </tr>`).join("")}</tbody>
+    ${evening?`<tfoot><tr><td colspan="2" style="text-align:right"><b>Total Monthly Fee</b></td><td colspan="3"><b id="subjTotal" style="color:var(--red);font-size:1.05rem">Rs 0</b></td></tr></tfoot>`:""}
+  </table></div>` : `<div class="empty">Abhi koi subject add nahi — upar se subject chun kar "+ Add Subject" dabayein</div>`;
+  subjTotalSync();
+  const grp = grpOverride || detectGroup(subjDraft);
+  $("groupBox").innerHTML = evening? "" : `
+    <div class="note" style="margin:0"><b>Detected Group:</b>
+      <span style="font-size:1rem;font-weight:800;color:var(--red)">${esc(grp)}</span>
+      ${grpOverride?" <span class='sub'>(manually set)</span>":" <span class='sub'>(subjects se khud detect hua)</span>"}
+    </div>
+    <div class="field" style="max-width:340px;margin-top:8px"><label>Group override (zaroorat par)</label>
+      <select onchange="grpOverride=this.value;drawSubjs()">
+        <option value="">— Auto detect —</option>
+        ${GROUP_RULES.map(g=>`<option value="${esc(g.name)}" ${grpOverride===g.name?"selected":""}>${esc(g.name)}</option>`).join("")}
+        <option value="Custom / General" ${grpOverride==="Custom / General"?"selected":""}>Custom / General</option>
+      </select></div>`;
+}
+function pickPhoto(inp){
+  const f = inp.files[0]; if(!f) return;
+  const img = new Image();
+  img.onload = ()=>{
+    const c = document.createElement("canvas");
+    const max = 900, r = Math.min(max/img.width, max/img.height, 1);
+    c.width = img.width*r; c.height = img.height*r;
+    c.getContext("2d").drawImage(img,0,0,c.width,c.height);
+    photoTemp = c.toDataURL("image/jpeg",.85);
+    $("photoPrev").innerHTML = `<img class="avatar-lg" src="${photoTemp}">`;
+  };
+  img.src = URL.createObjectURL(f);
+}
+function saveStudent(id){
+  const name=$("f_name").value.trim(), father=$("f_father").value.trim();
+  if(!name||!father){ toast("Student name aur father name zaroori hain"); return; }
+  const data = {
+    name, fatherName:father,
+    cnic:$("f_cnic").value.trim(), fatherCnic:$("f_fcnic").value.trim(),
+    phone:$("f_phone").value.trim(), fatherPhone:$("f_fphone").value.trim(), motherPhone:$("f_mphone").value.trim(),
+    address:$("f_addr").value.trim(), dob:$("f_dob").value||"", doj:$("f_doj").value||todayStr(),
+    education:$("f_edu").value.trim(), prevInst:$("f_prev").value.trim(),
+    course:$("f_course").value, shift:$("f_shift").value,
+    monthlyFee:$("f_fee").value||0, teacherId:$("f_teacher").value,
+    subjects: subjDraft.map(x=>({...x})), groupOverride: grpOverride,
+    status:$("f_status").value, photo:photoTemp
+  };
+  if(data.shift==="Evening" && data.subjects.length) data.monthlyFee = data.subjects.reduce((a,x)=>a+(+x.fee||0),0);
+  data.group = data.shift==="Morning" ? (grpOverride || detectGroup(data.subjects)) : "";
+  if(id){ Object.assign(stuById(id), data); toast("Student updated"); }
+  else{
+    data.id = uid();
+    data.regNo = "REG-" + new Date().getFullYear() + "-" + String(DB.counters.reg++).padStart(4,"0");
+    DB.students.push(data);
+    toast("Enrolled — Reg No: " + data.regNo);
+  }
+  save(); closeModal(); renderStudents(); renderDashboard();
+}
+function delStudent(id){
+  const s = stuById(id);
+  if(!confirm(`Delete "${s.name}"? Iska fee, attendance aur exam record bhi delete ho jayega.`)) return;
+  DB.students = DB.students.filter(x=>x.id!==id);
+  DB.fees = DB.fees.filter(f=>f.studentId!==id);
+  DB.exams = DB.exams.filter(e=>e.studentId!==id);
+  for(const d in DB.attendance) delete DB.attendance[d][id];
+  save(); renderStudents(); renderDashboard();
+}
+
+/* ================= GALLERY ================= */
+function renderGallery(){
+  const fst=$("galFStatus").value, fc=$("galFCourse").value, fs=$("galFShift").value, q=($("galSearch").value||"").toLowerCase();
+  const rows = DB.students.filter(s=>{
+    if(fst && s.status!==fst) return false;
+    if(fc && s.course!==fc) return false;
+    if(fs && s.shift!==fs) return false;
+    if(q && !((s.name+" "+s.regNo).toLowerCase().includes(q))) return false;
+    return true;
+  }).sort((a,b)=>a.name.localeCompare(b.name));
+  $("galCount").textContent = rows.length + " students" + (fst? " · "+fst : "");
+  $("galGrid").innerHTML = rows.length? rows.map(s=>`
+    <div class="gcard" onclick="openProfile('${s.id}')" title="Profile kholne ke liye click karein">
+      ${s.photo? `<img class="gphoto" src="${s.photo}" alt="${esc(s.name)}" onclick="event.stopPropagation();openPhoto(this.src)" title="Photo full size dekhne ke liye click karein">` : `<div class="gph">${esc((s.name||"?").trim().charAt(0).toUpperCase())}</div>`}
+      <div class="gbody">
+        <div class="gname">${esc(s.name)}</div>
+        <div class="greg">${esc(s.regNo)} · ${s.shift}</div>
+        <div class="gcourse">${esc(s.course)}</div>
+        <span class="badge b-${s.status.toLowerCase()}">${s.status}</span>
+      </div>
+    </div>`).join("") : `<div class="empty" style="grid-column:1/-1;padding:30px;text-align:center;color:var(--muted)">Is filter mein koi student nahi</div>`;
+}
+
+/* ---------- Attendance summary for profile ---------- */
+function attSummary(sid, doj){
+  let P=0,A=0,L=0;
+  for(const d in DB.attendance){ const r=DB.attendance[d][sid]; if(!r) continue; if(r.s==="P")P++; else if(r.s==="A")A++; else if(r.s==="L")L++; }
+  let wd=0; const start=new Date((doj||todayStr())+"T00:00"), end=new Date();
+  for(let d=new Date(start); d<=end; d.setDate(d.getDate()+1)){ const day=d.getDay(); if(day!==0&&day!==6) wd++; }
+  const marked=P+A+L, pct = marked? Math.round(P/marked*100) : 0;
+  return {P,A,L,wd,off:Math.max(0,Math.round((end-start)/864e5)+1-wd),marked,pct};
+}
+
+/* ---------- Student profile ---------- */
+function openProfile(id){
+  const s = stuById(id); if(!s) return;
+  const a = attSummary(id, s.doj);
+  const fees = DB.fees.filter(f=>f.studentId===id).sort((x,y)=>y.month.localeCompare(x.month));
+  const exams = DB.exams.filter(e=>e.studentId===id).sort((x,y)=>y.date.localeCompare(x.date));
+  const hws = DB.homework.filter(h=>h.course===s.course && h.shift===s.shift).sort((x,y)=>y.dateGiven.localeCompare(x.dateGiven));
+  /* Siblings — same Father/Guardian CNIC */
+  const cnicKey = v => String(v||"").replace(/\D/g,"");
+  const fKey = cnicKey(s.fatherCnic);
+  const sibs = fKey? DB.students.filter(x=>x.id!==id && cnicKey(x.fatherCnic)===fKey) : [];
+  const sibHTML = sibs.length? `
+    <div class="note" style="margin-top:2px"><b>👨‍👩‍👧‍👦 Siblings (${sibs.length})</b> — Father CNIC <b>${esc(s.fatherCnic)}</b> par ye students bhi enrolled hain:</div>
+    <div class="tbl-wrap" style="margin-bottom:12px"><table>
+      <thead><tr><th>Reg No</th><th>Name</th><th>Class</th><th>Shift</th><th>Status</th><th></th></tr></thead>
+      <tbody>${sibs.map(x=>`<tr><td><b>${esc(x.regNo)}</b></td><td>${esc(x.name)}</td><td>${esc(x.course)}</td><td>${x.shift}</td><td><span class="badge b-${x.status.toLowerCase()}">${x.status}</span></td><td><button class="btn-black btn-sm" onclick="openProfile('${x.id}')">Profile</button></td></tr>`).join("")}</tbody>
+    </table></div>` : "";
+  const hwRows = hws.map(h=>{
+    const done = h.done && h.done[id];
+    return `<tr>
+      <td>${fmtD(h.dateGiven)}</td>
+      <td><b>${esc(h.title)}</b></td>
+      <td>${fmtD(h.dueDate)}</td>
+      <td style="max-width:220px">${esc(h.detail||"—")}</td>
+      <td><select onchange="hwToggle('${h.id}','${id}',this.value)" style="width:auto;padding:5px 8px">
+        <option value="" ${!done?"selected":""}>Pending</option>
+        <option value="1" ${done?"selected":""}>Submitted ✓</option>
+      </select></td>
+    </tr>`;
+  }).join("");
+  const attRows = Object.keys(DB.attendance).filter(d=>DB.attendance[d][id]).sort().reverse().slice(0,60)
+    .map(d=>{ const r=DB.attendance[d][id]; return `<tr><td>${fmtD(d)}</td><td><span class="badge b-${r.s}">${r.s==="P"?"Present":r.s==="A"?"Absent":"Leave"}</span></td><td>${r.t||"—"}</td><td>${r.shift||""}</td></tr>`; }).join("");
+  openModal(`
+    <h3>Student Profile</h3>
+    <div class="profile-top">
+      ${avatarHTML(s,true)}
+      <div class="info">
+        <h2 style="margin-bottom:2px">${esc(s.name)}</h2>
+        <div class="sub" style="margin-bottom:10px"><b>${esc(s.regNo)}</b> · <span class="badge b-${s.status.toLowerCase()}">${s.status}</span></div>
+        <div class="kv">
+          <span class="k">Father Name</span><span>${esc(s.fatherName)}</span>
+          <span class="k">B-Form / CNIC</span><span>${esc(s.cnic||"—")}</span>
+          <span class="k">Father CNIC</span><span>${esc(s.fatherCnic||"—")}</span>
+          <span class="k">Date of Birth</span><span>${fmtD(s.dob)}</span>
+          <span class="k">Education</span><span>${esc(s.education||"—")}</span>
+          <span class="k">Previous Institute</span><span>${esc(s.prevInst||"—")}</span>
+          <span class="k">Class</span><span>${esc(s.course)}</span>
+          <span class="k">Shift</span><span>${s.shift} (${SHIFTS[s.shift]||""})</span>
+          ${s.shift==="Morning"?`<span class="k">Group</span><span><b>${esc(groupOf(s))}</b></span>`:""}
+          <span class="k">Class Teacher</span><span>${esc(teacherName(s.teacherId))}</span>
+          <span class="k">Date of Join</span><span>${fmtD(s.doj)}</span>
+          <span class="k">Student Phone</span><span>${esc(s.phone||"—")}</span>
+          <span class="k">Father Phone</span><span>${esc(s.fatherPhone||"—")}</span>
+          <span class="k">Mother Phone</span><span>${esc(s.motherPhone||"—")}</span>
+          <span class="k">Monthly Fee</span><span><b>${money(studentFee(s))}</b>${(s.subjects||[]).length&&s.shift==="Evening"?` <span class="sub">(${s.subjects.length} subjects ka total)</span>`:""}</span>
+          <span class="k">Address</span><span>${esc(s.address||"—")}</span>
+        </div>
+      </div>
+      <div style="min-width:170px">
+        <label>Change Status</label>
+        <select onchange="changeStatus('${id}',this.value)">${["Active","Graduate","Left","Freeze"].map(x=>`<option ${s.status===x?"selected":""}>${x}</option>`).join("")}</select>
+        <button class="btn-black btn-sm" style="margin-top:10px;width:100%" onclick="closeModal();openReportCard('${id}')">🎓 Report Card</button>
+        <button class="btn-red btn-sm" style="margin-top:8px;width:100%" onclick="downloadProfile('${id}')">⬇ Download Profile</button>
+      </div>
+    </div>
+    <div class="stat-row">
+      <div class="stat"><b>${a.wd}</b><span>Working Days</span></div>
+      <div class="stat"><b>${a.off}</b><span>Off Days</span></div>
+      <div class="stat"><b>${a.P}</b><span>Present</span></div>
+      <div class="stat"><b style="color:var(--red)">${a.A}</b><span>Absent</span></div>
+      <div class="stat"><b>${a.L}</b><span>Leaves</span></div>
+      <div class="stat"><b>${a.pct}%</b><span>Attendance</span><div class="att-bar"><i style="width:${a.pct}%"></i></div></div>
+    </div>
+    ${sibHTML}
+    <div class="tabs">
+      <button class="on" onclick="swTab(this,'tpSub')">Subjects ${(s.subjects||[]).length?`(${s.subjects.length})`:""}</button>
+      <button onclick="swTab(this,'tpAtt')">Attendance</button>
+      <button onclick="swTab(this,'tpFee')">Fee Record</button>
+      <button onclick="swTab(this,'tpExam')">Exams</button>
+      <button onclick="swTab(this,'tpHw')">Homework ${hws.length?`(${hws.length})`:""}</button>
+    </div>
+    <div class="tabpane on" id="tpSub"><div class="tbl-wrap"><table>
+      <thead><tr><th>#</th><th>Subject</th><th>Teacher</th>${s.shift==="Evening"?"<th>Fee (Rs)</th>":""}</tr></thead>
+      <tbody>${(s.subjects||[]).length? s.subjects.map((x,i)=>`<tr><td><b>${i+1}</b></td><td><b>${esc(x.name)}</b></td><td>${esc(teacherName(x.teacherId))}</td>${s.shift==="Evening"?`<td><b>${money(x.fee)}</b></td>`:""}</tr>`).join("")
+        : `<tr><td colspan="4" class="empty">Koi subject add nahi — "Edit" se subjects add karein</td></tr>`}</tbody>
+      ${(s.subjects||[]).length&&s.shift==="Evening"?`<tfoot><tr><td colspan="3" style="text-align:right"><b>Total Monthly Fee</b></td><td><b style="color:var(--red)">${money(studentFee(s))}</b></td></tr></tfoot>`:""}
+    </table></div></div>
+    <div class="tabpane" id="tpAtt"><div class="tbl-wrap"><table><thead><tr><th>Date</th><th>Status</th><th>Time</th><th>Shift</th></tr></thead><tbody>${attRows||`<tr><td colspan="4" class="empty">Attendance abhi mark nahi hui</td></tr>`}</tbody></table></div></div>
+    <div class="tabpane" id="tpFee"><div class="tbl-wrap"><table><thead><tr><th>Challan #</th><th>Month</th><th>Amount</th><th>Status</th><th>Paid Date</th></tr></thead><tbody>${fees.length?fees.map(f=>`<tr><td>${f.chNo}</td><td>${fmtM(f.month)}</td><td>${money(f.amount)}</td><td><span class="badge b-${f.status.toLowerCase()}">${f.status}</span></td><td>${fmtD(f.paidDate)}</td></tr>`).join(""):`<tr><td colspan="5" class="empty">Koi challan nahi</td></tr>`}</tbody></table></div></div>
+    <div class="tabpane" id="tpExam"><div class="tbl-wrap"><table><thead><tr><th>Date</th><th>Exam</th><th>Subject / Topic</th><th>Obtained</th><th>Total</th><th>%</th><th>Result</th><th>Teacher Comment</th></tr></thead><tbody>${exams.length?exams.map(e=>{const p=Math.round(e.obtained/e.total*100);return `<tr><td>${fmtD(e.date)}</td><td>${esc(e.exam)}</td><td>${esc(e.subject||"—")}</td><td>${e.obtained}</td><td>${e.total}</td><td>${p}%</td><td><span class="badge ${p>=50?"b-paid":"b-unpaid"}">${p>=50?"Pass":"Fail"}</span></td><td style="max-width:220px;font-size:.82rem">${esc(e.comment||"—")}</td></tr>`;}).join(""):`<tr><td colspan="8" class="empty">Koi exam record nahi</td></tr>`}</tbody></table></div></div>
+    <div class="tabpane" id="tpHw"><div class="tbl-wrap"><table><thead><tr><th>Date Given</th><th>Title</th><th>Due Date</th><th>Detail</th><th>Status</th></tr></thead><tbody>${hwRows||`<tr><td colspan="5" class="empty">Is course/shift ke liye koi homework nahi</td></tr>`}</tbody></table></div></div>
+  `, true);
+}
+function hwToggle(hwId, sid, val){
+  const h = DB.homework.find(x=>x.id===hwId); if(!h) return;
+  if(!h.done) h.done = {};
+  if(val) h.done[sid] = true; else delete h.done[sid];
+  save(); toast(val? "Homework submitted ✓" : "Marked pending");
+}
+function swTab(btn,id){
+  btn.parentElement.querySelectorAll("button").forEach(b=>b.classList.remove("on"));
+  btn.classList.add("on");
+  ["tpSub","tpAtt","tpFee","tpExam","tpHw"].forEach(t=>$(t).classList.toggle("on",t===id));
+}
+function changeStatus(id,val){ stuById(id).status=val; save(); toast("Status: "+val); renderStudents(); renderDashboard(); }
+
+/* ---------- Download / print professional student profile ---------- */
+function downloadProfile(id){
+  const s = stuById(id); if(!s) return;
+  const a = attSummary(id, s.doj);
+  const fees = DB.fees.filter(f=>f.studentId===id).sort((x,y)=>y.month.localeCompare(x.month));
+  const exams = DB.exams.filter(e=>e.studentId===id).sort((x,y)=>x.date.localeCompare(y.date));
+  const A = DB.settings;
+  const paidT = fees.filter(f=>f.status==="Paid").reduce((x,f)=>x+ +f.amount,0);
+  const dueT = fees.filter(f=>f.status==="Unpaid").reduce((x,f)=>x+ +f.amount,0);
+  const cell = "border:1px solid #bbb;padding:6px 9px;font-size:.8rem";
+  const kv = (k,v)=>`<tr><td style="${cell};width:26%;background:#f7f7f7"><b>${k}</b></td><td style="${cell}">${v}</td></tr>`;
+  const kv2 = (k1,v1,k2,v2)=>`<tr><td style="${cell};width:20%;background:#f7f7f7"><b>${k1}</b></td><td style="${cell};width:30%">${v1}</td><td style="${cell};width:20%;background:#f7f7f7"><b>${k2}</b></td><td style="${cell};width:30%">${v2}</td></tr>`;
+  const statBox = (n,l,c)=>`<div style="flex:1;border:1px solid #bbb;border-radius:8px;padding:8px 6px;text-align:center"><div style="font-size:1.15rem;font-weight:900;${c||""}">${n}</div><div style="font-size:.66rem;color:#555;text-transform:uppercase;letter-spacing:.05em">${l}</div></div>`;
+  $("challanPrint").innerHTML = `
+  <div style="font-size:.85rem;color:#174B60">
+    <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:4px solid #159670;padding-bottom:10px;margin-bottom:14px">
+      <div style="display:flex;gap:12px;align-items:center">
+        ${A.logo?`<img src="${A.logo}" style="height:52px;width:auto;object-fit:contain">`:""}
+        <div>
+          <div style="font-size:1.45rem;font-weight:900">${esc(A.name||"Cambridge Grads Academy")}</div>
+          <div style="font-size:.74rem;color:#555">${esc(A.addr||"")} ${A.phone?("· "+esc(A.phone)):""}</div>
+        </div>
+      </div>
+      <div style="text-align:right">
+        <div style="background:#174B60;color:#fff;padding:6px 14px;border-radius:6px;font-weight:800;letter-spacing:.08em;font-size:.8rem">STUDENT PROFILE</div>
+        <div style="font-size:.72rem;color:#555;margin-top:5px">Issued: ${fmtD(todayStr())}</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:16px;align-items:flex-start;margin-bottom:12px">
+      ${s.photo? `<img src="${s.photo}" style="width:110px;height:110px;object-fit:cover;border:3px solid #174B60;border-radius:10px">` : `<div style="width:110px;height:110px;border:3px solid #174B60;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:2.4rem;font-weight:900;background:#E6F5F0;color:#C0392B">${esc((s.name||"?").charAt(0).toUpperCase())}</div>`}
+      <div style="flex:1">
+        <div style="font-size:1.25rem;font-weight:900">${esc(s.name)}</div>
+        <div style="font-size:.82rem;color:#555;margin-bottom:8px"><b>${esc(s.regNo)}</b> · Status: <b>${s.status}</b></div>
+        <table style="width:100%;border-collapse:collapse">
+          ${kv2("Father Name", esc(s.fatherName), "Date of Birth", fmtD(s.dob))}
+          ${kv2("B-Form / CNIC", esc(s.cnic||"—"), "Father CNIC", esc(s.fatherCnic||"—"))}
+        </table>
+      </div>
+    </div>
+    <table style="width:100%;border-collapse:collapse;margin-bottom:12px">
+      ${kv2("Class", esc(s.course), "Shift", s.shift+" ("+(SHIFTS[s.shift]||"")+")")}
+      ${kv2(s.shift==="Morning"?"Group":"Subjects", s.shift==="Morning"? "<b>"+esc(groupOf(s))+"</b>" : ((s.subjects||[]).length+" subjects"), "Date of Join", fmtD(s.doj))}
+      ${kv2("Class Teacher", esc(teacherName(s.teacherId)), "Monthly Fee", "<b>"+money(studentFee(s))+"</b>")}
+      ${kv2("Education", esc(s.education||"—"), "Previous Institute", esc(s.prevInst||"—"))}
+      ${kv2("Student Phone", esc(s.phone||"—"), "Father Phone", esc(s.fatherPhone||"—"))}
+      ${kv2("Mother Phone", esc(s.motherPhone||"—"), "Student Phone", esc(s.phone||"—"))}
+      ${kv("Address", esc(s.address||"—"))}
+    </table>
+    <div style="font-weight:800;border-left:4px solid #159670;padding-left:8px;margin:14px 0 8px">Subjects${s.shift==="Evening"?" & Fee":""}</div>
+    <table style="width:100%;border-collapse:collapse;margin-bottom:12px">
+      <thead><tr>${["#","Subject","Teacher"].concat(s.shift==="Evening"?["Fee (Rs)"]:[]).map(h=>`<th style="${cell};background:#f0f0f0">${h}</th>`).join("")}</tr></thead>
+      <tbody>${(s.subjects||[]).length? s.subjects.map((x,i)=>`<tr>
+        <td style="${cell};text-align:center">${i+1}</td>
+        <td style="${cell}"><b>${esc(x.name)}</b></td>
+        <td style="${cell}">${esc(teacherName(x.teacherId))}</td>
+        ${s.shift==="Evening"?`<td style="${cell};text-align:right"><b>${money(x.fee)}</b></td>`:""}
+      </tr>`).join("") : `<tr><td colspan="4" style="${cell};text-align:center;color:#777">Koi subject record nahi</td></tr>`}</tbody>
+      ${(s.subjects||[]).length&&s.shift==="Evening"?`<tfoot><tr style="background:#f7f7f7;font-weight:800"><td colspan="3" style="${cell};text-align:right">TOTAL MONTHLY FEE</td><td style="${cell};text-align:right">${money(studentFee(s))}</td></tr></tfoot>`:""}
+    </table>
+    <div style="font-weight:800;border-left:4px solid #159670;padding-left:8px;margin:14px 0 8px">Attendance Summary</div>
+    <div style="display:flex;gap:8px;margin-bottom:12px">
+      ${statBox(a.wd,"Working Days")}${statBox(a.P,"Present","color:#0f7b3d")}${statBox(a.A,"Absent","color:#C0392B")}${statBox(a.L,"Leaves")}${statBox(a.pct+"%","Attendance")}
+    </div>
+    <div style="font-weight:800;border-left:4px solid #159670;padding-left:8px;margin:14px 0 8px">Fee Record &nbsp;<span style="font-weight:600;font-size:.75rem;color:#555">Paid: ${money(paidT)} · Due: ${money(dueT)}</span></div>
+    <table style="width:100%;border-collapse:collapse;margin-bottom:12px">
+      <thead><tr>${["#","Challan #","Fee Month","Amount","Due Date","Status","Paid Date"].map(h=>`<th style="${cell};background:#f0f0f0">${h}</th>`).join("")}</tr></thead>
+      <tbody>${fees.length? fees.map((f,i)=>`<tr>
+        <td style="${cell};text-align:center">${i+1}</td>
+        <td style="${cell}">${f.chNo}</td>
+        <td style="${cell}">${fmtM(f.month)}</td>
+        <td style="${cell}"><b>${money(f.amount)}</b></td>
+        <td style="${cell}">${fmtD(f.dueDate)}</td>
+        <td style="${cell};font-weight:700;${f.status==="Paid"?"color:#0f7b3d":"color:#C0392B"}">${f.status}</td>
+        <td style="${cell}">${fmtD(f.paidDate)}</td>
+      </tr>`).join("") : `<tr><td colspan="7" style="${cell};text-align:center;color:#777">Koi challan record nahi</td></tr>`}</tbody>
+    </table>
+    <div style="font-weight:800;border-left:4px solid #159670;padding-left:8px;margin:14px 0 8px">Exam / Test Record</div>
+    <table style="width:100%;border-collapse:collapse;margin-bottom:12px">
+      <thead><tr>${["#","Date","Exam","Subject / Topic","Obtained","Total","%","Grade","Result","Comment"].map(h=>`<th style="${cell};background:#f0f0f0">${h}</th>`).join("")}</tr></thead>
+      <tbody>${exams.length? exams.map((e,i)=>{const p=Math.round(e.obtained/e.total*100);return `<tr>
+        <td style="${cell};text-align:center">${i+1}</td>
+        <td style="${cell}">${fmtD(e.date)}</td>
+        <td style="${cell}"><b>${esc(e.exam)}</b></td>
+        <td style="${cell}">${esc(e.subject||"—")}</td>
+        <td style="${cell};text-align:center"><b>${e.obtained}</b></td>
+        <td style="${cell};text-align:center">${e.total}</td>
+        <td style="${cell};text-align:center"><b>${p}%</b></td>
+        <td style="${cell};text-align:center">${gradeOf(p)}</td>
+        <td style="${cell};text-align:center;font-weight:700;${p>=50?"color:#0f7b3d":"color:#C0392B"}">${p>=50?"Pass":"Fail"}</td>
+        <td style="${cell};font-size:.74rem">${esc(e.comment||"—")}</td>
+      </tr>`;}).join("") : `<tr><td colspan="10" style="${cell};text-align:center;color:#777">Koi exam record nahi</td></tr>`}</tbody>
+    </table>
+    <div style="display:flex;justify-content:space-between;margin-top:40px;font-size:.78rem;color:#444">
+      <span>Parent / Guardian Signature: _______________</span>
+      <span>Teacher Signature: _______________</span>
+      <span>Admin Signature: _______________</span>
+    </div>
+    <div style="margin-top:14px;font-size:.68rem;color:#888;text-align:center;border-top:1px solid #ddd;padding-top:6px">Ye profile ${esc(A.name||"Cambridge Grads Academy")} Management System se generate ki gayi hai · ${fmtD(todayStr())}</div>
+  </div>`;
+  window.print();
+  toast("Print dialog mein 'Save as PDF' select karein — professional profile download ho jayegi");
+}
+
+/* ================= ATTENDANCE ================= */
+let attDraft = {};
+function loadAttendance(){
+  if(!$("attDate").value) $("attDate").value = todayStr();
+  const date = $("attDate").value, shift = $("attShift").value;
+  const warn = $("attWarn");
+  if(isWeekend(date)){
+    warn.innerHTML = `<div class="note"><b>${fmtD(date)}</b> — Saturday/Sunday hai. Academy off hai, is din attendance mark nahi ho sakti.</div>`;
+    $("attRows").innerHTML = `<tr><td colspan="5" class="empty">Off day — koi attendance nahi</td></tr>`;
+    attDraft = null; return;
+  }
+  warn.innerHTML = "";
+  const stus = DB.students.filter(s=>s.status==="Active" && s.shift===shift).sort((a,b)=>a.regNo.localeCompare(b.regNo));
+  const saved = (DB.attendance[date]||{});
+  attDraft = {};
+  stus.forEach(s=>{ const r=saved[s.id]; attDraft[s.id] = r? {...r} : {s:null, t:SHIFT_START[shift], shift}; });
+  $("attRows").innerHTML = stus.length? stus.map(s=>{
+    const r = attDraft[s.id];
+    return `<tr>
+      <td><b>${esc(s.regNo)}</b></td>
+      <td>${esc(s.name)}</td>
+      <td>${esc(s.course)}</td>
+      <td><div class="att-opts" id="opt_${s.id}">
+        <button class="${r.s==="P"?"selP":""}" onclick="mark('${s.id}','P')">Present</button>
+        <button class="${r.s==="A"?"selA":""}" onclick="mark('${s.id}','A')">Absent</button>
+        <button class="${r.s==="L"?"selL":""}" onclick="mark('${s.id}','L')">Leave</button>
+      </div></td>
+      <td style="max-width:120px"><input type="time" value="${r.t||SHIFT_START[shift]}" onchange="attDraft['${s.id}'].t=this.value"></td>
+    </tr>`;
+  }).join("") : `<tr><td colspan="5" class="empty">Is shift mein koi active student nahi</td></tr>`;
+}
+function mark(sid, st){
+  if(!attDraft) return;
+  attDraft[sid].s = st;
+  const box = $("opt_"+sid).querySelectorAll("button");
+  box.forEach(b=>b.className="");
+  box[st==="P"?0:st==="A"?1:2].className = "sel"+st;
+}
+function markAll(st){
+  if(!attDraft){ toast("Off day par attendance nahi lagti"); return; }
+  for(const sid in attDraft){ attDraft[sid].s = st; const box=$("opt_"+sid); if(box){ box.querySelectorAll("button").forEach(b=>b.className=""); box.querySelectorAll("button")[0].className="selP"; } }
+}
+function saveAttendance(){
+  if(!attDraft){ toast("Off day par attendance save nahi ho sakti"); return; }
+  const date = $("attDate").value;
+  if(!DB.attendance[date]) DB.attendance[date] = {};
+  let n=0;
+  for(const sid in attDraft){ const r=attDraft[sid]; if(r.s){ DB.attendance[date][sid] = r; n++; } }
+  save(); toast(`Attendance saved — ${n} students (${fmtD(date)})`);
+}
+
+/* ---------- Attendance report export (Excel / PDF) ---------- */
+function attReportData(){
+  if(!$("attRepMonth").value) $("attRepMonth").value = thisMonth();
+  const m = $("attRepMonth").value, sh = $("attRepShift").value;
+  const [y,mo] = m.split("-").map(Number);
+  const daysInMonth = new Date(y, mo, 0).getDate();
+  const days = [];
+  for(let d=1; d<=daysInMonth; d++){
+    const ds = m + "-" + String(d).padStart(2,"0");
+    if(!isWeekend(ds)) days.push(ds);   // sirf working days (Mon–Fri)
+  }
+  const stus = DB.students.filter(s=>(!sh || s.shift===sh)).sort((a,b)=>a.regNo.localeCompare(b.regNo));
+  const rows = stus.map(s=>{
+    let P=0,A=0,L=0;
+    const marks = days.map(d=>{
+      const r = (DB.attendance[d]||{})[s.id];
+      if(!r) return "—";
+      if(r.s==="P")P++; else if(r.s==="A")A++; else if(r.s==="L")L++;
+      return r.s;
+    });
+    const marked=P+A+L, pct = marked? Math.round(P/marked*100) : 0;
+    return {s, marks, P, A, L, pct};
+  });
+  return {m, sh, days, rows};
+}
+function exportAttCSV(){
+  const {m, sh, days, rows} = attReportData();
+  if(!rows.length){ toast("Is shift mein koi student nahi"); return; }
+  const head = ["Reg No","Name","Class","Shift", ...days.map(d=>d.slice(8)), "Present","Absent","Leave","%"];
+  const csvEsc = v => `"${String(v??"").replace(/"/g,'""')}"`;
+  const lines = [head.map(csvEsc).join(",")];
+  rows.forEach(r=>{
+    lines.push([r.s.regNo, r.s.name, r.s.course, r.s.shift, ...r.marks, r.P, r.A, r.L, r.pct+"%"].map(csvEsc).join(","));
+  });
+  const blob = new Blob(["\ufeff"+lines.join("\r\n")],{type:"text/csv;charset=utf-8"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `attendance-${m}${sh?("-"+sh.toLowerCase()):""}.csv`;
+  a.click();
+  toast("Excel (CSV) file download ho gayi — Excel mein khol lein");
+}
+function exportAttPDF(){
+  const {m, sh, days, rows} = attReportData();
+  if(!rows.length){ toast("Is shift mein koi student nahi"); return; }
+  const A = DB.settings;
+  const th = days.map(d=>`<th style="padding:3px 2px;border:1px solid #999;font-size:.6rem">${+d.slice(8)}</th>`).join("");
+  const body = rows.map(r=>`<tr>
+    <td style="border:1px solid #999;padding:3px 5px;white-space:nowrap"><b>${esc(r.s.regNo)}</b></td>
+    <td style="border:1px solid #999;padding:3px 5px;white-space:nowrap">${esc(r.s.name)}</td>
+    ${r.marks.map(x=>`<td style="border:1px solid #999;padding:3px 2px;text-align:center;font-size:.65rem;${x==="A"?"color:#C0392B;font-weight:700":x==="P"?"color:#0f7b3d":""}">${x}</td>`).join("")}
+    <td style="border:1px solid #999;padding:3px 5px;text-align:center"><b>${r.P}</b></td>
+    <td style="border:1px solid #999;padding:3px 5px;text-align:center;color:#C0392B">${r.A}</td>
+    <td style="border:1px solid #999;padding:3px 5px;text-align:center">${r.L}</td>
+    <td style="border:1px solid #999;padding:3px 5px;text-align:center"><b>${r.pct}%</b></td>
+  </tr>`).join("");
+  $("challanPrint").innerHTML = `
+    <div style="font-size:.75rem">
+      <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #174B60;padding-bottom:8px;margin-bottom:10px">
+        <div style="display:flex;gap:10px;align-items:center">${A.logo?`<img src="${A.logo}" style="height:44px;width:auto;object-fit:contain">`:""}<div><div style="font-size:1.15rem;font-weight:900">${esc(A.name||"Cambridge Grads Academy")}</div><div style="font-size:.7rem;color:#555">${esc(A.addr||"")} ${A.phone?("· "+esc(A.phone)):""}</div></div></div>
+        <div style="text-align:right"><b>ATTENDANCE REGISTER</b><br>${fmtM(m)} · ${sh||"Both Shifts"}<br><span style="color:#555">P = Present · A = Absent · L = Leave · — = Not marked</span></div>
+      </div>
+      <table style="width:100%;border-collapse:collapse">
+        <thead><tr>
+          <th style="border:1px solid #999;padding:3px 5px">Reg No</th>
+          <th style="border:1px solid #999;padding:3px 5px">Name</th>
+          ${th}
+          <th style="border:1px solid #999;padding:3px 3px">P</th><th style="border:1px solid #999;padding:3px 3px">A</th><th style="border:1px solid #999;padding:3px 3px">L</th><th style="border:1px solid #999;padding:3px 3px">%</th>
+        </tr></thead>
+        <tbody>${body}</tbody>
+      </table>
+      <div style="margin-top:10px;color:#555">Generated: ${fmtD(todayStr())} · Working days is month: ${days.length}</div>
+    </div>`;
+  window.print();
+  toast("Print dialog mein 'Save as PDF' select karein");
+}
+
+/* ================= HOMEWORK / ASSIGNMENTS ================= */
+function renderHomework(){
+  const fc=$("hwFCourse").value, fs=$("hwFShift").value;
+  const rows = DB.homework.filter(h=>(!fc||h.course===fc)&&(!fs||h.shift===fs)).sort((a,b)=>b.dateGiven.localeCompare(a.dateGiven));
+  $("hwRows").innerHTML = rows.length? rows.map(h=>{
+    const total = DB.students.filter(s=>s.status==="Active"&&s.course===h.course&&s.shift===h.shift).length;
+    const sub = h.done? Object.keys(h.done).length : 0;
+    return `<tr>
+      <td>${fmtD(h.dateGiven)}</td>
+      <td><b>${esc(h.title)}</b></td>
+      <td>${esc(h.course)}</td>
+      <td>${h.shift}</td>
+      <td>${fmtD(h.dueDate)}</td>
+      <td style="max-width:240px">${esc(h.detail||"—")}</td>
+      <td><b>${sub}</b> / ${total}</td>
+      <td style="white-space:nowrap">
+        <button class="btn-line btn-sm" onclick="openHwForm('${h.id}')">Edit</button>
+        <button class="btn-danger btn-sm" onclick="delHw('${h.id}')">Delete</button>
+      </td>
+    </tr>`;
+  }).join("") : `<tr><td colspan="8" class="empty">Koi homework nahi — "+ New Homework" se assign karein.</td></tr>`;
+}
+function openHwForm(id){
+  const h = id? DB.homework.find(x=>x.id===id) : {};
+  openModal(`
+    <h3>${id?"Edit Homework":"New Homework / Assignment"}</h3>
+    <p class="sub" style="margin-bottom:12px">Homework jis class aur shift ko diya jayega, us ke tamam students ke profile mein show hoga.</p>
+    <div class="grid2">
+      <div class="field"><label>Title *</label><input id="h_title" value="${esc(h.title||"")}" placeholder="e.g. MS Word Assignment 1"></div>
+      <div class="field"><label>Shift *</label><select id="h_shift" onchange="syncClassSel('h_shift','h_course')">
+        <option value="Morning" ${h.shift==="Morning"?"selected":""}>Morning — School System</option>
+        <option value="Evening" ${h.shift==="Evening"?"selected":""}>Evening — Academy</option></select></div>
+      <div class="field"><label>Class *</label><select id="h_course">${courseOptions(h.course, h.shift||"Morning")}</select></div>
+      <div class="field"><label>Date Given</label><input type="date" id="h_date" value="${h.dateGiven||todayStr()}"></div>
+      <div class="field"><label>Due Date</label><input type="date" id="h_due" value="${h.dueDate||""}"></div>
+    </div>
+    <div class="field"><label>Detail / Instructions</label><textarea id="h_detail" rows="3" placeholder="Homework ki tafseel...">${esc(h.detail||"")}</textarea></div>
+    <div class="modal-foot">
+      <button class="btn-line" onclick="closeModal()">Cancel</button>
+      <button class="btn-red" onclick="saveHw('${id||""}')">${id?"Update Homework":"Assign Homework"}</button>
+    </div>`);
+}
+function saveHw(id){
+  const title=$("h_title").value.trim();
+  if(!title){ toast("Homework title likhein"); return; }
+  const data = {title, course:$("h_course").value, shift:$("h_shift").value, dateGiven:$("h_date").value||todayStr(), dueDate:$("h_due").value||"", detail:$("h_detail").value.trim()};
+  if(id) Object.assign(DB.homework.find(x=>x.id===id), data);
+  else { data.id=uid(); data.done={}; DB.homework.push(data); }
+  save(); closeModal(); renderHomework();
+  const n = DB.students.filter(s=>s.status==="Active"&&s.course===data.course&&s.shift===data.shift).length;
+  toast(`Homework assigned — ${data.course} (${data.shift}) ke ${n} students ke profile par show hoga`);
+}
+function delHw(id){ if(!confirm("Homework delete karein?")) return; DB.homework=DB.homework.filter(h=>h.id!==id); save(); renderHomework(); }
+
+/* ================= FEES ================= */
+function renderFees(){
+  const fs=$("feeFStatus").value, fm=$("feeFMonth").value, q=($("feeSearch").value||"").toLowerCase();
+  const rows = DB.fees.filter(f=>{
+    if(fs && f.status!==fs) return false;
+    if(fm && f.month!==fm) return false;
+    const st = stuById(f.studentId);
+    if(q && !(((st?st.name+" "+st.regNo:"")).toLowerCase().includes(q))) return false;
+    return true;
+  }).sort((a,b)=> (b.month+b.chNo).localeCompare(a.month+a.chNo));
+  $("feeRows").innerHTML = rows.length? rows.map(f=>{
+    const st = stuById(f.studentId);
+    return `<tr>
+      <td><b>${f.chNo}</b></td>
+      <td>${st? esc(st.name)+" <span class='sub'>("+esc(st.regNo)+")</span>" : "<i>Deleted student</i>"}</td>
+      <td>${fmtM(f.month)}</td>
+      <td><b>${money(f.amount)}</b>${(f.subjects||[]).length?`<br><span class="sub" title="${esc(f.subjects.map(x=>x.name+(x.fee?(": Rs "+x.fee):"")).join(", "))}">${f.subjects.length} subjects</span>`:""}${f.items&&f.items.length?` <span class="sub" title="${esc(f.items.map(i=>i.desc+": Rs "+i.amt).join(", "))}">(+${f.items.length} charges)</span>`:""}</td>
+      <td>${f.dueDate? `<span style="${f.status==="Unpaid"&&f.dueDate<todayStr()?"color:var(--red);font-weight:700":""}">${fmtD(f.dueDate)}${f.status==="Unpaid"&&f.dueDate<todayStr()?" ⚠":""}</span>` : "—"}</td>
+      <td><span class="badge b-${f.status.toLowerCase()}">${f.status}</span></td>
+      <td>${fmtD(f.paidDate)}</td>
+      <td style="white-space:nowrap">
+        ${f.status==="Unpaid"?`<button class="btn-black btn-sm" onclick="markPaid('${f.id}')">Mark Paid</button>`:`<button class="btn-line btn-sm" onclick="markUnpaid('${f.id}')">Undo Paid</button>`}
+        <button class="btn-line btn-sm" onclick="printChallan('${f.id}')">Print</button>
+        <button class="btn-danger btn-sm" onclick="delFee('${f.id}')">Delete</button>
+      </td>
+    </tr>`;
+  }).join("") : `<tr><td colspan="8" class="empty">Koi challan nahi — "New Fee Challan" se add karein.</td></tr>`;
+  const m = thisMonth();
+  $("feePaidM").textContent = money(DB.fees.filter(f=>f.status==="Paid"&&(f.paidDate||"").startsWith(m)).reduce((a,f)=>a+ +f.amount,0));
+  $("feeUnpaidAll").textContent = money(DB.fees.filter(f=>f.status==="Unpaid").reduce((a,f)=>a+ +f.amount,0));
+  const si = shiftIncome(m);
+  $("feeMornM").textContent = money(si.Morning.amt);
+  $("feeEveM").textContent = money(si.Evening.amt);
+  const defs = defaulterList();
+  $("feeDefN").textContent = defs.length;
+  $("feeDefAmt").textContent = money(defs.reduce((a,d)=>a+ +d.f.amount,0)) + " overdue · list ke liye click karein";
+}
+
+/* ---------- Defaulter list (due date guzar chuki, fee unpaid) ---------- */
+function defaulterList(){
+  const t = todayStr();
+  return DB.fees.filter(f=>f.status==="Unpaid" && f.dueDate && f.dueDate < t)
+    .map(f=>{
+      const st = stuById(f.studentId);
+      const days = Math.max(1, Math.round((new Date(t+"T00:00") - new Date(f.dueDate+"T00:00"))/864e5));
+      return {f, st, days};
+    })
+    .sort((a,b)=>b.days-a.days);
+}
+function defRowsHTML(defs, cell){
+  return defs.map((d,i)=>`<tr>
+    <td style="${cell};text-align:center"><b>${i+1}</b></td>
+    <td style="${cell}"><b>${d.st? esc(d.st.name) : "<i>Deleted</i>"}</b></td>
+    <td style="${cell}">${d.st? esc(d.st.regNo) : "—"}</td>
+    <td style="${cell}">${d.st? esc(d.st.fatherPhone||d.st.phone||"—") : "—"}</td>
+    <td style="${cell}">${fmtM(d.f.month)}</td>
+    <td style="${cell}"><b>${money(d.f.amount)}</b></td>
+    <td style="${cell};color:#C0392B;font-weight:700">${fmtD(d.f.dueDate)}</td>
+    <td style="${cell};text-align:center;color:#C0392B;font-weight:800">${d.days} din</td>
+  </tr>`).join("");
+}
+function openDefaulters(){
+  const defs = defaulterList();
+  const total = defs.reduce((a,d)=>a+ +d.f.amount,0);
+  openModal(`
+    <h3>⚠ Defaulter List</h3>
+    <p class="sub" style="margin-bottom:10px">Wo students jin ke challan ki <b>due date guzar chuki hai</b> aur fee ab tak unpaid hai · Total: <b style="color:var(--red)">${defs.length} defaulters — ${money(total)}</b></p>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>#</th><th>Student</th><th>Reg No</th><th>Phone</th><th>Fee Month</th><th>Amount</th><th>Due Date</th><th>Overdue</th><th>Action</th></tr></thead>
+      <tbody>${defs.length? defs.map((d,i)=>`<tr>
+        <td><b>${i+1}</b></td>
+        <td><b>${d.st? esc(d.st.name):"<i>Deleted</i>"}</b></td>
+        <td>${d.st? esc(d.st.regNo):"—"}</td>
+        <td>${d.st? esc(d.st.fatherPhone||d.st.phone||"—"):"—"}</td>
+        <td>${fmtM(d.f.month)}</td>
+        <td><b>${money(d.f.amount)}</b></td>
+        <td style="color:var(--red);font-weight:700">${fmtD(d.f.dueDate)}</td>
+        <td style="color:var(--red);font-weight:800">${d.days} din</td>
+        <td><button class="btn-black btn-sm" onclick="closeModal();markPaid('${d.f.id}')">Mark Paid</button></td>
+      </tr>`).join("") : `<tr><td colspan="9" class="empty">Koi defaulter nahi — sab fees waqt par hain ✓</td></tr>`}</tbody>
+    </table></div>
+    <div class="modal-foot">
+      <button class="btn-line" onclick="closeModal()">Close</button>
+      <button class="btn-black" onclick="exportDefCSV()">⬇ Download Excel (CSV)</button>
+      <button class="btn-red" onclick="printDefaulters()">🖨 Download PDF / Print</button>
+    </div>`, true);
+}
+function exportDefCSV(){
+  const defs = defaulterList();
+  if(!defs.length){ toast("Koi defaulter nahi"); return; }
+  const csvEsc = v => `"${String(v??"").replace(/"/g,'""')}"`;
+  const lines = [["#","Student","Reg No","Father Name","Phone","Class","Shift","Fee Month","Amount (Rs)","Due Date","Days Overdue"].map(csvEsc).join(",")];
+  defs.forEach((d,i)=>{
+    lines.push([i+1, d.st?d.st.name:"Deleted", d.st?d.st.regNo:"", d.st?d.st.fatherName:"", d.st?(d.st.fatherPhone||d.st.phone||""):"", d.st?d.st.course:"", d.st?d.st.shift:"", d.f.month, d.f.amount, d.f.dueDate, d.days].map(csvEsc).join(","));
+  });
+  lines.push("");
+  lines.push([`Total Defaulters: ${defs.length}`, "", "", "", "", "", "", "", `Total Due: ${defs.reduce((a,d)=>a+ +d.f.amount,0)}`].map(csvEsc).join(","));
+  const blob = new Blob(["\ufeff"+lines.join("\r\n")],{type:"text/csv;charset=utf-8"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `defaulter-list-${todayStr()}.csv`;
+  a.click();
+  toast("Defaulter list Excel (CSV) download ho gayi");
+}
+function printDefaulters(){
+  const defs = defaulterList();
+  if(!defs.length){ toast("Koi defaulter nahi"); return; }
+  const A = DB.settings;
+  const cell = "border:1px solid #999;padding:5px 8px;font-size:.8rem";
+  $("challanPrint").innerHTML = `
+    <div style="font-size:.85rem">
+      <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #174B60;padding-bottom:8px;margin-bottom:12px">
+        <div style="display:flex;gap:10px;align-items:center">${A.logo?`<img src="${A.logo}" style="height:44px;width:auto;object-fit:contain">`:""}<div><div style="font-size:1.2rem;font-weight:900">${esc(A.name||"Cambridge Grads Academy")}</div><div style="font-size:.72rem;color:#555">${esc(A.addr||"")} ${A.phone?("· "+esc(A.phone)):""}</div></div></div>
+        <div style="text-align:right"><b style="color:#C0392B">FEE DEFAULTER LIST</b><br><span style="font-size:.75rem;color:#555">As of ${fmtD(todayStr())} · ${defs.length} defaulters · Total due: ${money(defs.reduce((a,d)=>a+ +d.f.amount,0))}</span></div>
+      </div>
+      <table style="width:100%;border-collapse:collapse">
+        <thead><tr>${["#","Student","Reg No","Phone","Fee Month","Amount","Due Date","Overdue"].map(h=>`<th style="${cell};background:#f0f0f0">${h}</th>`).join("")}</tr></thead>
+        <tbody>${defRowsHTML(defs, cell)}</tbody>
+      </table>
+      <div style="display:flex;justify-content:space-between;margin-top:30px;font-size:.78rem;color:#444">
+        <span>Generated: ${fmtD(todayStr())}</span><span>Admin Signature: _______________</span>
+      </div>
+    </div>`;
+  window.print();
+  toast("Print dialog mein 'Save as PDF' select karein");
+}
+
+/* ---------- Challan form (with due date + extra charges) ---------- */
+let chItems = [];
+let chStus = [];
+let chSubs = [];          // challan par aane wale subjects
+let chMode = "Morning";   // selected student ki shift
+function openChallanForm(){
+  chStus = DB.students.filter(s=>s.status==="Active"||s.status==="Freeze").sort((a,b)=>a.name.localeCompare(b.name));
+  if(!chStus.length){ toast("Pehle student enroll karein"); return; }
+  chItems = []; chSubs = []; chMode = "Morning";
+  openModal(`
+    <h3>New Fee Challan</h3>
+    <div class="field" style="position:relative"><label>Student * (naam / reg no type karein)</label>
+      <input id="c_stuSearch" placeholder="Type karke student search karein..." autocomplete="off" oninput="chStuFilter()" onfocus="chStuFilter()">
+      <input type="hidden" id="c_stu" value="">
+      <div class="sugg" id="c_stuList"></div>
+    </div>
+    <div class="grid2">
+      <div class="field"><label>Fee Month *</label><input type="month" id="c_month" value="${thisMonth()}" onchange="prefDue()"></div>
+      <div class="field"><label>Monthly Fee (Rs) *</label><input type="number" id="c_amt" value="" oninput="chTotal()"></div>
+      <div class="field"><label>Due Date (fee kis date tak pay karni hai)</label><input type="date" id="c_due" value="${thisMonth()}-10"></div>
+      <div class="field"><label>Status</label><select id="c_status" onchange="$('c_paidwrap').style.display=this.value==='Paid'?'block':'none'"><option>Unpaid</option><option>Paid</option></select></div>
+    </div>
+    <div class="field" id="c_paidwrap" style="display:none"><label>Paid Date</label><input type="date" id="c_paid" value="${todayStr()}"></div>
+    <div id="chSubBox"></div>
+    <div class="note" style="margin:10px 0"><b>Other Charges</b> — books, AC charges, admission fee, exam fee waghera yahan add karein (optional)</div>
+    <div class="toolbar">
+      <div class="field" style="flex:1"><label>Charge Description</label><input id="c_idesc" placeholder="e.g. Books / AC Charges / Admission Fee"></div>
+      <div class="field"><label>Amount (Rs)</label><input type="number" id="c_iamt" style="max-width:130px"></div>
+      <button class="btn-black" onclick="addChItem()">+ Add Charge</button>
+    </div>
+    <div class="chips" id="chItemChips"></div>
+    <div style="text-align:right;font-size:1.05rem;margin-top:10px">Total: <b id="c_total" style="color:var(--red)">Rs 0</b></div>
+    <div class="modal-foot">
+      <button class="btn-line" onclick="closeModal()">Cancel</button>
+      <button class="btn-red" onclick="saveChallan()">Create Challan</button>
+    </div>`, true);
+  chTotal();
+}
+function chStuFilter(){
+  const q = ($("c_stuSearch").value||"").trim().toLowerCase();
+  const box = $("c_stuList");
+  $("c_stu").value = "";
+  if(!q){ box.classList.remove("show"); box.innerHTML=""; return; }
+  const hits = chStus.filter(s=>((s.name||"")+" "+(s.regNo||"")+" "+(s.phone||"")+" "+(s.fatherName||"")).toLowerCase().includes(q)).slice(0,8);
+  box.innerHTML = hits.length? hits.map(s=>`<button type="button" onclick="chStuPick('${s.id}')"><b>${esc(s.name)}</b> <span class="sm">(${esc(s.regNo)}) — ${esc(s.course)} · ${s.shift}${s.monthlyFee?(" · "+money(s.monthlyFee)):""}</span></button>`).join("") : `<button type="button" disabled style="color:#999">Koi student nahi mila</button>`;
+  box.classList.add("show");
+}
+function chStuPick(id){
+  const s = stuById(id); if(!s) return;
+  $("c_stu").value = id;
+  $("c_stuSearch").value = s.name + " (" + s.regNo + ")";
+  $("c_stuList").classList.remove("show");
+  chMode = s.shift || "Morning";
+  chSubs = (s.subjects||[]).map(x=>({name:x.name, fee:+x.fee||0, teacherId:x.teacherId||""}));
+  if(chMode!=="Evening" || !chSubs.length){ if(studentFee(s)) $("c_amt").value = studentFee(s); }
+  drawChSubs(); chTotal();
+}
+function drawChSubs(){
+  const box = $("chSubBox"); if(!box) return;
+  const ev = chMode==="Evening";
+  if(!chSubs.length){ box.innerHTML = `<div class="sub" style="margin:10px 0">Is student ke koi subjects set nahi — student ki profile edit kar ke subjects add karein.</div>`; return; }
+  box.innerHTML = `
+    <div class="note" style="margin:10px 0"><b>Subjects</b> — yehi list challan par chhapegi${ev?" (subject-wise fee ke sath)":""}. Kisi month koi subject na lagana ho to ✕ se hata dein.</div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>#</th><th>Subject</th><th>Teacher</th>${ev?"<th>Fee (Rs)</th>":""}<th></th></tr></thead>
+      <tbody>${chSubs.map((x,i)=>`<tr>
+        <td><b>${i+1}</b></td>
+        <td><b>${esc(x.name)}</b></td>
+        <td>${esc(teacherName(x.teacherId))}</td>
+        ${ev?`<td style="max-width:120px"><input type="number" value="${x.fee||0}" oninput="chSubs[${i}].fee=+this.value||0;chTotal()"></td>`:""}
+        <td><button class="btn-danger btn-sm" onclick="chSubs.splice(${i},1);drawChSubs();chTotal()">✕</button></td>
+      </tr>`).join("")}</tbody>
+    </table></div>`;
+}
+function prefDue(){ const m=$("c_month").value; if(m) $("c_due").value = m+"-10"; }
+function addChItem(){
+  const desc=$("c_idesc").value.trim(), amt=+$("c_iamt").value;
+  if(!desc||!amt){ toast("Charge ki description aur amount likhein"); return; }
+  chItems.push({desc, amt});
+  $("c_idesc").value=""; $("c_iamt").value="";
+  drawChItems(); chTotal();
+}
+function drawChItems(){
+  $("chItemChips").innerHTML = chItems.map((it,i)=>`<span class="chip">${esc(it.desc)} · ${money(it.amt)} <button onclick="chItems.splice(${i},1);drawChItems();chTotal()">✕</button></span>`).join("") || `<span class="sub">Koi extra charge nahi</span>`;
+}
+function chTotal(){
+  const ev = chMode==="Evening" && chSubs.length;
+  if(ev){ $("c_amt").value = chSubs.reduce((a,x)=>a+(+x.fee||0),0); $("c_amt").readOnly = true; }
+  else if($("c_amt")) $("c_amt").readOnly = false;
+  const t = (+$("c_amt").value||0) + chItems.reduce((a,i)=>a+ +i.amt,0);
+  $("c_total").textContent = money(t);
+  return t;
+}
+function saveChallan(){
+  if(!$("c_stu").value){ toast("Pehle student select karein — search bar mein naam type karke list se choose karein"); return; }
+  const base = +$("c_amt").value;
+  if(!base && !chItems.length && !chSubs.length){ toast("Amount likhein ya subjects add karein"); return; }
+  const st = stuById($("c_stu").value);
+  const total = (base||0) + chItems.reduce((a,i)=>a+ +i.amt,0);
+  const status = $("c_status").value;
+  const f = {
+    id:uid(), chNo:"CH-"+String(DB.counters.ch++).padStart(5,"0"),
+    studentId:$("c_stu").value, month:$("c_month").value||thisMonth(),
+    tuition: base||0, items:[...chItems], amount:total,
+    subjects: chSubs.map(x=>({name:x.name, fee:+x.fee||0, teacherId:x.teacherId||""})),
+    course: st? st.course : "", group: st? groupOf(st) : "",
+    dueDate:$("c_due").value||"", status, shift: st? st.shift : "",
+    paidDate: status==="Paid"? ($("c_paid").value||todayStr()) : ""
+  };
+  DB.fees.push(f); save(); closeModal(); renderFees(); renderDashboard();
+  toast("Challan created: "+f.chNo+" — Total "+money(total));
+}
+
+/* ---------- One-click bulk challan generation ---------- */
+function openBulkChallan(){
+  const act = DB.students.filter(s=>s.status==="Active");
+  if(!act.length){ toast("Koi active student nahi hai"); return; }
+  openModal(`
+    <h3>⚡ Generate All Challans</h3>
+    <p class="sub" style="margin-bottom:12px">Ek click mein tamam <b>Active students</b> ke challans ban jayenge (unki monthly fee ke mutabiq). Jin students ka is month ka challan pehle se bana hua hai, wo skip ho jayenge.</p>
+    <div class="grid2">
+      <div class="field"><label>Fee Month *</label><input type="month" id="bc_month" value="${thisMonth()}" onchange="$('bc_due').value=this.value+'-10'"></div>
+      <div class="field"><label>Shift</label><select id="bc_shift"><option value="">Both Shifts</option><option>Morning</option><option>Evening</option></select></div>
+      <div class="field"><label>Due Date (sab challans par)</label><input type="date" id="bc_due" value="${thisMonth()}-10"></div>
+    </div>
+    <div class="note">Total active students: <b>${act.length}</b> · Morning: <b>${act.filter(s=>s.shift==="Morning").length}</b> · Evening: <b>${act.filter(s=>s.shift==="Evening").length}</b></div>
+    <div class="modal-foot">
+      <button class="btn-line" onclick="closeModal()">Cancel</button>
+      <button class="btn-red" onclick="runBulkChallan()">Generate Challans</button>
+    </div>`);
+}
+function runBulkChallan(){
+  const m = $("bc_month").value || thisMonth();
+  const sh = $("bc_shift").value, due = $("bc_due").value||"";
+  const act = DB.students.filter(s=>s.status==="Active" && (!sh || s.shift===sh));
+  let created=0, skipped=0, noFee=0;
+  act.forEach(s=>{
+    if(DB.fees.some(f=>f.studentId===s.id && f.month===m)){ skipped++; return; }
+    const amt = studentFee(s);
+    if(!amt){ noFee++; return; }
+    DB.fees.push({
+      id:uid(), chNo:"CH-"+String(DB.counters.ch++).padStart(5,"0"),
+      studentId:s.id, month:m, tuition:amt, items:[], amount:amt,
+      subjects:(s.subjects||[]).map(x=>({name:x.name, fee:+x.fee||0, teacherId:x.teacherId||""})),
+      course:s.course, group:groupOf(s),
+      dueDate:due, status:"Unpaid", shift:s.shift, paidDate:""
+    });
+    created++;
+  });
+  save(); closeModal(); renderFees(); renderDashboard();
+  let msg = `✓ ${created} challans generated (${fmtM(m)})`;
+  if(skipped) msg += ` · ${skipped} pehle se maujood (skip)`;
+  if(noFee) msg += ` · ${noFee} students ki fee set nahi (skip)`;
+  toast(msg);
+}
+function markPaid(id){
+  const f=DB.fees.find(x=>x.id===id), st=stuById(f.studentId);
+  openModal(`
+    <h3>Mark Paid — ${f.chNo}</h3>
+    <p class="sub" style="margin-bottom:12px">${st?esc(st.name):""} · ${fmtM(f.month)} · <b>${money(f.amount)}</b></p>
+    <div class="field"><label>Payment Date (student ne kis date ko fee pay ki)</label><input type="date" id="mp_date" value="${todayStr()}"></div>
+    <div class="modal-foot">
+      <button class="btn-line" onclick="closeModal()">Cancel</button>
+      <button class="btn-red" onclick="confirmPaid('${id}')">Confirm Paid ✓</button>
+    </div>`);
+}
+function confirmPaid(id){
+  const f=DB.fees.find(x=>x.id===id);
+  f.status="Paid"; f.paidDate=$("mp_date").value||todayStr();
+  save(); closeModal(); renderFees(); renderDashboard(); toast("Paid ✓ ("+f.chNo+" — "+fmtD(f.paidDate)+")");
+}
+function markUnpaid(id){ const f=DB.fees.find(x=>x.id===id); f.status="Unpaid"; f.paidDate=""; save(); renderFees(); renderDashboard(); }
+function delFee(id){ if(!confirm("Challan delete karein?")) return; DB.fees=DB.fees.filter(f=>f.id!==id); save(); renderFees(); renderDashboard(); }
+function printChallan(id){
+  const f = DB.fees.find(x=>x.id===id), st = stuById(f.studentId)||{};
+  const A = DB.settings;
+  const subs = f.subjects || [];
+  const ev = (f.shift || st.shift || "") === "Evening";
+  const subTot = subs.reduce((a,x)=>a+(+x.fee||0),0);
+  /* Evening: har subject ki apni fee · Morning: subjects ki list + ek monthly fee */
+  const feeRows = (ev && subs.length)
+    ? subs.map((x,i)=>`<tr><td><b>${i+1}. ${esc(x.name)}</b>${x.teacherId?`<br><span style="font-size:.7rem;color:#555">${esc(teacherName(x.teacherId))}</span>`:""}</td><td>${money(x.fee)}</td></tr>`).join("")
+      + `<tr><td><b>Subjects Total</b></td><td><b>${money(subTot)}</b></td></tr>`
+    : (subs.length? `<tr><td><b>Subjects</b></td><td>${subs.map(x=>esc(x.name)).join(" · ")}</td></tr>`:"")
+      + `<tr><td><b>Monthly Fee</b></td><td>${money(f.tuition||f.amount||0)}</td></tr>`;
+  const itemRows = (f.items||[]).map(it=>`<tr><td><b>${esc(it.desc)}</b></td><td>${money(it.amt)}</td></tr>`).join("");
+  const copyHTML = label => `
+    <div class="challan">
+      <div class="ch-head">
+        <div style="display:flex;gap:10px;align-items:center">
+          ${A.logo?`<img src="${A.logo}" style="height:42px;width:auto;object-fit:contain;background:#fff;border-radius:6px;padding:3px">`:""}
+          <div><div style="font-size:1.2rem;font-weight:900">${esc(A.name||"Cambridge Grads Academy")}</div>
+          <div style="font-size:.75rem;color:#ccc">${esc(A.addr||"")} ${A.phone?("· "+esc(A.phone)):""}</div></div>
+        </div>
+        <div style="text-align:right"><div class="red">FEE CHALLAN</div><div class="ch-copy">${label}</div></div>
+      </div>
+      <div class="ch-body">
+        <table style="width:100%;border-collapse:collapse">
+          <tr><td style="width:34%"><b>Challan #</b></td><td>${f.chNo}</td></tr>
+          <tr><td><b>Student Name</b></td><td>${esc(st.name||"—")}</td></tr>
+          <tr><td><b>Reg No</b></td><td>${esc(st.regNo||"—")}</td></tr>
+          <tr><td><b>Father Name</b></td><td>${esc(st.fatherName||"—")}</td></tr>
+          <tr><td><b>Class</b></td><td>${esc(f.course||st.course||"—")}</td></tr>
+          <tr><td><b>Shift</b></td><td>${st.shift||f.shift||"—"} ${(st.shift||f.shift)?("("+SHIFTS[st.shift||f.shift]+")"):""}</td></tr>
+          ${(f.group&&f.group!=="—")? `<tr><td><b>Group</b></td><td>${esc(f.group)}</td></tr>`:""}
+          <tr><td><b>Fee Month</b></td><td>${fmtM(f.month)}</td></tr>
+          <tr><td><b>Due Date</b></td><td>${f.dueDate? fmtD(f.dueDate) : "—"}</td></tr>
+          <tr><td><b>Status</b></td><td><b>${f.status}</b>${f.paidDate?(" — Paid on "+fmtD(f.paidDate)):""}</td></tr>
+          ${feeRows}
+          ${itemRows}
+          <tr><td><b>Total Amount</b></td><td class="ch-amt">${money(f.amount)}</td></tr>
+        </table>
+      </div>
+      <div class="ch-foot"><span>Issued: ${fmtD(todayStr())}</span><span>Receiver Signature: _______________</span></div>
+    </div>`;
+  $("challanPrint").innerHTML = `
+    <div class="ch-sheet">
+      ${copyHTML("STUDENT COPY")}
+      <div class="ch-cut">✂ &nbsp;— — — — — — — — — — &nbsp; yahan se cut karein &nbsp; — — — — — — — — — —</div>
+      ${copyHTML("ACADEMY COPY")}
+    </div>`;
+  window.print();
+}
+
+/* ================= INQUIRIES ================= */
+function renderInquiries(){
+  const rows = [...DB.inquiries].sort((a,b)=>b.date.localeCompare(a.date));
+  $("inqRows").innerHTML = rows.length? rows.map(i=>`
+    <tr>
+      <td>${fmtD(i.date)}</td>
+      <td><b>${esc(i.name)}</b></td>
+      <td>${esc(i.phone)}</td>
+      <td>${esc(i.course)}</td>
+      <td>${i.fee? "<b>"+money(i.fee)+"</b>" : "—"}</td>
+      <td>${esc(i.city)}${i.area?(" · "+esc(i.area)):""}</td>
+      <td style="max-width:260px">${esc(i.detail||"—")}</td>
+      <td style="white-space:nowrap">
+        <button class="btn-black btn-sm" onclick="inqToStudent('${i.id}')">Enroll</button>
+        <button class="btn-line btn-sm" onclick="openInqForm('${i.id}')">Edit</button>
+        <button class="btn-danger btn-sm" onclick="delInq('${i.id}')">Delete</button>
+      </td>
+    </tr>`).join("") : `<tr><td colspan="8" class="empty">Koi inquiry nahi — phone call aane par yahan note karein.</td></tr>`;
+}
+function openInqForm(id){
+  const i = id? DB.inquiries.find(x=>x.id===id) : {};
+  openModal(`
+    <h3>${id?"Edit Inquiry":"New Inquiry"}</h3>
+    <div class="grid2">
+      <div class="field"><label>Name *</label><input id="i_name" value="${esc(i.name||"")}"></div>
+      <div class="field"><label>Phone Number *</label><input id="i_phone" value="${esc(i.phone||"")}"></div>
+      <div class="field"><label>Interested Class</label><select id="i_course">${courseOptions(i.course)}</select></div>
+      <div class="field"><label>Agreed / Decided Fee (Rs)</label><input type="number" id="i_fee" value="${i.fee||""}" placeholder="e.g. 3000 — jis fee par baat pakki hui"></div>
+      <div class="field"><label>Date</label><input type="date" id="i_date" value="${i.date||todayStr()}"></div>
+      <div class="field"><label>City</label><input id="i_city" value="${esc(i.city||"")}"></div>
+      <div class="field"><label>Area</label><input id="i_area" value="${esc(i.area||"")}"></div>
+    </div>
+    <div class="field"><label>Detail (kya baat hui?)</label><textarea id="i_detail" rows="3">${esc(i.detail||"")}</textarea></div>
+    <div class="modal-foot">
+      <button class="btn-line" onclick="closeModal()">Cancel</button>
+      <button class="btn-red" onclick="saveInq('${id||""}')">Save Inquiry</button>
+    </div>`);
+}
+function saveInq(id){
+  const name=$("i_name").value.trim(), phone=$("i_phone").value.trim();
+  if(!name||!phone){ toast("Name aur phone zaroori hain"); return; }
+  const data = {name, phone, course:$("i_course").value, fee:$("i_fee").value||"", date:$("i_date").value||todayStr(), city:$("i_city").value.trim(), area:$("i_area").value.trim(), detail:$("i_detail").value.trim()};
+  if(id) Object.assign(DB.inquiries.find(x=>x.id===id), data);
+  else { data.id=uid(); DB.inquiries.push(data); }
+  save(); closeModal(); renderInquiries(); renderDashboard(); toast("Inquiry saved");
+}
+function delInq(id){ if(!confirm("Inquiry delete karein?")) return; DB.inquiries=DB.inquiries.filter(x=>x.id!==id); save(); renderInquiries(); }
+function inqToStudent(id){
+  const i = DB.inquiries.find(x=>x.id===id);
+  openStudentForm(null, {name:i.name, phone:i.phone, course:i.course, monthlyFee:i.fee||"", address:(i.city||"")+(i.area?(", "+i.area):"")});
+}
+
+/* ================= EXAMS ================= */
+function renderExams(){
+  const q = ($("examSearch").value||"").toLowerCase();
+  const fc=$("examFCourse").value, fs=$("examFShift").value, fm=$("examFMonth").value;
+  const rows = DB.exams.filter(e=>{
+    const st = stuById(e.studentId);
+    if(fc && (!st || st.course!==fc)) return false;
+    if(fs && (!st || st.shift!==fs)) return false;
+    if(fm && !e.date.startsWith(fm)) return false;
+    return !q || ((st? st.name+" "+st.regNo : "")+" "+(e.subject||"")+" "+e.exam).toLowerCase().includes(q);
+  }).sort((a,b)=>b.date.localeCompare(a.date));
+  $("examRows").innerHTML = rows.length? rows.map(e=>{
+    const st = stuById(e.studentId), p = Math.round(e.obtained/e.total*100);
+    return `<tr>
+      <td>${fmtD(e.date)}</td>
+      <td>${st? esc(st.name)+" <span class='sub'>("+esc(st.regNo)+")</span>":"<i>Deleted</i>"}</td>
+      <td>${esc(e.exam)}</td>
+      <td>${esc(e.subject||"—")}</td>
+      <td><b>${e.obtained}</b></td><td>${e.total}</td><td><b>${p}%</b></td>
+      <td><span class="badge ${p>=50?"b-paid":"b-unpaid"}">${p>=50?"Pass":"Fail"}</span></td>
+      <td style="max-width:200px;font-size:.82rem">${esc(e.comment||"—")}</td>
+      <td style="white-space:nowrap">
+        <button class="btn-line btn-sm" onclick="openExamForm('${e.id}')">Edit</button>
+        <button class="btn-danger btn-sm" onclick="delExam('${e.id}')">Delete</button>
+      </td>
+    </tr>`;
+  }).join("") : `<tr><td colspan="10" class="empty">Koi exam record nahi</td></tr>`;
+}
+function openExamForm(id){
+  const ex = id? DB.exams.find(x=>x.id===id) : {};
+  if(id && !ex) return;
+  const stus = DB.students.filter(s=>s.status!=="Left").sort((a,b)=>a.name.localeCompare(b.name));
+  if(!stus.length){ toast("Pehle student enroll karein"); return; }
+  const subjects = [...new Set([...DB.subjects.map(x=>x.name), ...DB.exams.map(e=>e.subject).filter(Boolean)])].sort();
+  openModal(`
+    <h3>${id? "Edit Exam Marks" : "Add Exam Marks"}</h3>
+    <div class="field"><label>Student *</label><select id="e_stu">${stus.map(s=>`<option value="${s.id}" ${ex.studentId===s.id?"selected":""}>${esc(s.name)} (${esc(s.regNo)}) — ${esc(s.course)}</option>`).join("")}</select></div>
+    <div class="grid2">
+      <div class="field"><label>Exam Name *</label><input id="e_name" value="${esc(ex.exam||"")}" placeholder="e.g. MS Word Test / Final Exam"></div>
+      <div class="field"><label>Subject / Topic</label><input id="e_subj" list="subjList" value="${esc(ex.subject||"")}" placeholder="e.g. MS Word / Photoshop Basics / SEO On-Page"><datalist id="subjList">${subjects.map(s=>`<option value="${esc(s)}">`).join("")}</datalist></div>
+      <div class="field"><label>Date</label><input type="date" id="e_date" value="${ex.date||todayStr()}"></div>
+      <div class="field"><label>Total Marks *</label><input type="number" id="e_total" value="${ex.total??100}"></div>
+      <div class="field"><label>Obtained Marks *</label><input type="number" id="e_obt" value="${ex.obtained??""}"></div>
+    </div>
+    <div class="field"><label>Comment (student ke baare mein — is exam se related)</label><textarea id="e_comment" rows="2" placeholder="e.g. Bohat achi performance / Typing speed par mehnat ki zaroorat hai...">${esc(ex.comment||"")}</textarea></div>
+    <div class="modal-foot">
+      <button class="btn-line" onclick="closeModal()">Cancel</button>
+      <button class="btn-red" onclick="saveExam('${id||""}')">${id? "Update Marks":"Save Marks"}</button>
+    </div>`);
+}
+function saveExam(id){
+  const total=+$("e_total").value, obt=+$("e_obt").value, name=$("e_name").value.trim();
+  if(!name||!total||isNaN(obt)||$("e_obt").value===""){ toast("Exam name, total aur obtained marks likhein"); return; }
+  if(obt>total){ toast("Obtained marks total se zyada nahi ho sakte"); return; }
+  const data = {studentId:$("e_stu").value, exam:name, subject:$("e_subj").value.trim(), comment:$("e_comment").value.trim(), total, obtained:obt, date:$("e_date").value||todayStr()};
+  if(id){ Object.assign(DB.exams.find(x=>x.id===id), data); toast("Exam record updated"); }
+  else { data.id = uid(); DB.exams.push(data); toast("Exam marks saved"); }
+  save(); closeModal(); renderExams();
+}
+function delExam(id){ if(!confirm("Exam record delete karein?")) return; DB.exams=DB.exams.filter(e=>e.id!==id); save(); renderExams(); }
+
+/* ---------- Grades ---------- */
+function gradeOf(p){ return p>=80?"A+":p>=70?"A":p>=60?"B":p>=50?"C":"F"; }
+
+/* ================= CLASS RESULT (course + shift wise) ================= */
+function openClassResult(){
+  openModal(`
+    <h3>📊 Class Result</h3>
+    <div class="toolbar">
+      <div class="field"><label>Shift</label><select id="cr_shift" onchange="syncClassSel('cr_shift','cr_course');renderClassResult()"><option>Morning</option><option>Evening</option></select></div>
+      <div class="field" style="flex:1"><label>Class</label><select id="cr_course" onchange="renderClassResult()">${courseOptions(undefined,"Morning")}</select></div>
+      <div class="field"><label>Month (optional)</label><input type="month" id="cr_month" onchange="renderClassResult()"></div>
+    </div>
+    <div id="crBody"></div>
+    <div class="modal-foot">
+      <button class="btn-line" onclick="closeModal()">Close</button>
+      <button class="btn-red" onclick="printClassResult()">🖨 Print / PDF</button>
+    </div>`, true);
+  renderClassResult();
+}
+function classResultData(){
+  const c=$("cr_course").value, sh=$("cr_shift").value, m=$("cr_month").value;
+  const stus = DB.students.filter(s=>s.course===c && s.shift===sh);
+  const rows = stus.map(s=>{
+    const ex = DB.exams.filter(e=>e.studentId===s.id && (!m||e.date.startsWith(m)));
+    const obt = ex.reduce((a,e)=>a+ +e.obtained,0), tot = ex.reduce((a,e)=>a+ +e.total,0);
+    const pct = tot? Math.round(obt/tot*100) : null;
+    return {s, n:ex.length, obt, tot, pct};
+  }).sort((a,b)=>(b.pct??-1)-(a.pct??-1));
+  rows.forEach((r,i)=>r.pos = r.pct===null? "—" : i+1);
+  return {c, sh, m, rows};
+}
+function classResultTable(rows){
+  return `<div class="tbl-wrap"><table>
+    <thead><tr><th>Position</th><th>Reg No</th><th>Name</th><th>Tests</th><th>Obtained</th><th>Total</th><th>%</th><th>Grade</th><th>Result</th></tr></thead>
+    <tbody>${rows.length? rows.map(r=>r.pct===null?
+      `<tr><td>—</td><td>${esc(r.s.regNo)}</td><td>${esc(r.s.name)}</td><td colspan="6" class="empty">Koi exam nahi</td></tr>`:
+      `<tr>
+        <td><b>${r.pos}</b></td><td>${esc(r.s.regNo)}</td><td><b>${esc(r.s.name)}</b></td>
+        <td>${r.n}</td><td><b>${r.obt}</b></td><td>${r.tot}</td><td><b>${r.pct}%</b></td>
+        <td><b>${gradeOf(r.pct)}</b></td>
+        <td><span class="badge ${r.pct>=50?"b-paid":"b-unpaid"}">${r.pct>=50?"Pass":"Fail"}</span></td>
+      </tr>`).join("") : `<tr><td colspan="9" class="empty">Is class/shift mein koi student nahi</td></tr>`}</tbody>
+  </table></div>`;
+}
+function renderClassResult(){
+  const {c, sh, m, rows} = classResultData();
+  $("crBody").innerHTML = `<div class="sub" style="margin-bottom:10px"><b>${esc(c)}</b> · ${sh} ${m?("· "+fmtM(m)):"· All exams"} · ${rows.length} students</div>` + classResultTable(rows);
+}
+function printClassResult(){
+  const {c, sh, m, rows} = classResultData();
+  const A = DB.settings;
+  $("challanPrint").innerHTML = `
+    <div style="font-size:.85rem">
+      <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #174B60;padding-bottom:8px;margin-bottom:12px">
+        <div style="display:flex;gap:10px;align-items:center">${A.logo?`<img src="${A.logo}" style="height:44px;width:auto;object-fit:contain">`:""}<div><div style="font-size:1.2rem;font-weight:900">${esc(A.name||"Cambridge Grads Academy")}</div><div style="font-size:.72rem;color:#555">${esc(A.addr||"")} ${A.phone?("· "+esc(A.phone)):""}</div></div></div>
+        <div style="text-align:right"><b>CLASS RESULT</b><br>${esc(c)}<br>${sh} Shift ${m?("· "+fmtM(m)):""}</div>
+      </div>
+      <table style="width:100%;border-collapse:collapse">
+        <thead><tr>${["Position","Reg No","Name","Tests","Obtained","Total","%","Grade","Result"].map(h=>`<th style="border:1px solid #999;padding:5px 7px;background:#f0f0f0">${h}</th>`).join("")}</tr></thead>
+        <tbody>${rows.map(r=>`<tr>
+          <td style="border:1px solid #999;padding:5px 7px;text-align:center"><b>${r.pos}</b></td>
+          <td style="border:1px solid #999;padding:5px 7px">${esc(r.s.regNo)}</td>
+          <td style="border:1px solid #999;padding:5px 7px"><b>${esc(r.s.name)}</b></td>
+          ${r.pct===null? `<td colspan="6" style="border:1px solid #999;padding:5px 7px;color:#777">Koi exam nahi</td>`:
+          `<td style="border:1px solid #999;padding:5px 7px;text-align:center">${r.n}</td>
+          <td style="border:1px solid #999;padding:5px 7px;text-align:center"><b>${r.obt}</b></td>
+          <td style="border:1px solid #999;padding:5px 7px;text-align:center">${r.tot}</td>
+          <td style="border:1px solid #999;padding:5px 7px;text-align:center"><b>${r.pct}%</b></td>
+          <td style="border:1px solid #999;padding:5px 7px;text-align:center"><b>${gradeOf(r.pct)}</b></td>
+          <td style="border:1px solid #999;padding:5px 7px;text-align:center;${r.pct>=50?"color:#0f7b3d":"color:#C0392B"};font-weight:700">${r.pct>=50?"Pass":"Fail"}</td>`}
+        </tr>`).join("")}</tbody>
+      </table>
+      <div style="display:flex;justify-content:space-between;margin-top:34px;font-size:.78rem;color:#444">
+        <span>Generated: ${fmtD(todayStr())}</span><span>Teacher Signature: _______________</span><span>Admin Signature: _______________</span>
+      </div>
+    </div>`;
+  window.print();
+}
+
+/* ================= REPORT CARD / TRANSCRIPT ================= */
+function openReportCard(preId){
+  const stus = [...DB.students].sort((a,b)=>a.name.localeCompare(b.name));
+  if(!stus.length){ toast("Pehle student enroll karein"); return; }
+  openModal(`
+    <h3>🎓 Report Card / Transcript</h3>
+    <div class="toolbar">
+      <div class="field" style="flex:1"><label>Student</label><select id="rc_stu" onchange="renderReportCard()">${stus.map(s=>`<option value="${s.id}" ${s.id===preId?"selected":""}>${esc(s.name)} (${esc(s.regNo)}) — ${esc(s.course)}</option>`).join("")}</select></div>
+      <div class="field"><label>From Month</label><input type="month" id="rc_from" onchange="renderReportCard()"></div>
+      <div class="field"><label>To Month</label><input type="month" id="rc_to" value="${thisMonth()}" onchange="renderReportCard()"></div>
+    </div>
+    <div class="sub" style="margin-bottom:10px">From/To khali chhorein to tamam exams shamil honge · Ek month ki report ke liye dono mein wohi month select karein</div>
+    <div id="rcBody"></div>
+    <div class="modal-foot">
+      <button class="btn-line" onclick="closeModal()">Close</button>
+      <button class="btn-red" onclick="printReportCard()">🖨 Print / PDF</button>
+    </div>`, true);
+  renderReportCard();
+}
+function reportCardData(){
+  const sid=$("rc_stu").value, from=$("rc_from").value, to=$("rc_to").value;
+  const s = stuById(sid);
+  const ex = DB.exams.filter(e=>{
+    if(e.studentId!==sid) return false;
+    const m = e.date.slice(0,7);
+    if(from && m<from) return false;
+    if(to && m>to) return false;
+    return true;
+  }).sort((a,b)=>a.date.localeCompare(b.date));
+  const obt = ex.reduce((a,e)=>a+ +e.obtained,0), tot = ex.reduce((a,e)=>a+ +e.total,0);
+  const pct = tot? Math.round(obt/tot*100) : 0;
+  const att = attSummary(sid, s.doj);
+  return {s, ex, obt, tot, pct, att, from, to};
+}
+function rcRows(ex){
+  return ex.map((e,i)=>{ const p=Math.round(e.obtained/e.total*100); return `<tr>
+    <td style="border:1px solid #999;padding:5px 8px;text-align:center">${i+1}</td>
+    <td style="border:1px solid #999;padding:5px 8px">${fmtD(e.date)}</td>
+    <td style="border:1px solid #999;padding:5px 8px"><b>${esc(e.exam)}</b>${e.subject?`<br><span style="font-size:.72rem;color:#555">${esc(e.subject)}</span>`:""}${e.comment?`<br><i style="font-size:.7rem;color:#777">"${esc(e.comment)}"</i>`:""}</td>
+    <td style="border:1px solid #999;padding:5px 8px;text-align:center">${e.total}</td>
+    <td style="border:1px solid #999;padding:5px 8px;text-align:center"><b>${e.obtained}</b></td>
+    <td style="border:1px solid #999;padding:5px 8px;text-align:center"><b>${p}%</b></td>
+    <td style="border:1px solid #999;padding:5px 8px;text-align:center">${gradeOf(p)}</td>
+    <td style="border:1px solid #999;padding:5px 8px;text-align:center;${p>=50?"color:#0f7b3d":"color:#C0392B"};font-weight:700">${p>=50?"Pass":"Fail"}</td>
+  </tr>`; }).join("");
+}
+function transcriptHTML(d, forPrint){
+  const {s, ex, obt, tot, pct, att} = d;
+  const A = DB.settings;
+  const range = (d.from||d.to)? `${d.from?fmtM(d.from):"Start"} — ${d.to?fmtM(d.to):"Now"}` : "All Exams";
+  return `
+  <div style="font-size:.85rem;${forPrint?"":"border:1px solid var(--line);border-radius:10px;padding:14px"}">
+    <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #174B60;padding-bottom:8px;margin-bottom:12px">
+      <div style="display:flex;gap:10px;align-items:center">${A.logo?`<img src="${A.logo}" style="height:44px;width:auto;object-fit:contain">`:""}<div><div style="font-size:1.2rem;font-weight:900">${esc(A.name||"Cambridge Grads Academy")}</div><div style="font-size:.72rem;color:#555">${esc(A.addr||"")} ${A.phone?("· "+esc(A.phone)):""}</div></div></div>
+      <div style="text-align:right"><b>REPORT CARD / TRANSCRIPT</b><br><span style="font-size:.75rem;color:#555">${range}</span></div>
+    </div>
+    <div style="display:flex;gap:14px;align-items:flex-start;margin-bottom:12px">
+      ${s.photo? `<img src="${s.photo}" style="width:76px;height:76px;object-fit:cover;border:2px solid #174B60;border-radius:8px">`:""}
+      <table style="flex:1;border-collapse:collapse;font-size:.8rem">
+        <tr><td style="padding:3px 8px;width:24%"><b>Student Name</b></td><td style="padding:3px 8px">${esc(s.name)}</td><td style="padding:3px 8px;width:20%"><b>Reg No</b></td><td style="padding:3px 8px">${esc(s.regNo)}</td></tr>
+        <tr><td style="padding:3px 8px"><b>Father Name</b></td><td style="padding:3px 8px">${esc(s.fatherName)}</td><td style="padding:3px 8px"><b>Date of Birth</b></td><td style="padding:3px 8px">${fmtD(s.dob)}</td></tr>
+        <tr><td style="padding:3px 8px"><b>Class</b></td><td style="padding:3px 8px">${esc(s.course)}</td><td style="padding:3px 8px"><b>Shift</b></td><td style="padding:3px 8px">${s.shift}</td></tr>
+        <tr><td style="padding:3px 8px"><b>Teacher</b></td><td style="padding:3px 8px">${esc(teacherName(s.teacherId))}</td><td style="padding:3px 8px"><b>Attendance</b></td><td style="padding:3px 8px">${att.pct}% (P:${att.P} A:${att.A} L:${att.L})</td></tr>
+      </table>
+    </div>
+    <table style="width:100%;border-collapse:collapse">
+      <thead><tr>${["#","Date","Exam / Test","Total","Obtained","%","Grade","Result"].map(h=>`<th style="border:1px solid #999;padding:5px 8px;background:#f0f0f0">${h}</th>`).join("")}</tr></thead>
+      <tbody>${ex.length? rcRows(ex) : `<tr><td colspan="8" style="border:1px solid #999;padding:14px;text-align:center;color:#777">Is duration mein koi exam record nahi</td></tr>`}</tbody>
+      ${ex.length? `<tfoot><tr style="background:#f7f7f7;font-weight:800">
+        <td colspan="3" style="border:1px solid #999;padding:6px 8px;text-align:right">Overall (${ex.length} tests)</td>
+        <td style="border:1px solid #999;padding:6px 8px;text-align:center">${tot}</td>
+        <td style="border:1px solid #999;padding:6px 8px;text-align:center">${obt}</td>
+        <td style="border:1px solid #999;padding:6px 8px;text-align:center">${pct}%</td>
+        <td style="border:1px solid #999;padding:6px 8px;text-align:center">${gradeOf(pct)}</td>
+        <td style="border:1px solid #999;padding:6px 8px;text-align:center;${pct>=50?"color:#0f7b3d":"color:#C0392B"}">${pct>=50?"PASS":"FAIL"}</td>
+      </tr></tfoot>`:""}
+    </table>
+    <div style="display:flex;justify-content:space-between;margin-top:36px;font-size:.78rem;color:#444">
+      <span>Issued: ${fmtD(todayStr())}</span><span>Teacher Signature: _______________</span><span>Admin Signature: _______________</span>
+    </div>
+  </div>`;
+}
+function renderReportCard(){ $("rcBody").innerHTML = transcriptHTML(reportCardData(), false); }
+function printReportCard(){ $("challanPrint").innerHTML = transcriptHTML(reportCardData(), true); window.print(); }
+
+/* ================= EMPLOYEES ================= */
+let asgDraft = [];
+function renderEmployees(){
+  const fc = $("empFCat").value;
+  const rows = DB.employees.filter(e=>!fc||e.category===fc).sort((a,b)=>a.name.localeCompare(b.name));
+  $("empRows").innerHTML = rows.length? rows.map((e,i)=>`
+    <tr>
+      <td><b>${i+1}</b></td>
+      <td>${avatarHTML(e)}</td>
+      <td><b>${esc(e.name)}</b></td>
+      <td><span class="badge ${e.category==="Teacher"?"b-active":"b-freeze"}">${e.category}</span></td>
+      <td>${esc(e.phone||"—")}</td>
+      <td>${fmtD(e.doj)}</td>
+      <td>${(e.assignments||[]).map(a=>`<span class="chip">${esc(a.course)} · ${a.shift}</span>`).join(" ")||"—"}</td>
+      <td style="white-space:nowrap">
+        <button class="btn-black btn-sm" onclick="openEmpProfile('${e.id}')">Profile</button>
+        <button class="btn-line btn-sm" onclick="openEmpForm('${e.id}')">Edit</button>
+        <button class="btn-danger btn-sm" onclick="delEmp('${e.id}')">Delete</button>
+      </td>
+    </tr>`).join("") : `<tr><td colspan="8" class="empty">Koi employee nahi — "New Employee" se add karein.</td></tr>`;
+  loadEmpAttendance();
+}
+
+/* ---------- Staff / Employee Attendance ---------- */
+let empAttDraft = {};
+function loadEmpAttendance(){
+  if(!$("empAttDate")) return;
+  if(!$("empAttDate").value) $("empAttDate").value = todayStr();
+  const date = $("empAttDate").value;
+  const warn = $("empAttWarn");
+  if(isWeekend(date)){
+    warn.innerHTML = `<div class="note"><b>${fmtD(date)}</b> — Saturday/Sunday hai. Academy off hai, is din attendance mark nahi ho sakti.</div>`;
+    $("empAttRows").innerHTML = `<tr><td colspan="6" class="empty">Off day — koi attendance nahi</td></tr>`;
+    empAttDraft = null; return;
+  }
+  warn.innerHTML = "";
+  const emps = [...DB.employees].sort((a,b)=>a.name.localeCompare(b.name));
+  const saved = (DB.empAttendance[date]||{});
+  empAttDraft = {};
+  emps.forEach(e=>{ const r=saved[e.id]; empAttDraft[e.id] = r? {...r} : {s:null, t:"09:00"}; });
+  $("empAttRows").innerHTML = emps.length? emps.map((e,i)=>{
+    const r = empAttDraft[e.id];
+    return `<tr>
+      <td><b>${i+1}</b></td>
+      <td>${avatarHTML(e)}</td>
+      <td><b>${esc(e.name)}</b></td>
+      <td>${e.category}</td>
+      <td><div class="att-opts" id="eopt_${e.id}">
+        <button class="${r.s==="P"?"selP":""}" onclick="empMark('${e.id}','P')">Present</button>
+        <button class="${r.s==="A"?"selA":""}" onclick="empMark('${e.id}','A')">Absent</button>
+        <button class="${r.s==="L"?"selL":""}" onclick="empMark('${e.id}','L')">Leave</button>
+      </div></td>
+      <td style="max-width:120px"><input type="time" value="${r.t||"09:00"}" onchange="empAttDraft['${e.id}'].t=this.value"></td>
+    </tr>`;
+  }).join("") : `<tr><td colspan="6" class="empty">Koi employee nahi — pehle "New Employee" se staff add karein</td></tr>`;
+}
+function empMark(eid, st){
+  if(!empAttDraft) return;
+  empAttDraft[eid].s = st;
+  const box = $("eopt_"+eid).querySelectorAll("button");
+  box.forEach(b=>b.className="");
+  box[st==="P"?0:st==="A"?1:2].className = "sel"+st;
+}
+function empMarkAll(st){
+  if(!empAttDraft){ toast("Off day par attendance nahi lagti"); return; }
+  for(const eid in empAttDraft){ empAttDraft[eid].s = st; const box=$("eopt_"+eid); if(box){ box.querySelectorAll("button").forEach(b=>b.className=""); box.querySelectorAll("button")[0].className="selP"; } }
+}
+function saveEmpAttendance(){
+  if(!empAttDraft){ toast("Off day par attendance save nahi ho sakti"); return; }
+  const date = $("empAttDate").value;
+  if(!DB.empAttendance[date]) DB.empAttendance[date] = {};
+  let n=0;
+  for(const eid in empAttDraft){ const r=empAttDraft[eid]; if(r.s){ DB.empAttendance[date][eid] = r; n++; } }
+  save(); toast(`Staff attendance saved — ${n} employees (${fmtD(date)})`);
+}
+function empAttSummary(eid, doj){
+  let P=0,A=0,L=0;
+  for(const d in DB.empAttendance){ const r=DB.empAttendance[d][eid]; if(!r) continue; if(r.s==="P")P++; else if(r.s==="A")A++; else if(r.s==="L")L++; }
+  const marked=P+A+L, pct = marked? Math.round(P/marked*100) : 0;
+  return {P,A,L,marked,pct};
+}
+function empAttReportData(){
+  if(!$("empAttRepMonth").value) $("empAttRepMonth").value = thisMonth();
+  const m = $("empAttRepMonth").value;
+  const [y,mo] = m.split("-").map(Number);
+  const daysInMonth = new Date(y, mo, 0).getDate();
+  const days = [];
+  for(let d=1; d<=daysInMonth; d++){
+    const ds = m + "-" + String(d).padStart(2,"0");
+    if(!isWeekend(ds)) days.push(ds);
+  }
+  const emps = [...DB.employees].sort((a,b)=>a.name.localeCompare(b.name));
+  const rows = emps.map(e=>{
+    let P=0,A=0,L=0;
+    const marks = days.map(d=>{
+      const r = (DB.empAttendance[d]||{})[e.id];
+      if(!r) return "—";
+      if(r.s==="P")P++; else if(r.s==="A")A++; else if(r.s==="L")L++;
+      return r.s;
+    });
+    const marked=P+A+L, pct = marked? Math.round(P/marked*100) : 0;
+    return {e, marks, P, A, L, pct};
+  });
+  return {m, days, rows};
+}
+function exportEmpAttCSV(){
+  const {m, days, rows} = empAttReportData();
+  if(!rows.length){ toast("Koi employee nahi"); return; }
+  const head = ["#","Name","Category", ...days.map(d=>d.slice(8)), "Present","Absent","Leave","%"];
+  const csvEsc = v => `"${String(v??"").replace(/"/g,'""')}"`;
+  const lines = [head.map(csvEsc).join(",")];
+  rows.forEach((r,i)=>{
+    lines.push([i+1, r.e.name, r.e.category, ...r.marks, r.P, r.A, r.L, r.pct+"%"].map(csvEsc).join(","));
+  });
+  const blob = new Blob(["\ufeff"+lines.join("\r\n")],{type:"text/csv;charset=utf-8"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `staff-attendance-${m}.csv`;
+  a.click();
+  toast("Excel (CSV) file download ho gayi — Excel mein khol lein");
+}
+function exportEmpAttPDF(){
+  const {m, days, rows} = empAttReportData();
+  if(!rows.length){ toast("Koi employee nahi"); return; }
+  const A = DB.settings;
+  const th = days.map(d=>`<th style="padding:3px 2px;border:1px solid #999;font-size:.6rem">${+d.slice(8)}</th>`).join("");
+  const body = rows.map((r,i)=>`<tr>
+    <td style="border:1px solid #999;padding:3px 5px;text-align:center"><b>${i+1}</b></td>
+    <td style="border:1px solid #999;padding:3px 5px;white-space:nowrap">${esc(r.e.name)}</td>
+    <td style="border:1px solid #999;padding:3px 5px;white-space:nowrap;font-size:.62rem">${r.e.category}</td>
+    ${r.marks.map(x=>`<td style="border:1px solid #999;padding:3px 2px;text-align:center;font-size:.65rem;${x==="A"?"color:#C0392B;font-weight:700":x==="P"?"color:#0f7b3d":""}">${x}</td>`).join("")}
+    <td style="border:1px solid #999;padding:3px 5px;text-align:center"><b>${r.P}</b></td>
+    <td style="border:1px solid #999;padding:3px 5px;text-align:center;color:#C0392B">${r.A}</td>
+    <td style="border:1px solid #999;padding:3px 5px;text-align:center">${r.L}</td>
+    <td style="border:1px solid #999;padding:3px 5px;text-align:center"><b>${r.pct}%</b></td>
+  </tr>`).join("");
+  $("challanPrint").innerHTML = `
+    <div style="font-size:.75rem">
+      <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #174B60;padding-bottom:8px;margin-bottom:10px">
+        <div style="display:flex;gap:10px;align-items:center">${A.logo?`<img src="${A.logo}" style="height:44px;width:auto;object-fit:contain">`:""}<div><div style="font-size:1.15rem;font-weight:900">${esc(A.name||"Cambridge Grads Academy")}</div><div style="font-size:.7rem;color:#555">${esc(A.addr||"")} ${A.phone?("· "+esc(A.phone)):""}</div></div></div>
+        <div style="text-align:right"><b>STAFF ATTENDANCE REGISTER</b><br>${fmtM(m)}<br><span style="color:#555">P = Present · A = Absent · L = Leave · — = Not marked</span></div>
+      </div>
+      <table style="width:100%;border-collapse:collapse">
+        <thead><tr>
+          <th style="border:1px solid #999;padding:3px 5px">#</th>
+          <th style="border:1px solid #999;padding:3px 5px">Name</th>
+          <th style="border:1px solid #999;padding:3px 5px">Category</th>
+          ${th}
+          <th style="border:1px solid #999;padding:3px 3px">P</th><th style="border:1px solid #999;padding:3px 3px">A</th><th style="border:1px solid #999;padding:3px 3px">L</th><th style="border:1px solid #999;padding:3px 3px">%</th>
+        </tr></thead>
+        <tbody>${body}</tbody>
+      </table>
+      <div style="margin-top:10px;color:#555">Generated: ${fmtD(todayStr())} · Working days is month: ${days.length}</div>
+    </div>`;
+  window.print();
+  toast("Print dialog mein 'Save as PDF' select karein");
+}
+function openEmpForm(id){
+  const e = id? empById(id) : {};
+  photoTemp = e.photo || null;
+  asgDraft = (e.assignments||[]).map(a=>({...a}));
+  openModal(`
+    <h3>${id?"Edit Employee":"New Employee"}</h3>
+    <div class="grid2">
+      <div class="field"><label>Name *</label><input id="m_name" value="${esc(e.name||"")}"></div>
+      <div class="field"><label>Category *</label><select id="m_cat" onchange="toggleAsg()">${["Admin","Teacher","Coordinator","Supportive Staff"].map(c=>`<option ${e.category===c?"selected":""}>${c}</option>`).join("")}</select></div>
+      <div class="field"><label>Phone</label><input id="m_phone" value="${esc(e.phone||"")}"></div>
+      <div class="field"><label>Joining Date</label><input type="date" id="m_doj" value="${e.doj||todayStr()}"></div>
+      <div class="field"><label>Monthly Salary (Rs)</label><input type="number" id="m_sal" value="${e.salary||""}"></div>
+      <div class="field"><label>Employee Photo</label><input type="file" id="m_photo" accept="image/*" onchange="pickPhoto(this)"><div id="photoPrev" style="margin-top:6px">${photoTemp?`<img class="avatar-lg" src="${photoTemp}">`:""}</div></div>
+    </div>
+    <div class="field"><label>Address</label><input id="m_addr" value="${esc(e.address||"")}"></div>
+    <div id="asgBox" style="display:${(e.category||"Admin")==="Teacher"?"block":"none"}">
+      <div class="note">Teacher ko class aur shift assign karein — ye teacher profile aur student profile dono mein show hoga.</div>
+      <div class="toolbar">
+        <div class="field"><label>Shift</label><select id="m_as" onchange="syncClassSel('m_as','m_ac')"><option>Morning</option><option>Evening</option></select></div>
+        <div class="field" style="flex:1"><label>Class</label><select id="m_ac">${courseOptions(undefined,"Morning")}</select></div>
+        <button class="btn-black" onclick="addAsg()">+ Assign</button>
+      </div>
+      <div class="chips" id="asgChips"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-line" onclick="closeModal()">Cancel</button>
+      <button class="btn-red" onclick="saveEmp('${id||""}')">Save Employee</button>
+    </div>`, true);
+  drawAsg();
+}
+function toggleAsg(){ $("asgBox").style.display = $("m_cat").value==="Teacher"? "block":"none"; }
+function addAsg(){
+  const c=$("m_ac").value, s=$("m_as").value;
+  if(asgDraft.some(a=>a.course===c&&a.shift===s)){ toast("Ye assignment pehle se mojood hai"); return; }
+  asgDraft.push({course:c, shift:s}); drawAsg();
+}
+function drawAsg(){
+  const box=$("asgChips"); if(!box) return;
+  box.innerHTML = asgDraft.map((a,i)=>`<span class="chip">${esc(a.course)} · ${a.shift} <button onclick="asgDraft.splice(${i},1);drawAsg()">✕</button></span>`).join("") || `<span class="sub">Abhi koi assignment nahi</span>`;
+}
+function saveEmp(id){
+  const name=$("m_name").value.trim();
+  if(!name){ toast("Employee name likhein"); return; }
+  const cat = $("m_cat").value;
+  const data = {name, category:cat, phone:$("m_phone").value.trim(), doj:$("m_doj").value||"", salary:$("m_sal").value||0, address:$("m_addr").value.trim(), photo:photoTemp, assignments: cat==="Teacher"? asgDraft : []};
+  if(id) Object.assign(empById(id), data);
+  else { data.id=uid(); DB.employees.push(data); }
+  save(); closeModal(); renderEmployees(); toast("Employee saved");
+}
+function delEmp(id){
+  if(!confirm("Employee delete karein?")) return;
+  DB.students.forEach(s=>{ if(s.teacherId===id) s.teacherId=""; });
+  DB.employees = DB.employees.filter(e=>e.id!==id);
+  for(const d in DB.empAttendance) delete DB.empAttendance[d][id];
+  save(); renderEmployees(); renderStudents();
+}
+function openEmpProfile(id){
+  const e = empById(id);
+  const myStu = DB.students.filter(s=>s.teacherId===id);
+  const ea = empAttSummary(id, e.doj);
+  const eaRows = Object.keys(DB.empAttendance).filter(d=>DB.empAttendance[d][id]).sort().reverse().slice(0,30)
+    .map(d=>{ const r=DB.empAttendance[d][id]; return `<tr><td>${fmtD(d)}</td><td><span class="badge b-${r.s}">${r.s==="P"?"Present":r.s==="A"?"Absent":"Leave"}</span></td><td>${r.t||"—"}</td></tr>`; }).join("");
+  openModal(`
+    <h3>Employee Profile</h3>
+    <div class="profile-top" style="margin-bottom:14px">
+      ${avatarHTML(e,true)}
+      <div class="info">
+        <div class="kv">
+          <span class="k">Name</span><span><b>${esc(e.name)}</b></span>
+          <span class="k">Category</span><span>${e.category}</span>
+          <span class="k">Phone</span><span>${esc(e.phone||"—")}</span>
+          <span class="k">Joining Date</span><span>${fmtD(e.doj)}</span>
+          <span class="k">Monthly Salary</span><span>${money(e.salary)}</span>
+          <span class="k">Address</span><span>${esc(e.address||"—")}</span>
+        </div>
+      </div>
+    </div>
+    <div class="stat-row" style="margin-bottom:14px">
+      <div class="stat"><b>${ea.P}</b><span>Present</span></div>
+      <div class="stat"><b style="color:var(--red)">${ea.A}</b><span>Absent</span></div>
+      <div class="stat"><b>${ea.L}</b><span>Leaves</span></div>
+      <div class="stat"><b>${ea.pct}%</b><span>Attendance</span><div class="att-bar"><i style="width:${ea.pct}%"></i></div></div>
+    </div>
+    <h3 style="font-size:.95rem">Attendance Record (Last 30 entries)</h3>
+    <div class="tbl-wrap" style="margin-bottom:14px"><table><thead><tr><th>Date</th><th>Status</th><th>Time</th></tr></thead>
+    <tbody>${eaRows||`<tr><td colspan="3" class="empty">Attendance abhi mark nahi hui — Employees page par "Staff Attendance" section se mark karein</td></tr>`}</tbody></table></div>
+    ${e.category==="Teacher"?`
+      <h3 style="font-size:.95rem">Assigned Classes & Shifts</h3>
+      <div class="chips" style="margin-bottom:14px">${(e.assignments||[]).map(a=>`<span class="chip">${esc(a.course)} · ${a.shift} (${SHIFTS[a.shift]})</span>`).join("")||"<span class='sub'>Koi assignment nahi</span>"}</div>
+      <h3 style="font-size:.95rem">Subject-wise Students</h3>
+      <div class="tbl-wrap" style="margin-bottom:14px"><table><thead><tr><th>Student</th><th>Reg No</th><th>Class</th><th>Shift</th><th>Subject</th><th>Fee</th></tr></thead>
+      <tbody>${(()=>{ const rows=[]; DB.students.forEach(st=>(st.subjects||[]).forEach(x=>{ if(x.teacherId===id) rows.push({st,x}); }));
+        return rows.length? rows.map(r=>`<tr><td><b>${esc(r.st.name)}</b></td><td>${esc(r.st.regNo)}</td><td>${esc(r.st.course)}</td><td>${r.st.shift}</td><td>${esc(r.x.name)}</td><td>${r.st.shift==="Evening"?money(r.x.fee):"—"}</td></tr>`).join("")
+          : `<tr><td colspan="6" class="empty">Is teacher ko kisi student ke subject par assign nahi kiya gaya</td></tr>`; })()}</tbody></table></div>
+      <h3 style="font-size:.95rem">Class Teacher Of (${myStu.length})</h3>
+      <div class="tbl-wrap"><table><thead><tr><th>Reg No</th><th>Name</th><th>Class</th><th>Shift</th><th>Status</th></tr></thead>
+      <tbody>${myStu.length? myStu.map(s=>`<tr><td>${esc(s.regNo)}</td><td>${esc(s.name)}</td><td>${esc(s.course)}</td><td>${s.shift}</td><td><span class="badge b-${s.status.toLowerCase()}">${s.status}</span></td></tr>`).join(""):`<tr><td colspan="5" class="empty">Koi student assign nahi</td></tr>`}</tbody></table></div>
+    `:""}
+  `, true);
+}
+
+/* ================= FINANCE ================= */
+function renderFinance(){
+  const ft=$("txnFType").value, fm=$("txnFMonth").value;
+  /* Finance mini dashboard — selected month (default: current month) */
+  const m = fm || thisMonth();
+  const inc = monthIncome(m), exp = monthExpense(m), net = inc.total - exp;
+  $("finInc").textContent = money(inc.total);
+  $("finIncHint").textContent = fmtM(m) + " · fees + other income";
+  $("finFee").textContent = money(inc.fee);
+  $("finOther").textContent = money(inc.other);
+  $("finExp").textContent = money(exp);
+  $("finExpHint").textContent = fmtM(m);
+  $("finNet").textContent = money(net);
+  $("finNet").className = "v " + (net<0? "red":"green");
+  $("finNetHint").textContent = (net<0? "Loss — ":"Profit — ") + fmtM(m);
+  if(!$("plMonth").value) $("plMonth").value = m;
+  const rows = DB.txns.filter(t=>(!ft||t.type===ft)&&(!fm||t.date.startsWith(fm))).sort((a,b)=>b.date.localeCompare(a.date));
+  $("txnRows").innerHTML = rows.length? rows.map((t,i)=>`
+    <tr>
+      <td><b>${i+1}</b></td>
+      <td>${fmtD(t.date)}</td>
+      <td><span class="badge ${t.type==="Income"?"b-paid":"b-unpaid"}">${t.type}</span></td>
+      <td>${esc(t.desc)}</td>
+      <td><b>${money(t.amount)}</b></td>
+      <td><button class="btn-danger btn-sm" onclick="delTxn('${t.id}')">Delete</button></td>
+    </tr>`).join("") : `<tr><td colspan="6" class="empty">Koi entry nahi — petty expense ya other income yahan add karein.</td></tr>`;
+}
+
+/* ---------- Profit & Loss report (Excel / PDF) ---------- */
+function plData(){
+  if(!$("plMonth").value) $("plMonth").value = thisMonth();
+  const m = $("plMonth").value;
+  const paidFees = DB.fees.filter(f=>f.status==="Paid"&&(f.paidDate||"").startsWith(m));
+  const incRows = [
+    ...paidFees.map(f=>{ const st=stuById(f.studentId); return {date:f.paidDate, desc:"Student Fee — "+(st? st.name+" ("+st.regNo+")":"Deleted student")+" — "+fmtM(f.month), amount:+f.amount}; }),
+    ...DB.txns.filter(t=>t.type==="Income"&&t.date.startsWith(m)).map(t=>({date:t.date, desc:"Other Income — "+t.desc, amount:+t.amount}))
+  ].sort((a,b)=>a.date.localeCompare(b.date));
+  const expRows = DB.txns.filter(t=>t.type==="Expense"&&t.date.startsWith(m)).sort((a,b)=>a.date.localeCompare(b.date)).map(t=>({date:t.date, desc:t.desc, amount:+t.amount}));
+  const totInc = incRows.reduce((a,r)=>a+r.amount,0), totExp = expRows.reduce((a,r)=>a+r.amount,0);
+  return {m, incRows, expRows, totInc, totExp, net: totInc-totExp, feeInc: paidFees.reduce((a,f)=>a+ +f.amount,0)};
+}
+function exportPLCSV(){
+  const d = plData();
+  const csvEsc = v => `"${String(v??"").replace(/"/g,'""')}"`;
+  const row = arr => arr.map(csvEsc).join(",");
+  const lines = [];
+  lines.push(row([DB.settings.name||"Cambridge Grads Academy", "", "", ""]));
+  lines.push(row(["PROFIT & LOSS STATEMENT — " + fmtM(d.m), "", "", ""]));
+  lines.push("");
+  lines.push(row(["INCOME", "", "", ""]));
+  lines.push(row(["#","Date","Description","Amount (Rs)"]));
+  d.incRows.forEach((r,i)=>lines.push(row([i+1, r.date, r.desc, r.amount])));
+  lines.push(row(["","","TOTAL INCOME", d.totInc]));
+  lines.push("");
+  lines.push(row(["EXPENSES", "", "", ""]));
+  lines.push(row(["#","Date","Description","Amount (Rs)"]));
+  d.expRows.forEach((r,i)=>lines.push(row([i+1, r.date, r.desc, r.amount])));
+  lines.push(row(["","","TOTAL EXPENSE", d.totExp]));
+  lines.push("");
+  lines.push(row(["","","NET " + (d.net<0? "LOSS":"PROFIT"), d.net]));
+  const blob = new Blob(["\ufeff"+lines.join("\r\n")],{type:"text/csv;charset=utf-8"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `profit-loss-${d.m}.csv`;
+  a.click();
+  toast("Profit & Loss sheet Excel (CSV) download ho gayi");
+}
+function exportPLPDF(){
+  const d = plData();
+  const A = DB.settings;
+  const cell = "border:1px solid #999;padding:5px 8px;font-size:.8rem";
+  const secHead = t => `<div style="font-weight:800;border-left:4px solid #159670;padding-left:8px;margin:14px 0 6px">${t}</div>`;
+  const tbl = (rows, totLabel, tot) => `
+    <table style="width:100%;border-collapse:collapse">
+      <thead><tr>${["#","Date","Description","Amount (Rs)"].map(h=>`<th style="${cell};background:#f0f0f0">${h}</th>`).join("")}</tr></thead>
+      <tbody>${rows.length? rows.map((r,i)=>`<tr>
+        <td style="${cell};text-align:center;width:5%">${i+1}</td>
+        <td style="${cell};width:16%">${fmtD(r.date)}</td>
+        <td style="${cell}">${esc(r.desc)}</td>
+        <td style="${cell};text-align:right;width:16%"><b>${money(r.amount)}</b></td>
+      </tr>`).join("") : `<tr><td colspan="4" style="${cell};text-align:center;color:#777">Koi entry nahi</td></tr>`}</tbody>
+      <tfoot><tr style="background:#f7f7f7;font-weight:800"><td colspan="3" style="${cell};text-align:right">${totLabel}</td><td style="${cell};text-align:right">${money(tot)}</td></tr></tfoot>
+    </table>`;
+  $("challanPrint").innerHTML = `
+    <div style="font-size:.85rem;color:#174B60">
+      <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:4px solid #159670;padding-bottom:10px;margin-bottom:12px">
+        <div style="display:flex;gap:10px;align-items:center">${A.logo?`<img src="${A.logo}" style="height:44px;width:auto;object-fit:contain">`:""}<div><div style="font-size:1.35rem;font-weight:900">${esc(A.name||"Cambridge Grads Academy")}</div><div style="font-size:.74rem;color:#555">${esc(A.addr||"")} ${A.phone?("· "+esc(A.phone)):""}</div></div></div>
+        <div style="text-align:right"><div style="background:#174B60;color:#fff;padding:6px 14px;border-radius:6px;font-weight:800;letter-spacing:.06em;font-size:.8rem">PROFIT &amp; LOSS STATEMENT</div>
+        <div style="font-size:.75rem;color:#555;margin-top:5px">${fmtM(d.m)} · Generated: ${fmtD(todayStr())}</div></div>
+      </div>
+      ${secHead("Income")}
+      ${tbl(d.incRows, "TOTAL INCOME", d.totInc)}
+      ${secHead("Expenses")}
+      ${tbl(d.expRows, "TOTAL EXPENSE", d.totExp)}
+      ${secHead("Summary")}
+      <table style="width:60%;border-collapse:collapse">
+        <tr><td style="${cell};background:#f7f7f7;width:55%"><b>Total Income</b></td><td style="${cell};text-align:right">${money(d.totInc)}</td></tr>
+        <tr><td style="${cell};background:#f7f7f7"><b>Total Expense</b></td><td style="${cell};text-align:right">${money(d.totExp)}</td></tr>
+        <tr style="font-weight:900"><td style="${cell};background:${d.net<0?"#E6F5F0":"#e8f5ee"}"><b>NET ${d.net<0? "LOSS":"PROFIT"}</b></td><td style="${cell};text-align:right;color:${d.net<0?"#C0392B":"#0f7b3d"}">${money(d.net)}</td></tr>
+      </table>
+      <div style="display:flex;justify-content:space-between;margin-top:36px;font-size:.78rem;color:#444">
+        <span>Prepared by: _______________</span><span>Admin Signature: _______________</span>
+      </div>
+    </div>`;
+  window.print();
+  toast("Print dialog mein 'Save as PDF' select karein");
+}
+function openTxnForm(){
+  openModal(`
+    <h3>Add Income / Expense</h3>
+    <div class="grid2">
+      <div class="field"><label>Type *</label><select id="t_type"><option>Expense</option><option>Income</option></select></div>
+      <div class="field"><label>Date</label><input type="date" id="t_date" value="${todayStr()}"></div>
+    </div>
+    <div class="field"><label>Description *</label><input id="t_desc" placeholder="e.g. Electricity bill / Printer paper / Registration fee"></div>
+    <div class="field"><label>Amount (Rs) *</label><input type="number" id="t_amt"></div>
+    <div class="modal-foot">
+      <button class="btn-line" onclick="closeModal()">Cancel</button>
+      <button class="btn-red" onclick="saveTxn()">Save Entry</button>
+    </div>`);
+}
+function saveTxn(){
+  const desc=$("t_desc").value.trim(), amt=+$("t_amt").value;
+  if(!desc||!amt){ toast("Description aur amount likhein"); return; }
+  DB.txns.push({id:uid(), type:$("t_type").value, desc, amount:amt, date:$("t_date").value||todayStr()});
+  save(); closeModal(); renderFinance(); renderDashboard(); toast("Entry saved");
+}
+function delTxn(id){ if(!confirm("Entry delete karein?")) return; DB.txns=DB.txns.filter(t=>t.id!==id); save(); renderFinance(); renderDashboard(); }
+
+/* ================= REPORTS ================= */
+function renderReport(){
+  if(!$("repMonth").value) $("repMonth").value = thisMonth();
+  const m = $("repMonth").value;
+  const inc = monthIncome(m), exp = monthExpense(m);
+  const paidFees = DB.fees.filter(f=>f.status==="Paid"&&(f.paidDate||"").startsWith(m));
+  $("rFee").textContent = money(inc.fee);
+  $("rFeeCount").textContent = paidFees.length + " challans paid";
+  const si = shiftIncome(m);
+  $("rMorn").textContent = money(si.Morning.amt);
+  $("rMornCount").textContent = si.Morning.n + " challans";
+  $("rEve").textContent = money(si.Evening.amt);
+  $("rEveCount").textContent = si.Evening.n + " challans";
+  $("rOther").textContent = money(inc.other);
+  $("rExp").textContent = money(exp);
+  const net = inc.total-exp;
+  $("rNet").textContent = money(net);
+  $("rNet").className = "v " + (net<0?"red":"");
+  const incRows = [
+    ...paidFees.map(f=>{ const st=stuById(f.studentId); return {date:f.paidDate, desc:"Fee — "+(st?st.name:"?")+" ("+fmtM(f.month)+")", amount:f.amount}; }),
+    ...DB.txns.filter(t=>t.type==="Income"&&t.date.startsWith(m)).map(t=>({date:t.date, desc:t.desc, amount:t.amount}))
+  ].sort((a,b)=>b.date.localeCompare(a.date));
+  $("rIncRows").innerHTML = incRows.length? incRows.map(r=>`<tr><td>${fmtD(r.date)}</td><td>${esc(r.desc)}</td><td><b>${money(r.amount)}</b></td></tr>`).join("") : `<tr><td colspan="3" class="empty">Is month koi income nahi</td></tr>`;
+  const expRows = DB.txns.filter(t=>t.type==="Expense"&&t.date.startsWith(m)).sort((a,b)=>b.date.localeCompare(a.date));
+  $("rExpRows").innerHTML = expRows.length? expRows.map(t=>`<tr><td>${fmtD(t.date)}</td><td>${esc(t.desc)}</td><td><b>${money(t.amount)}</b></td></tr>`).join("") : `<tr><td colspan="3" class="empty">Is month koi expense nahi</td></tr>`;
+}
+
+/* ================= SETTINGS / BACKUP ================= */
+function loadSettings(){
+  $("setName").value = DB.settings.name||"";
+  $("setAddr").value = DB.settings.addr||"";
+  $("setPhone").value = DB.settings.phone||"";
+  drawLogo(); renderSubjectsAdmin();
+}
+function saveSettings(){
+  DB.settings.name  = $("setName").value.trim()||"Cambridge Grads Academy";
+  DB.settings.addr  = $("setAddr").value.trim();
+  DB.settings.phone = $("setPhone").value.trim();
+  $("brandName").textContent = DB.settings.name;
+  save(); toast("Settings saved");
+}
+
+/* ---------- Academy logo ---------- */
+function drawLogo(){
+  const m = $("brandMark");
+  if(DB.settings.logo){ m.classList.add("has-logo"); m.innerHTML = `<img src="${DB.settings.logo}" alt="Logo">`; }
+  else { m.classList.remove("has-logo"); m.textContent = "CGA"; }
+  const prev = $("logoPrev");
+  if(prev) prev.innerHTML = DB.settings.logo
+    ? `<img src="${DB.settings.logo}" style="max-height:74px;max-width:100%;border:1px solid var(--line);border-radius:8px;padding:6px;background:#fff">`
+    : `<span class="sub">Abhi koi logo set nahi — filhaal "CGA" text mark chal raha hai.</span>`;
+}
+function pickLogo(inp){
+  const f = inp.files[0]; if(!f) return;
+  const img = new Image();
+  img.onload = ()=>{
+    const c = document.createElement("canvas");
+    const max = 420, r = Math.min(max/img.width, max/img.height, 1);
+    c.width = img.width*r; c.height = img.height*r;
+    c.getContext("2d").drawImage(img,0,0,c.width,c.height);
+    DB.settings.logo = c.toDataURL("image/png");   // PNG — transparent background mehfooz
+    save(); drawLogo(); toast("Logo save ho gaya — ab har challan aur report par chhapega");
+  };
+  img.src = URL.createObjectURL(f);
+  inp.value = "";
+}
+function removeLogo(){ if(!DB.settings.logo) return; DB.settings.logo=""; save(); drawLogo(); toast("Logo hata diya"); }
+
+/* ---------- Subjects offered (catalogue) ---------- */
+const LEVELS = ["Junior","O Level","A Level"];
+function renderSubjectsAdmin(){
+  const box = $("subjAdmin"); if(!box) return;
+  const list = [...DB.subjects].sort((a,b)=>(LEVELS.indexOf(a.level)-LEVELS.indexOf(b.level))||a.name.localeCompare(b.name));
+  box.innerHTML = `<div class="sub" style="margin-bottom:8px">${list.length} subjects offered</div>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>#</th><th>Subject</th><th>Level</th><th>Default Fee (Rs)</th><th>Students</th><th></th></tr></thead>
+    <tbody>${list.length? list.map((x,i)=>{
+      const used = DB.students.filter(st=>(st.subjects||[]).some(y=>y.name===x.name)).length;
+      return `<tr>
+        <td><b>${i+1}</b></td>
+        <td><input value="${esc(x.name)}" onchange="setCatalogField('${x.id}','name',this.value)"></td>
+        <td style="max-width:150px"><select onchange="setCatalogField('${x.id}','level',this.value)">${LEVELS.map(l=>`<option ${x.level===l?"selected":""}>${l}</option>`).join("")}</select></td>
+        <td style="max-width:140px"><input type="number" value="${x.defaultFee||0}" onchange="setCatalogField('${x.id}','defaultFee',this.value)"></td>
+        <td><b>${used}</b></td>
+        <td><button class="btn-danger btn-sm" onclick="delCatalogSubject('${x.id}')">Delete</button></td>
+      </tr>`;}).join("") : `<tr><td colspan="6" class="empty">Koi subject nahi — upar se add karein</td></tr>`}</tbody>
+  </table></div>`;
+}
+function setCatalogField(id, field, val){
+  const x = DB.subjects.find(y=>y.id===id); if(!x) return;
+  x[field] = field==="defaultFee"? (+val||0) : String(val).trim();
+  save(); if(field!=="defaultFee") renderSubjectsAdmin();
+}
+function addCatalogSubject(){
+  const name = $("ns_name").value.trim(), level = $("ns_level").value;
+  if(!name){ toast("Subject ka naam likhein"); return; }
+  if(DB.subjects.some(x=>x.name.toLowerCase()===name.toLowerCase() && x.level===level)){ toast("Ye subject is level par pehle se mojood hai"); return; }
+  DB.subjects.push({id:uid(), name, level, defaultFee:+$("ns_fee").value||0});
+  $("ns_name").value=""; $("ns_fee").value="";
+  save(); renderSubjectsAdmin(); toast("Subject add ho gaya: "+name);
+}
+function delCatalogSubject(id){
+  const x = DB.subjects.find(y=>y.id===id); if(!x) return;
+  const used = DB.students.filter(st=>(st.subjects||[]).some(y=>y.name===x.name)).length;
+  if(!confirm(`"${x.name}" list se hata dein?` + (used? `\n\n${used} students ke record mein ye subject pehle se laga hua hai — wo waise hi rahega, sirf dropdown se hategaa.`:""))) return;
+  DB.subjects = DB.subjects.filter(y=>y.id!==id);
+  save(); renderSubjectsAdmin();
+}
+function exportData(){
+  const blob = new Blob([JSON.stringify(DB,null,1)],{type:"application/json"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "academy-backup-"+todayStr()+".json";
+  a.click();
+}
+function importData(inp){
+  const f = inp.files[0]; if(!f) return;
+  const r = new FileReader();
+  r.onload = ()=>{
+    try{
+      const d = JSON.parse(r.result);
+      if(!d.students){ toast("Ye sahi backup file nahi hai"); return; }
+      if(!confirm("Purana data replace ho jayega. Continue?")) return;
+      DB = d;
+      for(const k in DEFAULT_DB) if(DB[k]===undefined) DB[k]=structuredClone(DEFAULT_DB[k]);
+      save(); location.reload();
+    }catch(e){ toast("File read nahi hui"); }
+  };
+  r.readAsText(f);
+  inp.value="";
+}
+
+/* ---------- Populate course filter & init ---------- */
+$("stuFCourse").innerHTML = `<option value="">All Classes</option>` + COURSES.map(c=>`<option>${c}</option>`).join("");
+$("hwFCourse").innerHTML = `<option value="">All Classes</option>` + COURSES.map(c=>`<option>${c}</option>`).join("");
+$("galFCourse").innerHTML = `<option value="">All Classes</option>` + COURSES.map(c=>`<option>${c}</option>`).join("");
+$("examFCourse").innerHTML = `<option value="">All Classes</option>` + COURSES.map(c=>`<option>${c}</option>`).join("");
+$("brandName").textContent = DB.settings.name||"Cambridge Grads Academy";
+drawLogo();
+if(!storageOK) toast("⚠ Preview mode: data save nahi hoga. File download kar ke laptop par kholein.");
+renderDashboard();
+</script>
+</body>
+</html>
