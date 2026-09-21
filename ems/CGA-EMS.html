@@ -637,6 +637,7 @@ tr:hover td{background:var(--soft)}
       3. Dosre laptop par ye HTML file kholein aur <b>"⬆ Import Backup"</b> daba kar wo JSON file select karein.<br>
       4. Sara data — students, photos, fees, attendance, exams, homework — waisa ka waisa aa jayega.</div>
     <button class="btn-black" onclick="exportData()">⬇ Download Backup (JSON)</button>
+    <button class="btn-line" onclick="copyBackup()">📋 Backup text copy karein</button>
     <button class="btn-red" onclick="document.getElementById('importFile').click()">⬆ Import Backup (file)</button>
     <button class="btn-line" onclick="openPasteBackup()">📋 Text paste kar ke import</button>
     <input type="file" id="importFile" style="display:none" onchange="importData(this)">
@@ -729,7 +730,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v16 · 21 Sept 2026";
+const BUILD = "v17 · 21 Sept 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -916,6 +917,51 @@ function syncClassSel(shiftId, classId){
   const sh=$(shiftId).value, cur=$(classId).value;
   const list=CLASSES_BY_SHIFT[sh]||COURSES;
   $(classId).innerHTML = list.map(c=>`<option ${c===cur?"selected":""}>${c}</option>`).join("");
+}
+
+/* Browser ka apna confirm() kuch halaat mein chupchaap "Cancel" lauta deta hai
+   (Chrome ka "prevent this page from creating additional dialogs", ya sakht privacy
+   settings) — us soorat mein delete jaise kaam bina kuch bataye fail ho jate the.
+   Is liye ab app ka apna confirmation box chalta hai. */
+let _confirmFn = null;
+function askConfirm(title, bodyHTML, onYes, yesLabel){
+  _confirmFn = onYes;
+  openModal(`
+    <h3 style="border-bottom-color:var(--danger)">${esc(title)}</h3>
+    <div class="note" style="border-left-color:var(--danger)">${bodyHTML}</div>
+    <div class="modal-foot">
+      <button class="btn-line" onclick="_confirmFn=null;closeModal()">Cancel</button>
+      <button class="btn-danger" onclick="runConfirm()">${esc(yesLabel || "Haan, delete karein")}</button>
+    </div>`);
+}
+function runConfirm(){ const f = _confirmFn; _confirmFn = null; closeModal(); if(f) f(); }
+
+/* File download — anchor ko DOM mein daal kar click karte hain (kuch browsers
+   warna kuch nahi karte), aur naam toast mein bhi likh dete hain. */
+function downloadFile(filename, blob, fallbackText){
+  try{
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = filename; a.style.display = "none";
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(()=>{ try{ document.body.removeChild(a); URL.revokeObjectURL(url); }catch(e){} }, 2000);
+    toast("Download: " + filename);
+  }catch(e){
+    showCopyFallback(filename, fallbackText || "", e.message);
+  }
+}
+/* Agar browser download rok de to text saamne rakh dete hain — copy kar ke save kar lein */
+function showCopyFallback(filename, text, why){
+  openModal(`
+    <h3>File save karne ka doosra tareeqa</h3>
+    <div class="note">${why? esc(why)+" — ":""}Agar download shuru na ho (browser ne rok diya ho) to neeche ka sara text copy karein,
+      Notepad mein paste karein aur <b>${esc(filename)}</b> ke naam se save kar lein.</div>
+    <div class="field"><textarea id="dlText" rows="10" readonly style="font-family:monospace;font-size:.72rem">${esc(text)}</textarea></div>
+    <div class="modal-foot">
+      <button class="btn-line" onclick="closeModal()">Band karein</button>
+      <button class="btn-red" onclick="document.getElementById('dlText').select();document.execCommand('copy');toast('Copy ho gaya')">Sab copy karein</button>
+    </div>`, true);
 }
 
 /* Modal */
@@ -1293,13 +1339,24 @@ function saveStudent(id){
   save(); closeModal(); renderStudents(); renderDashboard();
 }
 function delStudent(id){
-  const s = stuById(id);
-  if(!confirm(`Delete "${s.name}"? Iska fee, attendance aur exam record bhi delete ho jayega.`)) return;
-  DB.students = DB.students.filter(x=>x.id!==id);
-  DB.fees = DB.fees.filter(f=>f.studentId!==id);
-  DB.exams = DB.exams.filter(e=>e.studentId!==id);
-  for(const d in DB.attendance) delete DB.attendance[d][id];
-  save(); renderStudents(); renderDashboard();
+  const s = stuById(id); if(!s) return;
+  const nf = DB.fees.filter(f=>f.studentId===id).length;
+  const ne = DB.exams.filter(e=>e.studentId===id).length;
+  const na = Object.keys(DB.attendance).filter(d=>DB.attendance[d][id]).length;
+  const ni = DB.issues.filter(x=>x.toId===id).length;
+  askConfirm("Student delete karein?",
+    `<b>${esc(s.name)}</b> (${esc(s.regNo)}) — ${esc(s.course)} · ${s.shift}<br>` +
+    `Iske sath ye bhi delete honge: <b>${nf}</b> challans · <b>${ne}</b> exam records · <b>${na}</b> din ki attendance · <b>${ni}</b> issuance.<br>` +
+    `Ye wapas nahi aayega.`,
+    ()=>{
+      DB.students = DB.students.filter(x=>x.id!==id);
+      DB.fees = DB.fees.filter(f=>f.studentId!==id);
+      DB.exams = DB.exams.filter(e=>e.studentId!==id);
+      DB.issues = DB.issues.filter(x=>x.toId!==id);
+      for(const d in DB.attendance) delete DB.attendance[d][id];
+      save(); renderStudents(); renderDashboard();
+      toast(`"${s.name}" delete ho gaya`);
+    });
 }
 
 /* ================= GALLERY ================= */
@@ -1644,10 +1701,7 @@ function exportAttCSV(){
     lines.push([r.s.regNo, r.s.name, r.s.course, r.s.shift, ...r.marks, r.P, r.L, r.A, r.E, r.pct+"%"].map(csvEsc).join(","));
   });
   const blob = new Blob(["\ufeff"+lines.join("\r\n")],{type:"text/csv;charset=utf-8"});
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = `attendance-${m}${sh?("-"+sh.toLowerCase()):""}.csv`;
-  a.click();
+  downloadFile(`attendance-${m}${sh?("-"+sh.toLowerCase()):""}.csv`, blob);
   toast("Excel (CSV) file download ho gayi — Excel mein khol lein");
 }
 function exportAttPDF(){
@@ -1739,7 +1793,11 @@ function saveHw(id){
   const n = DB.students.filter(s=>s.status==="Active"&&s.course===data.course&&s.shift===data.shift).length;
   toast(`Homework assigned — ${data.course} (${data.shift}) ke ${n} students ke profile par show hoga`);
 }
-function delHw(id){ if(!confirm("Homework delete karein?")) return; DB.homework=DB.homework.filter(h=>h.id!==id); save(); renderHomework(); }
+function delHw(id){
+  const h = DB.homework.find(x=>x.id===id); if(!h) return;
+  askConfirm("Homework delete karein?", `<b>${esc(h.title)}</b> — ${esc(h.course)} · ${h.shift}`,
+    ()=>{ DB.homework=DB.homework.filter(x=>x.id!==id); save(); renderHomework(); toast("Homework delete ho gaya"); });
+}
 
 /* ================= FEES ================= */
 function renderFees(){
@@ -1846,10 +1904,7 @@ function exportDefCSV(){
   lines.push("");
   lines.push([`Total Defaulters: ${defs.length}`, "", "", "", "", "", "", "", `Total Due: ${defs.reduce((a,d)=>a+ +d.f.amount,0)}`].map(csvEsc).join(","));
   const blob = new Blob(["\ufeff"+lines.join("\r\n")],{type:"text/csv;charset=utf-8"});
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = `defaulter-list-${todayStr()}.csv`;
-  a.click();
+  downloadFile(`defaulter-list-${todayStr()}.csv`, blob);
   toast("Defaulter list Excel (CSV) download ho gayi");
 }
 function printDefaulters(){
@@ -2112,7 +2167,13 @@ function confirmPaid(id){
   save(); closeModal(); renderFees(); renderDashboard(); toast("Paid ✓ ("+f.chNo+" — "+fmtD(f.paidDate)+")");
 }
 function markUnpaid(id){ const f=DB.fees.find(x=>x.id===id); f.status="Unpaid"; f.paidDate=""; save(); renderFees(); renderDashboard(); }
-function delFee(id){ if(!confirm("Challan delete karein?")) return; DB.fees=DB.fees.filter(f=>f.id!==id); save(); renderFees(); renderDashboard(); }
+function delFee(id){
+  const f = DB.fees.find(x=>x.id===id); if(!f) return;
+  const st = stuById(f.studentId);
+  askConfirm("Challan delete karein?",
+    `<b>${f.chNo}</b> — ${st? esc(st.name) : "student"} · ${fmtM(f.month)} · <b>${money(f.amount)}</b>`,
+    ()=>{ DB.fees=DB.fees.filter(x=>x.id!==id); save(); renderFees(); renderDashboard(); toast("Challan delete ho gaya"); });
+}
 function printChallan(id){
   const f = DB.fees.find(x=>x.id===id), st = stuById(f.studentId)||{};
   const A = DB.settings;
@@ -2227,7 +2288,11 @@ function saveInq(id){
   else { data.id=uid(); DB.inquiries.push(data); }
   save(); closeModal(); renderInquiries(); renderDashboard(); toast("Inquiry saved");
 }
-function delInq(id){ if(!confirm("Inquiry delete karein?")) return; DB.inquiries=DB.inquiries.filter(x=>x.id!==id); save(); renderInquiries(); }
+function delInq(id){
+  const i = DB.inquiries.find(x=>x.id===id); if(!i) return;
+  askConfirm("Inquiry delete karein?", `<b>${esc(i.name)}</b> — ${esc(i.phone)}`,
+    ()=>{ DB.inquiries=DB.inquiries.filter(x=>x.id!==id); save(); renderInquiries(); toast("Inquiry delete ho gayi"); });
+}
 function inqToStudent(id){
   const i = DB.inquiries.find(x=>x.id===id);
   openStudentForm(null, {name:i.name, phone:i.phone, course:i.course, monthlyFee:i.fee||"", address:(i.city||"")+(i.area?(", "+i.area):"")});
@@ -2292,7 +2357,13 @@ function saveExam(id){
   else { data.id = uid(); DB.exams.push(data); toast("Exam marks saved"); }
   save(); closeModal(); renderExams();
 }
-function delExam(id){ if(!confirm("Exam record delete karein?")) return; DB.exams=DB.exams.filter(e=>e.id!==id); save(); renderExams(); }
+function delExam(id){
+  const e = DB.exams.find(x=>x.id===id); if(!e) return;
+  const st = stuById(e.studentId);
+  askConfirm("Exam record delete karein?",
+    `<b>${esc(e.exam)}</b> — ${st? esc(st.name):"student"} · ${e.obtained}/${e.total}`,
+    ()=>{ DB.exams=DB.exams.filter(x=>x.id!==id); save(); renderExams(); toast("Exam record delete ho gaya"); });
+}
 
 /* ---------- Grades ---------- */
 function gradeOf(p){ return p>=80?"A+":p>=70?"A":p>=60?"B":p>=50?"C":"F"; }
@@ -2580,10 +2651,7 @@ function exportEmpAttCSV(){
     lines.push([i+1, r.e.name, r.e.category, ...r.marks, r.P, r.L, r.A, r.E, r.pct+"%"].map(csvEsc).join(","));
   });
   const blob = new Blob(["\ufeff"+lines.join("\r\n")],{type:"text/csv;charset=utf-8"});
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = `staff-attendance-${m}.csv`;
-  a.click();
+  downloadFile(`staff-attendance-${m}.csv`, blob);
   toast("Excel (CSV) file download ho gayi — Excel mein khol lein");
 }
 function exportEmpAttPDF(){
@@ -2674,11 +2742,17 @@ function saveEmp(id){
   save(); closeModal(); renderEmployees(); toast("Employee saved");
 }
 function delEmp(id){
-  if(!confirm("Employee delete karein?")) return;
-  DB.students.forEach(s=>{ if(s.teacherId===id) s.teacherId=""; });
-  DB.employees = DB.employees.filter(e=>e.id!==id);
-  for(const d in DB.empAttendance) delete DB.empAttendance[d][id];
-  save(); renderEmployees(); renderStudents();
+  const e = empById(id); if(!e) return;
+  const n = DB.students.filter(s=>s.teacherId===id).length;
+  askConfirm("Employee delete karein?",
+    `<b>${esc(e.name)}</b> — ${e.category} · ${esc(e.shift||"Morning")}` +
+    (n? `<br>${n} students ka class teacher inhein laga hua hai — wo khali ho jayega.`:""),
+    ()=>{
+      DB.students.forEach(s=>{ if(s.teacherId===id) s.teacherId=""; });
+      DB.employees = DB.employees.filter(x=>x.id!==id);
+      for(const d in DB.empAttendance) delete DB.empAttendance[d][id];
+      save(); renderEmployees(); renderStudents(); toast(`"${e.name}" delete ho gaya`);
+    });
 }
 function openEmpProfile(id){
   const e = empById(id);
@@ -2817,9 +2891,10 @@ function saveInv(id){
 }
 function delInv(id){
   const x = DB.inventory.find(y=>y.id===id); if(!x) return;
-  if(!confirm(`"${x.name}" inventory se hata dein?`)) return;
-  DB.inventory = DB.inventory.filter(y=>y.id!==id);
-  save(); renderInventory();
+  const n = issuesOf(id).length;
+  askConfirm("Item delete karein?",
+    `<b>${esc(x.name)}</b> — stock ${invStock(x)}` + (n? `<br>Iske <b>${n}</b> issuance records bhi rahenge (item ka naam unmein likha rahega).`:""),
+    ()=>{ DB.inventory = DB.inventory.filter(y=>y.id!==id); save(); renderInventory(); renderIssuance(); toast(`"${x.name}" delete ho gaya`); });
 }
 /* ================= ISSUANCE ================= */
 const issueQty   = x => +x.qty||0;
@@ -2986,9 +3061,9 @@ function saveIssue(){
 
 function delIssue(id){
   const x = DB.issues.find(y=>y.id===id); if(!x) return;
-  if(!confirm(`${x.qty} × ${x.itemName} (${x.toName}) ka record hata dein? Stock wapas aa jayega.`)) return;
-  DB.issues = DB.issues.filter(y=>y.id!==id);
-  save(); renderIssuance(); renderInventory();
+  askConfirm("Issuance record delete karein?",
+    `<b>${x.qty} × ${esc(x.itemName)}</b> — ${esc(x.toName)}<br>Stock mein ye ${x.qty} wapas aa jayenge.`,
+    ()=>{ DB.issues = DB.issues.filter(y=>y.id!==id); save(); renderIssuance(); renderInventory(); toast("Record delete ho gaya — stock wapas"); });
 }
 
 /* ================= FINANCE ================= */
@@ -3080,10 +3155,7 @@ function exportPLCSV(){
   lines.push("");
   lines.push(row(["","","NET " + (d.net<0? "LOSS":"PROFIT"), d.net]));
   const blob = new Blob(["\ufeff"+lines.join("\r\n")],{type:"text/csv;charset=utf-8"});
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = `profit-loss-${d.m}.csv`;
-  a.click();
+  downloadFile(`profit-loss-${d.m}.csv`, blob);
   toast("Profit & Loss sheet Excel (CSV) download ho gayi");
 }
 function exportPLPDF(){
@@ -3168,7 +3240,11 @@ function saveTxn(){
                 date:$("t_date").value||todayStr()});
   save(); closeModal(); renderFinance(); renderDashboard(); toast("Entry saved");
 }
-function delTxn(id){ if(!confirm("Entry delete karein?")) return; DB.txns=DB.txns.filter(t=>t.id!==id); save(); renderFinance(); renderDashboard(); }
+function delTxn(id){
+  const t = DB.txns.find(x=>x.id===id); if(!t) return;
+  askConfirm("Entry delete karein?", `<b>${esc(t.desc)}</b> — ${t.type} · ${money(t.amount)} · ${fmtD(t.date)}`,
+    ()=>{ DB.txns=DB.txns.filter(x=>x.id!==id); save(); renderFinance(); renderDashboard(); toast("Entry delete ho gayi"); });
+}
 
 /* ================= REPORTS ================= */
 function renderReport(){
@@ -3690,10 +3766,8 @@ function impSample(){
   const def = IMPORT_TYPES[impType];
   const e = v => `"${String(v??"").replace(/"/g,'""')}"`;
   const lines = [def.fields.map(f=>f.l).map(e).join(","), ...def.samples.map(r=>r.map(e).join(","))];
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(new Blob(["﻿"+lines.join("\r\n")],{type:"text/csv;charset=utf-8"}));
-  a.download = `cga-${impType}-template.csv`;
-  a.click();
+  const text = "﻿"+lines.join("\r\n");
+  downloadFile(`cga-${impType}-template.csv`, new Blob([text],{type:"text/csv;charset=utf-8"}), text);
   toast("Template download ho gaya — Excel mein khol kar apna data bharein");
 }
 function impLoad(inp){
@@ -4393,17 +4467,19 @@ function saveClassPicker(id){
 function delCatalogSubject(id){
   const x = DB.subjects.find(y=>y.id===id); if(!x) return;
   const used = DB.students.filter(st=>(st.subjects||[]).some(y=>y.name===x.name)).length;
-  if(!confirm(`"${x.name}" list se hata dein?` + (used? `\n\n${used} students ke record mein ye subject pehle se laga hua hai — wo waise hi rahega, sirf dropdown se hategaa.`:""))) return;
-  DB.subjects = DB.subjects.filter(y=>y.id!==id);
-  save(); renderSubjectsAdmin();
+  askConfirm("Subject list se hatayein?",
+    `<b>${esc(x.name)}</b> (${esc(x.level)})` +
+    (used? `<br>${used} students ke record mein ye subject laga hua hai — wo waise hi rahega, sirf dropdown se hatega.`:""),
+    ()=>{ DB.subjects = DB.subjects.filter(y=>y.id!==id); save(); renderSubjectsAdmin(); toast(`"${x.name}" hata diya`); },
+    "Haan, hata dein");
 }
+function backupText(){ return JSON.stringify(DB, null, 1); }
 function exportData(){
-  const blob = new Blob([JSON.stringify(DB,null,1)],{type:"application/json"});
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = "academy-backup-"+todayStr()+".json";
-  a.click();
+  const text = backupText();
+  downloadFile("academy-backup-"+todayStr()+".json", new Blob([text],{type:"application/json"}), text);
 }
+/* Browser download rok de to seedha text saamne — copy kar ke Notepad mein save kar lein */
+function copyBackup(){ showCopyFallback("academy-backup-"+todayStr()+".json", backupText(), ""); }
 let pendingBackup = null;
 
 /* Har nakami ka sabab saamne likh dein — pehle ye chupchaap fail ho jata tha */
