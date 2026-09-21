@@ -262,7 +262,10 @@ tr:hover td{background:var(--soft)}
 <section class="page" id="page-students">
   <div class="page-head">
     <div><h2>Students</h2><div class="sub">Enrollment & profile management</div></div>
-    <button class="btn-red" onclick="openStudentForm()">+ New Enrollment</button>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn-black" onclick="openImport('students')">⬆ Import from Excel (CSV)</button>
+      <button class="btn-red" onclick="openStudentForm()">+ New Enrollment</button>
+    </div>
   </div>
   <div class="toolbar">
     <div class="field" style="flex:1;min-width:200px"><label>Search</label><input id="stuSearch" placeholder="Name / Reg No / Phone" oninput="renderStudents()"></div>
@@ -509,6 +512,12 @@ tr:hover td{background:var(--soft)}
   </div>
 
   <div class="panel" style="max-width:560px">
+    <h3>Excel (CSV) se Data Import</h3>
+    <p class="sub" style="margin-bottom:12px">Purana record Excel mein hai? File ko CSV mein save kar ke yahan se import kar lein — students, staff aur inquiries. System khud pehchanta hai ke kaunsa column kis cheez ka hai.</p>
+    <button class="btn-red" onclick="openImport('students')">⬆ Import from Excel (CSV)</button>
+  </div>
+
+  <div class="panel" style="max-width:560px">
     <h3>Academy Logo</h3>
     <p class="sub" style="margin-bottom:10px">cga.com.pk wala logo yahan upload karein — phir har challan, report card, register aur profile par khud chhapega.</p>
     <div id="logoPrev" style="margin-bottom:10px"></div>
@@ -663,7 +672,8 @@ function detectGroup(subjects){
   return hit? hit.name : ((subjects||[]).length? "Custom / General" : "—");
 }
 /* Group sirf Morning (school) shift ka concept hai — override ho to wohi, warna auto */
-const groupOf = s => !s || s.shift!=="Morning" ? "—" : (s.groupOverride || detectGroup(s.subjects));
+const hasGroups = (shift, course) => shift==="Morning" && levelOfClass(course)!=="Junior";
+const groupOf = s => !s || !hasGroups(s.shift, s.course) ? "—" : (s.groupOverride || detectGroup(s.subjects));
 /* Subjects par lagi hui fees ka total (0 bhi ho sakta hai) */
 const subjectsTotal = s => (s && s.subjects || []).reduce((a,x)=>a+(+x.fee||0),0);
 /* Student ki total monthly fee — Evening mein subject-wise total, warna uski apni monthly fee.
@@ -1016,7 +1026,7 @@ function drawSubjs(){
   </table></div>` : `<div class="empty">Abhi koi subject add nahi — upar se subject chun kar "+ Add Subject" dabayein</div>`;
   subjTotalSync();
   const grp = grpOverride || detectGroup(subjDraft);
-  $("groupBox").innerHTML = evening? "" : `
+  $("groupBox").innerHTML = !hasGroups($("f_shift").value, cls) ? "" : `
     <div class="note" style="margin:0"><b>Detected Group:</b>
       <span style="font-size:1rem;font-weight:800;color:var(--red)">${esc(grp)}</span>
       ${grpOverride?" <span class='sub'>(manually set)</span>":" <span class='sub'>(subjects se khud detect hua)</span>"}
@@ -1059,7 +1069,7 @@ function saveStudent(id){
     const t = data.subjects.reduce((a,x)=>a+(+x.fee||0),0);
     if(t) data.monthlyFee = t;      // sirf tab overwrite karein jab subjects par fees hon
   }
-  data.group = data.shift==="Morning" ? (grpOverride || detectGroup(data.subjects)) : "";
+  data.group = hasGroups(data.shift, data.course) ? (grpOverride || detectGroup(data.subjects)) : "";
   if(id){ Object.assign(stuById(id), data); toast("Student updated"); }
   else{
     data.id = uid();
@@ -2599,6 +2609,415 @@ function renderReport(){
   $("rIncRows").innerHTML = incRows.length? incRows.map(r=>`<tr><td>${fmtD(r.date)}</td><td>${esc(r.desc)}</td><td><b>${money(r.amount)}</b></td></tr>`).join("") : `<tr><td colspan="3" class="empty">Is month koi income nahi</td></tr>`;
   const expRows = DB.txns.filter(t=>t.type==="Expense"&&t.date.startsWith(m)).sort((a,b)=>b.date.localeCompare(a.date));
   $("rExpRows").innerHTML = expRows.length? expRows.map(t=>`<tr><td>${fmtD(t.date)}</td><td>${esc(t.desc)}</td><td><b>${money(t.amount)}</b></td></tr>`).join("") : `<tr><td colspan="3" class="empty">Is month koi expense nahi</td></tr>`;
+}
+
+
+/* ================= EXCEL (CSV) IMPORT ================= */
+let impRows = [], impMap = {}, impType = "students", impDelim = ",", impFile = "";
+
+/* ---------- CSV parser: quotes, embedded commas/newlines, BOM, CRLF ---------- */
+function detectDelim(text){
+  const head = text.split(/\r?\n/)[0] || "";
+  const n = {",":0, ";":0, "\t":0, "|":0};
+  let q = false;
+  for(const ch of head){ if(ch === '"') q = !q; else if(!q && n[ch] !== undefined) n[ch]++; }
+  return Object.keys(n).sort((a,b)=>n[b]-n[a])[0] || ",";
+}
+function parseCSV(text){
+  text = String(text).replace(/^﻿/, "");
+  impDelim = detectDelim(text);
+  const rows = []; let row = [], cell = "", q = false;
+  for(let i = 0; i < text.length; i++){
+    const ch = text[i];
+    if(q){
+      if(ch === '"'){ if(text[i+1] === '"'){ cell += '"'; i++; } else q = false; }
+      else cell += ch;
+    }else{
+      if(ch === '"') q = true;
+      else if(ch === impDelim){ row.push(cell); cell = ""; }
+      else if(ch === "\n"){ row.push(cell); rows.push(row); row = []; cell = ""; }
+      else if(ch !== "\r") cell += ch;
+    }
+  }
+  if(cell !== "" || row.length){ row.push(cell); rows.push(row); }
+  return rows.filter(r => r.some(c => String(c).trim() !== ""));
+}
+
+/* ---------- value cleaners ---------- */
+const pad2 = n => String(n).padStart(2,"0");
+const cleanNum = v => { const n = String(v??"").replace(/[^0-9.\-]/g,""); return n && !isNaN(+n) ? +n : 0; };
+function cleanDate(v){
+  const t = String(v??"").trim();
+  if(!t) return "";
+  if(/^\d{4}-\d{2}-\d{2}$/.test(t)) return t;
+  if(/^\d{5}$/.test(t)){                                   // Excel serial number
+    const d = new Date(Date.UTC(1899,11,30) + (+t)*864e5);
+    return isNaN(d) ? "" : d.toISOString().slice(0,10);
+  }
+  const m = t.match(/^(\d{1,4})[\/\-. ](\d{1,2})[\/\-. ](\d{1,4})$/);
+  if(m){
+    let a = +m[1], b = +m[2], y = +m[3];
+    if(String(m[1]).length === 4) return `${m[1]}-${pad2(b)}-${pad2(y)}`;   // yyyy-mm-dd
+    let d = a, mo = b;
+    if(mo > 12 && d <= 12){ d = b; mo = a; }                // clearly mm/dd/yyyy
+    if(y < 100) y += y < 50 ? 2000 : 1900;                  // dd/mm/yyyy (PK convention)
+    if(mo < 1 || mo > 12 || d < 1 || d > 31) return "";
+    return `${y}-${pad2(mo)}-${pad2(d)}`;
+  }
+  const d = new Date(t);
+  return isNaN(d) ? "" : d.toISOString().slice(0,10);
+}
+const normShift  = v => /even|academy|after|noon|pm\b/i.test(v) ? "Evening" : /morn|school|am\b/i.test(v) ? "Morning" : "";
+function normStatus(v){
+  const t = String(v??"").toLowerCase();
+  if(t.startsWith("grad")) return "Graduate";
+  if(t.startsWith("left") || t.startsWith("quit")) return "Left";
+  if(t.startsWith("free") || t.startsWith("hold")) return "Freeze";
+  return "Active";
+}
+const keyify = x => String(x??"").toLowerCase().replace(/[^a-z0-9]/g,"");
+function matchClass(v, shift){
+  const k = keyify(v); if(!k) return "";
+  const pool = (CLASSES_BY_SHIFT[shift] || COURSES).concat(COURSES);
+  return pool.find(c => keyify(c) === k) || pool.find(c => keyify(c).includes(k) || k.includes(keyify(c))) || "";
+}
+function teacherIdByName(v){
+  const k = keyify(v); if(!k) return "";
+  const t = DB.employees.find(e => e.category === "Teacher" && keyify(e.name) === k)
+         || DB.employees.find(e => keyify(e.name) === k);
+  return t ? t.id : "";
+}
+/* "Physics:3000, Chemistry:2500:Sir Ali, Biology"  →  [{name, fee, teacherId}] */
+function parseSubjects(v){
+  return String(v??"").split(/[;,|]/).map(x=>x.trim()).filter(Boolean).map(x=>{
+    const parts = x.split(/[:=]/).map(y=>y.trim());
+    return { name: parts[0], fee: parts[1] !== undefined ? cleanNum(parts[1]) : 0,
+             teacherId: parts[2] ? teacherIdByName(parts[2]) : "" };
+  }).filter(x=>x.name);
+}
+
+/* ---------- kya kya import ho sakta hai ---------- */
+const IMPORT_TYPES = {
+  students: {
+    label: "Students",
+    fields: [
+      {k:"regNo",      l:"Reg No",             syn:["regno","registration","registrationno","rollno","roll","admissionno","serial","sr"]},
+      {k:"name",       l:"Student Name",       syn:["name","studentname","student","fullname","nameofstudent"], req:true},
+      {k:"fatherName", l:"Father Name",        syn:["fathername","father","fathersname","guardian","guardianname","parentname"]},
+      {k:"course",     l:"Class / Grade",      syn:["class","grade","course","level","classgrade","section"]},
+      {k:"shift",      l:"Shift",              syn:["shift","timing","session","morningevening"]},
+      {k:"subjects",   l:"Subjects",           syn:["subjects","subject","subjectlist","optedsubjects"], hint:"Physics:3000, Chemistry:2500"},
+      {k:"monthlyFee", l:"Monthly Fee",        syn:["monthlyfee","fee","fees","tuition","tuitionfee","feeamount"]},
+      {k:"teacher",    l:"Class Teacher",      syn:["teacher","classteacher","teachername","incharge"]},
+      {k:"phone",      l:"Student Phone",      syn:["phone","mobile","contact","studentphone","cell","whatsapp","contactno"]},
+      {k:"fatherPhone",l:"Father Phone",       syn:["fatherphone","fathercontact","fathermobile","guardianphone","parentphone"]},
+      {k:"motherPhone",l:"Mother Phone",       syn:["motherphone","mothercontact","mothermobile"]},
+      {k:"cnic",       l:"B-Form / CNIC",      syn:["cnic","bform","bformno","studentcnic","nic","cnicno"]},
+      {k:"fatherCnic", l:"Father CNIC",        syn:["fathercnic","guardiancnic","parentcnic","fathernic"]},
+      {k:"dob",        l:"Date of Birth",      syn:["dob","dateofbirth","birthdate","birthday"]},
+      {k:"doj",        l:"Date of Join",       syn:["doj","dateofjoin","joiningdate","admissiondate","joined","enrolled","admission"]},
+      {k:"education",  l:"Education",          syn:["education","qualification","lastqualification"]},
+      {k:"prevInst",   l:"Previous Institute", syn:["previousinstitute","previousschool","lastschool","previousinst","exschool"]},
+      {k:"address",    l:"Address",            syn:["address","homeaddress","residence","city"]},
+      {k:"status",     l:"Status",             syn:["status","state"]}
+    ],
+    samples: [
+      ["REG-2026-0001","Ahmed Raza","Raza Khan","O2","Evening","Physics:3000, Chemistry:2500, Biology:2800","","","0300-1111111","0300-2222222","","","35201-1234567-1","12/04/2009","10/01/2026","","","Johar Town, Lahore","Active"],
+      ["","Bilal Ahmed","Ahmed Ali","O1","Morning","Physics, Chemistry, Biology","6500","Sir Ali Raza","0321-3333333","","","","","20/08/2010","12/01/2026","","","Model Town, Lahore","Active"]
+    ]
+  },
+  employees: {
+    label: "Employees / Staff",
+    fields: [
+      {k:"name",     l:"Name",            syn:["name","employeename","staffname","fullname"], req:true},
+      {k:"category", l:"Category",        syn:["category","designation","role","post","type"]},
+      {k:"phone",    l:"Phone",           syn:["phone","mobile","contact","cell","contactno"]},
+      {k:"doj",      l:"Joining Date",    syn:["doj","joiningdate","dateofjoin","joined"]},
+      {k:"salary",   l:"Monthly Salary",  syn:["salary","monthlysalary","pay","wage"]},
+      {k:"address",  l:"Address",         syn:["address","homeaddress","residence","city"]}
+    ],
+    samples: [
+      ["Sir Ali Raza","Teacher","0300-1234567","01/03/2024","60000","Johar Town, Lahore"],
+      ["Hamza Sheikh","Coordinator","0333-1112222","05/01/2025","40000","Model Town, Lahore"]
+    ]
+  },
+  inquiries: {
+    label: "Inquiries",
+    fields: [
+      {k:"name",   l:"Name",             syn:["name","callername","parentname","fullname"], req:true},
+      {k:"phone",  l:"Phone",            syn:["phone","mobile","contact","cell","contactno","whatsapp"], req:true},
+      {k:"course", l:"Interested Class",  syn:["class","grade","course","interestedclass","level"]},
+      {k:"fee",    l:"Agreed Fee",       syn:["fee","agreedfee","decidedfee","quotedfee","amount"]},
+      {k:"date",   l:"Date",             syn:["date","inquirydate","calldate"]},
+      {k:"city",   l:"City",             syn:["city","town"]},
+      {k:"area",   l:"Area",             syn:["area","locality","sector","block"]},
+      {k:"detail", l:"Detail",           syn:["detail","details","remarks","notes","comment","discussion"]}
+    ],
+    samples: [
+      ["Mrs. Khan","0300-9876543","O1","6500","15/09/2026","Lahore","Johar Town","Bhai ke liye O1 mein admission chahiye"],
+      ["Ali Hassan","0321-1234567","AS","9000","16/09/2026","Lahore","DHA","Fee structure pooch rahe the"]
+    ]
+  }
+};
+
+/* ---------- column auto-detection ---------- */
+function autoMap(headers, fields){
+  const H = headers.map(keyify);
+  const used = new Set(), map = {};
+  fields.forEach(f=>{                                  // 1: bilkul exact match
+    const syns = [f.k, f.l, ...(f.syn||[])].map(keyify);
+    for(let i = 0; i < H.length; i++){
+      if(used.has(i) || !H[i]) continue;
+      if(syns.includes(H[i])){ map[f.k] = i; used.add(i); break; }
+    }
+  });
+  fields.forEach(f=>{                                  // 2: hissa match (lamba synonym pehle)
+    if(map[f.k] !== undefined) return;
+    const syns = [f.k, f.l, ...(f.syn||[])].map(keyify).filter(x=>x.length >= 4).sort((a,b)=>b.length-a.length);
+    for(const sy of syns){
+      for(let i = 0; i < H.length; i++){
+        if(used.has(i) || !H[i]) continue;
+        if(H[i].includes(sy) || sy.includes(H[i])){ map[f.k] = i; used.add(i); return; }
+      }
+    }
+  });
+  return map;
+}
+
+
+/* ---------- import UI ---------- */
+function openImport(preType){
+  impType = preType || "students"; impRows = []; impMap = {}; impFile = "";
+  openModal(`
+    <h3>⬆ Excel (CSV) se Data Import</h3>
+    <div class="note">Excel mein <b>File → Save As → CSV (Comma delimited)</b> karein, phir wo file yahan upload karein.
+    System khud pehchan lega ke kaunsa column kis cheez ka hai — aap neeche check kar ke theek bhi kar sakte hain.</div>
+    <div class="toolbar">
+      <div class="field"><label>Kya import karna hai?</label>
+        <select id="imp_type" onchange="openImport(this.value)">
+          ${Object.keys(IMPORT_TYPES).map(k=>`<option value="${k}" ${k===impType?"selected":""}>${IMPORT_TYPES[k].label}</option>`).join("")}
+        </select></div>
+      <div class="field" style="flex:1;min-width:220px"><label>CSV File</label>
+        <input type="file" id="imp_file" accept=".csv,.txt" onchange="impLoad(this)"></div>
+      <button class="btn-line" onclick="impSample()">⬇ Sample Template</button>
+    </div>
+    <div id="impBody"><div class="empty">CSV file select karein — uske baad columns ki mapping yahan nazar aayegi</div></div>
+  `, true);
+}
+function impSample(){
+  const def = IMPORT_TYPES[impType];
+  const e = v => `"${String(v??"").replace(/"/g,'""')}"`;
+  const lines = [def.fields.map(f=>f.l).map(e).join(","), ...def.samples.map(r=>r.map(e).join(","))];
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob(["﻿"+lines.join("\r\n")],{type:"text/csv;charset=utf-8"}));
+  a.download = `cga-${impType}-template.csv`;
+  a.click();
+  toast("Template download ho gaya — Excel mein khol kar apna data bharein");
+}
+function impLoad(inp){
+  const f = inp.files[0]; if(!f) return;
+  impFile = f.name;
+  const r = new FileReader();
+  r.onload = ()=>{
+    try{
+      impRows = parseCSV(r.result);
+      if(impRows.length < 2){ $("impBody").innerHTML = `<div class="note"><b>File mein data nahi mila.</b> Pehli line column headings ki honi chahiye aur uske neeche kam az kam ek row.</div>`; return; }
+      impMap = autoMap(impRows[0], IMPORT_TYPES[impType].fields);
+      impRender();
+    }catch(e){ $("impBody").innerHTML = `<div class="note"><b>File parh nahi saka:</b> ${esc(e.message)}</div>`; }
+  };
+  r.readAsText(f, "UTF-8");
+}
+function impSetCol(k, v){ if(v === "") delete impMap[k]; else impMap[k] = +v; impRender(); }
+
+function impRender(){
+  const def = IMPORT_TYPES[impType];
+  const head = impRows[0], body = impRows.slice(1);
+  const cell = (r, k) => impMap[k] === undefined ? "" : String(r[impMap[k]] ?? "").trim();
+  const mapped = def.fields.filter(f => impMap[f.k] !== undefined);
+  const missingReq = def.fields.filter(f => f.req && impMap[f.k] === undefined);
+  const dname = impDelim === "\t" ? "Tab" : impDelim;
+
+  $("impBody").innerHTML = `
+    <div class="cards" style="margin-bottom:14px">
+      <div class="card"><div class="k">File</div><div class="v" style="font-size:.95rem;word-break:break-all">${esc(impFile)}</div></div>
+      <div class="card"><div class="k">Data Rows</div><div class="v">${body.length}</div></div>
+      <div class="card"><div class="k">Columns</div><div class="v">${head.length}</div><div class="hint">Separator: ${esc(dname)}</div></div>
+      <div class="card"><div class="k">Pehchane Gaye</div><div class="v green">${mapped.length}</div><div class="hint">${def.fields.length} fields mein se</div></div>
+    </div>
+
+    ${missingReq.length? `<div class="note" style="border-left-color:var(--danger)"><b>Zaroori column nahi mila:</b> ${missingReq.map(f=>esc(f.l)).join(", ")} — neeche mapping mein khud select karein.</div>`:""}
+
+    <h3 style="margin:14px 0 8px">Column Mapping</h3>
+    <p class="sub" style="margin-bottom:10px">Baayein taraf system ke fields hain, daayein aap ki CSV ka column. Galat lage to badal dein; jo nahi chahiye use "— skip —" kar dein.</p>
+    <div class="tbl-wrap" style="max-height:330px;overflow-y:auto"><table>
+      <thead><tr><th>System Field</th><th>CSV Column</th><th>Pehli row ki value</th></tr></thead>
+      <tbody>${def.fields.map(f=>`<tr>
+        <td><b>${esc(f.l)}</b>${f.req?' <span style="color:var(--danger)">*</span>':""}${f.hint?`<br><span class="sub">${esc(f.hint)}</span>`:""}</td>
+        <td style="max-width:230px"><select onchange="impSetCol('${f.k}',this.value)">
+          <option value="">— skip —</option>
+          ${head.map((h,i)=>`<option value="${i}" ${impMap[f.k]===i?"selected":""}>${esc(h||("Column "+(i+1)))}</option>`).join("")}
+        </select></td>
+        <td>${impMap[f.k]===undefined? `<span class="sub">—</span>` : `<b>${esc(cell(body[0]||[], f.k) || "(khali)")}</b>`}</td>
+      </tr>`).join("")}</tbody>
+    </table></div>
+
+    <h3 style="margin:18px 0 8px">Options</h3>
+    <div class="toolbar">
+      <div class="field"><label>Pehle se mojood record</label>
+        <select id="imp_dup"><option value="skip">Skip kar dein</option><option value="update">Update kar dein</option></select></div>
+      ${impType==="students"? `
+      <div class="field"><label>Shift (jahan CSV mein khali ho)</label>
+        <select id="imp_shift" onchange="impSyncCourse()"><option>Evening</option><option>Morning</option></select></div>
+      <div class="field"><label>Class (jahan CSV mein khali ho)</label>
+        <select id="imp_course">${courseOptions(undefined,"Evening")}</select></div>
+      <div class="field"><label>Morning ke compulsory subjects</label>
+        <select id="imp_comp"><option value="1">Khud add kar dein</option><option value="0">Sirf CSV wale rakhein</option></select></div>`:""}
+    </div>
+
+    <h3 style="margin:18px 0 8px">Preview — pehli ${Math.min(5, body.length)} rows</h3>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>#</th>${mapped.map(f=>`<th>${esc(f.l)}</th>`).join("")}</tr></thead>
+      <tbody>${body.slice(0,5).map((r,i)=>`<tr><td><b>${i+1}</b></td>${mapped.map(f=>`<td>${esc(cell(r,f.k)) || `<span class="sub">—</span>`}</td>`).join("")}</tr>`).join("")}</tbody>
+    </table></div>
+
+    <div class="modal-foot">
+      <button class="btn-line" onclick="closeModal()">Cancel</button>
+      <button class="btn-red" onclick="runImport()" ${missingReq.length?"disabled style='opacity:.5;cursor:not-allowed'":""}>⬆ Import ${body.length} Rows</button>
+    </div>`;
+}
+function impSyncCourse(){
+  const sh = $("imp_shift").value;
+  $("imp_course").innerHTML = courseOptions(undefined, sh);
+}
+
+/* ---------- import chalao ---------- */
+function runImport(){
+  const def = IMPORT_TYPES[impType], body = impRows.slice(1);
+  const dup = $("imp_dup").value;
+  const defShift  = $("imp_shift")? $("imp_shift").value : "Evening";
+  const defCourse = $("imp_course")? $("imp_course").value : "";
+  const addComp = $("imp_comp") ? $("imp_comp").value === "1" : false;
+  let added = 0, updated = 0, skipped = 0;
+  const issues = [], seen = new Map();
+  const note = (line, msg) => issues.push({line, msg});
+
+  body.forEach((r, idx)=>{
+    const line = idx + 2;                                  // CSV ki asal line (header ke baad)
+    const g = k => impMap[k] === undefined ? "" : String(r[impMap[k]] ?? "").trim();
+    const name = g("name");
+    if(!name){ skipped++; note(line, "Name khali hai"); return; }
+
+    if(impType === "students"){
+      const shift  = normShift(g("shift")) || defShift;
+      const rawC   = g("course");
+      const course = matchClass(rawC, shift) || defCourse;
+      if(rawC && !matchClass(rawC, shift)) note(line, `Class "${rawC}" pehchani nahi gayi — "${course}" laga di`);
+      const subjects = parseSubjects(g("subjects"));
+      const offered  = subjectsForClass(course).map(x=>x.name);
+      const unknown  = subjects.filter(x=>!offered.includes(x.name)).map(x=>x.name);
+      if(unknown.length) note(line, `Subjects catalogue mein nahi: ${unknown.join(", ")} (phir bhi lag gaye)`);
+
+      /* Morning students ko wohi compulsory subjects milte hain jo form se milte hain */
+      if(shift === "Morning" && addComp){
+        const had = subjects.length;
+        compulsoryForClass(course).forEach(x=>{
+          if(!subjects.some(y=>keyify(y.name) === keyify(x.name)))
+            subjects.push({name:x.name, fee:+x.defaultFee||0, teacherId:""});
+        });
+        if(subjects.length > had) note(line, `${subjects.length - had} compulsory subjects khud add kiye (${course})`);
+      }
+      const lim = electiveLimitFor(course);
+      if(shift === "Morning" && lim){
+        const nElec = subjects.filter(x=>subjKind(x.name, course) !== "Compulsory").length;
+        if(nElec > lim) note(line, `${nElec} electives hain magar ${course} mein ${lim} allowed — check kar lein`);
+      }
+
+      const rec = {
+        name, fatherName:g("fatherName"),
+        cnic:g("cnic"), fatherCnic:g("fatherCnic"),
+        phone:g("phone"), fatherPhone:g("fatherPhone"), motherPhone:g("motherPhone"),
+        address:g("address"), dob:cleanDate(g("dob")), doj:cleanDate(g("doj")) || todayStr(),
+        education:g("education"), prevInst:g("prevInst"),
+        course, shift, monthlyFee:cleanNum(g("monthlyFee")),
+        teacherId:teacherIdByName(g("teacher")),
+        subjects, groupOverride:"", status:normStatus(g("status"))
+      };
+      const subTot = subjects.reduce((a,x)=>a+(+x.fee||0), 0);
+      if(shift === "Evening" && subTot) rec.monthlyFee = subTot;
+      rec.group = hasGroups(shift, course) ? detectGroup(subjects) : "";
+      if(g("teacher") && !rec.teacherId) note(line, `Teacher "${g("teacher")}" nahi mila — khali chhod diya`);
+
+      const regNo = g("regNo");
+      const dupKey = keyify(regNo) || (keyify(name) + "|" + keyify(rec.fatherName));
+      if(seen.has(dupKey)) note(line, `Isi file mein ye record line ${seen.get(dupKey)} par bhi hai — aakhri row ki values lagi hain`);
+      seen.set(dupKey, line);
+      const hit = (regNo && DB.students.find(x=>keyify(x.regNo) === keyify(regNo)))
+               || DB.students.find(x=>keyify(x.name) === keyify(name) && keyify(x.fatherName) === keyify(rec.fatherName));
+      if(hit){
+        if(dup === "update"){ Object.assign(hit, rec); updated++; }
+        else { skipped++; note(line, `"${name}" pehle se mojood (${hit.regNo})`); }
+        return;
+      }
+      rec.id = uid(); rec.photo = null;
+      rec.regNo = regNo || ("REG-" + new Date().getFullYear() + "-" + String(DB.counters.reg++).padStart(4,"0"));
+      DB.students.push(rec); added++;
+    }
+
+    else if(impType === "employees"){
+      const cats = ["Admin","Teacher","Coordinator","Supportive Staff"];
+      const raw = g("category");
+      const cat = cats.find(c=>keyify(c) === keyify(raw)) || cats.find(c=>keyify(raw) && keyify(c).includes(keyify(raw))) || "Teacher";
+      if(raw && !cats.find(c=>keyify(c) === keyify(raw))) note(line, `Category "${raw}" pehchani nahi — "${cat}" laga di`);
+      const rec = { name, category:cat, phone:g("phone"), doj:cleanDate(g("doj")) || todayStr(),
+                    salary:cleanNum(g("salary")), address:g("address"), assignments:[] };
+      const hit = DB.employees.find(x=>keyify(x.name) === keyify(name));
+      if(hit){
+        if(dup === "update"){ Object.assign(hit, rec); updated++; }
+        else { skipped++; note(line, `"${name}" pehle se mojood`); }
+        return;
+      }
+      rec.id = uid(); rec.photo = null;
+      DB.employees.push(rec); added++;
+    }
+
+    else {   /* inquiries */
+      const phone = g("phone");
+      if(!phone){ skipped++; note(line, "Phone khali hai"); return; }
+      const rec = { name, phone, course:matchClass(g("course"), "") || g("course"),
+                    fee:cleanNum(g("fee")) || "", date:cleanDate(g("date")) || todayStr(),
+                    city:g("city"), area:g("area"), detail:g("detail") };
+      const hit = DB.inquiries.find(x=>keyify(x.phone) === keyify(phone) && keyify(x.name) === keyify(name));
+      if(hit){
+        if(dup === "update"){ Object.assign(hit, rec); updated++; }
+        else { skipped++; note(line, `"${name}" (${phone}) pehle se mojood`); }
+        return;
+      }
+      rec.id = uid(); DB.inquiries.push(rec); added++;
+    }
+  });
+
+  save();
+  renderStudents(); renderEmployees(); renderInquiries(); renderDashboard();
+  $("impBody").innerHTML = `
+    <div class="cards" style="margin-bottom:14px">
+      <div class="card"><div class="k">✓ Naye Add Hue</div><div class="v green">${added}</div></div>
+      <div class="card"><div class="k">↻ Update Hue</div><div class="v">${updated}</div></div>
+      <div class="card"><div class="k">⤫ Skip Hue</div><div class="v ${skipped?"red":""}">${skipped}</div></div>
+      <div class="card"><div class="k">Total Rows</div><div class="v">${body.length}</div></div>
+    </div>
+    ${issues.length? `
+      <h3 style="margin:14px 0 8px">Tafseel (${issues.length})</h3>
+      <div class="tbl-wrap" style="max-height:280px;overflow-y:auto"><table>
+        <thead><tr><th>CSV Line</th><th>Kya hua</th></tr></thead>
+        <tbody>${issues.map(i=>`<tr><td><b>${i.line}</b></td><td>${esc(i.msg)}</td></tr>`).join("")}</tbody>
+      </table></div>`
+      : `<div class="note">Sab rows bilkul theek import ho gayin ✓</div>`}
+    <div class="modal-foot">
+      <button class="btn-line" onclick="openImport('${impType}')">Aur file import karein</button>
+      <button class="btn-red" onclick="closeModal()">Done</button>
+    </div>`;
+  toast(`Import mukammal — ${added} naye${updated?`, ${updated} update`:""}${skipped?`, ${skipped} skip`:""}`);
 }
 
 /* ================= SETTINGS / BACKUP ================= */
