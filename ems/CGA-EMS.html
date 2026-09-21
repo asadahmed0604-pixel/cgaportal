@@ -351,6 +351,7 @@ tr:hover td{background:var(--soft)}
   <div class="page-head">
     <div><h2>Fee / Billing</h2><div class="sub">Challans, paid & unpaid record</div></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn-black" onclick="openImport('fees')">⬆ Import CSV</button>
       <button class="btn-black" onclick="openDefaulters()">⚠ Defaulter List</button>
       <button class="btn-black" onclick="openBulkChallan()">⚡ Generate All Challans</button>
       <button class="btn-red" onclick="openChallanForm()">+ New Fee Challan</button>
@@ -480,8 +481,11 @@ tr:hover td{background:var(--soft)}
 <!-- ================= FINANCE ================= -->
 <section class="page" id="page-finance">
   <div class="page-head">
-    <div><h2>Income / Expense</h2><div class="sub">Petty expenses & other income (manual entry)</div></div>
-    <button class="btn-red" onclick="openTxnForm()">+ Add Entry</button>
+    <div><h2>Income / Expense</h2><div class="sub">Petty expenses & other income — category ke sath</div></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn-black" onclick="openImport('expenses')">⬆ Import from Excel (CSV)</button>
+      <button class="btn-red" onclick="openTxnForm()">+ Add Entry</button>
+    </div>
   </div>
   <div class="note">Student fee jab <b>Paid</b> mark hoti hai to wo income mein khud shamil ho jati hai — usay yahan dobara add na karein. Yahan sirf petty expenses aur other income likhein.</div>
   <div class="cards">
@@ -552,7 +556,7 @@ tr:hover td{background:var(--soft)}
 
   <div class="panel" style="max-width:560px">
     <h3>Excel (CSV) se Data Import</h3>
-    <p class="sub" style="margin-bottom:12px">Purana record Excel mein hai? File ko CSV mein save kar ke yahan se import kar lein — students, staff aur inquiries. System khud pehchanta hai ke kaunsa column kis cheez ka hai.</p>
+    <p class="sub" style="margin-bottom:12px">Purana record Excel mein hai? File ko CSV mein save kar ke yahan se import kar lein — <b>students, fee challans, income/expenses, inventory, staff aur inquiries</b>. System khud pehchanta hai ke kaunsa column kis cheez ka hai. (Har page par uska apna Import button bhi mojood hai.)</p>
     <button class="btn-red" onclick="openImport('students')">⬆ Import from Excel (CSV)</button>
   </div>
 
