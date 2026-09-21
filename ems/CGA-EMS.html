@@ -717,9 +717,11 @@ try{
 for(const k in DEFAULT_DB) if(DB[k]===undefined) DB[k]=structuredClone(DEFAULT_DB[k]);
 if(DB.settings.logo===undefined) DB.settings.logo = "";
 if(!DB.subjects || !DB.subjects.length) DB.subjects = seedSubjects();
-["SAT English","SAT Math"].forEach(n=>{        // SAT batch ke subjects (naye add hue)
+/* SAT batch ke subjects (naye add hue). Yahan uid() nahi bula sakte — wo neeche define
+   hota hai aur us se poora script load hi na ho pata, is liye tay-shuda id use karte hain. */
+[["sub_sat_eng","SAT English"], ["sub_sat_math","SAT Math"]].forEach(([id,n])=>{
   if(!DB.subjects.some(x=>x.name===n))
-    DB.subjects.push({id:uid(), name:n, level:"A Level", kind:"Elective", classes:["SAT"], defaultFee:0});
+    DB.subjects.push({id, name:n, level:"A Level", kind:"Elective", classes:["SAT"], defaultFee:0});
 });
 DB.subjects.forEach(x=>{                       // purane catalogue ko naye fields de dein
   if(!x.classes) x.classes = [];
