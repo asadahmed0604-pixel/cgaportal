@@ -229,6 +229,7 @@ tr:hover td{background:var(--soft)}
     <button data-page="inquiries"><span class="ico">☎</span> Inquiries</button>
     <button data-page="exams"><span class="ico">📝</span> Exams</button>
     <button data-page="employees"><span class="ico">👥</span> Employees</button>
+    <button data-page="inventory"><span class="ico">📦</span> Inventory</button>
     <button data-page="finance"><span class="ico">💰</span> Income / Expense</button>
     <button data-page="reports"><span class="ico">📊</span> Monthly Report</button>
     <button data-page="settings"><span class="ico">⚙</span> Settings</button>
@@ -448,6 +449,34 @@ tr:hover td{background:var(--soft)}
   </div>
 </section>
 
+<!-- ================= INVENTORY ================= -->
+<section class="page" id="page-inventory">
+  <div class="page-head">
+    <div><h2>Inventory</h2><div class="sub">Books, notes aur baqi saaman — kitna aaya, kitna diya, kitna bacha</div></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn-black" onclick="openImport('inventory')">⬆ Import CSV</button>
+      <button class="btn-red" onclick="openInvForm()">+ New Item</button>
+    </div>
+  </div>
+  <div class="cards">
+    <div class="card"><div class="k">Items</div><div class="v" id="invItems">0</div><div class="hint" id="invItemsHint"></div></div>
+    <div class="card"><div class="k">Stock Mein</div><div class="v" id="invStock">0</div><div class="hint">Units abhi mojood</div></div>
+    <div class="card"><div class="k">Stock ki Maaliyat</div><div class="v green" id="invValue">0</div><div class="hint">Baqi stock × unit cost</div></div>
+    <div class="card"><div class="k">Issue Hue</div><div class="v" id="invIssued">0</div><div class="hint" id="invIssuedHint"></div></div>
+    <div class="card"><div class="k">Kul Khareed</div><div class="v" id="invSpent">0</div><div class="hint">Sab items ki lagat</div></div>
+  </div>
+  <div class="toolbar">
+    <div class="field"><label>Type</label><select id="invFType" onchange="renderInventory()"><option value="">All</option></select></div>
+    <div class="field"><label>Stock</label><select id="invFStock" onchange="renderInventory()"><option value="">All</option><option value="in">Stock mein hai</option><option value="out">Khatam</option></select></div>
+    <div class="field" style="flex:1;min-width:180px"><label>Search</label><input id="invSearch" placeholder="Item ka naam" oninput="renderInventory()"></div>
+  </div>
+  <div class="sub" id="invCount" style="margin-bottom:8px"></div>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>#</th><th>Item</th><th>Type</th><th>Class</th><th>Aaya</th><th>Issue</th><th>Stock</th><th>Unit Cost</th><th>Stock Value</th><th>Date</th><th>Actions</th></tr></thead>
+    <tbody id="invRows"></tbody>
+  </table></div>
+</section>
+
 <!-- ================= FINANCE ================= -->
 <section class="page" id="page-finance">
   <div class="page-head">
@@ -464,12 +493,19 @@ tr:hover td{background:var(--soft)}
   </div>
   <div class="toolbar">
     <div class="field"><label>Type</label><select id="txnFType" onchange="renderFinance()"><option value="">All</option><option value="Income">Income</option><option value="Expense">Expense</option></select></div>
+    <div class="field"><label>Category</label><select id="txnFCat" onchange="renderFinance()"><option value="">All Categories</option></select></div>
     <div class="field"><label>Month</label><input type="month" id="txnFMonth" onchange="renderFinance()"></div>
   </div>
   <div class="tbl-wrap"><table>
-    <thead><tr><th>#</th><th>Date</th><th>Type</th><th>Description</th><th>Amount (Rs)</th><th>Actions</th></tr></thead>
+    <thead><tr><th>#</th><th>Date</th><th>Type</th><th>Category</th><th>Description</th><th>Amount (Rs)</th><th>Actions</th></tr></thead>
     <tbody id="txnRows"></tbody>
   </table></div>
+
+  <div class="panel" style="margin-top:16px">
+    <h3>Category-wise Expenses</h3>
+    <p class="sub" style="margin:4px 0 12px">Upar chuna hua month — kis category par kitna kharch hua.</p>
+    <div id="catBreak"></div>
+  </div>
 
   <div class="panel" style="margin-top:16px">
     <h3>📊 Profit & Loss Report Export</h3>
@@ -634,6 +670,44 @@ const DEFAULT_SUBJECTS = [
 const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
   ({id:"sub"+i, name, level, kind: k==="C"?"Compulsory":"Elective", classes: only?[only]:[], defaultFee:0}));
 
+/* ---------- Expense categories ---------- */
+const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
+                      "Books & Stationery","Refreshment","Rent","Transport","Salary & Wages",
+                      "Petty Cash","Other"];
+const INCOME_CATS  = ["Student Fee","Registration","Books Sale","Scrap Sale","Other Income"];
+
+/* Sheet mein likhi hui category ko humari list par le aao */
+function normCat(v, type){
+  const k = keyify(v); if(!k) return "";
+  const list = type === "Income" ? INCOME_CATS : EXPENSE_CATS;
+  const hit = list.find(c => keyify(c) === k);
+  if(hit) return hit;
+  const alias = {stationary:"Books & Stationery", stationery:"Books & Stationery",
+                 books:"Books & Stationery", maintenance:"Maintenance & Repair",
+                 repair:"Maintenance & Repair", petty:"Petty Cash", utility:"Utility Bill",
+                 bills:"Utility Bill", salary:"Salary & Wages", ads:"Marketing",
+                 advertising:"Marketing", food:"Refreshment"}[k];
+  return alias || list.find(c => keyify(c).includes(k) || k.includes(keyify(c))) || "";
+}
+
+/* Description parh kar category ka andaza — tarteeb ahem hai, pehla match jeet-ta hai */
+const CAT_RULES = [
+  [/lesco|k-?electric|wapda|electric(ity)? bill|sui ?gas|gas bill|water bill|internet|wi-?fi|ptcl|maint(a|e)nence bill|plaza maint/i, "Utility Bill"],
+  [/rider|courier|delivery|petrol|fuel|transport|careem|uber|rickshaw/i, "Transport"],
+  [/rent/i, "Rent"],
+  [/flex|brochure|pamphlet|banner|social ?media|adds? payment|advertis|marketing|billboard/i, "Marketing"],
+  [/book|notes|printing|print|toner|photocop|copies|stationa?ry|register|paper/i, "Books & Stationery"],
+  [/juice|biscuit|bi?ryani|shugar|sugar|lpg|grocery|refresh|freshment|snack|lunch|dinner|drink|food|tea/i, "Refreshment"],
+  [/salary|wages|bonus|stipend|tankhwa/i, "Salary & Wages"],
+  [/camera|cctv|construction|bhans|renovat|development|new (light|motor|ac)/i, "Development"],
+  [/plumb|pump|paint|weld|breaker|clean|tank|wire|cement|clump|tape|blade|fit+ing|repair|maint(a|e)nence|motor|door|light|labou?r|electric/i, "Maintenance & Repair"]
+];
+function guessCat(desc){
+  const t = String(desc||"");
+  const hit = CAT_RULES.find(([re]) => re.test(t));
+  return hit ? hit[1] : "";
+}
+
 /* Morning (school) ka rule — kitne electives allowed hain. 0 = koi limit nahi */
 const ELECTIVE_LIMIT = {"O Level":3, "A Level":4, "Junior":0};
 
@@ -704,6 +778,7 @@ function studentFee(s){
 const DEFAULT_DB = {
   students:[], inquiries:[], fees:[], exams:[], employees:[], txns:[], homework:[],
   subjects:[],             // [{id, name, level, defaultFee}] — Settings se manage hoti hain
+  inventory:[],            // [{id, name, type, qty, unitCost, issued, date, note}]
   attendance:{},           // { "2026-07-07": { studentId: {s:"P|A|L", t:"08:05", shift:"Morning"} } }
   empAttendance:{},        // { "2026-07-07": { empId: {s:"P|A|L", t:"09:00"} } }
   counters:{reg:1, ch:1},
@@ -734,6 +809,11 @@ DB.subjects.forEach(x=>{                       // purane catalogue ko naye field
   }
 });
 DB.students.forEach(s=>{ if(!s.subjects) s.subjects=[]; });
+if(!Array.isArray(DB.inventory)) DB.inventory = [];
+DB.txns.forEach(t=>{
+  if(!t.category) t.category = guessCat(t.desc) || (t.type==="Income"?"Other Income":"Other");
+  if(!t.status)   t.status   = "Paid";
+});
 
 function save(){
   if(!storageOK){ toast("⚠ Warning: Is preview mein data save nahi hota. File download kar ke laptop par kholein."); return; }
@@ -794,7 +874,7 @@ document.querySelectorAll("#nav button").forEach(b=>{
 function renderPage(p){
   ({dashboard:renderDashboard, students:renderStudents, gallery:renderGallery, attendance:loadAttendance,
     fees:renderFees, homework:renderHomework, inquiries:renderInquiries, exams:renderExams,
-    employees:renderEmployees, finance:renderFinance, reports:renderReport,
+    employees:renderEmployees, inventory:renderInventory, finance:renderFinance, reports:renderReport,
     settings:loadSettings}[p]||(()=>{}))();
 }
 
@@ -820,7 +900,8 @@ function renderDashboard(){
   $("dIncome").textContent = money(inc.total);
   $("dExpense").textContent = money(exp);
   const net = inc.total-exp;
-  $("dNet").textContent = "Net: " + money(net);
+  const expDue = monthExpenseUnpaid(m);
+  $("dNet").textContent = "Net: " + money(net) + (expDue? " · " + money(expDue) + " abhi adaa nahi" : "");
   const billed = monthBilled(m);
   $("dBilled").textContent = money(billed);
   $("dBilledHint").textContent = feesOfMonth(m).length + " challans · " + money(billed - inc.fee) + " abhi baqi";
@@ -868,7 +949,7 @@ const monthBilled = m => feesOfMonth(m).reduce((a,f)=>a + feeBilled(f), 0);
 
 function monthIncome(m){
   const fee = feesOfMonth(m).reduce((a,f)=>a + feeReceived(f), 0);
-  const other = DB.txns.filter(t=>t.type==="Income" && t.date.startsWith(m)).reduce((a,t)=>a+ +t.amount,0);
+  const other = txnsOf(m,"Income").filter(t=>!txnUnpaid(t)).reduce((a,t)=>a+ +t.amount,0);
   return {fee, other, total:fee+other};
 }
 /* Shift-wise (Morning/Evening) wasool shuda fee */
@@ -886,9 +967,12 @@ function shiftIncome(m){
   });
   return r;
 }
-function monthExpense(m){
-  return DB.txns.filter(t=>t.type==="Expense" && t.date.startsWith(m)).reduce((a,t)=>a+ +t.amount,0);
-}
+/* Jo entry abhi adaa nahi hui wo kharch mein nahi ginti — income ki tarah yahan bhi
+   sirf wo paisa ginte hain jo asal mein chala gaya. */
+const txnUnpaid = t => String(t.status||"").toLowerCase() === "unpaid";
+const txnsOf = (m, type) => DB.txns.filter(t=>t.type===type && String(t.date||"").startsWith(m));
+function monthExpense(m){       return txnsOf(m,"Expense").filter(t=>!txnUnpaid(t)).reduce((a,t)=>a+ +t.amount,0); }
+function monthExpenseUnpaid(m){ return txnsOf(m,"Expense").filter(txnUnpaid).reduce((a,t)=>a+ +t.amount,0); }
 
 /* ================= STUDENTS ================= */
 let photoTemp = null;
@@ -2551,6 +2635,116 @@ function openEmpProfile(id){
   `, true);
 }
 
+/* ================= INVENTORY ================= */
+const INV_TYPES = ["Book","Notes","Stationery","Uniform","Equipment","Other"];
+const invStock  = it => Math.max(0, (+it.qty||0) - (+it.issued||0));
+const invValue  = it => invStock(it) * (+it.unitCost||0);
+
+function renderInventory(){
+  const ft = $("invFType").value, fs = $("invFStock").value, q = ($("invSearch").value||"").toLowerCase();
+  const types = [...new Set([...INV_TYPES, ...DB.inventory.map(x=>x.type).filter(Boolean)])];
+  $("invFType").innerHTML = `<option value="">All</option>` +
+    types.map(t=>`<option ${t===ft?"selected":""}>${esc(t)}</option>`).join("");
+
+  const all = DB.inventory;
+  $("invItems").textContent   = all.length;
+  $("invItemsHint").textContent = [...new Set(all.map(x=>x.type))].length + " types";
+  $("invStock").textContent   = all.reduce((a,x)=>a+invStock(x), 0);
+  $("invValue").textContent   = money(all.reduce((a,x)=>a+invValue(x), 0));
+  $("invIssued").textContent  = all.reduce((a,x)=>a+(+x.issued||0), 0);
+  $("invIssuedHint").textContent = "Students/staff ko diye gaye";
+  $("invSpent").textContent   = money(all.reduce((a,x)=>a+(+x.qty||0)*(+x.unitCost||0), 0));
+
+  const rows = all.filter(x=>{
+    if(ft && x.type !== ft) return false;
+    if(fs === "in"  && invStock(x) <= 0) return false;
+    if(fs === "out" && invStock(x) > 0)  return false;
+    if(q && !((x.name+" "+(x.course||"")+" "+(x.note||"")).toLowerCase().includes(q))) return false;
+    return true;
+  }).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+  $("invCount").textContent = rows.length + " items is list mein";
+  $("invRows").innerHTML = rows.length? rows.map((x,i)=>`
+    <tr>
+      <td><b>${i+1}</b></td>
+      <td><b>${esc(x.name)}</b>${x.note?`<br><span class="sub">${esc(x.note)}</span>`:""}</td>
+      <td><span class="chip">${esc(x.type||"Other")}</span></td>
+      <td>${esc(x.course||"—")}</td>
+      <td>${+x.qty||0}</td>
+      <td>${+x.issued||0}</td>
+      <td><b style="color:${invStock(x)? "var(--ok)":"var(--danger)"}">${invStock(x)}</b></td>
+      <td>${money(x.unitCost)}</td>
+      <td><b>${money(invValue(x))}</b></td>
+      <td>${fmtD(x.date)}</td>
+      <td style="white-space:nowrap">
+        <button class="btn-black btn-sm" onclick="openIssue('${x.id}')">Issue</button>
+        <button class="btn-line btn-sm" onclick="openInvForm('${x.id}')">Edit</button>
+        <button class="btn-danger btn-sm" onclick="delInv('${x.id}')">Delete</button>
+      </td>
+    </tr>`).join("") : `<tr><td colspan="11" class="empty">Koi item nahi — "New Item" se add karein ya expense se bhejein.</td></tr>`;
+}
+
+function openInvForm(id, prefill){
+  const x = id? DB.inventory.find(y=>y.id===id) : (prefill||{});
+  openModal(`
+    <h3>${id? "Edit Item":"New Inventory Item"}</h3>
+    <div class="grid2">
+      <div class="field"><label>Item Name *</label><input id="i_name" value="${esc(x.name||"")}" placeholder="e.g. O2 Physics Book"></div>
+      <div class="field"><label>Type</label><select id="i_type">${INV_TYPES.map(t=>`<option ${x.type===t?"selected":""}>${t}</option>`).join("")}</select></div>
+      <div class="field"><label>Class (optional)</label><select id="i_course"><option value="">— koi bhi —</option>${COURSES.map(c=>`<option ${x.course===c?"selected":""}>${esc(c)}</option>`).join("")}</select></div>
+      <div class="field"><label>Date</label><input type="date" id="i_date" value="${x.date||todayStr()}"></div>
+      <div class="field"><label>Quantity (kitne aaye) *</label><input type="number" id="i_qty" value="${x.qty??1}" oninput="invTotHint()"></div>
+      <div class="field"><label>Unit Cost (Rs)</label><input type="number" id="i_cost" value="${x.unitCost??""}" oninput="invTotHint()"></div>
+      <div class="field"><label>Issue ho chuke</label><input type="number" id="i_issued" value="${x.issued||0}"></div>
+      <div class="field"><label>Note</label><input id="i_note" value="${esc(x.note||"")}" placeholder="optional"></div>
+    </div>
+    <div class="note" id="i_totHint" style="margin-top:6px"></div>
+    <div class="modal-foot">
+      <button class="btn-line" onclick="closeModal()">Cancel</button>
+      <button class="btn-red" onclick="saveInv('${id||""}')">${id?"Update Item":"Add Item"}</button>
+    </div>`, true);
+  invTotHint();
+}
+function invTotHint(){
+  const q = +$("i_qty").value||0, c = +$("i_cost").value||0;
+  $("i_totHint").innerHTML = `Kul lagat: <b>${money(q*c)}</b>  (${q} × ${money(c)})`;
+}
+function saveInv(id){
+  const name = $("i_name").value.trim();
+  if(!name){ toast("Item ka naam likhein"); return; }
+  const data = { name, type:$("i_type").value, course:$("i_course").value,
+                 date:$("i_date").value||todayStr(), qty:+$("i_qty").value||0,
+                 unitCost:+$("i_cost").value||0, issued:+$("i_issued").value||0,
+                 note:$("i_note").value.trim() };
+  if(id) Object.assign(DB.inventory.find(y=>y.id===id), data);
+  else { data.id = uid(); DB.inventory.push(data); }
+  save(); closeModal(); renderInventory(); toast(id? "Item updated" : "Item add ho gaya: "+name);
+}
+function delInv(id){
+  const x = DB.inventory.find(y=>y.id===id); if(!x) return;
+  if(!confirm(`"${x.name}" inventory se hata dein?`)) return;
+  DB.inventory = DB.inventory.filter(y=>y.id!==id);
+  save(); renderInventory();
+}
+function openIssue(id){
+  const x = DB.inventory.find(y=>y.id===id); if(!x) return;
+  openModal(`
+    <h3>Issue — ${esc(x.name)}</h3>
+    <p class="sub" style="margin-bottom:12px">Abhi stock mein <b>${invStock(x)}</b> hain (kul ${+x.qty||0}, issue ${+x.issued||0}).</p>
+    <div class="field"><label>Kitne issue karne hain?</label><input type="number" id="is_n" value="1" min="1" max="${invStock(x)}"></div>
+    <div class="modal-foot">
+      <button class="btn-line" onclick="closeModal()">Cancel</button>
+      <button class="btn-red" onclick="doIssue('${id}')">Issue karein</button>
+    </div>`);
+}
+function doIssue(id){
+  const x = DB.inventory.find(y=>y.id===id); if(!x) return;
+  const n = +$("is_n").value||0;
+  if(n <= 0){ toast("Ginti likhein"); return; }
+  if(n > invStock(x)){ toast(`Sirf ${invStock(x)} stock mein hain`); return; }
+  x.issued = (+x.issued||0) + n;
+  save(); closeModal(); renderInventory(); toast(`${n} × ${x.name} issue ho gaye — ${invStock(x)} bache`);
+}
+
 /* ================= FINANCE ================= */
 function renderFinance(){
   const ft=$("txnFType").value, fm=$("txnFMonth").value;
@@ -2561,22 +2755,50 @@ function renderFinance(){
   $("finIncHint").textContent = fmtM(m) + " · fees + other income";
   $("finFee").textContent = money(inc.fee);
   $("finOther").textContent = money(inc.other);
+  const expDue = monthExpenseUnpaid(m);
   $("finExp").textContent = money(exp);
-  $("finExpHint").textContent = fmtM(m);
+  $("finExpHint").textContent = fmtM(m) + (expDue? " · " + money(expDue) + " abhi adaa nahi" : "");
   $("finNet").textContent = money(net);
   $("finNet").className = "v " + (net<0? "red":"green");
   $("finNetHint").textContent = (net<0? "Loss — ":"Profit — ") + fmtM(m);
   if(!$("plMonth").value) $("plMonth").value = m;
-  const rows = DB.txns.filter(t=>(!ft||t.type===ft)&&(!fm||t.date.startsWith(fm))).sort((a,b)=>b.date.localeCompare(a.date));
+  const fc = $("txnFCat") ? $("txnFCat").value : "";
+  const cats = [...new Set(DB.txns.map(t=>t.category).filter(Boolean))].sort();
+  if($("txnFCat")) $("txnFCat").innerHTML = `<option value="">All Categories</option>` +
+    cats.map(c=>`<option ${c===fc?"selected":""}>${esc(c)}</option>`).join("");
+  const rows = DB.txns.filter(t=>(!ft||t.type===ft)&&(!fm||t.date.startsWith(fm))&&(!fc||t.category===fc))
+                      .sort((a,b)=>b.date.localeCompare(a.date));
   $("txnRows").innerHTML = rows.length? rows.map((t,i)=>`
     <tr>
       <td><b>${i+1}</b></td>
       <td>${fmtD(t.date)}</td>
-      <td><span class="badge ${t.type==="Income"?"b-paid":"b-unpaid"}">${t.type}</span></td>
+      <td><span class="badge ${t.type==="Income"?"b-paid":"b-unpaid"}">${t.type}</span>${txnUnpaid(t)?` <span class="badge b-unpaid">Unpaid</span>`:""}</td>
+      <td><span class="chip">${esc(t.category||"Other")}</span></td>
       <td>${esc(t.desc)}</td>
       <td><b>${money(t.amount)}</b></td>
       <td><button class="btn-danger btn-sm" onclick="delTxn('${t.id}')">Delete</button></td>
-    </tr>`).join("") : `<tr><td colspan="6" class="empty">Koi entry nahi — petty expense ya other income yahan add karein.</td></tr>`;
+    </tr>`).join("") : `<tr><td colspan="7" class="empty">Koi entry nahi — petty expense ya other income yahan add karein.</td></tr>`;
+  drawCatBreak(fm || thisMonth());
+}
+/* Category-wise kharcha — kahan sab se zyada ja raha hai */
+function drawCatBreak(m){
+  const box = $("catBreak"); if(!box) return;
+  const exp = DB.txns.filter(t=>t.type==="Expense" && String(t.date||"").startsWith(m));
+  const by = {};
+  exp.forEach(t=>{ const c = t.category || "Other"; by[c] = (by[c]||0) + (+t.amount||0); });
+  const rows = Object.entries(by).sort((a,b)=>b[1]-a[1]);
+  const tot = rows.reduce((a,x)=>a+x[1], 0);
+  box.innerHTML = rows.length? `<div class="tbl-wrap"><table>
+    <thead><tr><th>Category</th><th>Entries</th><th>Amount</th><th>Hissa</th></tr></thead>
+    <tbody>${rows.map(([c,v])=>`<tr>
+      <td><b>${esc(c)}</b></td>
+      <td>${exp.filter(t=>(t.category||"Other")===c).length}</td>
+      <td><b>${money(v)}</b></td>
+      <td style="min-width:130px"><div class="att-bar"><i style="width:${Math.round(v/tot*100)}%"></i></div>
+        <span class="sub">${Math.round(v/tot*100)}%</span></td>
+    </tr>`).join("")}</tbody>
+    <tfoot><tr style="background:var(--soft)"><td><b>Total</b></td><td><b>${exp.length}</b></td><td><b>${money(tot)}</b></td><td></td></tr></tfoot>
+  </table></div>` : `<div class="empty">Is month koi expense nahi</div>`;
 }
 
 /* ---------- Profit & Loss report (Excel / PDF) ---------- */
@@ -2662,20 +2884,42 @@ function openTxnForm(){
   openModal(`
     <h3>Add Income / Expense</h3>
     <div class="grid2">
-      <div class="field"><label>Type *</label><select id="t_type"><option>Expense</option><option>Income</option></select></div>
+      <div class="field"><label>Type *</label><select id="t_type" onchange="txnCatOpts()"><option>Expense</option><option>Income</option></select></div>
       <div class="field"><label>Date</label><input type="date" id="t_date" value="${todayStr()}"></div>
     </div>
-    <div class="field"><label>Description *</label><input id="t_desc" placeholder="e.g. Electricity bill / Printer paper / Registration fee"></div>
-    <div class="field"><label>Amount (Rs) *</label><input type="number" id="t_amt"></div>
+    <div class="field"><label>Description *</label><input id="t_desc" placeholder="e.g. Electricity bill / Printer paper / Registration fee" oninput="txnCatHint()"></div>
+    <div class="grid2">
+      <div class="field"><label>Amount (Rs) *</label><input type="number" id="t_amt"></div>
+      <div class="field"><label>Category</label><select id="t_cat"></select></div>
+      <div class="field"><label>Status</label><select id="t_status"><option>Paid</option><option>Unpaid</option></select></div>
+    </div>
+    <div class="sub" id="t_catHint"></div>
     <div class="modal-foot">
       <button class="btn-line" onclick="closeModal()">Cancel</button>
       <button class="btn-red" onclick="saveTxn()">Save Entry</button>
     </div>`);
+  txnCatOpts();
+}
+function txnCatOpts(){
+  const type = $("t_type").value;
+  const list = type === "Income" ? INCOME_CATS : EXPENSE_CATS;
+  const cur = $("t_cat").value;
+  $("t_cat").innerHTML = list.map(c=>`<option ${c===cur?"selected":""}>${c}</option>`).join("");
+  txnCatHint();
+}
+function txnCatHint(){
+  const g = guessCat($("t_desc").value);
+  if(g && $("t_type").value === "Expense"){
+    $("t_cat").value = g;
+    $("t_catHint").textContent = `Description se "${g}" laga di — badalna ho to dropdown se chun lein`;
+  } else $("t_catHint").textContent = "";
 }
 function saveTxn(){
   const desc=$("t_desc").value.trim(), amt=+$("t_amt").value;
   if(!desc||!amt){ toast("Description aur amount likhein"); return; }
-  DB.txns.push({id:uid(), type:$("t_type").value, desc, amount:amt, date:$("t_date").value||todayStr()});
+  DB.txns.push({id:uid(), type:$("t_type").value, desc, amount:amt,
+                category:$("t_cat").value||"Other", status:$("t_status").value,
+                date:$("t_date").value||todayStr()});
   save(); closeModal(); renderFinance(); renderDashboard(); toast("Entry saved");
 }
 function delTxn(id){ if(!confirm("Entry delete karein?")) return; DB.txns=DB.txns.filter(t=>t.id!==id); save(); renderFinance(); renderDashboard(); }
@@ -2712,7 +2956,7 @@ function renderReport(){
 
 
 /* ================= EXCEL (CSV) IMPORT ================= */
-let impRows = [], impMap = {}, impType = "students", impDelim = ",", impFile = "", impLineNos = [];
+let impRows = [], impMap = {}, impType = "students", impDelim = ",", impFile = "", impLineNos = [], impSkipped = 0;
 
 /* ---------- CSV parser: quotes, embedded commas/newlines, BOM, CRLF ---------- */
 function detectDelim(text){
@@ -3035,6 +3279,41 @@ const IMPORT_TYPES = {
       ["","Bilal Ahmed","O1","25000","2000","6000","10000","0","0","0","43000","0","43000","Unpaid","","01/10/2026","","",""]
     ]
   },
+  expenses: {
+    label: "Income / Expenses",
+    fields: [
+      {k:"date",     l:"Date",            syn:["date","tareekh","expensedate"], req:true},
+      {k:"desc",     l:"Description",     syn:["description","particulars","detail","details","item","head"], req:true},
+      {k:"amount",   l:"Amount",          syn:["amount","rs","rupees","value","total"], req:true},
+      {k:"category", l:"Category",        syn:["category","head","type"], hint:"khali ho to description se khud lag jayegi"},
+      {k:"name",     l:"Paid By / Name",  syn:["name","paidby","person","by","staff"]},
+      {k:"status",   l:"Paid / Unpaid",   syn:["paidunpaid","status","paid"]},
+      {k:"remarks",  l:"Remarks",         syn:["remarks","remark","notes","comment"]},
+      {k:"qty",      l:"Quantity",        syn:["quantity","qty","nos","pieces"], hint:"inventory items ke liye"}
+    ],
+    samples: [
+      ["01/09/2026","Lesco Bill month of Aug-26","196116","","Zummon","Paid","",""],
+      ["04/09/2026","Morning FT-2 Class Books","7050","Books & Stationery","Adil","Paid","","30"]
+    ]
+  },
+  inventory: {
+    label: "Inventory",
+    fields: [
+      {k:"name",     l:"Item Name",   syn:["itemname","name","item","particulars","description","book"], req:true},
+      {k:"type",     l:"Type",        syn:["type","category","kind"]},
+      {k:"course",   l:"Class",       syn:["class","grade","course","level"]},
+      {k:"qty",      l:"Quantity",    syn:["quantity","qty","nos","received","pieces"]},
+      {k:"unitCost", l:"Unit Cost",   syn:["unitcost","rate","perunit","price","cost"]},
+      {k:"amount",   l:"Total Cost",  syn:["totalcost","total","amount"]},
+      {k:"issued",   l:"Issued",      syn:["issued","given","distributed","sold"]},
+      {k:"date",     l:"Date",        syn:["date","purchasedate"]},
+      {k:"note",     l:"Note",        syn:["note","notes","remarks","remark"]}
+    ],
+    samples: [
+      ["O2 Physics Book","Book","O2","30","235","7050","0","04/09/2026",""],
+      ["Law Notes","Notes","A Levels","20","300","6000","5","09/09/2026","A Level Law"]
+    ]
+  },
   inquiries: {
     label: "Inquiries",
     fields: [
@@ -3053,6 +3332,19 @@ const IMPORT_TYPES = {
     ]
   }
 };
+
+/* Kuch sheets ki pehli line title hoti hai ("Academy Petty Cash Month of Sep-26") aur
+   asal headings neeche. Jis row se sab se zyada fields match hon wohi header hai. */
+function pickHeaderRow(rows, fields){
+  let best = 0, bestN = -1;
+  for(let i = 0; i < Math.min(rows.length, 6); i++){
+    const filled = rows[i].filter(c => String(c).trim() !== "").length;
+    if(filled < 2) continue;
+    const n = Object.keys(autoMap(rows[i], fields)).length;
+    if(n > bestN){ bestN = n; best = i; }
+  }
+  return bestN >= 2 ? best : 0;
+}
 
 /* ---------- column auto-detection ---------- */
 function autoMap(headers, fields){
@@ -3115,7 +3407,10 @@ function impLoad(inp){
   r.onload = ()=>{
     try{
       impRows = parseCSV(r.result);
-      if(impRows.length < 2){ $("impBody").innerHTML = `<div class="note"><b>File mein data nahi mila.</b> Pehli line column headings ki honi chahiye aur uske neeche kam az kam ek row.</div>`; return; }
+      if(impRows.length < 2){ $("impBody").innerHTML = `<div class="note"><b>File mein data nahi mila.</b> Headings wali line aur uske neeche kam az kam ek row honi chahiye.</div>`; return; }
+      const hdr = pickHeaderRow(impRows, IMPORT_TYPES[impType].fields);
+      impSkipped = hdr;                       // upar ki kitni lines chhori gayin
+      if(hdr > 0){ impRows = impRows.slice(hdr); impLineNos = impLineNos.slice(hdr); }
       impMap = autoMap(impRows[0], IMPORT_TYPES[impType].fields);
       impRender();
     }catch(e){ $("impBody").innerHTML = `<div class="note"><b>File parh nahi saka:</b> ${esc(e.message)}</div>`; }
@@ -3140,6 +3435,7 @@ function impRender(){
       <div class="card"><div class="k">Pehchane Gaye</div><div class="v green">${mapped.length}</div><div class="hint">${def.fields.length} fields mein se</div></div>
     </div>
 
+    ${impSkipped? `<div class="note">File ki pehli ${impSkipped} line${impSkipped>1?"ein":""} heading nahi thi (title/khali) — headings line ${impSkipped+1} se li gayi hain.</div>`:""}
     ${missingReq.length? `<div class="note" style="border-left-color:var(--danger)"><b>Zaroori column nahi mila:</b> ${missingReq.map(f=>esc(f.l)).join(", ")} — neeche mapping mein khud select karein.</div>`:""}
 
     <h3 style="margin:14px 0 8px">Column Mapping</h3>
@@ -3170,6 +3466,11 @@ function impRender(){
         <select id="imp_mk"><option value="1">Naya student bana dein</option><option value="0">Row skip kar dein</option></select></div>
       <div class="field"><label>Student ki monthly fee</label>
         <select id="imp_updfee"><option value="1">Is sheet se update karein</option><option value="0">Waise hi rehne dein</option></select></div>`:""}
+      ${impType==="expenses"? `
+      <div class="field"><label>Category</label>
+        <select id="imp_cat"><option value="auto">Description se khud lagayein</option><option value="sheet">Sheet wali hi rakhein</option></select></div>
+      <div class="field"><label>Books / notes</label>
+        <select id="imp_inv"><option value="1">Inventory mein bhi daalein</option><option value="0">Sirf expense rakhein</option></select></div>`:""}
       ${impType==="students"? `
       <div class="field"><label>Shift (jahan CSV mein khali ho)</label>
         <select id="imp_shift" onchange="impSyncCourse()"><option>Evening</option><option>Morning</option></select></div>
@@ -3214,7 +3515,8 @@ function runImport(){
   body.forEach((r, idx)=>{
     const line = impLineNos[idx + 1] || (idx + 2);         // CSV ki asal line
     const g = k => impMap[k] === undefined ? "" : String(r[impMap[k]] ?? "").trim();
-    const name = g("name");
+    /* expenses sheet mein "naam" description hota hai */
+    const name = (impType === "expenses") ? g("desc") : g("name");
 
     /* Kuch sheets mein class beech mein aik alag row ki soorat mein likhi hoti hai
        ("A Levels-2026-27", "Pre O Level") — us ke baad wale sab students usi class ke hain */
@@ -3234,7 +3536,7 @@ function runImport(){
 
     if(!name){
       /* Excel ki aakhri khali rows mein sirf serial number hota hai — un par shor na machayein */
-      const anything = def.fields.some(f => f.k !== "regNo" && g(f.k) && g(f.k) !== "0");
+      const anything = def.fields.some(f => !["regNo","date"].includes(f.k) && g(f.k) && g(f.k) !== "0");
       if(anything){ skipped++; note(line, "Name khali hai"); } else skipped++;
       return;
     }
@@ -3473,6 +3775,75 @@ function runImport(){
       DB.fees.push(rec); added++;
     }
 
+    else if(impType === "expenses"){
+      const amount = cleanNum(g("amount"));
+      const date   = cleanDate(g("date"));
+      if(!amount){ skipped++; note(line, `"${name}" ka amount khali hai`); return; }
+      if(!date)   note(line, `"${name}": date samajh nahi aayi — aaj ki laga di`);
+
+      const st = String(g("status")||"").toLowerCase();
+      const type = /scrap|sale|income|received|fee/.test(keyify(g("category")) + " " + keyify(name)) && !/bill|purchase/.test(keyify(name))
+                 ? "Income" : "Expense";
+      const sheetCat = normCat(g("category"), type);
+      const guessed  = type === "Expense" ? guessCat(name) : "";
+      const category = ($("imp_cat").value === "sheet" && sheetCat) ? sheetCat
+                     : (guessed || sheetCat || (type === "Income" ? "Other Income" : "Other"));
+      if(guessed && sheetCat && guessed !== sheetCat && $("imp_cat").value !== "sheet")
+        note(line, `"${name}": sheet mein "${sheetCat}" thi, description se "${guessed}" zyada munasib lagi`);
+      if(!guessed && !sheetCat)
+        note(line, `"${name}": category samajh nahi aayi — "Other" laga di, aap badal lein`);
+      const unpaid = /unpaid|pending|due|baqi|\?/.test(st);
+      if(unpaid) note(line, `"${name}" ${money(amount)} abhi ADAA NAHI hui — expense total se bahar rakha, Finance page par "Unpaid" badge lagega`);
+      else if(st && !/paid|clear|done/.test(st))
+        note(line, `"${name}": status "${g("status")}" samajh nahi aaya — Paid maan liya`);
+
+      const rem = [g("name") && ("By: "+g("name")), g("remarks")].filter(Boolean).join(" · ");
+      const dupKey = (date||"") + "|" + keyify(name) + "|" + amount;
+      if(seen.has(dupKey)){ skipped++; note(line, `bilkul yehi entry line ${seen.get(dupKey)} par bhi hai — ek hi rakhi`); return; }
+      seen.set(dupKey, line);
+
+      const hit = DB.txns.find(t=>t.date === date && keyify(t.desc) === keyify(name) && +t.amount === amount);
+      if(hit){
+        if(dup === "update"){ Object.assign(hit, {type, category, amount, desc:name, note:rem}); updated++; }
+        else { skipped++; note(line, `"${name}" ${money(amount)} pehle se mojood hai`); }
+        return;
+      }
+      DB.txns.push({id:uid(), type, desc:name, amount, category,
+                    status: unpaid ? "Unpaid" : "Paid",
+                    date: date || todayStr(), note:rem});
+      added++;
+
+      /* Books aur notes ko inventory mein bhi rakh dein */
+      const wantInv = $("imp_inv") ? $("imp_inv").value === "1" : false;
+      if(wantInv && type === "Expense" && category === "Books & Stationery" && /book|notes/i.test(name)){
+        const qty = cleanNum(g("qty")) || 1;
+        DB.inventory.push({ id:uid(), name, type: /notes/i.test(name) ? "Notes" : "Book",
+          course: matchClass(name, "") || "", date: date || todayStr(),
+          qty, unitCost: Math.round(amount / qty), issued:0,
+          note: "Expense se aaya" + (rem? " · "+rem : "") });
+        note(line, `"${name}" inventory mein bhi daal diya (${qty} × ${money(Math.round(amount/qty))})${cleanNum(g("qty"))?"":" — quantity nahi thi, 1 maan li, Inventory mein theek kar lein"}`);
+      }
+    }
+
+    else if(impType === "inventory"){
+      const qty  = cleanNum(g("qty")) || 1;
+      const tot  = cleanNum(g("amount"));
+      const unit = cleanNum(g("unitCost")) || (tot ? Math.round(tot / qty) : 0);
+      const rec = { name, type: INV_TYPES.find(t=>keyify(t) === keyify(g("type")))
+                          || (/notes/i.test(g("type")+name) ? "Notes" : /book/i.test(g("type")+name) ? "Book" : "Other"),
+                    course: matchClass(g("course"), "") || "", qty, unitCost:unit,
+                    issued: cleanNum(g("issued")), date: cleanDate(g("date")) || todayStr(),
+                    note: g("note") };
+      if(tot && unit * qty !== tot) note(line, `"${name}": ${qty} × ${money(unit)} = ${money(unit*qty)}, sheet mein total ${money(tot)}`);
+      const hit = DB.inventory.find(x=>keyify(x.name) === keyify(name) && x.date === rec.date);
+      if(hit){
+        if(dup === "update"){ Object.assign(hit, rec); updated++; }
+        else { skipped++; note(line, `"${name}" pehle se mojood hai`); }
+        return;
+      }
+      rec.id = uid(); DB.inventory.push(rec); added++;
+    }
+
     else {   /* inquiries */
       const phone = g("phone");
       if(!phone){ skipped++; note(line, "Phone khali hai"); return; }
@@ -3490,7 +3861,8 @@ function runImport(){
   });
 
   save();
-  renderStudents(); renderEmployees(); renderInquiries(); renderFees(); renderDashboard();
+  renderStudents(); renderEmployees(); renderInquiries(); renderFees();
+  renderInventory(); renderFinance(); renderDashboard();
   $("impBody").innerHTML = `
     <div class="cards" style="margin-bottom:14px">
       <div class="card"><div class="k">✓ Naye Add Hue</div><div class="v green">${added}</div></div>
