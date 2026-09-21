@@ -809,9 +809,9 @@ function renderDashboard(){
   $("dMornStuT").textContent = mAll.length + " total · Morning shift";
   $("dEveStu").textContent = eAll.filter(s=>s.status==="Active").length;
   $("dEveStuT").textContent = eAll.length + " total · Evening shift";
-  const unpaid = DB.fees.filter(f=>f.status==="Unpaid");
+  const unpaid = DB.fees.filter(f=>feeOutstanding(f) > 0);   // adhi payment wale bhi shamil
   $("dUnpaid").textContent = unpaid.length;
-  $("dUnpaidAmt").textContent = money(unpaid.reduce((a,f)=>a+ +f.amount,0)) + " pending";
+  $("dUnpaidAmt").textContent = money(unpaid.reduce((a,f)=>a + feeOutstanding(f), 0)) + " pending";
   const m = thisMonth();
   const inc = monthIncome(m), exp = monthExpense(m);
   $("dIncome").textContent = money(inc.total);
@@ -831,18 +831,40 @@ function renderDashboard(){
   const inq = [...DB.inquiries].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,6);
   $("dInqRows").innerHTML = inq.length? inq.map(i=>`<tr><td>${esc(i.name)}</td><td>${esc(i.course)}</td><td>${esc(i.phone)}</td><td>${fmtD(i.date)}</td></tr>`).join("") : `<tr><td colspan="4" class="empty">Abhi koi inquiry nahi</td></tr>`;
 }
+/* ---------- Fee ka hisaab: teen bunyadi sawal ----------
+   Har jagah yehi teen functions chalte hain taake dashboard, fees page, monthly report
+   aur P&L ek hi baat kahein. */
+
+/* Challan kis month ki income hai? Payment ki date ho to wohi, warna challan ka fee month.
+   (Kuch fee sheets mein "Receive Date" ka column hota hi nahi — pehle aise challans
+    kisi bhi month mein nahi ginay jaate the aur income sifar dikhti thi.) */
+const feeMonthOf = f => ((f.paidDate || "").slice(0,7)) || f.month || "";
+const hasVal = v => v !== undefined && v !== null && v !== "";
+
+/* Asal mein kitna paisa wasool hua? Paid Amount likha ho to wohi — warna Paid challan ki poori raqam.
+   Isi liye adhi payment (Paid magar balance baqi) sirf jitni mili utni hi ginti hai. */
+const feeReceived = f => hasVal(f.paidAmount) ? (+f.paidAmount || 0)
+                                             : (f.status === "Paid" ? (+f.amount || 0) : 0);
+
+/* Kitna paisa abhi baqi hai? Balance likha ho to wohi, warna unpaid challan ki poori raqam. */
+const feeOutstanding = f => hasVal(f.balance) ? Math.max(0, +f.balance || 0)
+                                              : (f.status === "Unpaid" ? (+f.amount || 0) : 0);
+
+const feesOfMonth = m => DB.fees.filter(f => feeMonthOf(f) === m);
+
 function monthIncome(m){
-  const fee = DB.fees.filter(f=>f.status==="Paid" && (f.paidDate||"").startsWith(m)).reduce((a,f)=>a+ +f.amount,0);
+  const fee = feesOfMonth(m).reduce((a,f)=>a + feeReceived(f), 0);
   const other = DB.txns.filter(t=>t.type==="Income" && t.date.startsWith(m)).reduce((a,t)=>a+ +t.amount,0);
   return {fee, other, total:fee+other};
 }
-/* Shift-wise (Morning/Evening) paid fee income for a month */
+/* Shift-wise (Morning/Evening) wasool shuda fee */
 function shiftIncome(m){
   const r = {Morning:{amt:0,n:0}, Evening:{amt:0,n:0}};
-  DB.fees.filter(f=>f.status==="Paid" && (f.paidDate||"").startsWith(m)).forEach(f=>{
+  feesOfMonth(m).forEach(f=>{
+    const got = feeReceived(f); if(!got) return;
     const st = stuById(f.studentId);
     const sh = f.shift || (st? st.shift : "");   // challan par saved shift, warna student ki current shift
-    if(r[sh]){ r[sh].amt += +f.amount; r[sh].n++; }
+    if(r[sh]){ r[sh].amt += got; r[sh].n++; }
   });
   return r;
 }
@@ -1257,8 +1279,8 @@ function downloadProfile(id){
   const fees = DB.fees.filter(f=>f.studentId===id).sort((x,y)=>y.month.localeCompare(x.month));
   const exams = DB.exams.filter(e=>e.studentId===id).sort((x,y)=>x.date.localeCompare(y.date));
   const A = DB.settings;
-  const paidT = fees.filter(f=>f.status==="Paid").reduce((x,f)=>x+ +f.amount,0);
-  const dueT = fees.filter(f=>f.status==="Unpaid").reduce((x,f)=>x+ +f.amount,0);
+  const paidT = fees.reduce((x,f)=>x + feeReceived(f), 0);
+  const dueT  = fees.reduce((x,f)=>x + feeOutstanding(f), 0);
   const cell = "border:1px solid #bbb;padding:6px 9px;font-size:.8rem";
   const kv = (k,v)=>`<tr><td style="${cell};width:26%;background:#f7f7f7"><b>${k}</b></td><td style="${cell}">${v}</td></tr>`;
   const kv2 = (k1,v1,k2,v2)=>`<tr><td style="${cell};width:20%;background:#f7f7f7"><b>${k1}</b></td><td style="${cell};width:30%">${v1}</td><td style="${cell};width:20%;background:#f7f7f7"><b>${k2}</b></td><td style="${cell};width:30%">${v2}</td></tr>`;
@@ -1564,8 +1586,8 @@ function renderFees(){
     </tr>`;
   }).join("") : `<tr><td colspan="8" class="empty">Koi challan nahi — "New Fee Challan" se add karein.</td></tr>`;
   const m = thisMonth();
-  $("feePaidM").textContent = money(DB.fees.filter(f=>f.status==="Paid"&&(f.paidDate||"").startsWith(m)).reduce((a,f)=>a+ +f.amount,0));
-  $("feeUnpaidAll").textContent = money(DB.fees.filter(f=>f.status==="Unpaid").reduce((a,f)=>a+ +f.amount,0));
+  $("feePaidM").textContent = money(feesOfMonth(m).reduce((a,f)=>a + feeReceived(f), 0));
+  $("feeUnpaidAll").textContent = money(DB.fees.reduce((a,f)=>a + feeOutstanding(f), 0));
   const si = shiftIncome(m);
   $("feeMornM").textContent = money(si.Morning.amt);
   $("feeEveM").textContent = money(si.Evening.amt);
@@ -2536,14 +2558,14 @@ function renderFinance(){
 function plData(){
   if(!$("plMonth").value) $("plMonth").value = thisMonth();
   const m = $("plMonth").value;
-  const paidFees = DB.fees.filter(f=>f.status==="Paid"&&(f.paidDate||"").startsWith(m));
+  const paidFees = feesOfMonth(m).filter(f=>feeReceived(f) > 0);
   const incRows = [
-    ...paidFees.map(f=>{ const st=stuById(f.studentId); return {date:f.paidDate, desc:"Student Fee — "+(st? st.name+" ("+st.regNo+")":"Deleted student")+" — "+fmtM(f.month), amount:+f.amount}; }),
+    ...paidFees.map(f=>{ const st=stuById(f.studentId); return {date:f.paidDate || (f.month+"-01"), desc:"Student Fee — "+(st? st.name+" ("+st.regNo+")":"Deleted student")+" — "+fmtM(f.month), amount:feeReceived(f)}; }),
     ...DB.txns.filter(t=>t.type==="Income"&&t.date.startsWith(m)).map(t=>({date:t.date, desc:"Other Income — "+t.desc, amount:+t.amount}))
   ].sort((a,b)=>a.date.localeCompare(b.date));
   const expRows = DB.txns.filter(t=>t.type==="Expense"&&t.date.startsWith(m)).sort((a,b)=>a.date.localeCompare(b.date)).map(t=>({date:t.date, desc:t.desc, amount:+t.amount}));
   const totInc = incRows.reduce((a,r)=>a+r.amount,0), totExp = expRows.reduce((a,r)=>a+r.amount,0);
-  return {m, incRows, expRows, totInc, totExp, net: totInc-totExp, feeInc: paidFees.reduce((a,f)=>a+ +f.amount,0)};
+  return {m, incRows, expRows, totInc, totExp, net: totInc-totExp, feeInc: paidFees.reduce((a,f)=>a + feeReceived(f), 0)};
 }
 function exportPLCSV(){
   const d = plData();
@@ -2638,9 +2660,9 @@ function renderReport(){
   if(!$("repMonth").value) $("repMonth").value = thisMonth();
   const m = $("repMonth").value;
   const inc = monthIncome(m), exp = monthExpense(m);
-  const paidFees = DB.fees.filter(f=>f.status==="Paid"&&(f.paidDate||"").startsWith(m));
+  const paidFees = feesOfMonth(m).filter(f=>feeReceived(f) > 0);
   $("rFee").textContent = money(inc.fee);
-  $("rFeeCount").textContent = paidFees.length + " challans paid";
+  $("rFeeCount").textContent = paidFees.length + " challans mein wasooli";
   const si = shiftIncome(m);
   $("rMorn").textContent = money(si.Morning.amt);
   $("rMornCount").textContent = si.Morning.n + " challans";
@@ -2652,7 +2674,7 @@ function renderReport(){
   $("rNet").textContent = money(net);
   $("rNet").className = "v " + (net<0?"red":"");
   const incRows = [
-    ...paidFees.map(f=>{ const st=stuById(f.studentId); return {date:f.paidDate, desc:"Fee — "+(st?st.name:"?")+" ("+fmtM(f.month)+")", amount:f.amount}; }),
+    ...paidFees.map(f=>{ const st=stuById(f.studentId); return {date:f.paidDate || (f.month+"-01"), desc:"Fee — "+(st?st.name:"?")+" ("+fmtM(f.month)+")", amount:feeReceived(f)}; }),
     ...DB.txns.filter(t=>t.type==="Income"&&t.date.startsWith(m)).map(t=>({date:t.date, desc:t.desc, amount:t.amount}))
   ].sort((a,b)=>b.date.localeCompare(a.date));
   $("rIncRows").innerHTML = incRows.length? incRows.map(r=>`<tr><td>${fmtD(r.date)}</td><td>${esc(r.desc)}</td><td><b>${money(r.amount)}</b></td></tr>`).join("") : `<tr><td colspan="3" class="empty">Is month koi income nahi</td></tr>`;
