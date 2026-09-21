@@ -318,7 +318,7 @@ tr:hover td{background:var(--soft)}
     <p class="sub" style="margin:4px 0 12px">Poore month ka attendance register Excel (CSV) ya PDF mein download karein.</p>
     <div class="toolbar">
       <div class="field"><label>Month</label><input type="month" id="attRepMonth"></div>
-      <div class="field"><label>Shift</label><select id="attRepShift"><option value="Morning">Morning</option><option value="Evening">Evening</option><option value="">Both Shifts</option></select></div>
+      <div class="field"><label>Shift</label><select id="attRepShift"><option value="" selected>Both Shifts</option><option value="Morning">Morning</option><option value="Evening">Evening</option></select></div>
       <button class="btn-black" onclick="exportAttCSV()">⬇ Export Excel (CSV)</button>
       <button class="btn-red" onclick="exportAttPDF()">🖨 Export PDF / Print</button>
     </div>
@@ -664,10 +664,14 @@ function detectGroup(subjects){
 }
 /* Group sirf Morning (school) shift ka concept hai — override ho to wohi, warna auto */
 const groupOf = s => !s || s.shift!=="Morning" ? "—" : (s.groupOverride || detectGroup(s.subjects));
-/* Student ki total monthly fee — Evening mein subject-wise fees ka total */
+/* Subjects par lagi hui fees ka total (0 bhi ho sakta hai) */
+const subjectsTotal = s => (s && s.subjects || []).reduce((a,x)=>a+(+x.fee||0),0);
+/* Student ki total monthly fee — Evening mein subject-wise total, warna uski apni monthly fee.
+   Agar subjects par fees set hi nahi (sab 0) to monthly fee par wapas aate hain — warna
+   purana data aur wo students jinki subject-wise fee abhi nahi lagi, 0 ban jate the. */
 function studentFee(s){
   if(!s) return 0;
-  if(s.shift==="Evening" && (s.subjects||[]).length) return s.subjects.reduce((a,x)=>a+ (+x.fee||0),0);
+  if(s.shift==="Evening"){ const t = subjectsTotal(s); if(t) return t; }
   return +s.monthlyFee||0;
 }
 
@@ -957,9 +961,7 @@ function subjModeSync(initial){
   $("subjNote").innerHTML = evening
     ? "<b>Evening (Academy):</b> har subject ki fee alag likhein aur us subject ka teacher chunein. Total monthly fee khud ban jayegi aur challan par subject-wise show hogi."
     : `<b>Morning (School) — ${esc(cls)}:</b> <b>${comp.length} compulsory subjects</b> khud lag jate hain${lim?`, aur <b>${lim} electives</b> tak chun sakte hain`:""}. Group subjects se khud detect hota hai.`;
-  $("f_feeLbl").textContent = evening? "Monthly Fee (Rs) — subjects ka total" : "Monthly Fee (Rs)";
-  $("f_fee").readOnly = evening;
-  drawSubjs();
+  drawSubjs();   // fee label aur readOnly subjTotalSync() set karta hai
 }
 function addSubj(){
   const sel = $("f_subj"), name = sel.value;
@@ -984,7 +986,12 @@ function subjTotalSync(){
   const evening = $("f_shift").value==="Evening";
   const tot = subjDraft.reduce((a,x)=>a+(+x.fee||0),0);
   if($("subjTotal")) $("subjTotal").textContent = money(tot);
-  if(evening) $("f_fee").value = tot||"";
+  /* Fee field sirf tab lock hota hai jab subjects par fees lagi hon — warna
+     user apni monthly fee khud likh sake */
+  if(evening && tot){ $("f_fee").value = tot; $("f_fee").readOnly = true; }
+  else if(evening){ $("f_fee").readOnly = false; }
+  if($("f_feeLbl")) $("f_feeLbl").textContent = (evening && tot)
+    ? "Monthly Fee (Rs) — subjects ka total" : "Monthly Fee (Rs)";
 }
 function drawSubjs(){
   const box = $("subjBox"); if(!box) return;
@@ -1048,7 +1055,10 @@ function saveStudent(id){
     subjects: subjDraft.map(x=>({...x})), groupOverride: grpOverride,
     status:$("f_status").value, photo:photoTemp
   };
-  if(data.shift==="Evening" && data.subjects.length) data.monthlyFee = data.subjects.reduce((a,x)=>a+(+x.fee||0),0);
+  if(data.shift==="Evening"){
+    const t = data.subjects.reduce((a,x)=>a+(+x.fee||0),0);
+    if(t) data.monthlyFee = t;      // sirf tab overwrite karein jab subjects par fees hon
+  }
   data.group = data.shift==="Morning" ? (grpOverride || detectGroup(data.subjects)) : "";
   if(id){ Object.assign(stuById(id), data); toast("Student updated"); }
   else{
@@ -1389,7 +1399,8 @@ function attReportData(){
 }
 function exportAttCSV(){
   const {m, sh, days, rows} = attReportData();
-  if(!rows.length){ toast("Is shift mein koi student nahi"); return; }
+  if(!rows.length){ toast(sh? `${sh} shift mein koi student nahi — "Both Shifts" chun kar dekhein`
+                            : "Abhi koi student enroll nahi hua"); return; }
   const head = ["Reg No","Name","Class","Shift", ...days.map(d=>d.slice(8)), "Present","Absent","Leave","%"];
   const csvEsc = v => `"${String(v??"").replace(/"/g,'""')}"`;
   const lines = [head.map(csvEsc).join(",")];
@@ -1405,7 +1416,8 @@ function exportAttCSV(){
 }
 function exportAttPDF(){
   const {m, sh, days, rows} = attReportData();
-  if(!rows.length){ toast("Is shift mein koi student nahi"); return; }
+  if(!rows.length){ toast(sh? `${sh} shift mein koi student nahi — "Both Shifts" chun kar dekhein`
+                            : "Abhi koi student enroll nahi hua"); return; }
   const A = DB.settings;
   const th = days.map(d=>`<th style="padding:3px 2px;border:1px solid #999;font-size:.6rem">${+d.slice(8)}</th>`).join("");
   const body = rows.map(r=>`<tr>
@@ -1678,7 +1690,7 @@ function chStuPick(id){
   chMode = s.shift || "Morning";
   chSubs = (s.subjects||[]).map(x=>({name:x.name, fee:+x.fee||0, disc:0, teacherId:x.teacherId||""}));
   if($("c_disc")) $("c_disc").value = "";
-  if(chMode!=="Evening" || !chSubs.length){ if(studentFee(s)) $("c_amt").value = studentFee(s); }
+  if(!chSubs.reduce((a,x)=>a+(+x.fee||0),0)) $("c_amt").value = studentFee(s) || "";
   drawChSubs(); chTotal();
 }
 function drawChSubs(){
@@ -1733,7 +1745,9 @@ function refreshChRow(i){
   if($("chNet"+i)) $("chNet"+i).textContent = money((+x.fee||0)-(+x.disc||0));
 }
 function chTotal(){
-  const ev = chMode==="Evening" && chSubs.length;
+  /* Subjects par fees lagi hon tabhi challan ka amount un se banta hai — warna student
+     ki monthly fee chalti hai aur amount field edit-able rehta hai */
+  const ev = chMode==="Evening" && chSubs.reduce((a,x)=>a+(+x.fee||0),0) > 0;
   if($("c_discWrap")) $("c_discWrap").style.display = ev? "none":"block";
   let gross, disc;
   if(ev){
@@ -1838,8 +1852,8 @@ function printChallan(id){
   const f = DB.fees.find(x=>x.id===id), st = stuById(f.studentId)||{};
   const A = DB.settings;
   const subs = f.subjects || [];
-  const ev = (f.shift || st.shift || "") === "Evening";
   const subTot = subs.reduce((a,x)=>a+(+x.fee||0),0);
+  const ev = (f.shift || st.shift || "") === "Evening" && subTot > 0;
   const gross  = +f.tuition || subTot || 0;
   const disc   = +f.discount || subs.reduce((a,x)=>a+(+x.disc||0),0) || 0;
   const pct    = gross? Math.round(disc/gross*1000)/10 : 0;
@@ -2280,7 +2294,7 @@ function empAttReportData(){
 }
 function exportEmpAttCSV(){
   const {m, days, rows} = empAttReportData();
-  if(!rows.length){ toast("Koi employee nahi"); return; }
+  if(!rows.length){ toast("Koi employee add nahi hua — pehle Employees mein staff add karein"); return; }
   const head = ["#","Name","Category", ...days.map(d=>d.slice(8)), "Present","Absent","Leave","%"];
   const csvEsc = v => `"${String(v??"").replace(/"/g,'""')}"`;
   const lines = [head.map(csvEsc).join(",")];
@@ -2296,7 +2310,7 @@ function exportEmpAttCSV(){
 }
 function exportEmpAttPDF(){
   const {m, days, rows} = empAttReportData();
-  if(!rows.length){ toast("Koi employee nahi"); return; }
+  if(!rows.length){ toast("Koi employee add nahi hua — pehle Employees mein staff add karein"); return; }
   const A = DB.settings;
   const th = days.map(d=>`<th style="padding:3px 2px;border:1px solid #999;font-size:.6rem">${+d.slice(8)}</th>`).join("");
   const body = rows.map((r,i)=>`<tr>
