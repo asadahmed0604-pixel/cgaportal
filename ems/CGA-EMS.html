@@ -230,6 +230,7 @@ tr:hover td{background:var(--soft)}
     <button data-page="exams"><span class="ico">📝</span> Exams</button>
     <button data-page="employees"><span class="ico">👥</span> Employees</button>
     <button data-page="inventory"><span class="ico">📦</span> Inventory</button>
+    <button data-page="issuance"><span class="ico">📤</span> Issuance</button>
     <button data-page="finance"><span class="ico">💰</span> Income / Expense</button>
     <button data-page="reports"><span class="ico">📊</span> Monthly Report</button>
     <button data-page="settings"><span class="ico">⚙</span> Settings</button>
@@ -475,6 +476,35 @@ tr:hover td{background:var(--soft)}
   <div class="tbl-wrap"><table>
     <thead><tr><th>#</th><th>Item</th><th>Type</th><th>Class</th><th>Aaya</th><th>Issue</th><th>Stock</th><th>Unit Cost</th><th>Stock Value</th><th>Date</th><th>Actions</th></tr></thead>
     <tbody id="invRows"></tbody>
+  </table></div>
+</section>
+
+<!-- ================= ISSUANCE ================= -->
+<section class="page" id="page-issuance">
+  <div class="page-head">
+    <div><h2>Issuance</h2><div class="sub">Kaunsa item kisko diya — Inventory ka stock isi se kam hota hai</div></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn-black" onclick="openImport('issues')">⬆ Import CSV</button>
+      <button class="btn-red" onclick="openIssueForm()">+ New Issuance</button>
+    </div>
+  </div>
+  <div class="cards">
+    <div class="card"><div class="k">Issuances</div><div class="v" id="isCount2">0</div><div class="hint">Kul entries</div></div>
+    <div class="card"><div class="k">Units Diye</div><div class="v" id="isUnits">0</div><div class="hint">Sab items milaa kar</div></div>
+    <div class="card"><div class="k">Maaliyat</div><div class="v" id="isValue">0</div><div class="hint">Diye gaye maal ki lagat</div></div>
+    <div class="card"><div class="k">Charge Kiya</div><div class="v red" id="isCharge">0</div><div class="hint">Jo students se lena hai</div></div>
+    <div class="card"><div class="k">Is Month</div><div class="v" id="isMonth">0</div><div class="hint" id="isMonthHint"></div></div>
+  </div>
+  <div class="toolbar">
+    <div class="field"><label>Item</label><select id="isFItem" onchange="renderIssuance()"><option value="">All Items</option></select></div>
+    <div class="field"><label>Kisko</label><select id="isFTo" onchange="renderIssuance()"><option value="">All</option><option>Student</option><option>Employee</option><option>Other</option></select></div>
+    <div class="field"><label>Month</label><input type="month" id="isFMonth" onchange="renderIssuance()"></div>
+    <div class="field" style="flex:1;min-width:180px"><label>Search</label><input id="isSearch" placeholder="Item / naam / class" oninput="renderIssuance()"></div>
+  </div>
+  <div class="sub" id="isCount" style="margin-bottom:8px"></div>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>#</th><th>Date</th><th>Item</th><th>Qty</th><th>Kisko</th><th>Type</th><th>Unit Cost</th><th>Value</th><th>Charge</th><th>Remarks</th><th></th></tr></thead>
+    <tbody id="isRows"></tbody>
   </table></div>
 </section>
 
@@ -782,7 +812,8 @@ function studentFee(s){
 const DEFAULT_DB = {
   students:[], inquiries:[], fees:[], exams:[], employees:[], txns:[], homework:[],
   subjects:[],             // [{id, name, level, defaultFee}] — Settings se manage hoti hain
-  inventory:[],            // [{id, name, type, qty, unitCost, issued, date, note}]
+  inventory:[],            // [{id, name, type, qty, unitCost, issuedOpening, date, note}]
+  issues:[],               // [{id, date, itemId, qty, toType, toId, toName, course, unitCost, charge, remarks}]
   attendance:{},           // { "2026-07-07": { studentId: {s:"P|A|L", t:"08:05", shift:"Morning"} } }
   empAttendance:{},        // { "2026-07-07": { empId: {s:"P|A|L", t:"09:00"} } }
   counters:{reg:1, ch:1},
@@ -814,6 +845,10 @@ DB.subjects.forEach(x=>{                       // purane catalogue ko naye field
 });
 DB.students.forEach(s=>{ if(!s.subjects) s.subjects=[]; });
 if(!Array.isArray(DB.inventory)) DB.inventory = [];
+if(!Array.isArray(DB.issues))    DB.issues = [];
+/* Pehle "issued" ek sada ginti thi. Ab har issuance ka record banta hai, is liye
+   purani ginti ko "opening" maan lete hain aur log us ke upar jama hota hai. */
+DB.inventory.forEach(x=>{ if(x.issuedOpening === undefined) x.issuedOpening = +x.issued || 0; });
 DB.txns.forEach(t=>{
   if(!t.category) t.category = guessCat(t.desc) || (t.type==="Income"?"Other Income":"Other");
   if(!t.status)   t.status   = "Paid";
@@ -878,7 +913,8 @@ document.querySelectorAll("#nav button").forEach(b=>{
 function renderPage(p){
   ({dashboard:renderDashboard, students:renderStudents, gallery:renderGallery, attendance:loadAttendance,
     fees:renderFees, homework:renderHomework, inquiries:renderInquiries, exams:renderExams,
-    employees:renderEmployees, inventory:renderInventory, finance:renderFinance, reports:renderReport,
+    employees:renderEmployees, inventory:renderInventory, issuance:renderIssuance,
+    finance:renderFinance, reports:renderReport,
     settings:loadSettings}[p]||(()=>{}))();
 }
 
@@ -1348,6 +1384,7 @@ function openProfile(id){
     ${sibHTML}
     <div class="tabs">
       <button class="on" onclick="swTab(this,'tpSub')">Subjects ${(s.subjects||[]).length?`(${s.subjects.length})`:""}</button>
+      <button onclick="swTab(this,'tpIss')">Issued ${DB.issues.filter(x=>x.toId===id).length?`(${DB.issues.filter(x=>x.toId===id).length})`:""}</button>
       <button onclick="swTab(this,'tpAtt')">Attendance</button>
       <button onclick="swTab(this,'tpFee')">Fee Record</button>
       <button onclick="swTab(this,'tpExam')">Exams</button>
@@ -1358,6 +1395,12 @@ function openProfile(id){
       <tbody>${(s.subjects||[]).length? s.subjects.map((x,i)=>`<tr><td><b>${i+1}</b></td><td><b>${esc(x.name)}</b></td><td>${esc(teacherName(x.teacherId))}</td>${s.shift==="Evening"?`<td><b>${money(x.fee)}</b></td>`:""}</tr>`).join("")
         : `<tr><td colspan="4" class="empty">Koi subject add nahi — "Edit" se subjects add karein</td></tr>`}</tbody>
       ${(s.subjects||[]).length&&s.shift==="Evening"?`<tfoot><tr><td colspan="3" style="text-align:right"><b>Total Monthly Fee</b></td><td><b style="color:var(--red)">${money(studentFee(s))}</b></td></tr></tfoot>`:""}
+    </table></div></div>
+    <div class="tabpane" id="tpIss"><div class="tbl-wrap"><table>
+      <thead><tr><th>Date</th><th>Item</th><th>Qty</th><th>Value</th><th>Charge</th><th>Remarks</th></tr></thead>
+      <tbody>${(()=>{ const mine = DB.issues.filter(x=>x.toId===id).sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+        return mine.length? mine.map(x=>`<tr><td>${fmtD(x.date)}</td><td><b>${esc(x.itemName)}</b></td><td>${x.qty}</td><td>${money((+x.qty||0)*(+x.unitCost||0))}</td><td>${x.charge?money(x.charge):`<span class="sub">Free</span>`}</td><td>${esc(x.remarks||"—")}</td></tr>`).join("")
+          : `<tr><td colspan="6" class="empty">Is student ko abhi kuch issue nahi hua</td></tr>`; })()}</tbody>
     </table></div></div>
     <div class="tabpane" id="tpAtt"><div class="tbl-wrap"><table><thead><tr><th>Date</th><th>Status</th><th>Time</th><th>Shift</th></tr></thead><tbody>${attRows||`<tr><td colspan="4" class="empty">Attendance abhi mark nahi hui</td></tr>`}</tbody></table></div></div>
     <div class="tabpane" id="tpFee"><div class="tbl-wrap"><table><thead><tr><th>Challan #</th><th>Month</th><th>Amount</th><th>Status</th><th>Paid Date</th></tr></thead><tbody>${fees.length?fees.map(f=>`<tr><td>${f.chNo}</td><td>${fmtM(f.month)}</td><td>${money(f.amount)}</td><td><span class="badge b-${f.status.toLowerCase()}">${f.status}</span></td><td>${fmtD(f.paidDate)}</td></tr>`).join(""):`<tr><td colspan="5" class="empty">Koi challan nahi</td></tr>`}</tbody></table></div></div>
@@ -1374,7 +1417,7 @@ function hwToggle(hwId, sid, val){
 function swTab(btn,id){
   btn.parentElement.querySelectorAll("button").forEach(b=>b.classList.remove("on"));
   btn.classList.add("on");
-  ["tpSub","tpAtt","tpFee","tpExam","tpHw"].forEach(t=>$(t).classList.toggle("on",t===id));
+  ["tpSub","tpIss","tpAtt","tpFee","tpExam","tpHw"].forEach(t=>$(t).classList.toggle("on",t===id));
 }
 function changeStatus(id,val){ stuById(id).status=val; save(); toast("Status: "+val); renderStudents(); renderDashboard(); }
 
@@ -2641,8 +2684,12 @@ function openEmpProfile(id){
 
 /* ================= INVENTORY ================= */
 const INV_TYPES = ["Book","Notes","Stationery","Uniform","Equipment","Other"];
-const invStock  = it => Math.max(0, (+it.qty||0) - (+it.issued||0));
+/* Kitne issue ho chuke = purani opening ginti + issuance log */
+const issuesOf  = id => DB.issues.filter(x=>x.itemId === id);
+const issuedOf  = it => (+it.issuedOpening||0) + issuesOf(it.id).reduce((a,x)=>a+(+x.qty||0), 0);
+const invStock  = it => Math.max(0, (+it.qty||0) - issuedOf(it));
 const invValue  = it => invStock(it) * (+it.unitCost||0);
+const itemById  = id => DB.inventory.find(x=>x.id === id);
 
 function renderInventory(){
   const ft = $("invFType").value, fs = $("invFStock").value, q = ($("invSearch").value||"").toLowerCase();
@@ -2674,13 +2721,13 @@ function renderInventory(){
       <td><span class="chip">${esc(x.type||"Other")}</span></td>
       <td>${esc(x.course||"—")}</td>
       <td>${+x.qty||0}</td>
-      <td>${+x.issued||0}</td>
+      <td>${issuedOf(x)}${issuesOf(x.id).length?`<br><span class="sub">${issuesOf(x.id).length} issuances</span>`:""}</td>
       <td><b style="color:${invStock(x)? "var(--ok)":"var(--danger)"}">${invStock(x)}</b></td>
       <td>${money(x.unitCost)}</td>
       <td><b>${money(invValue(x))}</b></td>
       <td>${fmtD(x.date)}</td>
       <td style="white-space:nowrap">
-        <button class="btn-black btn-sm" onclick="openIssue('${x.id}')">Issue</button>
+        <button class="btn-black btn-sm" onclick="openIssueForm('${x.id}')">Issue</button>
         <button class="btn-line btn-sm" onclick="openInvForm('${x.id}')">Edit</button>
         <button class="btn-danger btn-sm" onclick="delInv('${x.id}')">Delete</button>
       </td>
@@ -2698,7 +2745,7 @@ function openInvForm(id, prefill){
       <div class="field"><label>Date</label><input type="date" id="i_date" value="${x.date||todayStr()}"></div>
       <div class="field"><label>Quantity (kitne aaye) *</label><input type="number" id="i_qty" value="${x.qty??1}" oninput="invTotHint()"></div>
       <div class="field"><label>Unit Cost (Rs)</label><input type="number" id="i_cost" value="${x.unitCost??""}" oninput="invTotHint()"></div>
-      <div class="field"><label>Issue ho chuke</label><input type="number" id="i_issued" value="${x.issued||0}"></div>
+      <div class="field"><label>Pehle se issue (opening)</label><input type="number" id="i_issued" value="${x.issuedOpening||0}"><span class="sub">Issuance log alag se ginta hai</span></div>
       <div class="field"><label>Note</label><input id="i_note" value="${esc(x.note||"")}" placeholder="optional"></div>
     </div>
     <div class="note" id="i_totHint" style="margin-top:6px"></div>
@@ -2717,7 +2764,7 @@ function saveInv(id){
   if(!name){ toast("Item ka naam likhein"); return; }
   const data = { name, type:$("i_type").value, course:$("i_course").value,
                  date:$("i_date").value||todayStr(), qty:+$("i_qty").value||0,
-                 unitCost:+$("i_cost").value||0, issued:+$("i_issued").value||0,
+                 unitCost:+$("i_cost").value||0, issuedOpening:+$("i_issued").value||0,
                  note:$("i_note").value.trim() };
   if(id) Object.assign(DB.inventory.find(y=>y.id===id), data);
   else { data.id = uid(); DB.inventory.push(data); }
@@ -2729,24 +2776,174 @@ function delInv(id){
   DB.inventory = DB.inventory.filter(y=>y.id!==id);
   save(); renderInventory();
 }
-function openIssue(id){
-  const x = DB.inventory.find(y=>y.id===id); if(!x) return;
+/* ================= ISSUANCE ================= */
+const issueQty   = x => +x.qty||0;
+const issueValue = x => (+x.qty||0) * (+x.unitCost||0);
+const issueCharge= x => +x.charge||0;
+
+function renderIssuance(){
+  if(!$("isRows")) return;
+  const fi = $("isFItem").value, ft = $("isFTo").value, fm = $("isFMonth").value,
+        q = ($("isSearch").value||"").toLowerCase();
+  $("isFItem").innerHTML = `<option value="">All Items</option>` +
+    DB.inventory.slice().sort((a,b)=>a.name.localeCompare(b.name))
+      .map(x=>`<option value="${x.id}" ${x.id===fi?"selected":""}>${esc(x.name)}</option>`).join("");
+
+  const all = DB.issues;
+  $("isCount2").textContent  = all.length;
+  $("isUnits").textContent   = all.reduce((a,x)=>a+issueQty(x), 0);
+  $("isValue").textContent   = money(all.reduce((a,x)=>a+issueValue(x), 0));
+  $("isCharge").textContent  = money(all.reduce((a,x)=>a+issueCharge(x), 0));
+  const m = thisMonth();
+  $("isMonth").textContent   = all.filter(x=>String(x.date||"").startsWith(m)).reduce((a,x)=>a+issueQty(x), 0);
+  $("isMonthHint").textContent = fmtM(m);
+
+  const rows = all.filter(x=>{
+    if(fi && x.itemId !== fi) return false;
+    if(ft && x.toType !== ft) return false;
+    if(fm && !String(x.date||"").startsWith(fm)) return false;
+    if(q && !((x.itemName+" "+(x.toName||"")+" "+(x.course||"")+" "+(x.remarks||"")).toLowerCase().includes(q))) return false;
+    return true;
+  }).sort((a,b)=>String(b.date||"").localeCompare(String(a.date||"")));
+  $("isCount").textContent = rows.length + " issuances is list mein";
+  $("isRows").innerHTML = rows.length? rows.map((x,i)=>{
+    const it = itemById(x.itemId);
+    return `<tr>
+      <td><b>${i+1}</b></td>
+      <td>${fmtD(x.date)}</td>
+      <td><b>${esc(x.itemName)}</b>${it?"":`<br><span class="sub" style="color:var(--danger)">item delete ho chuka</span>`}</td>
+      <td><b>${issueQty(x)}</b></td>
+      <td>${esc(x.toName||"—")}${x.course?`<br><span class="sub">${esc(x.course)}</span>`:""}</td>
+      <td><span class="chip">${esc(x.toType||"Other")}</span></td>
+      <td>${money(x.unitCost)}</td>
+      <td><b>${money(issueValue(x))}</b></td>
+      <td>${x.charge? `<b style="color:var(--red)">${money(x.charge)}</b>` : `<span class="sub">Free</span>`}</td>
+      <td style="max-width:180px">${esc(x.remarks||"—")}</td>
+      <td><button class="btn-danger btn-sm" onclick="delIssue('${x.id}')">Delete</button></td>
+    </tr>`;
+  }).join("") : `<tr><td colspan="11" class="empty">Koi issuance nahi — "New Issuance" se record karein.</td></tr>`;
+}
+
+function openIssueForm(itemId){
+  if(!DB.inventory.length){ toast("Pehle Inventory mein koi item add karein"); return; }
+  const items = DB.inventory.slice().sort((a,b)=>a.name.localeCompare(b.name));
+  const pick = itemId || items[0].id;
+  const teachers = DB.employees.slice().sort((a,b)=>a.name.localeCompare(b.name));
+  const stus = DB.students.filter(s=>s.status==="Active").sort((a,b)=>a.name.localeCompare(b.name));
   openModal(`
-    <h3>Issue — ${esc(x.name)}</h3>
-    <p class="sub" style="margin-bottom:12px">Abhi stock mein <b>${invStock(x)}</b> hain (kul ${+x.qty||0}, issue ${+x.issued||0}).</p>
-    <div class="field"><label>Kitne issue karne hain?</label><input type="number" id="is_n" value="1" min="1" max="${invStock(x)}"></div>
+    <h3>New Issuance</h3>
+    <div class="note">Jo bhi issue karenge wo <b>Inventory ka stock khud kam</b> kar dega. Delete karne par stock wapas aa jayega.</div>
+    <div class="grid2">
+      <div class="field"><label>Item *</label><select id="s_item" onchange="issueSync()">
+        ${items.map(x=>`<option value="${x.id}" ${x.id===pick?"selected":""}>${esc(x.name)} — stock ${invStock(x)}</option>`).join("")}</select></div>
+      <div class="field"><label>Date</label><input type="date" id="s_date" value="${todayStr()}"></div>
+    </div>
+    <div class="field"><label>Kisko dena hai?</label>
+      <select id="s_toType" onchange="issueSync()">
+        <option value="Student">Aik student</option>
+        <option value="Class">Poori class (har student ko)</option>
+        <option value="Employee">Staff member</option>
+        <option value="Other">Koi aur</option>
+      </select></div>
+
+    <div id="s_toBox"></div>
+
+    <div class="grid2">
+      <div class="field"><label>Quantity *</label><input type="number" id="s_qty" value="1" min="1" oninput="issueSync()"></div>
+      <div class="field"><label>Charge (Rs) — free ho to 0</label><input type="number" id="s_charge" value="0"></div>
+    </div>
+    <div class="field"><label>Remarks</label><input id="s_remarks" placeholder="optional"></div>
+    <div class="note" id="s_hint" style="margin-top:6px"></div>
     <div class="modal-foot">
       <button class="btn-line" onclick="closeModal()">Cancel</button>
-      <button class="btn-red" onclick="doIssue('${id}')">Issue karein</button>
-    </div>`);
+      <button class="btn-red" onclick="saveIssue()">Issue karein</button>
+    </div>`, true);
+  issueSync();
 }
-function doIssue(id){
-  const x = DB.inventory.find(y=>y.id===id); if(!x) return;
-  const n = +$("is_n").value||0;
-  if(n <= 0){ toast("Ginti likhein"); return; }
-  if(n > invStock(x)){ toast(`Sirf ${invStock(x)} stock mein hain`); return; }
-  x.issued = (+x.issued||0) + n;
-  save(); closeModal(); renderInventory(); toast(`${n} × ${x.name} issue ho gaye — ${invStock(x)} bache`);
+
+function issueSync(){
+  const it = itemById($("s_item").value);
+  const type = $("s_toType").value;
+  const stus = DB.students.filter(s=>s.status==="Active").sort((a,b)=>a.name.localeCompare(b.name));
+  const emps = DB.employees.slice().sort((a,b)=>a.name.localeCompare(b.name));
+  const box = $("s_toBox");
+  if(type === "Student")
+    box.innerHTML = `<div class="field"><label>Student *</label><select id="s_to">${
+      stus.map(s=>`<option value="${s.id}">${esc(s.name)} (${esc(s.regNo)}) — ${esc(s.course)} · ${s.shift}</option>`).join("")
+    }</select></div>`;
+  else if(type === "Class")
+    box.innerHTML = `<div class="grid2">
+      <div class="field"><label>Shift</label><select id="s_shift" onchange="issueSync()">
+        <option>Morning</option><option>Evening</option></select></div>
+      <div class="field"><label>Class</label><select id="s_course" onchange="issueSync()">${courseOptions(it? it.course : undefined, "Morning")}</select></div></div>`;
+  else if(type === "Employee")
+    box.innerHTML = `<div class="field"><label>Staff *</label><select id="s_to">${
+      emps.map(e=>`<option value="${e.id}">${esc(e.name)} — ${e.category}</option>`).join("")
+    }</select></div>`;
+  else
+    box.innerHTML = `<div class="field"><label>Naam</label><input id="s_toName" placeholder="Kisko diya"></div>`;
+
+  const per = +$("s_qty").value||0;
+  let n = 1, who = "";
+  if(type === "Class"){
+    const sh = $("s_shift") ? $("s_shift").value : "Morning";
+    const cs = $("s_course") ? $("s_course").value : "";
+    n = DB.students.filter(s=>s.status==="Active" && s.shift===sh && s.course===cs).length;
+    who = `${cs} · ${sh} ke ${n} students`;
+  }
+  const need = per * n;
+  const have = it ? invStock(it) : 0;
+  $("s_hint").innerHTML = !it ? "" :
+    `<b>${esc(it.name)}</b> — stock <b>${have}</b>${who?` · ${who}`:""} · chahiye <b style="color:${need>have?"var(--danger)":"var(--red)"}">${need}</b>` +
+    (need > have ? ` <b style="color:var(--danger)">— itna stock nahi hai</b>` : ``) +
+    `<br><span class="sub">Maaliyat: ${money(need * (+it.unitCost||0))} (${need} × ${money(it.unitCost)})</span>`;
+}
+
+function saveIssue(){
+  const it = itemById($("s_item").value);
+  if(!it){ toast("Item chunein"); return; }
+  const type = $("s_toType").value, per = +$("s_qty").value||0;
+  if(per <= 0){ toast("Quantity likhein"); return; }
+  const date = $("s_date").value || todayStr();
+  const charge = +$("s_charge").value||0;
+  const remarks = $("s_remarks").value.trim();
+
+  let targets = [];
+  if(type === "Class"){
+    const sh = $("s_shift").value, cs = $("s_course").value;
+    targets = DB.students.filter(s=>s.status==="Active" && s.shift===sh && s.course===cs)
+                         .map(s=>({toId:s.id, toName:s.name, course:s.course}));
+    if(!targets.length){ toast(`${cs} (${sh}) mein koi active student nahi`); return; }
+  }else if(type === "Student"){
+    const s = stuById($("s_to").value);
+    if(!s){ toast("Student chunein"); return; }
+    targets = [{toId:s.id, toName:s.name, course:s.course}];
+  }else if(type === "Employee"){
+    const e = empById($("s_to").value);
+    if(!e){ toast("Staff chunein"); return; }
+    targets = [{toId:e.id, toName:e.name, course:""}];
+  }else{
+    targets = [{toId:"", toName:$("s_toName").value.trim() || "—", course:""}];
+  }
+
+  const need = per * targets.length;
+  if(need > invStock(it)){ toast(`Stock mein sirf ${invStock(it)} hain, chahiye ${need}`); return; }
+
+  targets.forEach(t=>{
+    DB.issues.push({ id:uid(), date, itemId:it.id, itemName:it.name, qty:per,
+                     toType: type === "Class" ? "Student" : type,
+                     toId:t.toId, toName:t.toName, course:t.course,
+                     unitCost:+it.unitCost||0, charge, remarks });
+  });
+  save(); closeModal(); renderIssuance(); renderInventory();
+  toast(`${need} × ${it.name} issue ho gaye (${targets.length} ${targets.length>1?"logon":"shakhs"} ko) — ${invStock(it)} stock baqi`);
+}
+
+function delIssue(id){
+  const x = DB.issues.find(y=>y.id===id); if(!x) return;
+  if(!confirm(`${x.qty} × ${x.itemName} (${x.toName}) ka record hata dein? Stock wapas aa jayega.`)) return;
+  DB.issues = DB.issues.filter(y=>y.id!==id);
+  save(); renderIssuance(); renderInventory();
 }
 
 /* ================= FINANCE ================= */
@@ -3318,6 +3515,22 @@ const IMPORT_TYPES = {
       ["Law Notes","Notes","A Levels","20","300","6000","5","09/09/2026","A Level Law"]
     ]
   },
+  issues: {
+    label: "Issuance",
+    fields: [
+      {k:"date",    l:"Date",       syn:["date","issuedate","tareekh"]},
+      {k:"name",    l:"Item Name",  syn:["itemname","item","book","particulars","description"], req:true},
+      {k:"qty",     l:"Quantity",   syn:["quantity","qty","nos","pieces"]},
+      {k:"toName",  l:"Issued To",  syn:["issuedto","student","studentname","name","to","receiver"], req:true},
+      {k:"course",  l:"Class",      syn:["class","grade","course"]},
+      {k:"charge",  l:"Charge",     syn:["charge","amount","fee","price"]},
+      {k:"remarks", l:"Remarks",    syn:["remarks","remark","notes","note"]}
+    ],
+    samples: [
+      ["04/09/2026","O2 Physics Book","1","Ahmed Raza","O2","0",""],
+      ["05/09/2026","Law Notes","1","Bazil Tasleem","A Levels","300","charge liya"]
+    ]
+  },
   inquiries: {
     label: "Inquiries",
     fields: [
@@ -3848,6 +4061,32 @@ function runImport(){
       rec.id = uid(); DB.inventory.push(rec); added++;
     }
 
+    else if(impType === "issues"){
+      const to = g("toName");
+      if(!to){ skipped++; note(line, `"${name}": kisko diya khali hai`); return; }
+      let it = DB.inventory.find(x=>keyify(x.name) === keyify(name))
+            || DB.inventory.find(x=>nameScore(name, x.name) >= 0.82);
+      if(!it){
+        it = { id:uid(), name, type: /notes/i.test(name)?"Notes" : /book/i.test(name)?"Book":"Other",
+               course: matchClass(g("course"), "") || "", qty:0, unitCost:0, issuedOpening:0,
+               date: cleanDate(g("date")) || todayStr(), note:"Issuance import se bana" };
+        DB.inventory.push(it);
+        note(line, `"${name}" inventory mein nahi tha — bana diya (quantity 0, Inventory mein khareed daal dein)`);
+      }
+      const m = bestStudentMatch(to);
+      const st = (m && m.score >= 0.82) ? m.st : null;
+      if(!st) note(line, `"${to}" koi student nahi mila — naam waise hi likh diya`);
+      const qty = cleanNum(g("qty")) || 1;
+      DB.issues.push({ id:uid(), date: cleanDate(g("date")) || todayStr(),
+        itemId:it.id, itemName:it.name, qty,
+        toType: st? "Student" : "Other", toId: st? st.id : "", toName: st? st.name : to,
+        course: st? st.course : (matchClass(g("course"), "") || g("course")),
+        unitCost:+it.unitCost||0, charge:cleanNum(g("charge")), remarks:g("remarks") });
+      added++;
+      if(issuedOf(it) > (+it.qty||0))
+        note(line, `${it.name}: ab tak ${issuedOf(it)} issue ho chuke magar khareed sirf ${+it.qty||0} hai — Inventory mein quantity theek kar lein`);
+    }
+
     else {   /* inquiries */
       const phone = g("phone");
       if(!phone){ skipped++; note(line, "Phone khali hai"); return; }
@@ -3866,7 +4105,7 @@ function runImport(){
 
   save();
   renderStudents(); renderEmployees(); renderInquiries(); renderFees();
-  renderInventory(); renderFinance(); renderDashboard();
+  renderInventory(); renderIssuance(); renderFinance(); renderDashboard();
   $("impBody").innerHTML = `
     <div class="cards" style="margin-bottom:14px">
       <div class="card"><div class="k">✓ Naye Add Hue</div><div class="v green">${added}</div></div>
