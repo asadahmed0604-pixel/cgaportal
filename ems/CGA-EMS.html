@@ -941,11 +941,13 @@ const teacherOpts = (sel) => `<option value="">— No teacher —</option>` +
     .map(t=>`<option value="${t.id}" ${sel===t.id?"selected":""}>${esc(t.name)}</option>`).join("");
 
 /* Shift / class badalne par subject list, fee mode aur group line refresh */
-function seedCompulsory(cls){
+function seedInto(list, cls){
   compulsoryForClass(cls).forEach(x=>{
-    if(!subjDraft.some(d=>d.name===x.name)) subjDraft.push({name:x.name, fee:+x.defaultFee||0, teacherId:""});
+    if(!list.some(d=>keyify(d.name) === keyify(x.name))) list.push({name:x.name, fee:+x.defaultFee||0, teacherId:""});
   });
+  return list;
 }
+function seedCompulsory(cls){ seedInto(subjDraft, cls); }
 /* initial=true sirf form khulte waqt — us waqt student ka mojooda record chhera nahi jata */
 function subjModeSync(initial){
   if(!$("f_subj")) return;
@@ -1537,7 +1539,7 @@ function renderFees(){
       <td><b>${f.chNo}</b></td>
       <td>${st? esc(st.name)+" <span class='sub'>("+esc(st.regNo)+")</span>" : "<i>Deleted student</i>"}</td>
       <td>${fmtM(f.month)}</td>
-      <td><b>${money(f.amount)}</b>${+f.discount?`<br><span class="sub" style="color:var(--danger)">− ${money(f.discount)} discount (${f.discountPct||0}%)</span>`:""}${(f.subjects||[]).length?`<br><span class="sub" title="${esc(f.subjects.map(x=>x.name+(x.fee?(": Rs "+x.fee):"")+(x.disc?(" − "+x.disc):"")).join(", "))}">${f.subjects.length} subjects</span>`:""}${f.items&&f.items.length?` <span class="sub" title="${esc(f.items.map(i=>i.desc+": Rs "+i.amt).join(", "))}">(+${f.items.length} charges)</span>`:""}</td>
+      <td><b>${money(f.amount)}</b>${+f.balance>0?`<br><span class="sub" style="color:var(--danger)">Balance ${money(f.balance)}${+f.paidAmount?` (paid ${money(f.paidAmount)})`:""}</span>`:""}${+f.discount?`<br><span class="sub" style="color:var(--danger)">− ${money(f.discount)} discount (${f.discountPct||0}%)</span>`:""}${(f.subjects||[]).length?`<br><span class="sub" title="${esc(f.subjects.map(x=>x.name+(x.fee?(": Rs "+x.fee):"")+(x.disc?(" − "+x.disc):"")).join(", "))}">${f.subjects.length} subjects</span>`:""}${f.items&&f.items.length?` <span class="sub" title="${esc(f.items.map(i=>i.desc+": Rs "+i.amt).join(", "))}">(+${f.items.length} charges)</span>`:""}</td>
       <td>${f.dueDate? `<span style="${f.status==="Unpaid"&&f.dueDate<todayStr()?"color:var(--red);font-weight:700":""}">${fmtD(f.dueDate)}${f.status==="Unpaid"&&f.dueDate<todayStr()?" ⚠":""}</span>` : "—"}</td>
       <td><span class="badge b-${f.status.toLowerCase()}">${f.status}</span></td>
       <td>${fmtD(f.paidDate)}</td>
@@ -1905,6 +1907,10 @@ function printChallan(id){
       + `<tr><td><b>Subjects Total</b></td><td><b>${money(subTot)}</b></td></tr>`
     : (subs.length? `<tr><td><b>Subjects</b></td><td>${subs.map(x=>esc(x.name)).join(" · ")}</td></tr>`:"")
       + `<tr><td><b>Monthly Fee</b></td><td>${money(gross)}</td></tr>`;
+  const payRows = (+f.paidAmount || +f.balance) ? `
+          <tr><td><b>Paid Amount</b></td><td>${money(f.paidAmount||0)}</td></tr>
+          ${+f.balance>0? `<tr><td><b>Balance</b></td><td style="color:#C0392B;font-weight:800">${money(f.balance)}</td></tr>`:""}` : "";
+  const remRow = f.remarks? `<tr><td><b>Remarks</b></td><td>${esc(f.remarks)}</td></tr>` : "";
   const discRows = disc? `
           <tr><td><b>Discount</b></td><td style="color:#C0392B;font-weight:800">− ${money(disc)} <span style="font-weight:600;font-size:.75rem">(${pct}% of ${money(gross)})</span></td></tr>
           <tr><td><b>After Discount</b></td><td><b>${money(gross-disc)}</b></td></tr>` : "";
@@ -1935,6 +1941,8 @@ function printChallan(id){
           ${discRows}
           ${itemRows}
           <tr><td><b>Total Amount</b></td><td class="ch-amt">${money(f.amount)}</td></tr>
+          ${payRows}
+          ${remRow}
         </table>
       </div>
       <div class="ch-foot"><span>Issued: ${fmtD(todayStr())}</span><span>Receiver Signature: _______________</span></div>
@@ -2681,8 +2689,10 @@ function cleanNum(v){
   const t = String(v??"").trim();
   if(!t) return 0;
   if(t.includes("+")) return t.split("+").reduce((a,x)=>a+cleanNum(x), 0);   // "15500+15000"
-  const n = t.replace(/[^0-9.\-]/g,"");
-  return n && !isNaN(+n) ? +n : 0;
+  const m = t.match(/-?[\d,]*\.?\d+/);          // pehla number — "14500(1st Installment)" → 14500
+  if(!m) return 0;
+  const n = m[0].replace(/,/g,"");
+  return isNaN(+n) ? 0 : +n;
 }
 /* 0300 4909999 · 3201449440 · +92300... → 0300-4909999 */
 function cleanPhone(v){
@@ -2714,6 +2724,13 @@ function cleanDate(v){
   return isNaN(d) ? "" : d.toISOString().slice(0,10);
 }
 const normShift  = v => /even|academy|after|noon|pm\b/i.test(v) ? "Evening" : /morn|school|am\b/i.test(v) ? "Morning" : "";
+/* "Unpaid" ke andar bhi "paid" hai — pehle unpaid check karein */
+function normFeeStatus(v, amount, paid){
+  const t = String(v??"").toLowerCase();
+  if(/unpaid|pending|due|outstanding|nil/.test(t)) return "Unpaid";
+  if(/paid|clear|received|done/.test(t)) return "Paid";
+  return (+paid > 0 && +paid >= +amount) ? "Paid" : "Unpaid";   // khali ho to raqam se andaza
+}
 function normStatus(v){
   const t = String(v??"").toLowerCase();
   if(t.startsWith("grad")) return "Graduate";
@@ -2726,6 +2743,50 @@ function matchClass(v, shift){
   const k = keyify(v); if(!k) return "";
   const pool = (CLASSES_BY_SHIFT[shift] || COURSES).concat(COURSES);
   return pool.find(c => keyify(c) === k) || pool.find(c => keyify(c).includes(k) || k.includes(keyify(c))) || "";
+}
+/* do lafzon ka farq — ek harf idhar udhar */
+function editDist(a, b){
+  if(Math.abs(a.length - b.length) > 2) return 9;
+  const d = Array.from({length:a.length+1}, (_,i)=>[i, ...Array(b.length).fill(0)]);
+  for(let j = 0; j <= b.length; j++) d[0][j] = j;
+  for(let i = 1; i <= a.length; i++)
+    for(let j = 1; j <= b.length; j++)
+      d[i][j] = Math.min(d[i-1][j]+1, d[i][j-1]+1, d[i-1][j-1] + (a[i-1]===b[j-1]?0:1));
+  return d[a.length][b.length];
+}
+const nameTokens = n => String(n||"").toLowerCase().replace(/[^a-z0-9 ]/g," ").split(/\s+/).filter(Boolean);
+function tokenMatch(x, y){
+  if(x === y) return true;
+  if(x.length === 1 || y.length === 1) return x[0] === y[0];          // "M." ↔ "Muhammad"
+  if(x.length >= 4 && y.length >= 4 && editDist(x,y) <= 1) return true; // Ayan ↔ Ayaan
+  return x.length >= 4 && y.length >= 4 && (x.startsWith(y) || y.startsWith(x));
+}
+/* 0 se 1 — 1 matlab bilkul wohi naam */
+function nameScore(a, b){
+  const A = nameTokens(a), B = nameTokens(b);
+  if(!A.length || !B.length) return 0;
+  const used = new Set();
+  let hit = 0;
+  A.forEach(x=>{
+    for(let i = 0; i < B.length; i++){
+      if(used.has(i)) continue;
+      if(tokenMatch(x, B[i])){ used.add(i); hit++; return; }
+    }
+  });
+  return hit / Math.max(A.length, B.length);
+}
+/* Poori list mein se sab se behtar match. 0.82+ par khud match, 0.6+ par sirf mashwara. */
+function bestStudentMatch(name, regNo){
+  if(regNo){
+    const byReg = DB.students.find(x=>keyify(x.regNo) === keyify(regNo));
+    if(byReg) return {st:byReg, score:1, how:"regno"};
+  }
+  let best = null;
+  DB.students.forEach(st=>{
+    const sc = nameScore(name, st.name);
+    if(!best || sc > best.score) best = {st, score:sc, how:"name"};
+  });
+  return best && best.score > 0 ? best : null;
 }
 function teacherIdByName(v){
   const k = keyify(v); if(!k) return "";
@@ -2821,6 +2882,34 @@ const IMPORT_TYPES = {
     samples: [
       ["Sir Ali Raza","Teacher","0300-1234567","01/03/2024","60000","Johar Town, Lahore"],
       ["Hamza Sheikh","Coordinator","0333-1112222","05/01/2025","40000","Model Town, Lahore"]
+    ]
+  },
+  fees: {
+    label: "Fee Challans",
+    fields: [
+      {k:"regNo",      l:"Reg No",              syn:["regno","registrationno","rollno","roll"]},
+      {k:"name",       l:"Student Name",        syn:["name","studentname","student","fullname"], req:true},
+      {k:"course",     l:"Class / Grade",       syn:["class","grade","course","level"]},
+      {k:"tuition",    l:"Monthly Tuition Fee", syn:["monthlytuitionfee","monthlytutionfee","monthlyfee","tuitionfee","tutionfee","tuition","tution","monthly"]},
+      {k:"chReg",      l:"Registration Fee",    syn:["registrationfee","regfee"]},
+      {k:"chBag",      l:"Bag Pack",            syn:["bagpack","bagpackcharges","bagcharges","books"]},
+      {k:"chAdm",      l:"Admission Fee",       syn:["admissionfee","admissioncharges"]},
+      {k:"chSec",      l:"Security Deposit",    syn:["securitydeposit","security","deposit"]},
+      {k:"arrears",    l:"Arrears",             syn:["arrears","arrear","previousbalance","outstanding"]},
+      {k:"credit",     l:"Credit / Adjustment", syn:["credit","adjustment","adjust"]},
+      {k:"amount",     l:"Total Payable",       syn:["totalpayable","netpayable","grandtotal","payable","total"]},
+      {k:"paidAmount", l:"Paid Amount",         syn:["paidamount","amountpaid","amountreceived","received","receipt"]},
+      {k:"balance",    l:"Balance",             syn:["balance","remaining","shortfall"]},
+      {k:"status",     l:"Fee Status",          syn:["feestatus","status","paidunpaid"]},
+      {k:"paidDate",   l:"Receive Date",        syn:["receivedate","receiptdate","paiddate","paymentdate","datereceived","depositdate"]},
+      {k:"dueDate",    l:"Next Due Date",       syn:["nextduedate","duedate","nextdue"]},
+      {k:"method",     l:"Payment Method",      syn:["paymentmethod","paymentmode","method","mode"]},
+      {k:"account",    l:"To Account",          syn:["toaccount","account","bankaccount","bank"]},
+      {k:"remarks",    l:"Remarks",             syn:["remarks","remark","notes","comment","detail"]}
+    ],
+    samples: [
+      ["REG-2026-0001","Ahmed Raza","O2","28500","0","0","0","0","0","0","28500","28500","0","Paid","10/09/2026","01/10/2026","Online","CGA",""],
+      ["","Bilal Ahmed","O1","25000","2000","6000","10000","0","0","0","43000","0","43000","Unpaid","","01/10/2026","","",""]
     ]
   },
   inquiries: {
@@ -2948,6 +3037,12 @@ function impRender(){
     <div class="toolbar">
       <div class="field"><label>Pehle se mojood record</label>
         <select id="imp_dup"><option value="skip">Skip kar dein</option><option value="update">Update kar dein</option></select></div>
+      ${impType==="fees"? `
+      <div class="field"><label>Fee Month *</label><input type="month" id="imp_month" value="${thisMonth()}"></div>
+      <div class="field"><label>Student na mile to</label>
+        <select id="imp_mk"><option value="1">Naya student bana dein</option><option value="0">Row skip kar dein</option></select></div>
+      <div class="field"><label>Student ki monthly fee</label>
+        <select id="imp_updfee"><option value="1">Is sheet se update karein</option><option value="0">Waise hi rehne dein</option></select></div>`:""}
       ${impType==="students"? `
       <div class="field"><label>Shift (jahan CSV mein khali ho)</label>
         <select id="imp_shift" onchange="impSyncCourse()"><option>Evening</option><option>Morning</option></select></div>
@@ -2988,7 +3083,12 @@ function runImport(){
     const line = impLineNos[idx + 1] || (idx + 2);         // CSV ki asal line
     const g = k => impMap[k] === undefined ? "" : String(r[impMap[k]] ?? "").trim();
     const name = g("name");
-    if(!name){ skipped++; note(line, "Name khali hai"); return; }
+    if(!name){
+      /* Excel ki aakhri khali rows mein sirf serial number hota hai — un par shor na machayein */
+      const anything = def.fields.some(f => f.k !== "regNo" && g(f.k));
+      if(anything){ skipped++; note(line, "Name khali hai"); } else skipped++;
+      return;
+    }
 
     if(impType === "students"){
       const shift  = normShift(g("shift")) || defShift;
@@ -3090,6 +3190,90 @@ function runImport(){
       DB.employees.push(rec); added++;
     }
 
+    else if(impType === "fees"){
+      const month  = $("imp_month").value || thisMonth();
+      const makeSt = $("imp_mk").value === "1";
+      const updFee = $("imp_updfee").value === "1";
+
+      const tuition = cleanNum(g("tuition"));
+      const items = [];
+      [["Registration Fee","chReg"], ["Bag Pack","chBag"], ["Admission Fee","chAdm"],
+       ["Security Deposit","chSec"], ["Arrears","arrears"], ["Credit / Adjustment","credit"]]
+        .forEach(([desc,k])=>{ const amt = cleanNum(g(k)); if(amt) items.push({desc, amt}); });
+      const itemsTot = items.reduce((a,x)=>a+x.amt, 0);
+      const sheetTot = cleanNum(g("amount"));
+      const amount   = sheetTot || (tuition + itemsTot);
+      if(sheetTot && sheetTot !== tuition + itemsTot)
+        note(line, `Total Payable ${money(sheetTot)} hai magar fee+charges ${money(tuition + itemsTot)} bante hain — sheet wala total rakha`);
+
+      const paidAmount = cleanNum(g("paidAmount"));
+      const status = normFeeStatus(g("status"), amount, paidAmount);
+      const balance = g("balance") !== "" ? cleanNum(g("balance")) : Math.max(0, amount - paidAmount);
+      if(status === "Paid" && balance > 0)
+        note(line, `"Paid" likha hai magar ${money(balance)} balance baqi hai`);
+
+      /* student dhoondho — naam thora alag likha ho to bhi */
+      const m = bestStudentMatch(name, g("regNo"));
+      let st = (m && m.score >= 0.82) ? m.st : null;
+      if(st && m.how === "name" && keyify(name) !== keyify(st.name))
+        note(line, `"${name}" ko mojood student "${st.name}" se match kiya (${Math.round(m.score*100)}%)`);
+      if(!st && m && m.score >= 0.6)
+        note(line, `"${name}" naya bana diya — shayad ye mojood "${m.st.name}" hi ho (${Math.round(m.score*100)}%), check kar lein`);
+
+      if(!st){
+        if(!makeSt){ skipped++; note(line, `"${name}" EMS mein nahi mila — row skip`); return; }
+        const shift = "Morning";
+        const course = matchClass(g("course"), shift) || defCourse;
+        st = { id:uid(), photo:null,
+               regNo:"REG-" + new Date().getFullYear() + "-" + String(DB.counters.reg++).padStart(4,"0"),
+               name, fatherName:"", cnic:"", fatherCnic:"", phone:"", fatherPhone:"", motherPhone:"",
+               address:"", dob:"", doj:todayStr(), education:"", prevInst:"",
+               course, shift, monthlyFee:tuition, teacherId:"", subjects:[], groupOverride:"",
+               group:"", status:"Active", charges:[] };
+        if(addComp) seedInto(st.subjects, course);
+        st.group = hasGroups(shift, course) ? detectGroup(st.subjects, course) : "";
+        DB.students.push(st);
+        note(line, `"${name}" EMS mein nahi tha — naya student bana diya (${st.regNo}, ${course})`);
+      }else{
+        const c = matchClass(g("course"), st.shift);
+        if(c && c !== st.course) note(line, `${st.name}: grade sheet mein "${c}" hai, EMS mein "${st.course}" — EMS wala rakha`);
+        if(updFee && tuition && +st.monthlyFee !== tuition){
+          note(line, `${st.name}: monthly fee ${money(st.monthlyFee)} → ${money(tuition)}`);
+          st.monthlyFee = tuition;
+        }
+      }
+
+      const rem = [g("method"), g("account"), g("remarks")].filter(Boolean).join(" · ");
+      const dueDate  = cleanDate(g("dueDate"));
+      const paidDate = cleanDate(g("paidDate"));
+      const yr = +month.slice(0,4);
+      [["Next Due Date", dueDate], ["Receive Date", paidDate]].forEach(([l,d])=>{
+        if(d && Math.abs(+d.slice(0,4) - yr) > 1) note(line, `${l} "${d}" fee month ${month} se bohat door hai — check kar lein`);
+      });
+
+      const dupKey = st.id + "|" + month;
+      if(seen.has(dupKey)) note(line, `${st.name} ka ${fmtM(month)} ka challan isi file mein dobara aaya (line ${seen.get(dupKey)})`);
+      seen.set(dupKey, line);
+
+      const hit = DB.fees.find(f=>f.studentId === st.id && f.month === month);
+      const rec = {
+        studentId:st.id, month, tuition, items, amount,
+        discount:0, discountPct:0,
+        subjects:(st.subjects||[]).map(x=>({name:x.name, fee:+x.fee||0, disc:0, teacherId:x.teacherId||""})),
+        course:st.course, group:groupOf(st), shift:st.shift,
+        dueDate, status, paidDate: status === "Paid" ? (paidDate || "") : "",
+        paidAmount, balance, remarks:rem
+      };
+      if(hit){
+        if(dup === "update"){ Object.assign(hit, rec); updated++; }
+        else { skipped++; note(line, `${st.name} ka ${fmtM(month)} ka challan pehle se mojood (${hit.chNo})`); }
+        return;
+      }
+      rec.id = uid();
+      rec.chNo = "CH-" + String(DB.counters.ch++).padStart(5,"0");
+      DB.fees.push(rec); added++;
+    }
+
     else {   /* inquiries */
       const phone = g("phone");
       if(!phone){ skipped++; note(line, "Phone khali hai"); return; }
@@ -3107,7 +3291,7 @@ function runImport(){
   });
 
   save();
-  renderStudents(); renderEmployees(); renderInquiries(); renderDashboard();
+  renderStudents(); renderEmployees(); renderInquiries(); renderFees(); renderDashboard();
   $("impBody").innerHTML = `
     <div class="cards" style="margin-bottom:14px">
       <div class="card"><div class="k">✓ Naye Add Hue</div><div class="v green">${added}</div></div>
