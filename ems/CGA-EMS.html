@@ -235,7 +235,7 @@ tr:hover td{background:var(--soft)}
     <button data-page="reports"><span class="ico">📊</span> Monthly Report</button>
     <button data-page="settings"><span class="ico">⚙</span> Settings</button>
   </nav>
-  <div class="side-foot">CGA EMS · Offline system — data is saved in this browser</div>
+  <div class="side-foot"><b id="buildTag" style="color:#fff"></b><br>Offline system — data is saved in this browser</div>
 </aside>
 
 <main class="main">
@@ -585,6 +585,16 @@ tr:hover td{background:var(--soft)}
   </div>
 
   <div class="panel" style="max-width:560px">
+    <h3>Ye Kaunsi File Hai?</h3>
+    <p class="sub" style="margin-bottom:10px">Downloads mein aksar kai copies jama ho jati hain. Koi nayi cheez nazar na aaye to yahan version dekh lein.</p>
+    <div class="cards" style="margin-bottom:0">
+      <div class="card"><div class="k">Version</div><div class="v" id="setBuild" style="font-size:1.2rem">—</div></div>
+      <div class="card"><div class="k">Pages</div><div class="v" id="setModules">0</div><div class="hint">is file mein mojood</div></div>
+    </div>
+    <div class="note" style="margin-top:12px" id="setModuleList"></div>
+  </div>
+
+  <div class="panel" style="max-width:560px">
     <h3>Excel (CSV) se Data Import</h3>
     <p class="sub" style="margin-bottom:12px">Purana record Excel mein hai? File ko CSV mein save kar ke yahan se import kar lein — <b>students, fee challans, income/expenses, inventory, staff aur inquiries</b>. System khud pehchanta hai ke kaunsa column kis cheez ka hai. (Har page par uska apna Import button bhi mojood hai.)</p>
     <button class="btn-red" onclick="openImport('students')">⬆ Import from Excel (CSV)</button>
@@ -703,6 +713,10 @@ const DEFAULT_SUBJECTS = [
 ];
 const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
   ({id:"sub"+i, name, level, kind: k==="C"?"Compulsory":"Elective", classes: only?[only]:[], defaultFee:0}));
+
+/* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
+   ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
+const BUILD = "v14 · 21 Sept 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -4141,6 +4155,11 @@ function loadSettings(){
   $("setAddr").value = DB.settings.addr||"";
   $("setPhone").value = DB.settings.phone||"";
   drawLogo(); renderSubjectsAdmin();
+  const pages = [...document.querySelectorAll("#nav button")].map(b=>b.textContent.trim());
+  $("setBuild").textContent   = BUILD;
+  $("setModules").textContent = pages.length;
+  $("setModuleList").innerHTML = "<b>Pages:</b> " + esc(pages.join(" · ")) +
+    "<br><b>Import types:</b> " + esc(Object.values(IMPORT_TYPES).map(x=>x.label).join(" · "));
 }
 function saveSettings(){
   DB.settings.name  = $("setName").value.trim()||"Cambridge Grads Academy";
@@ -4357,6 +4376,7 @@ $("hwFCourse").innerHTML = `<option value="">All Classes</option>` + COURSES.map
 $("galFCourse").innerHTML = `<option value="">All Classes</option>` + COURSES.map(c=>`<option>${c}</option>`).join("");
 $("examFCourse").innerHTML = `<option value="">All Classes</option>` + COURSES.map(c=>`<option>${c}</option>`).join("");
 $("brandName").textContent = DB.settings.name||"Cambridge Grads Academy";
+$("buildTag").textContent = "CGA EMS " + BUILD;
 drawLogo();
 if(!storageOK) toast("⚠ Preview mode: data save nahi hoga. File download kar ke laptop par kholein.");
 renderDashboard();
