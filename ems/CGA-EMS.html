@@ -574,6 +574,8 @@ const CLASSES_BY_SHIFT = {
     "A Levels"
   ],
   Evening: [
+    "A Levels",
+    "SAT",
     "Pre O Levels",
     "Grade 5",
     "Grade 6",
@@ -594,7 +596,7 @@ const SHIFT_START = {Morning:"08:00", Evening:"15:00"};
 /* ---------- Class → level (subject list isi se filter hoti hai) ---------- */
 const CLASS_LEVEL = {
   "FT1":"O Level", "FT2":"O Level", "O1":"O Level", "O2":"O Level", "O3 (Appearing Batch)":"O Level",
-  "A Levels":"A Level", "AS":"A Level", "A2":"A Level", "AS & A2 (Composite)":"A Level",
+  "A Levels":"A Level", "AS":"A Level", "A2":"A Level", "AS & A2 (Composite)":"A Level", "SAT":"A Level",
   "Pre O Levels":"Junior", "Grade 5":"Junior", "Grade 6":"Junior", "Grade 7":"Junior", "Grade 8":"Junior"
 };
 const levelOfClass = c => CLASS_LEVEL[c] || "O Level";
@@ -621,10 +623,13 @@ const DEFAULT_SUBJECTS = [
   ["Accounting","A Level","E"],["Business","A Level","E"],["Economics","A Level","E"],
   ["Psychology","A Level","E"],["Sociology","A Level","E"],["Law","A Level","E"],
   ["English Language","A Level","E"],["English Literature","A Level","E"],
-  ["Environmental Management","A Level","E"],["Global Perspectives & Research","A Level","E"]
+  ["Environmental Management","A Level","E"],["Global Perspectives & Research","A Level","E"],
+
+  /* SAT prep — sirf SAT batch mein */
+  ["SAT English","A Level","E","SAT"],["SAT Math","A Level","E","SAT"]
 ];
-const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k],i)=>
-  ({id:"sub"+i, name, level, kind: k==="C"?"Compulsory":"Elective", classes:[], defaultFee:0}));
+const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
+  ({id:"sub"+i, name, level, kind: k==="C"?"Compulsory":"Elective", classes: only?[only]:[], defaultFee:0}));
 
 /* Morning (school) ka rule — kitne electives allowed hain. 0 = koi limit nahi */
 const ELECTIVE_LIMIT = {"O Level":3, "A Level":4, "Junior":0};
@@ -712,6 +717,10 @@ try{
 for(const k in DEFAULT_DB) if(DB[k]===undefined) DB[k]=structuredClone(DEFAULT_DB[k]);
 if(DB.settings.logo===undefined) DB.settings.logo = "";
 if(!DB.subjects || !DB.subjects.length) DB.subjects = seedSubjects();
+["SAT English","SAT Math"].forEach(n=>{        // SAT batch ke subjects (naye add hue)
+  if(!DB.subjects.some(x=>x.name===n))
+    DB.subjects.push({id:uid(), name:n, level:"A Level", kind:"Elective", classes:["SAT"], defaultFee:0});
+});
 DB.subjects.forEach(x=>{                       // purane catalogue ko naye fields de dein
   if(!x.classes) x.classes = [];
   if(!x.kind){
@@ -2741,10 +2750,26 @@ function normStatus(v){
   return "Active";
 }
 const keyify = x => String(x??"").toLowerCase().replace(/[^a-z0-9]/g,"");
+/* Sheets mein class ke naam mukhtalif tareeqon se likhe jate hain */
+const CLASS_ALIASES = {
+  alevel:"A Levels", alevels:"A Levels",
+  o3level:"O3 (Appearing Batch)", o3:"O3 (Appearing Batch)", o3appearing:"O3 (Appearing Batch)",
+  o2level:"O2", o1level:"O1",
+  preolevel:"Pre O Levels", preolevels:"Pre O Levels", preo:"Pre O Levels",
+  sat:"SAT",
+  grade5:"Grade 5", grade6:"Grade 6", grade7:"Grade 7", grade8:"Grade 8"
+};
 function matchClass(v, shift){
-  const k = keyify(v); if(!k) return "";
+  let k = keyify(v); if(!k) return "";
+  k = k.replace(/(19|20)\d{2}\d*$/, "");            // "A Levels-2026-27" → "alevels"
+  const ord = k.replace(/(st|nd|rd|th)$/, "");       // "Grade 7th" → "grade7"
+  if(!k) return "";
   const pool = (CLASSES_BY_SHIFT[shift] || COURSES).concat(COURSES);
-  return pool.find(c => keyify(c) === k) || pool.find(c => keyify(c).includes(k) || k.includes(keyify(c))) || "";
+  return pool.find(c => keyify(c) === k)
+      || pool.find(c => keyify(c) === ord)
+      || CLASS_ALIASES[k] || CLASS_ALIASES[ord]
+      || pool.find(c => keyify(c).includes(k) || k.includes(keyify(c)))
+      || "";
 }
 /* do lafzon ka farq — ek harf idhar udhar */
 function editDist(a, b){
@@ -2778,17 +2803,19 @@ function nameScore(a, b){
   return hit / Math.max(A.length, B.length);
 }
 /* Poori list mein se sab se behtar match. 0.82+ par khud match, 0.6+ par sirf mashwara. */
-function bestStudentMatch(name, regNo){
+function bestStudentMatch(name, regNo, shift){
   if(regNo){
     const byReg = DB.students.find(x=>keyify(x.regNo) === keyify(regNo));
     if(byReg) return {st:byReg, score:1, how:"regno"};
   }
-  let best = null;
+  let best = null, cross = null;     // cross = doosri shift ka wohi naam
   DB.students.forEach(st=>{
     const sc = nameScore(name, st.name);
+    if(!sc) return;
+    if(shift && st.shift !== shift){ if(!cross || sc > cross.score) cross = {st, score:sc, how:"name", otherShift:true}; return; }
     if(!best || sc > best.score) best = {st, score:sc, how:"name"};
   });
-  return best && best.score > 0 ? best : null;
+  return best || cross;
 }
 function teacherIdByName(v){
   const k = keyify(v); if(!k) return "";
@@ -2808,7 +2835,12 @@ const SUBJECT_ALIASES = {
   eng:"English Language", english:"English Language",
   isl:"Islamiyat", islamiat:"Islamiyat",
   pst:"Pakistan Studies", pakstudies:"Pakistan Studies", pakstudy:"Pakistan Studies",
-  stats:"Statistics", lit:"Literature in English", urdu:"Urdu"
+  stats:"Statistics", lit:"Literature in English", urdu:"Urdu",
+  buss:"Business Studies", che:"Chemistry", phys:"Physics",
+  isl:"Islamiyat", islamiat:"Islamiyat", islamiyat:"Islamiyat",
+  pakstu:"Pakistan Studies", pakstudies:"Pakistan Studies", paksts:"Pakistan Studies",
+  sst:"Social Studies", socialstudies:"Social Studies",
+  psy:"Psychology", psych:"Psychology", law:"Law", science:"Science"
 };
 /* Class ke offered subjects mein se sab se munasib naam chunta hai */
 function resolveSubject(raw, course){
@@ -2824,16 +2856,43 @@ function resolveSubject(raw, course){
     return alias;
   }
   const near = offered.find(x=>keyify(x.name).startsWith(k) || k.startsWith(keyify(x.name)));
-  return near ? near.name : String(raw).trim();
+  if(near) return near.name;
+  /* "(composite)" jaisi wazahat hata kar dobara koshish */
+  const bare = String(raw).replace(/\(.*?\)/g, "").trim();
+  if(bare && keyify(bare) !== k){ const r2 = resolveSubject(bare, course); if(r2) return r2; }
+  /* spelling ki chhoti ghalti — "Chemistrty", "Phycics", "Chemoistry" */
+  if(k.length >= 5){
+    const fz = offered.find(x=>editDist(keyify(x.name), k) <= 2);
+    if(fz) return fz.name;
+  }
+  return String(raw).trim();
 }
-/* "Physics:3000, Chemistry:2500:Sir Ali, Biology"  →  [{name, fee, teacherId}] */
+const isOffered = (nm, course) => subjectsForClass(course).some(x=>keyify(x.name) === keyify(nm));
+/* "Physics:3000, Chemistry:2500:Sir Ali, Biology"  →  [{name, fee, teacherId}]
+   Kuch sheets "Physics Chem Bio" ki tarah space se bhi likhti hain */
 function parseSubjects(v, course){
-  return String(v??"").split(/[;,|]/).map(x=>x.trim()).filter(Boolean).map(x=>{
-    const parts = x.split(/[:=]/).map(y=>y.trim());
-    return { name: course ? resolveSubject(parts[0], course) : parts[0],
-             fee: parts[1] !== undefined ? cleanNum(parts[1]) : 0,
-             teacherId: parts[2] ? teacherIdByName(parts[2]) : "" };
-  }).filter(x=>x.name);
+  const out = [];
+  String(v??"").split(/[;,|]/).map(x=>x.trim()).filter(Boolean).forEach(part=>{
+    const bits = part.split(/[:=]/).map(y=>y.trim());
+    const fee  = bits[1] !== undefined ? cleanNum(bits[1]) : 0;
+    const tId  = bits[2] ? teacherIdByName(bits[2]) : "";
+    const raw  = bits[0];
+    if(!course){ out.push({name:raw, fee, teacherId:tId}); return; }
+    /* "Physics Chem Bio" — agar har tukra apne aap mein subject hai to alag alag ginein.
+       "Pak studies" / "Math (composite)" mein tukre subject nahi bante, so wo saabit rehte hain. */
+    if(/\s/.test(raw)){
+      const pieces = raw.split(/\s+/).filter(Boolean);
+      if(pieces.length > 1){
+        const each = pieces.map(x=>resolveSubject(x, course));
+        if(each.every(x=>isOffered(x, course))){
+          each.forEach(x=>out.push({name:x, fee, teacherId:tId}));
+          return;
+        }
+      }
+    }
+    out.push({name:resolveSubject(raw, course), fee, teacherId:tId});
+  });
+  return out.filter(x=>x.name);
 }
 
 /* ---------- kya kya import ho sakta hai ---------- */
@@ -2892,7 +2951,17 @@ const IMPORT_TYPES = {
       {k:"regNo",      l:"Reg No",              syn:["regno","registrationno","rollno","roll"]},
       {k:"name",       l:"Student Name",        syn:["name","studentname","student","fullname"], req:true},
       {k:"course",     l:"Class / Grade",       syn:["class","grade","course","level"]},
-      {k:"tuition",    l:"Monthly Tuition Fee", syn:["monthlytuitionfee","monthlytutionfee","monthlyfee","tuitionfee","tutionfee","tuition","tution","monthly"]},
+      {k:"category",   l:"Student Category",    syn:["studentcategory","category","batchgrade"]},
+      {k:"parent",     l:"Parent / Father Name",syn:["parent","parentname","fathername","father","guardian"]},
+      {k:"phone",      l:"Student Contact",     syn:["scontact","studentcontact","studentphone","phone","mobile","cell"]},
+      {k:"parentPhone",l:"Parent Contact",      syn:["parentcontact","fathercontact","fatherphone","guardianphone"]},
+      {k:"subjects",   l:"Subjects",            syn:["subjects","subject","subjectlist","subjectgroup"], hint:"Math, Physics, CS"},
+      {k:"perSubjectFee", l:"Per Subject Fee",  syn:["persubjectfee","persubject","subjectfee","ratepersubject"]},
+      {k:"tuition",    l:"Total Fee (discount se pehle)", syn:["totalfee","monthlytuitionfee","monthlytutionfee","monthlyfee","tuitionfee","tutionfee","tuition","tution","monthly"]},
+      {k:"numSubjects",l:"Number Of Subjects",  syn:["numberofsubjects","nosubjects","subjectcount","numsubjects"]},
+      {k:"discount",   l:"Discount (Rs)",       syn:["discount","disc","concession"]},
+      {k:"discountPct",l:"Discount %",          syn:["discountpercentage","discountpercent","discpercent","percentage"]},
+      {k:"extras",     l:"Extras / Adjustment", syn:["extras","extra","adjustment","additional"]},
       {k:"chReg",      l:"Registration Fee",    syn:["registrationfee","regfee"]},
       {k:"chBag",      l:"Bag Pack",            syn:["bagpack","bagpackcharges","bagcharges","books"]},
       {k:"chAdm",      l:"Admission Fee",       syn:["admissionfee","admissioncharges"]},
@@ -3041,6 +3110,10 @@ function impRender(){
         <select id="imp_dup"><option value="skip">Skip kar dein</option><option value="update">Update kar dein</option></select></div>
       ${impType==="fees"? `
       <div class="field"><label>Fee Month *</label><input type="month" id="imp_month" value="${thisMonth()}"></div>
+      <div class="field"><label>Shift</label>
+        <select id="imp_feeshift" onchange="impSyncFeeCourse()"><option>Morning</option><option>Evening</option></select></div>
+      <div class="field"><label>Class (jahan sheet mein na ho)</label>
+        <select id="imp_feecourse">${courseOptions(undefined,"Morning")}</select></div>
       <div class="field"><label>Student na mile to</label>
         <select id="imp_mk"><option value="1">Naya student bana dein</option><option value="0">Row skip kar dein</option></select></div>
       <div class="field"><label>Student ki monthly fee</label>
@@ -3065,6 +3138,9 @@ function impRender(){
       <button class="btn-red" onclick="runImport()" ${missingReq.length?"disabled style='opacity:.5;cursor:not-allowed'":""}>⬆ Import ${body.length} Rows</button>
     </div>`;
 }
+function impSyncFeeCourse(){
+  $("imp_feecourse").innerHTML = courseOptions(undefined, $("imp_feeshift").value);
+}
 function impSyncCourse(){
   const sh = $("imp_shift").value;
   $("imp_course").innerHTML = courseOptions(undefined, sh);
@@ -3077,6 +3153,8 @@ function runImport(){
   const defShift  = $("imp_shift")? $("imp_shift").value : "Evening";
   const defCourse = $("imp_course")? $("imp_course").value : "";
   const addComp = $("imp_comp") ? $("imp_comp").value === "1" : false;
+  const feeShift = $("imp_feeshift") ? $("imp_feeshift").value : "Morning";
+  let sectionClass = "";
   let added = 0, updated = 0, skipped = 0;
   const issues = [], seen = new Map();
   const note = (line, msg) => issues.push({line, msg});
@@ -3085,9 +3163,26 @@ function runImport(){
     const line = impLineNos[idx + 1] || (idx + 2);         // CSV ki asal line
     const g = k => impMap[k] === undefined ? "" : String(r[impMap[k]] ?? "").trim();
     const name = g("name");
+
+    /* Kuch sheets mein class beech mein aik alag row ki soorat mein likhi hoti hai
+       ("A Levels-2026-27", "Pre O Level") — us ke baad wale sab students usi class ke hain */
+    if(impType === "fees"){
+      const first = String(r[0] ?? "").trim();
+      const label = name || (/^\d+$/.test(first) ? "" : first);
+      const hasInfo  = g("subjects") || g("phone") || g("parentPhone") || g("parent");
+      const hasMoney = ["tuition","amount","paidAmount","balance","discount","perSubjectFee","chReg","extras"]
+                         .some(k => cleanNum(g(k)));
+      if(label && !hasInfo && !hasMoney){
+        const c = matchClass(label, feeShift);
+        if(c){ sectionClass = c; note(line, `Section "${label}" → class ${c}`); }
+        else   note(line, `Section "${label}" kisi class se match nahi hui — pichli class chalti rahegi`);
+        skipped++; return;
+      }
+    }
+
     if(!name){
       /* Excel ki aakhri khali rows mein sirf serial number hota hai — un par shor na machayein */
-      const anything = def.fields.some(f => f.k !== "regNo" && g(f.k));
+      const anything = def.fields.some(f => f.k !== "regNo" && g(f.k) && g(f.k) !== "0");
       if(anything){ skipped++; note(line, "Name khali hai"); } else skipped++;
       return;
     }
@@ -3197,16 +3292,55 @@ function runImport(){
       const makeSt = $("imp_mk").value === "1";
       const updFee = $("imp_updfee").value === "1";
 
-      const tuition = cleanNum(g("tuition"));
+      const defC   = $("imp_feecourse") ? $("imp_feecourse").value : "";
+      const course = matchClass(g("category"), feeShift) || matchClass(g("course"), feeShift)
+                   || sectionClass || defC;
+
+      /* Evening sheets mein subjects aur unka per-subject rate hota hai */
+      const subjRaw = g("subjects");
+      const perFee  = cleanNum(g("perSubjectFee"));
+      const allSub  = /^all\s*subjects?$/i.test(subjRaw);
+      let subjects  = [];
+      if(subjRaw && !allSub){
+        subjects = parseSubjects(subjRaw, course).map(x=>({...x, fee: x.fee || perFee}));
+        const unknown = subjects.filter(x=>!isOffered(x.name, course)).map(x=>x.name);
+        if(unknown.length) note(line, `Subjects catalogue mein nahi: ${unknown.join(", ")} (phir bhi lag gaye)`);
+        const said = cleanNum(g("numSubjects"));
+        if(said && said !== subjects.length)
+          note(line, `sheet kehti hai ${said} subjects, list mein ${subjects.length} mile`);
+      }else if(allSub){
+        seedInto(subjects, course);
+        note(line, `"All subjects" likha hai — ${course} ke compulsory subjects lagaye (fee alag se total se aayegi)`);
+      }
+
+      /* Evening mein student ki monthly fee uske subjects ka total hoti hai. Agar sheet ka
+         "Per Subject Fee × subjects" us ke "Total Fee" se mail na khaye to Total Fee ko
+         sach maan kar subjects par baraabar baant dete hain — warna student ki fee ghalat ho jati. */
+      const sheetFee = cleanNum(g("tuition"));
+      let subjTot = subjects.reduce((a,x)=>a+(+x.fee||0), 0);
+      if(sheetFee && subjects.length && subjTot !== sheetFee){
+        const each = Math.round(sheetFee / subjects.length);
+        subjects.forEach((x,i)=>{ x.fee = i === 0 ? sheetFee - each*(subjects.length-1) : each; });
+        note(line, `per-subject ${money(perFee)} × ${subjects.length} = ${money(subjTot)} tha magar Total Fee ${money(sheetFee)} hai — fee subjects par baraabar baant di`);
+        subjTot = sheetFee;
+      }
+      const tuition = sheetFee || subjTot;
+      const discount = Math.min(cleanNum(g("discount")), tuition || Infinity);
       const items = [];
       [["Registration Fee","chReg"], ["Bag Pack","chBag"], ["Admission Fee","chAdm"],
-       ["Security Deposit","chSec"], ["Arrears","arrears"], ["Credit / Adjustment","credit"]]
+       ["Security Deposit","chSec"], ["Arrears","arrears"], ["Credit / Adjustment","credit"],
+       ["Extras / Adjustment","extras"]]
         .forEach(([desc,k])=>{ const amt = cleanNum(g(k)); if(amt) items.push({desc, amt}); });
       const itemsTot = items.reduce((a,x)=>a+x.amt, 0);
       const sheetTot = cleanNum(g("amount"));
-      const amount   = sheetTot || (tuition + itemsTot);
-      if(sheetTot && sheetTot !== tuition + itemsTot)
-        note(line, `Total Payable ${money(sheetTot)} hai magar fee+charges ${money(tuition + itemsTot)} bante hain — sheet wala total rakha`);
+      const calcTot  = tuition - discount + itemsTot;
+      const amount   = g("amount") !== "" ? sheetTot : calcTot;
+      if(g("amount") !== "" && sheetTot !== calcTot)
+        note(line, `Total Payable ${money(sheetTot)} hai magar fee ${money(tuition)}${discount?` − discount ${money(discount)}`:""}${itemsTot?` + extras ${money(itemsTot)}`:""} = ${money(calcTot)} — sheet wala total rakha`);
+      const pct = tuition ? Math.round(discount / tuition * 1000) / 10 : 0;
+      const saidPct = cleanNum(g("discountPct"));
+      if(saidPct && Math.abs(saidPct - pct) > 2)
+        note(line, `sheet mein discount ${saidPct}% likha hai, asal ${pct}% banta hai (${money(discount)} / ${money(tuition)})`);
 
       const paidAmount = cleanNum(g("paidAmount"));
       const status = normFeeStatus(g("status"), amount, paidAmount);
@@ -3214,35 +3348,46 @@ function runImport(){
       if(status === "Paid" && balance > 0)
         note(line, `"Paid" likha hai magar ${money(balance)} balance baqi hai`);
 
-      /* student dhoondho — naam thora alag likha ho to bhi */
-      const m = bestStudentMatch(name, g("regNo"));
-      let st = (m && m.score >= 0.82) ? m.st : null;
+      /* student dhoondho — naam thora alag likha ho to bhi, magar shift ka khayal rakh kar */
+      const m = bestStudentMatch(name, g("regNo"), feeShift);
+      let st = (m && m.score >= 0.82 && !m.otherShift) ? m.st : null;
+      if(!st && m && m.otherShift && m.score >= 0.82)
+        note(line, `"${name}" pehle se ${m.st.shift} shift mein hai (${m.st.regNo}) — ${feeShift} ke liye alag record banaya`);
       if(st && m.how === "name" && keyify(name) !== keyify(st.name))
         note(line, `"${name}" ko mojood student "${st.name}" se match kiya (${Math.round(m.score*100)}%)`);
-      if(!st && m && m.score >= 0.6)
+      if(!st && m && m.score >= 0.5)
         note(line, `"${name}" naya bana diya — shayad ye mojood "${m.st.name}" hi ho (${Math.round(m.score*100)}%), check kar lein`);
 
       if(!st){
         if(!makeSt){ skipped++; note(line, `"${name}" EMS mein nahi mila — row skip`); return; }
-        const shift = "Morning";
-        const course = matchClass(g("course"), shift) || defCourse;
         st = { id:uid(), photo:null,
                regNo:"REG-" + new Date().getFullYear() + "-" + String(DB.counters.reg++).padStart(4,"0"),
-               name, fatherName:"", cnic:"", fatherCnic:"", phone:"", fatherPhone:"", motherPhone:"",
+               name, fatherName:g("parent"), cnic:"", fatherCnic:"",
+               phone:cleanPhone(g("phone")), fatherPhone:cleanPhone(g("parentPhone")), motherPhone:"",
                address:"", dob:"", doj:todayStr(), education:"", prevInst:"",
-               course, shift, monthlyFee:tuition, teacherId:"", subjects:[], groupOverride:"",
+               course, shift:feeShift, monthlyFee:tuition, teacherId:"",
+               subjects:subjects.map(x=>({...x})), groupOverride:"",
                group:"", status:"Active", charges:[] };
-        if(addComp) seedInto(st.subjects, course);
-        st.group = hasGroups(shift, course) ? detectGroup(st.subjects, course) : "";
+        if(addComp && feeShift === "Morning") seedInto(st.subjects, course);
+        st.group = hasGroups(feeShift, course) ? detectGroup(st.subjects, course) : "";
         DB.students.push(st);
-        note(line, `"${name}" EMS mein nahi tha — naya student bana diya (${st.regNo}, ${course})`);
+        note(line, `"${name}" EMS mein nahi tha — naya student bana diya (${st.regNo}, ${course}${subjects.length?`, ${subjects.length} subjects`:""})`);
       }else{
-        const c = matchClass(g("course"), st.shift);
-        if(c && c !== st.course) note(line, `${st.name}: grade sheet mein "${c}" hai, EMS mein "${st.course}" — EMS wala rakha`);
-        if(updFee && tuition && +st.monthlyFee !== tuition){
-          note(line, `${st.name}: monthly fee ${money(st.monthlyFee)} → ${money(tuition)}`);
-          st.monthlyFee = tuition;
+        if(course && course !== st.course)
+          note(line, `${st.name}: class sheet mein "${course}" hai, EMS mein "${st.course}" — EMS wali rakhi`);
+        const sameClass = !course || course === st.course;
+        if(!sameClass)
+          note(line, `${st.name}: ye row ${course} ki hai magar student ${st.course} mein hai — challan bana diya, uske subjects/fee ko haath nahi lagaya`);
+        if(updFee && sameClass){
+          if(tuition && +st.monthlyFee !== tuition){
+            note(line, `${st.name}: monthly fee ${money(st.monthlyFee)} → ${money(tuition)}`);
+            st.monthlyFee = tuition;
+          }
+          if(subjects.length) st.subjects = subjects.map(x=>({...x}));
         }
+        if(!st.fatherName && g("parent"))     st.fatherName  = g("parent");
+        if(!st.phone && g("phone"))           st.phone       = cleanPhone(g("phone"));
+        if(!st.fatherPhone && g("parentPhone")) st.fatherPhone = cleanPhone(g("parentPhone"));
       }
 
       const rem = [g("method"), g("account"), g("remarks")].filter(Boolean).join(" · ");
@@ -3253,16 +3398,16 @@ function runImport(){
         if(d && Math.abs(+d.slice(0,4) - yr) > 1) note(line, `${l} "${d}" fee month ${month} se bohat door hai — check kar lein`);
       });
 
-      const dupKey = st.id + "|" + month;
+      const dupKey = st.id + "|" + month + "|" + (course || st.course);
       if(seen.has(dupKey)) note(line, `${st.name} ka ${fmtM(month)} ka challan isi file mein dobara aaya (line ${seen.get(dupKey)})`);
       seen.set(dupKey, line);
 
-      const hit = DB.fees.find(f=>f.studentId === st.id && f.month === month);
+      const hit = DB.fees.find(f=>f.studentId === st.id && f.month === month && (f.course||"") === (course || st.course));
       const rec = {
         studentId:st.id, month, tuition, items, amount,
-        discount:0, discountPct:0,
-        subjects:(st.subjects||[]).map(x=>({name:x.name, fee:+x.fee||0, disc:0, teacherId:x.teacherId||""})),
-        course:st.course, group:groupOf(st), shift:st.shift,
+        discount, discountPct:pct,
+        subjects:(subjects.length? subjects : (st.subjects||[])).map(x=>({name:x.name, fee:+x.fee||0, disc:0, teacherId:x.teacherId||""})),
+        course: course || st.course, group:groupOf(st), shift:st.shift,
         dueDate, status, paidDate: status === "Paid" ? (paidDate || "") : "",
         paidAmount, balance, remarks:rem
       };
