@@ -100,7 +100,8 @@ tr:hover td{background:var(--soft)}
 .b-unpaid{background:var(--danger);color:#fff}
 .b-P{background:var(--black);color:#fff}
 .b-A{background:var(--danger);color:#fff}
-.b-L{background:#e3e3e3;color:#444}
+.b-L{background:var(--accent);color:#5a4210}
+.b-E{background:#e3e3e3;color:#444}
 
 /* ---------- Avatars ---------- */
 .avatar{width:38px;height:38px;border-radius:50%;object-fit:cover;border:2px solid var(--black);background:var(--soft)}
@@ -140,7 +141,8 @@ tr:hover td{background:var(--soft)}
 .att-opts button{padding:5px 10px;border:1px solid #c9c9c9;background:#fff;border-radius:6px;font-size:.78rem;font-weight:700}
 .att-opts button.selP{background:var(--black);color:#fff;border-color:var(--black)}
 .att-opts button.selA{background:var(--danger);color:#fff;border-color:var(--danger)}
-.att-opts button.selL{background:#bdbdbd;color:#fff;border-color:#bdbdbd}
+.att-opts button.selL{background:var(--accent);color:#5a4210;border-color:var(--accent-dark)}
+.att-opts button.selE{background:#bdbdbd;color:#fff;border-color:#bdbdbd}
 .toast{position:fixed;bottom:22px;right:22px;background:var(--black);color:#fff;padding:12px 18px;border-radius:10px;border-left:4px solid var(--red);font-size:.9rem;display:none;z-index:99}
 .toast.show{display:block;animation:fade .2s ease}
 
@@ -305,7 +307,10 @@ tr:hover td{background:var(--soft)}
 
 <!-- ================= ATTENDANCE ================= -->
 <section class="page" id="page-attendance">
-  <div class="page-head"><div><h2>Attendance</h2><div class="sub">Working days: Monday – Friday · Saturday & Sunday off</div></div></div>
+  <div class="page-head">
+    <div><h2>Attendance</h2><div class="sub">Working days: Monday – Friday · Saturday & Sunday off · P = Present, L = Late, A = Absent, E = Leave</div></div>
+    <button class="btn-black" onclick="openImport('attendance')">⬆ Import Monthly Sheet (CSV)</button>
+  </div>
   <div class="panel">
     <div class="toolbar">
       <div class="field"><label>Date</label><input type="date" id="attDate" onchange="loadAttendance()"></div>
@@ -419,9 +424,11 @@ tr:hover td{background:var(--soft)}
   </div>
   <div class="toolbar">
     <div class="field"><label>Category</label><select id="empFCat" onchange="renderEmployees()"><option value="">All</option><option>Admin</option><option>Teacher</option><option>Coordinator</option><option>Supportive Staff</option></select></div>
+    <div class="field"><label>Shift</label><select id="empFShift" onchange="renderEmployees()"><option value="">All Shifts</option><option>Morning</option><option>Evening</option><option>Both</option></select></div>
+    <div class="field" style="flex:1;min-width:170px"><label>Search</label><input id="empSearch" placeholder="Naam" oninput="renderEmployees()"></div>
   </div>
   <div class="tbl-wrap"><table>
-    <thead><tr><th>#</th><th></th><th>Name</th><th>Category</th><th>Phone</th><th>Joining Date</th><th>Assignments (Class · Shift)</th><th>Actions</th></tr></thead>
+    <thead><tr><th>#</th><th></th><th>Name</th><th>Category</th><th>Shift</th><th>Phone</th><th>Joining Date</th><th>Assignments (Class · Shift)</th><th>Actions</th></tr></thead>
     <tbody id="empRows"></tbody>
   </table></div>
 
@@ -676,6 +683,12 @@ const COURSES = [...new Set([...CLASSES_BY_SHIFT.Morning, ...CLASSES_BY_SHIFT.Ev
 const SHIFTS = {Morning:"School System", Evening:"Academy"};
 const SHIFT_START = {Morning:"08:00", Evening:"15:00"};
 
+/* Attendance ke chaar nishaan — academy ki sheet isi tarteeb se chalti hai.
+   Late bhi haazri mein ginta hai, Leave/Excuse nahi. */
+const ATT_ORDER = ["P","L","A","E"];
+const ATT_LABEL = {P:"Present", L:"Late", A:"Absent", E:"Leave"};
+const attPresent = c => c === "P" || c === "L";
+
 /* ---------- Class → level (subject list isi se filter hoti hai) ---------- */
 const CLASS_LEVEL = {
   "FT1":"O Level", "FT2":"O Level", "O1":"O Level", "O2":"O Level", "O3 (Appearing Batch)":"O Level",
@@ -716,7 +729,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v14 · 21 Sept 2026";
+const BUILD = "v16 · 21 Sept 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -863,6 +876,7 @@ if(!Array.isArray(DB.issues))    DB.issues = [];
 /* Pehle "issued" ek sada ginti thi. Ab har issuance ka record banta hai, is liye
    purani ginti ko "opening" maan lete hain aur log us ke upar jama hota hai. */
 DB.inventory.forEach(x=>{ if(x.issuedOpening === undefined) x.issuedOpening = +x.issued || 0; });
+DB.employees.forEach(e=>{ if(!e.shift) e.shift = (e.assignments||[])[0]?.shift || "Morning"; });
 DB.txns.forEach(t=>{
   if(!t.category) t.category = guessCat(t.desc) || (t.type==="Income"?"Other Income":"Other");
   if(!t.status)   t.status   = "Paid";
@@ -1313,12 +1327,16 @@ function renderGallery(){
 
 /* ---------- Attendance summary for profile ---------- */
 function attSummary(sid, doj){
-  let P=0,A=0,L=0;
-  for(const d in DB.attendance){ const r=DB.attendance[d][sid]; if(!r) continue; if(r.s==="P")P++; else if(r.s==="A")A++; else if(r.s==="L")L++; }
+  let P=0,A=0,L=0,E=0;
+  for(const d in DB.attendance){
+    const r=DB.attendance[d][sid]; if(!r) continue;
+    if(r.s==="P")P++; else if(r.s==="A")A++; else if(r.s==="L")L++; else if(r.s==="E")E++;
+  }
   let wd=0; const start=new Date((doj||todayStr())+"T00:00"), end=new Date();
   for(let d=new Date(start); d<=end; d.setDate(d.getDate()+1)){ const day=d.getDay(); if(day!==0&&day!==6) wd++; }
-  const marked=P+A+L, pct = marked? Math.round(P/marked*100) : 0;
-  return {P,A,L,wd,off:Math.max(0,Math.round((end-start)/864e5)+1-wd),marked,pct};
+  const marked=P+A+L+E;
+  const pct = marked? Math.round((P+L)/marked*100) : 0;   // Late bhi haazri hai
+  return {P,A,L,E,wd,off:Math.max(0,Math.round((end-start)/864e5)+1-wd),marked,pct};
 }
 
 /* ---------- Student profile ---------- */
@@ -1352,7 +1370,7 @@ function openProfile(id){
     </tr>`;
   }).join("");
   const attRows = Object.keys(DB.attendance).filter(d=>DB.attendance[d][id]).sort().reverse().slice(0,60)
-    .map(d=>{ const r=DB.attendance[d][id]; return `<tr><td>${fmtD(d)}</td><td><span class="badge b-${r.s}">${r.s==="P"?"Present":r.s==="A"?"Absent":"Leave"}</span></td><td>${r.t||"—"}</td><td>${r.shift||""}</td></tr>`; }).join("");
+    .map(d=>{ const r=DB.attendance[d][id]; return `<tr><td>${fmtD(d)}</td><td><span class="badge b-${r.s}">${ATT_LABEL[r.s]||r.s}</span></td><td>${r.t||"—"}</td><td>${r.shift||""}</td></tr>`; }).join("");
   openModal(`
     <h3>Student Profile</h3>
     <div class="profile-top">
@@ -1391,8 +1409,9 @@ function openProfile(id){
       <div class="stat"><b>${a.wd}</b><span>Working Days</span></div>
       <div class="stat"><b>${a.off}</b><span>Off Days</span></div>
       <div class="stat"><b>${a.P}</b><span>Present</span></div>
-      <div class="stat"><b style="color:var(--red)">${a.A}</b><span>Absent</span></div>
-      <div class="stat"><b>${a.L}</b><span>Leaves</span></div>
+      <div class="stat"><b>${a.L}</b><span>Late</span></div>
+      <div class="stat"><b style="color:var(--danger)">${a.A}</b><span>Absent</span></div>
+      <div class="stat"><b>${a.E}</b><span>Leave</span></div>
       <div class="stat"><b>${a.pct}%</b><span>Attendance</span><div class="att-bar"><i style="width:${a.pct}%"></i></div></div>
     </div>
     ${sibHTML}
@@ -1496,7 +1515,7 @@ function downloadProfile(id){
     </table>
     <div style="font-weight:800;border-left:4px solid #159670;padding-left:8px;margin:14px 0 8px">Attendance Summary</div>
     <div style="display:flex;gap:8px;margin-bottom:12px">
-      ${statBox(a.wd,"Working Days")}${statBox(a.P,"Present","color:#0f7b3d")}${statBox(a.A,"Absent","color:#C0392B")}${statBox(a.L,"Leaves")}${statBox(a.pct+"%","Attendance")}
+      ${statBox(a.wd,"Working Days")}${statBox(a.P,"Present","color:#0f7b3d")}${statBox(a.L,"Late")}${statBox(a.A,"Absent","color:#C0392B")}${statBox(a.E,"Leave")}${statBox(a.pct+"%","Attendance")}
     </div>
     <div style="font-weight:800;border-left:4px solid #159670;padding-left:8px;margin:14px 0 8px">Fee Record &nbsp;<span style="font-weight:600;font-size:.75rem;color:#555">Paid: ${money(paidT)} · Due: ${money(dueT)}</span></div>
     <table style="width:100%;border-collapse:collapse;margin-bottom:12px">
@@ -1561,9 +1580,7 @@ function loadAttendance(){
       <td>${esc(s.name)}</td>
       <td>${esc(s.course)}</td>
       <td><div class="att-opts" id="opt_${s.id}">
-        <button class="${r.s==="P"?"selP":""}" onclick="mark('${s.id}','P')">Present</button>
-        <button class="${r.s==="A"?"selA":""}" onclick="mark('${s.id}','A')">Absent</button>
-        <button class="${r.s==="L"?"selL":""}" onclick="mark('${s.id}','L')">Leave</button>
+        ${ATT_ORDER.map(c=>`<button class="${r.s===c?"sel"+c:""}" onclick="mark('${s.id}','${c}')">${ATT_LABEL[c]}</button>`).join("")}
       </div></td>
       <td style="max-width:120px"><input type="time" value="${r.t||SHIFT_START[shift]}" onchange="attDraft['${s.id}'].t=this.value"></td>
     </tr>`;
@@ -1574,11 +1591,13 @@ function mark(sid, st){
   attDraft[sid].s = st;
   const box = $("opt_"+sid).querySelectorAll("button");
   box.forEach(b=>b.className="");
-  box[st==="P"?0:st==="A"?1:2].className = "sel"+st;
+  const i = ATT_ORDER.indexOf(st);
+  if(box[i]) box[i].className = "sel" + st;
 }
 function markAll(st){
   if(!attDraft){ toast("Off day par attendance nahi lagti"); return; }
-  for(const sid in attDraft){ attDraft[sid].s = st; const box=$("opt_"+sid); if(box){ box.querySelectorAll("button").forEach(b=>b.className=""); box.querySelectorAll("button")[0].className="selP"; } }
+  const i = ATT_ORDER.indexOf(st);
+  for(const sid in attDraft){ attDraft[sid].s = st; const box=$("opt_"+sid); if(box){ const bs=box.querySelectorAll("button"); bs.forEach(b=>b.className=""); if(bs[i]) bs[i].className="sel"+st; } }
 }
 function saveAttendance(){
   if(!attDraft){ toast("Off day par attendance save nahi ho sakti"); return; }
@@ -1602,15 +1621,15 @@ function attReportData(){
   }
   const stus = DB.students.filter(s=>(!sh || s.shift===sh)).sort((a,b)=>a.regNo.localeCompare(b.regNo));
   const rows = stus.map(s=>{
-    let P=0,A=0,L=0;
+    let P=0,A=0,L=0,E=0;
     const marks = days.map(d=>{
       const r = (DB.attendance[d]||{})[s.id];
       if(!r) return "—";
-      if(r.s==="P")P++; else if(r.s==="A")A++; else if(r.s==="L")L++;
+      if(r.s==="P")P++; else if(r.s==="A")A++; else if(r.s==="L")L++; else if(r.s==="E")E++;
       return r.s;
     });
-    const marked=P+A+L, pct = marked? Math.round(P/marked*100) : 0;
-    return {s, marks, P, A, L, pct};
+    const marked=P+A+L+E, pct = marked? Math.round((P+L)/marked*100) : 0;
+    return {s, marks, P, A, L, E, pct};
   });
   return {m, sh, days, rows};
 }
@@ -1618,11 +1637,11 @@ function exportAttCSV(){
   const {m, sh, days, rows} = attReportData();
   if(!rows.length){ toast(sh? `${sh} shift mein koi student nahi — "Both Shifts" chun kar dekhein`
                             : "Abhi koi student enroll nahi hua"); return; }
-  const head = ["Reg No","Name","Class","Shift", ...days.map(d=>d.slice(8)), "Present","Absent","Leave","%"];
+  const head = ["Reg No","Name","Class","Shift", ...days.map(d=>d.slice(8)), "Present","Late","Absent","Leave","%"];
   const csvEsc = v => `"${String(v??"").replace(/"/g,'""')}"`;
   const lines = [head.map(csvEsc).join(",")];
   rows.forEach(r=>{
-    lines.push([r.s.regNo, r.s.name, r.s.course, r.s.shift, ...r.marks, r.P, r.A, r.L, r.pct+"%"].map(csvEsc).join(","));
+    lines.push([r.s.regNo, r.s.name, r.s.course, r.s.shift, ...r.marks, r.P, r.L, r.A, r.E, r.pct+"%"].map(csvEsc).join(","));
   });
   const blob = new Blob(["\ufeff"+lines.join("\r\n")],{type:"text/csv;charset=utf-8"});
   const a = document.createElement("a");
@@ -1642,22 +1661,23 @@ function exportAttPDF(){
     <td style="border:1px solid #999;padding:3px 5px;white-space:nowrap">${esc(r.s.name)}</td>
     ${r.marks.map(x=>`<td style="border:1px solid #999;padding:3px 2px;text-align:center;font-size:.65rem;${x==="A"?"color:#C0392B;font-weight:700":x==="P"?"color:#0f7b3d":""}">${x}</td>`).join("")}
     <td style="border:1px solid #999;padding:3px 5px;text-align:center"><b>${r.P}</b></td>
-    <td style="border:1px solid #999;padding:3px 5px;text-align:center;color:#C0392B">${r.A}</td>
     <td style="border:1px solid #999;padding:3px 5px;text-align:center">${r.L}</td>
+    <td style="border:1px solid #999;padding:3px 5px;text-align:center;color:#C0392B">${r.A}</td>
+    <td style="border:1px solid #999;padding:3px 5px;text-align:center">${r.E}</td>
     <td style="border:1px solid #999;padding:3px 5px;text-align:center"><b>${r.pct}%</b></td>
   </tr>`).join("");
   $("challanPrint").innerHTML = `
     <div style="font-size:.75rem">
       <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #174B60;padding-bottom:8px;margin-bottom:10px">
         <div style="display:flex;gap:10px;align-items:center">${A.logo?`<img src="${A.logo}" style="height:44px;width:auto;object-fit:contain">`:""}<div><div style="font-size:1.15rem;font-weight:900">${esc(A.name||"Cambridge Grads Academy")}</div><div style="font-size:.7rem;color:#555">${esc(A.addr||"")} ${A.phone?("· "+esc(A.phone)):""}</div></div></div>
-        <div style="text-align:right"><b>ATTENDANCE REGISTER</b><br>${fmtM(m)} · ${sh||"Both Shifts"}<br><span style="color:#555">P = Present · A = Absent · L = Leave · — = Not marked</span></div>
+        <div style="text-align:right"><b>ATTENDANCE REGISTER</b><br>${fmtM(m)} · ${sh||"Both Shifts"}<br><span style="color:#555">P = Present · L = Late · A = Absent · E = Leave · — = Not marked</span></div>
       </div>
       <table style="width:100%;border-collapse:collapse">
         <thead><tr>
           <th style="border:1px solid #999;padding:3px 5px">Reg No</th>
           <th style="border:1px solid #999;padding:3px 5px">Name</th>
           ${th}
-          <th style="border:1px solid #999;padding:3px 3px">P</th><th style="border:1px solid #999;padding:3px 3px">A</th><th style="border:1px solid #999;padding:3px 3px">L</th><th style="border:1px solid #999;padding:3px 3px">%</th>
+          <th style="border:1px solid #999;padding:3px 3px">P</th><th style="border:1px solid #999;padding:3px 3px">L</th><th style="border:1px solid #999;padding:3px 3px">A</th><th style="border:1px solid #999;padding:3px 3px">E</th><th style="border:1px solid #999;padding:3px 3px">%</th>
         </tr></thead>
         <tbody>${body}</tbody>
       </table>
@@ -2441,14 +2461,21 @@ function printReportCard(){ $("challanPrint").innerHTML = transcriptHTML(reportC
 /* ================= EMPLOYEES ================= */
 let asgDraft = [];
 function renderEmployees(){
-  const fc = $("empFCat").value;
-  const rows = DB.employees.filter(e=>!fc||e.category===fc).sort((a,b)=>a.name.localeCompare(b.name));
+  const fc = $("empFCat").value, fs = $("empFShift") ? $("empFShift").value : "";
+  const q = ($("empSearch") ? $("empSearch").value : "").toLowerCase();
+  const rows = DB.employees.filter(e=>{
+    if(fc && e.category !== fc) return false;
+    if(fs && e.shift !== fs && e.shift !== "Both") return false;
+    if(q && !String(e.name||"").toLowerCase().includes(q)) return false;
+    return true;
+  }).sort((a,b)=>a.name.localeCompare(b.name));
   $("empRows").innerHTML = rows.length? rows.map((e,i)=>`
     <tr>
       <td><b>${i+1}</b></td>
       <td>${avatarHTML(e)}</td>
       <td><b>${esc(e.name)}</b></td>
       <td><span class="badge ${e.category==="Teacher"?"b-active":"b-freeze"}">${e.category}</span></td>
+      <td><span class="chip">${esc(e.shift||"Morning")}</span></td>
       <td>${esc(e.phone||"—")}</td>
       <td>${fmtD(e.doj)}</td>
       <td>${(e.assignments||[]).map(a=>`<span class="chip">${esc(a.course)} · ${a.shift}</span>`).join(" ")||"—"}</td>
@@ -2457,7 +2484,7 @@ function renderEmployees(){
         <button class="btn-line btn-sm" onclick="openEmpForm('${e.id}')">Edit</button>
         <button class="btn-danger btn-sm" onclick="delEmp('${e.id}')">Delete</button>
       </td>
-    </tr>`).join("") : `<tr><td colspan="8" class="empty">Koi employee nahi — "New Employee" se add karein.</td></tr>`;
+    </tr>`).join("") : `<tr><td colspan="9" class="empty">Koi employee nahi — "New Employee" se add karein.</td></tr>`;
   loadEmpAttendance();
 }
 
@@ -2486,9 +2513,7 @@ function loadEmpAttendance(){
       <td><b>${esc(e.name)}</b></td>
       <td>${e.category}</td>
       <td><div class="att-opts" id="eopt_${e.id}">
-        <button class="${r.s==="P"?"selP":""}" onclick="empMark('${e.id}','P')">Present</button>
-        <button class="${r.s==="A"?"selA":""}" onclick="empMark('${e.id}','A')">Absent</button>
-        <button class="${r.s==="L"?"selL":""}" onclick="empMark('${e.id}','L')">Leave</button>
+        ${ATT_ORDER.map(c=>`<button class="${r.s===c?"sel"+c:""}" onclick="empMark('${e.id}','${c}')">${ATT_LABEL[c]}</button>`).join("")}
       </div></td>
       <td style="max-width:120px"><input type="time" value="${r.t||"09:00"}" onchange="empAttDraft['${e.id}'].t=this.value"></td>
     </tr>`;
@@ -2499,11 +2524,13 @@ function empMark(eid, st){
   empAttDraft[eid].s = st;
   const box = $("eopt_"+eid).querySelectorAll("button");
   box.forEach(b=>b.className="");
-  box[st==="P"?0:st==="A"?1:2].className = "sel"+st;
+  const i = ATT_ORDER.indexOf(st);
+  if(box[i]) box[i].className = "sel" + st;
 }
 function empMarkAll(st){
   if(!empAttDraft){ toast("Off day par attendance nahi lagti"); return; }
-  for(const eid in empAttDraft){ empAttDraft[eid].s = st; const box=$("eopt_"+eid); if(box){ box.querySelectorAll("button").forEach(b=>b.className=""); box.querySelectorAll("button")[0].className="selP"; } }
+  const j = ATT_ORDER.indexOf(st);
+  for(const eid in empAttDraft){ empAttDraft[eid].s = st; const box=$("eopt_"+eid); if(box){ const bs=box.querySelectorAll("button"); bs.forEach(b=>b.className=""); if(bs[j]) bs[j].className="sel"+st; } }
 }
 function saveEmpAttendance(){
   if(!empAttDraft){ toast("Off day par attendance save nahi ho sakti"); return; }
@@ -2514,10 +2541,10 @@ function saveEmpAttendance(){
   save(); toast(`Staff attendance saved — ${n} employees (${fmtD(date)})`);
 }
 function empAttSummary(eid, doj){
-  let P=0,A=0,L=0;
-  for(const d in DB.empAttendance){ const r=DB.empAttendance[d][eid]; if(!r) continue; if(r.s==="P")P++; else if(r.s==="A")A++; else if(r.s==="L")L++; }
-  const marked=P+A+L, pct = marked? Math.round(P/marked*100) : 0;
-  return {P,A,L,marked,pct};
+  let P=0,A=0,L=0,E=0;
+  for(const d in DB.empAttendance){ const r=DB.empAttendance[d][eid]; if(!r) continue; if(r.s==="P")P++; else if(r.s==="A")A++; else if(r.s==="L")L++; else if(r.s==="E")E++; }
+  const marked=P+A+L+E, pct = marked? Math.round((P+L)/marked*100) : 0;
+  return {P,A,L,E,marked,pct};
 }
 function empAttReportData(){
   if(!$("empAttRepMonth").value) $("empAttRepMonth").value = thisMonth();
@@ -2531,26 +2558,26 @@ function empAttReportData(){
   }
   const emps = [...DB.employees].sort((a,b)=>a.name.localeCompare(b.name));
   const rows = emps.map(e=>{
-    let P=0,A=0,L=0;
+    let P=0,A=0,L=0,E=0;
     const marks = days.map(d=>{
       const r = (DB.empAttendance[d]||{})[e.id];
       if(!r) return "—";
-      if(r.s==="P")P++; else if(r.s==="A")A++; else if(r.s==="L")L++;
+      if(r.s==="P")P++; else if(r.s==="A")A++; else if(r.s==="L")L++; else if(r.s==="E")E++;
       return r.s;
     });
-    const marked=P+A+L, pct = marked? Math.round(P/marked*100) : 0;
-    return {e, marks, P, A, L, pct};
+    const marked=P+A+L+E, pct = marked? Math.round((P+L)/marked*100) : 0;
+    return {e, marks, P, A, L, E, pct};
   });
   return {m, days, rows};
 }
 function exportEmpAttCSV(){
   const {m, days, rows} = empAttReportData();
   if(!rows.length){ toast("Koi employee add nahi hua — pehle Employees mein staff add karein"); return; }
-  const head = ["#","Name","Category", ...days.map(d=>d.slice(8)), "Present","Absent","Leave","%"];
+  const head = ["#","Name","Category", ...days.map(d=>d.slice(8)), "Present","Late","Absent","Leave","%"];
   const csvEsc = v => `"${String(v??"").replace(/"/g,'""')}"`;
   const lines = [head.map(csvEsc).join(",")];
   rows.forEach((r,i)=>{
-    lines.push([i+1, r.e.name, r.e.category, ...r.marks, r.P, r.A, r.L, r.pct+"%"].map(csvEsc).join(","));
+    lines.push([i+1, r.e.name, r.e.category, ...r.marks, r.P, r.L, r.A, r.E, r.pct+"%"].map(csvEsc).join(","));
   });
   const blob = new Blob(["\ufeff"+lines.join("\r\n")],{type:"text/csv;charset=utf-8"});
   const a = document.createElement("a");
@@ -2570,15 +2597,16 @@ function exportEmpAttPDF(){
     <td style="border:1px solid #999;padding:3px 5px;white-space:nowrap;font-size:.62rem">${r.e.category}</td>
     ${r.marks.map(x=>`<td style="border:1px solid #999;padding:3px 2px;text-align:center;font-size:.65rem;${x==="A"?"color:#C0392B;font-weight:700":x==="P"?"color:#0f7b3d":""}">${x}</td>`).join("")}
     <td style="border:1px solid #999;padding:3px 5px;text-align:center"><b>${r.P}</b></td>
-    <td style="border:1px solid #999;padding:3px 5px;text-align:center;color:#C0392B">${r.A}</td>
     <td style="border:1px solid #999;padding:3px 5px;text-align:center">${r.L}</td>
+    <td style="border:1px solid #999;padding:3px 5px;text-align:center;color:#C0392B">${r.A}</td>
+    <td style="border:1px solid #999;padding:3px 5px;text-align:center">${r.E}</td>
     <td style="border:1px solid #999;padding:3px 5px;text-align:center"><b>${r.pct}%</b></td>
   </tr>`).join("");
   $("challanPrint").innerHTML = `
     <div style="font-size:.75rem">
       <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #174B60;padding-bottom:8px;margin-bottom:10px">
         <div style="display:flex;gap:10px;align-items:center">${A.logo?`<img src="${A.logo}" style="height:44px;width:auto;object-fit:contain">`:""}<div><div style="font-size:1.15rem;font-weight:900">${esc(A.name||"Cambridge Grads Academy")}</div><div style="font-size:.7rem;color:#555">${esc(A.addr||"")} ${A.phone?("· "+esc(A.phone)):""}</div></div></div>
-        <div style="text-align:right"><b>STAFF ATTENDANCE REGISTER</b><br>${fmtM(m)}<br><span style="color:#555">P = Present · A = Absent · L = Leave · — = Not marked</span></div>
+        <div style="text-align:right"><b>STAFF ATTENDANCE REGISTER</b><br>${fmtM(m)}<br><span style="color:#555">P = Present · L = Late · A = Absent · E = Leave · — = Not marked</span></div>
       </div>
       <table style="width:100%;border-collapse:collapse">
         <thead><tr>
@@ -2586,7 +2614,7 @@ function exportEmpAttPDF(){
           <th style="border:1px solid #999;padding:3px 5px">Name</th>
           <th style="border:1px solid #999;padding:3px 5px">Category</th>
           ${th}
-          <th style="border:1px solid #999;padding:3px 3px">P</th><th style="border:1px solid #999;padding:3px 3px">A</th><th style="border:1px solid #999;padding:3px 3px">L</th><th style="border:1px solid #999;padding:3px 3px">%</th>
+          <th style="border:1px solid #999;padding:3px 3px">P</th><th style="border:1px solid #999;padding:3px 3px">L</th><th style="border:1px solid #999;padding:3px 3px">A</th><th style="border:1px solid #999;padding:3px 3px">E</th><th style="border:1px solid #999;padding:3px 3px">%</th>
         </tr></thead>
         <tbody>${body}</tbody>
       </table>
@@ -2604,6 +2632,7 @@ function openEmpForm(id){
     <div class="grid2">
       <div class="field"><label>Name *</label><input id="m_name" value="${esc(e.name||"")}"></div>
       <div class="field"><label>Category *</label><select id="m_cat" onchange="toggleAsg()">${["Admin","Teacher","Coordinator","Supportive Staff"].map(c=>`<option ${e.category===c?"selected":""}>${c}</option>`).join("")}</select></div>
+      <div class="field"><label>Shift</label><select id="m_shift">${["Morning","Evening","Both"].map(c=>`<option ${e.shift===c?"selected":""}>${c}</option>`).join("")}</select></div>
       <div class="field"><label>Phone</label><input id="m_phone" value="${esc(e.phone||"")}"></div>
       <div class="field"><label>Joining Date</label><input type="date" id="m_doj" value="${e.doj||todayStr()}"></div>
       <div class="field"><label>Monthly Salary (Rs)</label><input type="number" id="m_sal" value="${e.salary||""}"></div>
@@ -2639,7 +2668,7 @@ function saveEmp(id){
   const name=$("m_name").value.trim();
   if(!name){ toast("Employee name likhein"); return; }
   const cat = $("m_cat").value;
-  const data = {name, category:cat, phone:$("m_phone").value.trim(), doj:$("m_doj").value||"", salary:$("m_sal").value||0, address:$("m_addr").value.trim(), photo:photoTemp, assignments: cat==="Teacher"? asgDraft : []};
+  const data = {name, category:cat, shift:$("m_shift").value, phone:$("m_phone").value.trim(), doj:$("m_doj").value||"", salary:$("m_sal").value||0, address:$("m_addr").value.trim(), photo:photoTemp, assignments: cat==="Teacher"? asgDraft : []};
   if(id) Object.assign(empById(id), data);
   else { data.id=uid(); DB.employees.push(data); }
   save(); closeModal(); renderEmployees(); toast("Employee saved");
@@ -2656,7 +2685,7 @@ function openEmpProfile(id){
   const myStu = DB.students.filter(s=>s.teacherId===id);
   const ea = empAttSummary(id, e.doj);
   const eaRows = Object.keys(DB.empAttendance).filter(d=>DB.empAttendance[d][id]).sort().reverse().slice(0,30)
-    .map(d=>{ const r=DB.empAttendance[d][id]; return `<tr><td>${fmtD(d)}</td><td><span class="badge b-${r.s}">${r.s==="P"?"Present":r.s==="A"?"Absent":"Leave"}</span></td><td>${r.t||"—"}</td></tr>`; }).join("");
+    .map(d=>{ const r=DB.empAttendance[d][id]; return `<tr><td>${fmtD(d)}</td><td><span class="badge b-${r.s}">${ATT_LABEL[r.s]||r.s}</span></td><td>${r.t||"—"}</td></tr>`; }).join("");
   openModal(`
     <h3>Employee Profile</h3>
     <div class="profile-top" style="margin-bottom:14px">
@@ -2665,6 +2694,7 @@ function openEmpProfile(id){
         <div class="kv">
           <span class="k">Name</span><span><b>${esc(e.name)}</b></span>
           <span class="k">Category</span><span>${e.category}</span>
+          <span class="k">Shift</span><span><b>${esc(e.shift||"Morning")}</b></span>
           <span class="k">Phone</span><span>${esc(e.phone||"—")}</span>
           <span class="k">Joining Date</span><span>${fmtD(e.doj)}</span>
           <span class="k">Monthly Salary</span><span>${money(e.salary)}</span>
@@ -2674,8 +2704,9 @@ function openEmpProfile(id){
     </div>
     <div class="stat-row" style="margin-bottom:14px">
       <div class="stat"><b>${ea.P}</b><span>Present</span></div>
-      <div class="stat"><b style="color:var(--red)">${ea.A}</b><span>Absent</span></div>
-      <div class="stat"><b>${ea.L}</b><span>Leaves</span></div>
+      <div class="stat"><b>${ea.L}</b><span>Late</span></div>
+      <div class="stat"><b style="color:var(--danger)">${ea.A}</b><span>Absent</span></div>
+      <div class="stat"><b>${ea.E}</b><span>Leave</span></div>
       <div class="stat"><b>${ea.pct}%</b><span>Attendance</span><div class="att-bar"><i style="width:${ea.pct}%"></i></div></div>
     </div>
     <h3 style="font-size:.95rem">Attendance Record (Last 30 entries)</h3>
@@ -3292,7 +3323,11 @@ function editDist(a, b){
       d[i][j] = Math.min(d[i-1][j]+1, d[i][j-1]+1, d[i-1][j-1] + (a[i-1]===b[j-1]?0:1));
   return d[a.length][b.length];
 }
-const nameTokens = n => String(n||"").toLowerCase().replace(/[^a-z0-9 ]/g," ").split(/\s+/).filter(Boolean);
+/* Ye lafz naam ka hissa nahi hote — dono taraf se nikal dete hain */
+const NAME_SKIP = ["e","bin","bint","ul","ur","ud","us","al","syed","syeda",
+                   "mst","mr","ms","mrs","sir","miss","madam","maam","ustad"];
+const nameTokens = n => String(n||"").toLowerCase().replace(/[^a-z0-9 ]/g," ")
+  .split(/\s+/).filter(x=>x && !NAME_SKIP.includes(x));
 function tokenMatch(x, y){
   if(x === y) return true;
   if(x.length === 1 || y.length === 1) return x[0] === y[0];          // "M." ↔ "Muhammad"
@@ -3304,29 +3339,43 @@ function nameScore(a, b){
   const A = nameTokens(a), B = nameTokens(b);
   if(!A.length || !B.length) return 0;
   const used = new Set();
-  let hit = 0;
+  let hit = 0, loneA = 0;
   A.forEach(x=>{
     for(let i = 0; i < B.length; i++){
       if(used.has(i)) continue;
       if(tokenMatch(x, B[i])){ used.add(i); hit++; return; }
     }
+    if(x.length === 1) loneA++;        // "M." jo kisi se nahi mila — ginti se bahar
   });
-  return hit / Math.max(A.length, B.length);
+  const loneB = B.filter((x,i)=>x.length === 1 && !used.has(i)).length;
+  const denom = Math.max(A.length - loneA, B.length - loneB, 1);
+  let sc = hit / denom;
+  /* Chhota naam poora bara naam ke andar aa jaye ("Musa Ali" ⊂ "Musa Nazakat Ali")
+     to ye aam tor par wohi shakhs hota hai — bashartay chhote naam mein 2+ lafz hon */
+  const shorter = Math.min(A.length, B.length);
+  if(shorter >= 2 && hit >= shorter) sc = Math.max(sc, 0.85);
+  return sc;
 }
 /* Poori list mein se sab se behtar match. 0.82+ par khud match, 0.6+ par sirf mashwara. */
-function bestStudentMatch(name, regNo, shift){
+/* Naam se student dhoondhna. Shift aur class dono ka khayal — warna "Musa Ali" (FT-1)
+   ghalati se "Musab Ali Awan" (O2) se ja milta hai, jiska score baraabar hota hai. */
+function bestStudentMatch(name, regNo, shift, course){
   if(regNo){
     const byReg = DB.students.find(x=>keyify(x.regNo) === keyify(regNo));
     if(byReg) return {st:byReg, score:1, how:"regno"};
   }
-  let best = null, cross = null;     // cross = doosri shift ka wohi naam
+  const same = [], cross = [];
   DB.students.forEach(st=>{
     const sc = nameScore(name, st.name);
     if(!sc) return;
-    if(shift && st.shift !== shift){ if(!cross || sc > cross.score) cross = {st, score:sc, how:"name", otherShift:true}; return; }
-    if(!best || sc > best.score) best = {st, score:sc, how:"name"};
+    const cand = {st, score:sc, how:"name", sameCourse: !!(course && st.course === course)};
+    if(shift && st.shift !== shift) cross.push({...cand, otherShift:true});
+    else same.push(cand);
   });
-  return best || cross;
+  /* pehle score, phir jo usi class ka ho */
+  const rank = (a,b) => (b.score - a.score) || ((b.sameCourse?1:0) - (a.sameCourse?1:0));
+  same.sort(rank); cross.sort(rank);
+  return same[0] || cross[0] || null;
 }
 function teacherIdByName(v){
   const k = keyify(v); if(!k) return "";
@@ -3446,14 +3495,15 @@ const IMPORT_TYPES = {
     fields: [
       {k:"name",     l:"Name",            syn:["name","employeename","staffname","fullname"], req:true},
       {k:"category", l:"Category",        syn:["category","designation","role","post","type"]},
+      {k:"shift",    l:"Shift",           syn:["shift","batch","timing","session"]},
       {k:"phone",    l:"Phone",           syn:["phone","mobile","contact","cell","contactno"]},
       {k:"doj",      l:"Joining Date",    syn:["doj","joiningdate","dateofjoin","joined"]},
       {k:"salary",   l:"Monthly Salary",  syn:["salary","monthlysalary","pay","wage"]},
       {k:"address",  l:"Address",         syn:["address","homeaddress","residence","city"]}
     ],
     samples: [
-      ["Sir Ali Raza","Teacher","0300-1234567","01/03/2024","60000","Johar Town, Lahore"],
-      ["Hamza Sheikh","Coordinator","0333-1112222","05/01/2025","40000","Model Town, Lahore"]
+      ["Sir Ali Raza","Teacher","Morning","0300-1234567","01/03/2024","60000","Johar Town, Lahore"],
+      ["Hamza Sheikh","Coordinator","Evening","0333-1112222","05/01/2025","40000","Model Town, Lahore"]
     ]
   },
   fees: {
@@ -3545,6 +3595,19 @@ const IMPORT_TYPES = {
       ["05/09/2026","Law Notes","1","Bazil Tasleem","A Levels","300","charge liya"]
     ]
   },
+  attendance: {
+    label: "Attendance (monthly sheet)",
+    fields: [
+      {k:"name",   l:"Student Name", syn:["studentname","name","student","fullname"], req:true},
+      {k:"course", l:"Grade / Class", syn:["grade","class","course","level","section"]},
+      {k:"regNo",  l:"Reg No",       syn:["regno","registrationno","rollno","roll"]}
+    ],
+    samples: [
+      ["Ahmed Raza","O2",""],
+      ["Bilal Ahmed","O1",""]
+    ],
+    note: "Din wale columns (1, 2, 3 …) khud pehchane jate hain — P = Present, L = Late, A = Absent, E = Leave."
+  },
   inquiries: {
     label: "Inquiries",
     fields: [
@@ -3593,7 +3656,9 @@ function autoMap(headers, fields){
     const syns = [f.k, f.l, ...(f.syn||[])].map(keyify).filter(x=>x.length >= 4).sort((a,b)=>b.length-a.length);
     for(const sy of syns){
       for(let i = 0; i < H.length; i++){
-        if(used.has(i) || !H[i]) continue;
+        /* H[i] chhota ho (jaise attendance sheet ke "P"/"A"/"L") to wo heading nahi,
+           warna "rollno".includes("l") sach ho kar ghalat column pakad leta hai */
+        if(used.has(i) || !H[i] || H[i].length < 3) continue;
         if(H[i].includes(sy) || sy.includes(H[i])){ map[f.k] = i; used.add(i); return; }
       }
     }
@@ -3666,7 +3731,8 @@ function impRender(){
       <div class="card"><div class="k">Pehchane Gaye</div><div class="v green">${mapped.length}</div><div class="hint">${def.fields.length} fields mein se</div></div>
     </div>
 
-    ${impSkipped? `<div class="note">File ki pehli ${impSkipped} line${impSkipped>1?"ein":""} heading nahi thi (title/khali) — headings line ${impSkipped+1} se li gayi hain.</div>`:""}
+    ${IMPORT_TYPES[impType].note? `<div class="note">${esc(IMPORT_TYPES[impType].note)}</div>`:""}
+    ${impSkipped? `<div class="note">File ki upar wali ${impSkipped} line${impSkipped>1?"ein":""} heading nahi thi (title/khali) — headings <b>line ${impLineNos[0]||impSkipped+1}</b> se li gayi hain.</div>`:""}
     ${missingReq.length? `<div class="note" style="border-left-color:var(--danger)"><b>Zaroori column nahi mila:</b> ${missingReq.map(f=>esc(f.l)).join(", ")} — neeche mapping mein khud select karein.</div>`:""}
 
     <h3 style="margin:14px 0 8px">Column Mapping</h3>
@@ -3687,6 +3753,14 @@ function impRender(){
     <div class="toolbar">
       <div class="field"><label>Pehle se mojood record</label>
         <select id="imp_dup"><option value="skip">Skip kar dein</option><option value="update">Update kar dein</option></select></div>
+      ${impType==="employees"? `
+      <div class="field"><label>Shift (jahan sheet mein na ho)</label>
+        <select id="imp_empshift"><option>Morning</option><option>Evening</option><option>Both</option></select></div>`:""}
+      ${impType==="attendance"? `
+      <div class="field"><label>Month *</label><input type="month" id="imp_month" value="${thisMonth()}"></div>
+      <div class="field"><label>Shift</label><select id="imp_attshift"><option>Morning</option><option>Evening</option></select></div>
+      <div class="field"><label>Weekend par nishaan</label>
+        <select id="imp_wk"><option value="0">Chhor dein (Sat/Sun off hai)</option><option value="1">Phir bhi rakh lein</option></select></div>`:""}
       ${impType==="fees"? `
       <div class="field"><label>Fee Month *</label><input type="month" id="imp_month" value="${thisMonth()}"></div>
       <div class="field"><label>Shift</label>
@@ -3737,8 +3811,13 @@ function runImport(){
   const defShift  = $("imp_shift")? $("imp_shift").value : "Evening";
   const defCourse = $("imp_course")? $("imp_course").value : "";
   const addComp = $("imp_comp") ? $("imp_comp").value === "1" : false;
+  const impDefShift = $("imp_empshift") ? $("imp_empshift").value : "";
   const feeShift = $("imp_feeshift") ? $("imp_feeshift").value : "Morning";
   let sectionClass = "";
+  /* Attendance sheet mein har din ka apna column hota hai — headings jo 1..31 hain */
+  const dayCols = impType === "attendance"
+    ? impRows[0].map((h,i)=>({i, d:+String(h).trim()})).filter(x=>x.d >= 1 && x.d <= 31 && String(x.d) === String(impRows[0][x.i]).trim())
+    : [];
   let added = 0, updated = 0, skipped = 0;
   const issues = [], seen = new Map();
   const note = (line, msg) => issues.push({line, msg});
@@ -3860,12 +3939,25 @@ function runImport(){
       const raw = g("category");
       const cat = cats.find(c=>keyify(c) === keyify(raw)) || cats.find(c=>keyify(raw) && keyify(c).includes(keyify(raw))) || "Teacher";
       if(raw && !cats.find(c=>keyify(c) === keyify(raw))) note(line, `Category "${raw}" pehchani nahi — "${cat}" laga di`);
-      const rec = { name, category:cat, phone:g("phone"), doj:cleanDate(g("doj")) || todayStr(),
+      const shift = normShift(g("shift")) || (impDefShift || "Morning");
+      const rec = { name, category:cat, shift, phone:cleanPhone(g("phone")), doj:cleanDate(g("doj")) || todayStr(),
                     salary:cleanNum(g("salary")), address:g("address"), assignments:[] };
-      const hit = DB.employees.find(x=>keyify(x.name) === keyify(name));
-      if(hit){
-        if(dup === "update"){ Object.assign(hit, rec); updated++; }
-        else { skipped++; note(line, `"${name}" pehle se mojood`); }
+      const near = DB.employees.find(x=>keyify(x.name) === keyify(name))
+                || DB.employees.find(x=>nameScore(name, x.name) >= 0.85);
+      if(!near){
+        const maybe = DB.employees.map(x=>({x, sc:nameScore(name, x.name)}))
+                                  .sort((a,b)=>b.sc - a.sc)[0];
+        if(maybe && maybe.sc >= 0.5)
+          note(line, `"${name}" alag record bana — shayad ye mojood "${maybe.x.name}" hi ho (${Math.round(maybe.sc*100)}%), check kar lein`);
+      }
+      if(near){
+        /* Wohi ustad dono shifts mein parhata ho to duplicate na banayein — "Both" kar dein */
+        if(near.shift && near.shift !== shift && near.shift !== "Both"){
+          note(line, `"${name}" pehle se ${near.shift} mein hai — ab "Both" kar diya`);
+          near.shift = "Both"; updated++; return;
+        }
+        if(dup === "update"){ Object.assign(near, rec); updated++; }
+        else { skipped++; note(line, `"${name}" pehle se mojood${keyify(near.name)!==keyify(name)?` ("${near.name}")`:""}`); }
         return;
       }
       rec.id = uid(); rec.photo = null;
@@ -3934,7 +4026,7 @@ function runImport(){
         note(line, `"Paid" likha hai magar ${money(balance)} balance baqi hai`);
 
       /* student dhoondho — naam thora alag likha ho to bhi, magar shift ka khayal rakh kar */
-      const m = bestStudentMatch(name, g("regNo"), feeShift);
+      const m = bestStudentMatch(name, g("regNo"), feeShift, course);
       let st = (m && m.score >= 0.82 && !m.otherShift) ? m.st : null;
       if(!st && m && m.otherShift && m.score >= 0.82)
         note(line, `"${name}" pehle se ${m.st.shift} shift mein hai (${m.st.regNo}) — ${feeShift} ke liye alag record banaya`);
@@ -4004,6 +4096,51 @@ function runImport(){
       rec.id = uid();
       rec.chNo = "CH-" + String(DB.counters.ch++).padStart(5,"0");
       DB.fees.push(rec); added++;
+    }
+
+    else if(impType === "attendance"){
+      const month = $("imp_month").value || thisMonth();
+      const shift = $("imp_attshift").value;
+      const keepWk = $("imp_wk").value === "1";
+      const makeSt = $("imp_mk") ? $("imp_mk").value === "1" : true;
+      if(!dayCols.length){ skipped++; note(line, `Din wale columns (1, 2, 3 …) nahi mile — heading line check karein`); return; }
+      if(/^(daily\s*totals?|total)/i.test(name)){ skipped++; return; }   // totals wali row
+
+      const course = matchClass(g("course"), shift) || "";
+      const m = bestStudentMatch(name, g("regNo"), shift, course);
+      let st = (m && m.score >= 0.82 && !m.otherShift) ? m.st : null;
+      if(st && keyify(name) !== keyify(st.name))
+        note(line, `"${name}" ko "${st.name}" se match kiya (${Math.round(m.score*100)}%)`);
+      if(!st && m && m.score >= 0.5)
+        note(line, `"${name}" EMS mein nahi mila — shayad "${m.st.name}" ho (${Math.round(m.score*100)}%), check kar lein`);
+      if(!st){
+        if(!makeSt){ skipped++; note(line, `"${name}" nahi mila — row skip`); return; }
+        st = { id:uid(), photo:null,
+               regNo:"REG-" + new Date().getFullYear() + "-" + String(DB.counters.reg++).padStart(4,"0"),
+               name, fatherName:"", cnic:"", fatherCnic:"", phone:"", fatherPhone:"", motherPhone:"",
+               address:"", dob:"", doj:month+"-01", education:"", prevInst:"",
+               course: course || defCourse, shift, monthlyFee:0, teacherId:"", subjects:[],
+               groupOverride:"", group:"", status:"Active", charges:[] };
+        DB.students.push(st);
+        note(line, `"${name}" EMS mein nahi tha — naya student bana diya (${st.regNo}, ${st.course})`);
+      }
+
+      let n = 0, bad = [], wk = 0;
+      dayCols.forEach(({i, d})=>{
+        const raw = String(r[i] ?? "").trim().toUpperCase();
+        if(!raw) return;
+        const code = {P:"P", L:"L", A:"A", E:"E", PRESENT:"P", LATE:"L", ABSENT:"A",
+                      LEAVE:"E", EXCUSE:"E", EXCUSED:"E"}[raw];
+        if(!code){ if(!bad.includes(raw)) bad.push(raw); return; }
+        const date = `${month}-${String(d).padStart(2,"0")}`;
+        if(isWeekend(date)){ wk++; if(!keepWk) return; }
+        if(!DB.attendance[date]) DB.attendance[date] = {};
+        DB.attendance[date][st.id] = {s:code, t:SHIFT_START[shift], shift};
+        n++;
+      });
+      if(bad.length) note(line, `${st.name}: ye nishaan samajh nahi aaye — ${bad.join(", ")} (chhod diye)`);
+      if(wk && !keepWk) note(line, `${st.name}: ${wk} nishaan weekend par the — chhod diye`);
+      if(n) added++; else { skipped++; note(line, `${st.name}: koi attendance nahi mili`); }
     }
 
     else if(impType === "expenses"){
@@ -4120,6 +4257,7 @@ function runImport(){
   save();
   renderStudents(); renderEmployees(); renderInquiries(); renderFees();
   renderInventory(); renderIssuance(); renderFinance(); renderDashboard();
+  if($("attDate")) loadAttendance();
   $("impBody").innerHTML = `
     <div class="cards" style="margin-bottom:14px">
       <div class="card"><div class="k">✓ Naye Add Hue</div><div class="v green">${added}</div></div>
