@@ -547,8 +547,10 @@ tr:hover td{background:var(--soft)}
       3. Dosre laptop par ye HTML file kholein aur <b>"⬆ Import Backup"</b> daba kar wo JSON file select karein.<br>
       4. Sara data — students, photos, fees, attendance, exams, homework — waisa ka waisa aa jayega.</div>
     <button class="btn-black" onclick="exportData()">⬇ Download Backup (JSON)</button>
-    <button class="btn-line" onclick="document.getElementById('importFile').click()">⬆ Import Backup</button>
-    <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(this)">
+    <button class="btn-red" onclick="document.getElementById('importFile').click()">⬆ Import Backup (file)</button>
+    <button class="btn-line" onclick="openPasteBackup()">📋 Text paste kar ke import</button>
+    <input type="file" id="importFile" style="display:none" onchange="importData(this)">
+    <p class="sub" style="margin-top:10px">File select nahi ho rahi (khaas kar mobile par)? Backup file ko Notepad ya kisi text editor mein kholein, sab kuch copy karein, aur <b>"Text paste kar ke import"</b> dabayein.</p>
   </div>
 </section>
 
@@ -3433,21 +3435,108 @@ function exportData(){
   a.download = "academy-backup-"+todayStr()+".json";
   a.click();
 }
+let pendingBackup = null;
+
+/* Har nakami ka sabab saamne likh dein — pehle ye chupchaap fail ho jata tha */
+function backupFail(msg, extra){
+  openModal(`
+    <h3 style="border-bottom-color:var(--danger)">Backup import nahi ho saka</h3>
+    <div class="note" style="border-left-color:var(--danger)">${esc(msg)}</div>
+    ${extra? `<div class="field"><label>File mein jo mila</label>
+      <textarea rows="4" readonly style="font-family:monospace;font-size:.75rem">${esc(extra)}</textarea></div>`:""}
+    <div class="modal-foot"><button class="btn-red" onclick="closeModal()">Theek hai</button></div>`);
+}
+
 function importData(inp){
-  const f = inp.files[0]; if(!f) return;
+  const f = inp.files[0];
+  if(!f){ backupFail("Koi file select nahi hui."); return; }
   const r = new FileReader();
-  r.onload = ()=>{
-    try{
-      const d = JSON.parse(r.result);
-      if(!d.students){ toast("Ye sahi backup file nahi hai"); return; }
-      if(!confirm("Purana data replace ho jayega. Continue?")) return;
-      DB = d;
-      for(const k in DEFAULT_DB) if(DB[k]===undefined) DB[k]=structuredClone(DEFAULT_DB[k]);
-      save(); location.reload();
-    }catch(e){ toast("File read nahi hui"); }
-  };
+  r.onerror = ()=> backupFail(`"${f.name}" parhi nahi ja saki. Text paste wala tareeqa try karein.`);
+  r.onload  = ()=> readBackup(r.result, f.name);
   r.readAsText(f);
-  inp.value="";
+  inp.value = "";
+}
+
+function openPasteBackup(){
+  openModal(`
+    <h3>📋 Backup text paste karein</h3>
+    <div class="note">Backup file ko text editor mein kholein, <b>Ctrl+A</b> phir <b>Ctrl+C</b> karein, aur yahan paste kar dein. Phone par file kholne ke liye koi bhi Files/Notes app chal jayegi.</div>
+    <div class="field"><label>Backup JSON</label>
+      <textarea id="pasteBk" rows="8" placeholder='{ "students": [ ... ] }' style="font-family:monospace;font-size:.78rem"></textarea></div>
+    <div class="modal-foot">
+      <button class="btn-line" onclick="closeModal()">Cancel</button>
+      <button class="btn-red" onclick="readBackup(document.getElementById('pasteBk').value,'paste')">Aage barhein</button>
+    </div>`, true);
+}
+
+/* Parse karo, dekho kya mil raha hai, phir puchho — native confirm() par bharosa nahi
+   kyunki kuch browsers usay chupchaap block kar dete hain */
+function readBackup(text, srcName){
+  const raw = String(text||"").replace(/^\uFEFF/,"").trim();
+  if(!raw){ backupFail("File ya text bilkul khali hai."); return; }
+  let d;
+  try{ d = JSON.parse(raw); }
+  catch(e){ backupFail(`Ye backup JSON nahi hai — ${e.message}. Poori file copy hui thi? (Aakhir mein } hona chahiye.)`, raw.slice(0,300)); return; }
+  if(!d || typeof d !== "object" || !Array.isArray(d.students)){
+    backupFail(`Is file mein backup wala data nahi mila. Jo keys mili: ${Object.keys(d||{}).join(", ") || "(koi nahi)"}`, raw.slice(0,300));
+    return;
+  }
+  pendingBackup = d;
+  const n = k => Array.isArray(d[k]) ? d[k].length : 0;
+  const row = (l,a,b) => `<tr><td>${l}</td><td><b>${a}</b></td><td><b style="color:var(--red)">${b}</b></td></tr>`;
+  openModal(`
+    <h3>Backup import karein?</h3>
+    <div class="note" style="border-left-color:var(--danger)"><b>Ehtiyat:</b> abhi jo data is browser mein hai wo <b>poora replace</b> ho jayega.</div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th></th><th>Abhi</th><th>Backup ke baad</th></tr></thead>
+      <tbody>
+        ${row("Students",   DB.students.length,   n("students"))}
+        ${row("Fee Challans", DB.fees.length,     n("fees"))}
+        ${row("Employees",  DB.employees.length,  n("employees"))}
+        ${row("Inquiries",  DB.inquiries.length,  n("inquiries"))}
+        ${row("Exams",      DB.exams.length,      n("exams"))}
+      </tbody>
+    </table></div>
+    <p class="sub" style="margin-top:10px">Source: ${esc(srcName||"file")}</p>
+    <div class="modal-foot">
+      <button class="btn-line" onclick="pendingBackup=null;closeModal()">Cancel</button>
+      <button class="btn-red" onclick="applyBackup()">Haan, replace karein</button>
+    </div>`, true);
+}
+
+function applyBackup(){
+  const d = pendingBackup;
+  if(!d){ backupFail("Backup ka data kho gaya — dobara try karein."); return; }
+  const prev = localStorage.getItem("schoolAcademyDB");     // kuch ghalat ho to wapas laga dein
+  DB = d;
+  for(const k in DEFAULT_DB) if(DB[k] === undefined) DB[k] = structuredClone(DEFAULT_DB[k]);
+  if(DB.settings.logo === undefined) DB.settings.logo = "";
+  if(!DB.subjects || !DB.subjects.length) DB.subjects = seedSubjects();
+  DB.students.forEach(x=>{ if(!x.subjects) x.subjects = []; });
+
+  /* Save karo AUR parh kar tasdeeq karo — pehle save chupchaap fail ho jata tha
+     aur reload ke baad purana khali data wapas aa jata tha */
+  let err = "";
+  try{
+    localStorage.setItem("schoolAcademyDB", JSON.stringify(DB));
+    const back = JSON.parse(localStorage.getItem("schoolAcademyDB") || "null");
+    if(!back || !Array.isArray(back.students) || back.students.length !== DB.students.length)
+      err = "save ke baad data wapas nahi mila";
+  }catch(e){ err = e.message || String(e); }
+
+  if(err){
+    try{ if(prev) localStorage.setItem("schoolAcademyDB", prev); }catch(e){}
+    backupFail(`Data is browser mein save nahi ho saka — ${err}.\n\n` +
+      `Aam wajuhat: (1) HTML file kisi preview/sandbox mein khuli hai — usay laptop par save kar ke seedha browser mein kholein; ` +
+      `(2) browser ki private/incognito window; (3) site data band hai; (4) storage bhar chuka hai (photos zyada hon to).`);
+    return;
+  }
+
+  pendingBackup = null;
+  openModal(`
+    <h3>Backup import ho gaya ✓</h3>
+    <div class="note"><b>${DB.students.length}</b> students · <b>${DB.fees.length}</b> challans · <b>${DB.employees.length}</b> employees import ho gaye aur is browser mein save bhi ho gaye.</div>
+    <div class="modal-foot"><button class="btn-red" onclick="location.reload()">Kholein</button></div>`);
 }
 
 /* ---------- Populate course filter & init ---------- */
