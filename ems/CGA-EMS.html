@@ -519,10 +519,11 @@ tr:hover td{background:var(--soft)}
 
   <div class="panel">
     <h3>Subjects Offered</h3>
-    <p class="sub" style="margin-bottom:12px">Ye wahi list hai jo student enrollment ke waqt subject dropdown mein aati hai. Level ke hisaab se filter hoti hai — Junior (Pre O / Grade 5–8), O Level (FT1, FT2, O1–O3), A Level (AS, A2, Composite).</p>
+    <p class="sub" style="margin-bottom:12px">Ye wahi list hai jo student enrollment ke waqt subject dropdown mein aati hai — student ki <b>class ke hisaab se</b>. <b>Compulsory</b> subjects Morning shift mein khud add ho jate hain; <b>Elective</b> student chunta hai (O Level mein 3 tak, A Level mein 4 tak). "Classes" column se kisi subject ko sirf khaas grades tak mehdood kar sakte hain.</p>
     <div class="toolbar">
       <div class="field" style="flex:1;min-width:190px"><label>Subject Name</label><input id="ns_name" placeholder="e.g. Additional Mathematics"></div>
       <div class="field"><label>Level</label><select id="ns_level"><option>Junior</option><option selected>O Level</option><option>A Level</option></select></div>
+      <div class="field"><label>Type</label><select id="ns_kind"><option>Elective</option><option>Compulsory</option></select></div>
       <div class="field"><label>Default Fee (Rs)</label><input type="number" id="ns_fee" style="max-width:150px" placeholder="optional"></div>
       <button class="btn-black" onclick="addCatalogSubject()">+ Add to List</button>
     </div>
@@ -587,24 +588,47 @@ const CLASS_LEVEL = {
 };
 const levelOfClass = c => CLASS_LEVEL[c] || "O Level";
 
-/* ---------- Subjects offered (Settings se edit ho sakti hain) ---------- */
+/* ---------- Subjects offered (Settings se edit ho sakti hain) ----------
+   C = Compulsory (Morning mein khud add ho jate hain) · E = Elective (student chunta hai) */
 const DEFAULT_SUBJECTS = [
-  ["English","Junior"],["Urdu","Junior"],["Mathematics","Junior"],["Science","Junior"],
-  ["Islamiat","Junior"],["Social Studies","Junior"],["Computer","Junior"],
-  ["Mathematics (D)","O Level"],["Additional Mathematics","O Level"],["Physics","O Level"],
-  ["Chemistry","O Level"],["Biology","O Level"],["Computer Science","O Level"],
-  ["English Language","O Level"],["Urdu","O Level"],["Islamiyat","O Level"],
-  ["Pakistan Studies","O Level"],["Accounting","O Level"],["Business Studies","O Level"],
-  ["Economics","O Level"],["Statistics","O Level"],["Sociology","O Level"],
-  ["Literature in English","O Level"],["Environmental Management","O Level"],["Global Perspectives","O Level"],
-  ["Mathematics","A Level"],["Further Mathematics","A Level"],["Physics","A Level"],
-  ["Chemistry","A Level"],["Biology","A Level"],["Computer Science","A Level"],
-  ["Accounting","A Level"],["Business","A Level"],["Economics","A Level"],
-  ["Psychology","A Level"],["Sociology","A Level"],["Law","A Level"],
-  ["English Language","A Level"],["English Literature","A Level"],
-  ["Environmental Management","A Level"],["Global Perspectives & Research","A Level"]
+  ["English","Junior","C"],["Urdu","Junior","C"],["Mathematics","Junior","C"],["Science","Junior","C"],
+  ["Islamiat","Junior","C"],["Social Studies","Junior","C"],["Computer","Junior","E"],
+
+  /* O Level — 5 compulsory */
+  ["English Language","O Level","C"],["Mathematics (D)","O Level","C"],["Islamiyat","O Level","C"],
+  ["Pakistan Studies","O Level","C"],["Urdu","O Level","C"],
+  /* O Level — electives (in mein se 3) */
+  ["Physics","O Level","E"],["Chemistry","O Level","E"],["Biology","O Level","E"],
+  ["Computer Science","O Level","E"],["Additional Mathematics","O Level","E"],
+  ["Accounting","O Level","E"],["Business Studies","O Level","E"],["Economics","O Level","E"],
+  ["Statistics","O Level","E"],["Sociology","O Level","E"],["Literature in English","O Level","E"],
+  ["Environmental Management","O Level","E"],["Global Perspectives","O Level","E"],
+
+  /* A Level — sab elective, student apne subjects chunta hai */
+  ["Mathematics","A Level","E"],["Further Mathematics","A Level","E"],["Physics","A Level","E"],
+  ["Chemistry","A Level","E"],["Biology","A Level","E"],["Computer Science","A Level","E"],
+  ["Accounting","A Level","E"],["Business","A Level","E"],["Economics","A Level","E"],
+  ["Psychology","A Level","E"],["Sociology","A Level","E"],["Law","A Level","E"],
+  ["English Language","A Level","E"],["English Literature","A Level","E"],
+  ["Environmental Management","A Level","E"],["Global Perspectives & Research","A Level","E"]
 ];
-const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level],i)=>({id:"sub"+i, name, level, defaultFee:0}));
+const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k],i)=>
+  ({id:"sub"+i, name, level, kind: k==="C"?"Compulsory":"Elective", classes:[], defaultFee:0}));
+
+/* Morning (school) ka rule — kitne electives allowed hain. 0 = koi limit nahi */
+const ELECTIVE_LIMIT = {"O Level":3, "A Level":4, "Junior":0};
+
+/* Sirf us class/grade ke subjects. classes[] khali ho to us poore level ke subjects. */
+function subjectsForClass(cls){
+  const lvl = levelOfClass(cls);
+  return DB.subjects.filter(x => (x.classes && x.classes.length) ? x.classes.includes(cls) : x.level===lvl);
+}
+const compulsoryForClass = cls => subjectsForClass(cls).filter(x=>x.kind==="Compulsory");
+const electiveLimitFor   = cls => ELECTIVE_LIMIT[levelOfClass(cls)] || 0;
+function subjKind(name, cls){
+  const x = subjectsForClass(cls).find(y=>y.name===name);
+  return x? (x.kind||"Elective") : "Elective";
+}
 
 /* ---------- Subject groups — student ke subjects se KHUD detect hote hain ---------- */
 function subjTag(name){
@@ -666,6 +690,13 @@ try{
 for(const k in DEFAULT_DB) if(DB[k]===undefined) DB[k]=structuredClone(DEFAULT_DB[k]);
 if(DB.settings.logo===undefined) DB.settings.logo = "";
 if(!DB.subjects || !DB.subjects.length) DB.subjects = seedSubjects();
+DB.subjects.forEach(x=>{                       // purane catalogue ko naye fields de dein
+  if(!x.classes) x.classes = [];
+  if(!x.kind){
+    const dflt = DEFAULT_SUBJECTS.find(d=>d[0]===x.name && d[1]===x.level);
+    x.kind = dflt ? (dflt[2]==="C"?"Compulsory":"Elective") : (x.level==="Junior"?"Compulsory":"Elective");
+  }
+});
 DB.students.forEach(s=>{ if(!s.subjects) s.subjects=[]; });
 
 function save(){
@@ -868,6 +899,7 @@ function openStudentForm(id, prefill){
         <div class="field" style="flex:1;min-width:170px"><label>Teacher (is subject ka)</label><select id="f_subjTeacher"></select></div>
         <button class="btn-black" onclick="addSubj()">+ Add Subject</button>
       </div>
+      <div id="subjCount" class="sub" style="margin-bottom:8px"></div>
       <div id="subjBox"></div>
       <div id="groupBox" style="margin-top:12px"></div>
     </div>
@@ -878,7 +910,7 @@ function openStudentForm(id, prefill){
     </div>`, true);
   subjDraft = (s.subjects||[]).map(x=>({...x}));
   grpOverride = s.groupOverride||"";
-  subjModeSync();
+  subjModeSync(true);
 }
 
 /* ---------- Subjects builder (student form) ---------- */
@@ -889,21 +921,42 @@ const teacherOpts = (sel) => `<option value="">— No teacher —</option>` +
     .map(t=>`<option value="${t.id}" ${sel===t.id?"selected":""}>${esc(t.name)}</option>`).join("");
 
 /* Shift / class badalne par subject list, fee mode aur group line refresh */
-function subjModeSync(){
+function seedCompulsory(cls){
+  compulsoryForClass(cls).forEach(x=>{
+    if(!subjDraft.some(d=>d.name===x.name)) subjDraft.push({name:x.name, fee:+x.defaultFee||0, teacherId:""});
+  });
+}
+/* initial=true sirf form khulte waqt — us waqt student ka mojooda record chhera nahi jata */
+function subjModeSync(initial){
   if(!$("f_subj")) return;
-  const shift = $("f_shift").value, lvl = levelOfClass($("f_course").value);
+  const shift = $("f_shift").value, cls = $("f_course").value, lvl = levelOfClass(cls);
   const evening = shift==="Evening";
-  const list = DB.subjects.filter(x=>x.level===lvl).sort((a,b)=>a.name.localeCompare(b.name));
-  const other = DB.subjects.filter(x=>x.level!==lvl).sort((a,b)=>(a.level+a.name).localeCompare(b.level+b.name));
-  $("f_subj").innerHTML =
-    `<optgroup label="${esc(lvl)}">${list.map(x=>`<option value="${esc(x.name)}" data-fee="${x.defaultFee||0}">${esc(x.name)}</option>`).join("")}</optgroup>` +
-    `<optgroup label="Other levels">${other.map(x=>`<option value="${esc(x.name)}" data-fee="${x.defaultFee||0}">${esc(x.name)} (${esc(x.level)})</option>`).join("")}</optgroup>`;
+  const offered = subjectsForClass(cls);
+
+  if(!initial){
+    const before = subjDraft.length;
+    subjDraft = subjDraft.filter(d=>offered.some(o=>o.name===d.name));
+    const dropped = before - subjDraft.length;
+    if(dropped) toast(`${dropped} subject ${cls} mein offered nahi — list se hata diye`);
+    if(!evening) seedCompulsory(cls);          // Morning: compulsory khud lag jate hain
+  }
+
+  const byName = (a,b)=>a.name.localeCompare(b.name);
+  const opt = x => `<option value="${esc(x.name)}" data-fee="${x.defaultFee||0}">${esc(x.name)}</option>`;
+  const comp = offered.filter(x=>x.kind==="Compulsory").sort(byName);
+  const elec = offered.filter(x=>x.kind!=="Compulsory").sort(byName);
+  $("f_subj").innerHTML = offered.length
+    ? (comp.length? `<optgroup label="Compulsory — ${esc(cls)}">${comp.map(opt).join("")}</optgroup>`:"")
+      + (elec.length? `<optgroup label="Electives — ${esc(cls)}">${elec.map(opt).join("")}</optgroup>`:"")
+    : `<option value="">— ${esc(cls)} ke liye koi subject set nahi · Settings → Subjects Offered —</option>`;
+
   $("f_subjTeacher").innerHTML = teacherOpts("");
   $("f_subjFeeWrap").style.display = evening? "block":"none";
   $("subjHead").textContent = evening? "Subjects & Subject-wise Fee" : "Subjects & Group";
+  const lim = electiveLimitFor(cls);
   $("subjNote").innerHTML = evening
     ? "<b>Evening (Academy):</b> har subject ki fee alag likhein aur us subject ka teacher chunein. Total monthly fee khud ban jayegi aur challan par subject-wise show hogi."
-    : "<b>Morning (School):</b> class ke subjects chunein — <b>group khud detect ho jayega</b> (Phy·Chem·Bio, Phy·Chem·CS, Bus·Acc·Eco waghera). Fee yahan ek hi monthly fee hai.";
+    : `<b>Morning (School) — ${esc(cls)}:</b> <b>${comp.length} compulsory subjects</b> khud lag jate hain${lim?`, aur <b>${lim} electives</b> tak chun sakte hain`:""}. Group subjects se khud detect hota hai.`;
   $("f_feeLbl").textContent = evening? "Monthly Fee (Rs) — subjects ka total" : "Monthly Fee (Rs)";
   $("f_fee").readOnly = evening;
   drawSubjs();
@@ -912,7 +965,12 @@ function addSubj(){
   const sel = $("f_subj"), name = sel.value;
   if(!name){ toast("Subject select karein"); return; }
   if(subjDraft.some(x=>x.name===name)){ toast("Ye subject pehle se add hai"); return; }
-  const evening = $("f_shift").value==="Evening";
+  const evening = $("f_shift").value==="Evening", cls = $("f_course").value;
+  const lim = electiveLimitFor(cls);
+  if(!evening && lim && subjKind(name, cls)!=="Compulsory"){
+    const have = subjDraft.filter(d=>subjKind(d.name, cls)!=="Compulsory").length;
+    if(have >= lim){ toast(`${levelOfClass(cls)} mein sirf ${lim} electives allowed — pehle koi elective hatayein`); return; }
+  }
   const typed = +$("f_subjFee").value;
   const fee = evening? (typed || +sel.selectedOptions[0].dataset.fee || 0) : 0;
   subjDraft.push({name, fee, teacherId:$("f_subjTeacher").value||""});
@@ -930,12 +988,19 @@ function subjTotalSync(){
 }
 function drawSubjs(){
   const box = $("subjBox"); if(!box) return;
-  const evening = $("f_shift").value==="Evening";
+  const evening = $("f_shift").value==="Evening", cls = $("f_course").value;
+  const lim = electiveLimitFor(cls);
+  const isComp = d => !evening && subjKind(d.name, cls)==="Compulsory";
+  const nComp = subjDraft.filter(isComp).length, nElec = subjDraft.length - nComp;
+  $("subjCount").innerHTML = evening
+    ? `${subjDraft.length} subjects`
+    : `<b>${nComp}</b> compulsory · <b style="color:${lim&&nElec>lim?"var(--danger)":"var(--red)"}">${nElec}</b> elective${lim?` / ${lim} allowed`:""}`;
   box.innerHTML = subjDraft.length? `<div class="tbl-wrap"><table>
-    <thead><tr><th>#</th><th>Subject</th>${evening?"<th>Fee (Rs)</th>":""}<th>Teacher</th><th></th></tr></thead>
+    <thead><tr><th>#</th><th>Subject</th>${evening?"":"<th>Type</th>"}${evening?"<th>Fee (Rs)</th>":""}<th>Teacher</th><th></th></tr></thead>
     <tbody>${subjDraft.map((x,i)=>`<tr>
       <td><b>${i+1}</b></td>
       <td><b>${esc(x.name)}</b></td>
+      ${evening?"":`<td><span class="badge ${isComp(x)?"b-active":"b-freeze"}">${isComp(x)?"Compulsory":"Elective"}</span></td>`}
       ${evening?`<td style="max-width:130px"><input type="number" value="${x.fee||""}" oninput="setSubjFee(${i},this.value)" placeholder="0"></td>`:""}
       <td style="max-width:190px"><select onchange="setSubjTeacher(${i},this.value)">${teacherOpts(x.teacherId)}</select></td>
       <td><button class="btn-danger btn-sm" onclick="delSubj(${i})">✕</button></td>
@@ -1443,7 +1508,7 @@ function renderFees(){
       <td><b>${f.chNo}</b></td>
       <td>${st? esc(st.name)+" <span class='sub'>("+esc(st.regNo)+")</span>" : "<i>Deleted student</i>"}</td>
       <td>${fmtM(f.month)}</td>
-      <td><b>${money(f.amount)}</b>${(f.subjects||[]).length?`<br><span class="sub" title="${esc(f.subjects.map(x=>x.name+(x.fee?(": Rs "+x.fee):"")).join(", "))}">${f.subjects.length} subjects</span>`:""}${f.items&&f.items.length?` <span class="sub" title="${esc(f.items.map(i=>i.desc+": Rs "+i.amt).join(", "))}">(+${f.items.length} charges)</span>`:""}</td>
+      <td><b>${money(f.amount)}</b>${+f.discount?`<br><span class="sub" style="color:var(--danger)">− ${money(f.discount)} discount (${f.discountPct||0}%)</span>`:""}${(f.subjects||[]).length?`<br><span class="sub" title="${esc(f.subjects.map(x=>x.name+(x.fee?(": Rs "+x.fee):"")+(x.disc?(" − "+x.disc):"")).join(", "))}">${f.subjects.length} subjects</span>`:""}${f.items&&f.items.length?` <span class="sub" title="${esc(f.items.map(i=>i.desc+": Rs "+i.amt).join(", "))}">(+${f.items.length} charges)</span>`:""}</td>
       <td>${f.dueDate? `<span style="${f.status==="Unpaid"&&f.dueDate<todayStr()?"color:var(--red);font-weight:700":""}">${fmtD(f.dueDate)}${f.status==="Unpaid"&&f.dueDate<todayStr()?" ⚠":""}</span>` : "—"}</td>
       <td><span class="badge b-${f.status.toLowerCase()}">${f.status}</span></td>
       <td>${fmtD(f.paidDate)}</td>
@@ -1573,6 +1638,7 @@ function openChallanForm(){
     <div class="grid2">
       <div class="field"><label>Fee Month *</label><input type="month" id="c_month" value="${thisMonth()}" onchange="prefDue()"></div>
       <div class="field"><label>Monthly Fee (Rs) *</label><input type="number" id="c_amt" value="" oninput="chTotal()"></div>
+      <div class="field" id="c_discWrap"><label>Discount (Rs)</label><input type="number" id="c_disc" value="" placeholder="0" oninput="chTotal()"></div>
       <div class="field"><label>Due Date (fee kis date tak pay karni hai)</label><input type="date" id="c_due" value="${thisMonth()}-10"></div>
       <div class="field"><label>Status</label><select id="c_status" onchange="$('c_paidwrap').style.display=this.value==='Paid'?'block':'none'"><option>Unpaid</option><option>Paid</option></select></div>
     </div>
@@ -1585,7 +1651,10 @@ function openChallanForm(){
       <button class="btn-black" onclick="addChItem()">+ Add Charge</button>
     </div>
     <div class="chips" id="chItemChips"></div>
-    <div style="text-align:right;font-size:1.05rem;margin-top:10px">Total: <b id="c_total" style="color:var(--red)">Rs 0</b></div>
+    <div style="text-align:right;margin-top:10px;line-height:1.7">
+      <div id="c_discLine" class="sub"></div>
+      <div style="font-size:1.05rem">Total: <b id="c_total" style="color:var(--red)">Rs 0</b></div>
+    </div>
     <div class="modal-foot">
       <button class="btn-line" onclick="closeModal()">Cancel</button>
       <button class="btn-red" onclick="saveChallan()">Create Challan</button>
@@ -1607,7 +1676,8 @@ function chStuPick(id){
   $("c_stuSearch").value = s.name + " (" + s.regNo + ")";
   $("c_stuList").classList.remove("show");
   chMode = s.shift || "Morning";
-  chSubs = (s.subjects||[]).map(x=>({name:x.name, fee:+x.fee||0, teacherId:x.teacherId||""}));
+  chSubs = (s.subjects||[]).map(x=>({name:x.name, fee:+x.fee||0, disc:0, teacherId:x.teacherId||""}));
+  if($("c_disc")) $("c_disc").value = "";
   if(chMode!=="Evening" || !chSubs.length){ if(studentFee(s)) $("c_amt").value = studentFee(s); }
   drawChSubs(); chTotal();
 }
@@ -1616,14 +1686,17 @@ function drawChSubs(){
   const ev = chMode==="Evening";
   if(!chSubs.length){ box.innerHTML = `<div class="sub" style="margin:10px 0">Is student ke koi subjects set nahi — student ki profile edit kar ke subjects add karein.</div>`; return; }
   box.innerHTML = `
-    <div class="note" style="margin:10px 0"><b>Subjects</b> — yehi list challan par chhapegi${ev?" (subject-wise fee ke sath)":""}. Kisi month koi subject na lagana ho to ✕ se hata dein.</div>
+    <div class="note" style="margin:10px 0"><b>Subjects</b> — yehi list challan par chhapegi${ev?" (subject-wise fee aur discount ke sath)":""}. Kisi month koi subject na lagana ho to ✕ se hata dein.</div>
     <div class="tbl-wrap"><table>
-      <thead><tr><th>#</th><th>Subject</th><th>Teacher</th>${ev?"<th>Fee (Rs)</th>":""}<th></th></tr></thead>
+      <thead><tr><th>#</th><th>Subject</th><th>Teacher</th>${ev?"<th>Fee (Rs)</th><th>Discount (Rs)</th><th>%</th><th>Net</th>":""}<th></th></tr></thead>
       <tbody>${chSubs.map((x,i)=>`<tr>
         <td><b>${i+1}</b></td>
         <td><b>${esc(x.name)}</b></td>
         <td>${esc(teacherName(x.teacherId))}</td>
-        ${ev?`<td style="max-width:120px"><input type="number" value="${x.fee||0}" oninput="chSubs[${i}].fee=+this.value||0;chTotal()"></td>`:""}
+        ${ev?`<td style="max-width:110px"><input type="number" value="${x.fee||0}" oninput="setChFee(${i},this)"></td>
+        <td style="max-width:110px"><input type="number" value="${x.disc||0}" oninput="setChDisc(${i},this)" placeholder="0"></td>
+        <td><b id="chPct${i}">${pctOf(x.disc,x.fee)}</b></td>
+        <td><b id="chNet${i}">${money((+x.fee||0)-(+x.disc||0))}</b></td>`:""}
         <td><button class="btn-danger btn-sm" onclick="chSubs.splice(${i},1);drawChSubs();chTotal()">✕</button></td>
       </tr>`).join("")}</tbody>
     </table></div>`;
@@ -1639,32 +1712,66 @@ function addChItem(){
 function drawChItems(){
   $("chItemChips").innerHTML = chItems.map((it,i)=>`<span class="chip">${esc(it.desc)} · ${money(it.amt)} <button onclick="chItems.splice(${i},1);drawChItems();chTotal()">✕</button></span>`).join("") || `<span class="sub">Koi extra charge nahi</span>`;
 }
+/* discount percentage khud nikalta hai — 1 decimal tak */
+const pctOf = (d,f) => (+f? Math.round((+d||0)/(+f)*1000)/10 : 0) + "%";
+function setChFee(i, el){
+  chSubs[i].fee = Math.max(0, +el.value||0);
+  if((+chSubs[i].disc||0) > chSubs[i].fee) chSubs[i].disc = chSubs[i].fee;
+  refreshChRow(i); chTotal();
+}
+function setChDisc(i, el){
+  const fee = +chSubs[i].fee||0;
+  let d = +el.value||0;
+  if(d < 0){ d = 0; el.value = 0; }
+  if(d > fee){ d = fee; el.value = fee; toast("Discount subject ki fee se zyada nahi ho sakta"); }
+  chSubs[i].disc = d;
+  refreshChRow(i); chTotal();
+}
+function refreshChRow(i){
+  const x = chSubs[i];
+  if($("chPct"+i)) $("chPct"+i).textContent = pctOf(x.disc, x.fee);
+  if($("chNet"+i)) $("chNet"+i).textContent = money((+x.fee||0)-(+x.disc||0));
+}
 function chTotal(){
   const ev = chMode==="Evening" && chSubs.length;
-  if(ev){ $("c_amt").value = chSubs.reduce((a,x)=>a+(+x.fee||0),0); $("c_amt").readOnly = true; }
-  else if($("c_amt")) $("c_amt").readOnly = false;
-  const t = (+$("c_amt").value||0) + chItems.reduce((a,i)=>a+ +i.amt,0);
-  $("c_total").textContent = money(t);
-  return t;
+  if($("c_discWrap")) $("c_discWrap").style.display = ev? "none":"block";
+  let gross, disc;
+  if(ev){
+    gross = chSubs.reduce((a,x)=>a+(+x.fee||0),0);
+    disc  = chSubs.reduce((a,x)=>a+(+x.disc||0),0);
+    $("c_amt").value = gross; $("c_amt").readOnly = true;
+  }else{
+    if($("c_amt")) $("c_amt").readOnly = false;
+    gross = +$("c_amt").value||0;
+    disc  = Math.min(Math.max(0, +($("c_disc")? $("c_disc").value:0)||0), gross);
+  }
+  const items = chItems.reduce((a,i)=>a+ +i.amt,0);
+  const net = gross - disc + items;
+  const pct = gross? Math.round(disc/gross*1000)/10 : 0;
+  if($("c_discLine")) $("c_discLine").innerHTML = disc
+    ? `Fee: ${money(gross)} · Discount: <b style="color:var(--danger)">− ${money(disc)} (${pct}%)</b>${items?` · Other charges: ${money(items)}`:""}`
+    : (items? `Fee: ${money(gross)} · Other charges: ${money(items)}` : "");
+  if($("c_total")) $("c_total").textContent = money(net);
+  return {gross, disc, pct, items, net};
 }
 function saveChallan(){
   if(!$("c_stu").value){ toast("Pehle student select karein — search bar mein naam type karke list se choose karein"); return; }
-  const base = +$("c_amt").value;
-  if(!base && !chItems.length && !chSubs.length){ toast("Amount likhein ya subjects add karein"); return; }
+  const t = chTotal();
+  if(!t.gross && !t.items){ toast("Amount likhein ya subjects add karein"); return; }
   const st = stuById($("c_stu").value);
-  const total = (base||0) + chItems.reduce((a,i)=>a+ +i.amt,0);
   const status = $("c_status").value;
   const f = {
     id:uid(), chNo:"CH-"+String(DB.counters.ch++).padStart(5,"0"),
     studentId:$("c_stu").value, month:$("c_month").value||thisMonth(),
-    tuition: base||0, items:[...chItems], amount:total,
-    subjects: chSubs.map(x=>({name:x.name, fee:+x.fee||0, teacherId:x.teacherId||""})),
+    tuition: t.gross, items:[...chItems], amount:t.net,
+    discount: t.disc, discountPct: t.pct,
+    subjects: chSubs.map(x=>({name:x.name, fee:+x.fee||0, disc:+x.disc||0, teacherId:x.teacherId||""})),
     course: st? st.course : "", group: st? groupOf(st) : "",
     dueDate:$("c_due").value||"", status, shift: st? st.shift : "",
     paidDate: status==="Paid"? ($("c_paid").value||todayStr()) : ""
   };
   DB.fees.push(f); save(); closeModal(); renderFees(); renderDashboard();
-  toast("Challan created: "+f.chNo+" — Total "+money(total));
+  toast("Challan created: "+f.chNo+" — Total "+money(t.net)+(t.disc?` (${money(t.disc)} discount, ${t.pct}%)`:""));
 }
 
 /* ---------- One-click bulk challan generation ---------- */
@@ -1733,12 +1840,22 @@ function printChallan(id){
   const subs = f.subjects || [];
   const ev = (f.shift || st.shift || "") === "Evening";
   const subTot = subs.reduce((a,x)=>a+(+x.fee||0),0);
-  /* Evening: har subject ki apni fee · Morning: subjects ki list + ek monthly fee */
+  const gross  = +f.tuition || subTot || 0;
+  const disc   = +f.discount || subs.reduce((a,x)=>a+(+x.disc||0),0) || 0;
+  const pct    = gross? Math.round(disc/gross*1000)/10 : 0;
+  /* Evening: har subject ki apni fee aur apna discount · Morning: subjects ki list + ek monthly fee */
   const feeRows = (ev && subs.length)
-    ? subs.map((x,i)=>`<tr><td><b>${i+1}. ${esc(x.name)}</b>${x.teacherId?`<br><span style="font-size:.7rem;color:#555">${esc(teacherName(x.teacherId))}</span>`:""}</td><td>${money(x.fee)}</td></tr>`).join("")
+    ? subs.map((x,i)=>{
+        const fee=+x.fee||0, d=+x.disc||0, dp = fee? Math.round(d/fee*1000)/10 : 0;
+        return `<tr><td><b>${i+1}. ${esc(x.name)}</b>${x.teacherId?`<br><span style="font-size:.7rem;color:#555">${esc(teacherName(x.teacherId))}</span>`:""}</td>
+          <td>${d? `<span style="text-decoration:line-through;color:#888">${money(fee)}</span> <span style="color:#C0392B">− ${money(d)} (${dp}%)</span> <b>${money(fee-d)}</b>` : money(fee)}</td></tr>`;
+      }).join("")
       + `<tr><td><b>Subjects Total</b></td><td><b>${money(subTot)}</b></td></tr>`
     : (subs.length? `<tr><td><b>Subjects</b></td><td>${subs.map(x=>esc(x.name)).join(" · ")}</td></tr>`:"")
-      + `<tr><td><b>Monthly Fee</b></td><td>${money(f.tuition||f.amount||0)}</td></tr>`;
+      + `<tr><td><b>Monthly Fee</b></td><td>${money(gross)}</td></tr>`;
+  const discRows = disc? `
+          <tr><td><b>Discount</b></td><td style="color:#C0392B;font-weight:800">− ${money(disc)} <span style="font-weight:600;font-size:.75rem">(${pct}% of ${money(gross)})</span></td></tr>
+          <tr><td><b>After Discount</b></td><td><b>${money(gross-disc)}</b></td></tr>` : "";
   const itemRows = (f.items||[]).map(it=>`<tr><td><b>${esc(it.desc)}</b></td><td>${money(it.amt)}</td></tr>`).join("");
   const copyHTML = label => `
     <div class="challan">
@@ -1763,6 +1880,7 @@ function printChallan(id){
           <tr><td><b>Due Date</b></td><td>${f.dueDate? fmtD(f.dueDate) : "—"}</td></tr>
           <tr><td><b>Status</b></td><td><b>${f.status}</b>${f.paidDate?(" — Paid on "+fmtD(f.paidDate)):""}</td></tr>
           ${feeRows}
+          ${discRows}
           ${itemRows}
           <tr><td><b>Total Amount</b></td><td class="ch-amt">${money(f.amount)}</td></tr>
         </table>
@@ -2517,17 +2635,19 @@ function renderSubjectsAdmin(){
   const list = [...DB.subjects].sort((a,b)=>(LEVELS.indexOf(a.level)-LEVELS.indexOf(b.level))||a.name.localeCompare(b.name));
   box.innerHTML = `<div class="sub" style="margin-bottom:8px">${list.length} subjects offered</div>
   <div class="tbl-wrap"><table>
-    <thead><tr><th>#</th><th>Subject</th><th>Level</th><th>Default Fee (Rs)</th><th>Students</th><th></th></tr></thead>
+    <thead><tr><th>#</th><th>Subject</th><th>Level</th><th>Type</th><th>Classes</th><th>Default Fee (Rs)</th><th>Students</th><th></th></tr></thead>
     <tbody>${list.length? list.map((x,i)=>{
       const used = DB.students.filter(st=>(st.subjects||[]).some(y=>y.name===x.name)).length;
       return `<tr>
         <td><b>${i+1}</b></td>
         <td><input value="${esc(x.name)}" onchange="setCatalogField('${x.id}','name',this.value)"></td>
         <td style="max-width:150px"><select onchange="setCatalogField('${x.id}','level',this.value)">${LEVELS.map(l=>`<option ${x.level===l?"selected":""}>${l}</option>`).join("")}</select></td>
+        <td style="max-width:150px"><select onchange="setCatalogField('${x.id}','kind',this.value)">${["Compulsory","Elective"].map(k=>`<option ${x.kind===k?"selected":""}>${k}</option>`).join("")}</select></td>
+        <td style="max-width:200px"><button class="btn-line btn-sm" onclick="openClassPicker('${x.id}')">${(x.classes&&x.classes.length)? esc(x.classes.join(", ")) : "All "+esc(x.level)}</button></td>
         <td style="max-width:140px"><input type="number" value="${x.defaultFee||0}" onchange="setCatalogField('${x.id}','defaultFee',this.value)"></td>
         <td><b>${used}</b></td>
         <td><button class="btn-danger btn-sm" onclick="delCatalogSubject('${x.id}')">Delete</button></td>
-      </tr>`;}).join("") : `<tr><td colspan="6" class="empty">Koi subject nahi — upar se add karein</td></tr>`}</tbody>
+      </tr>`;}).join("") : `<tr><td colspan="8" class="empty">Koi subject nahi — upar se add karein</td></tr>`}</tbody>
   </table></div>`;
 }
 function setCatalogField(id, field, val){
@@ -2539,9 +2659,31 @@ function addCatalogSubject(){
   const name = $("ns_name").value.trim(), level = $("ns_level").value;
   if(!name){ toast("Subject ka naam likhein"); return; }
   if(DB.subjects.some(x=>x.name.toLowerCase()===name.toLowerCase() && x.level===level)){ toast("Ye subject is level par pehle se mojood hai"); return; }
-  DB.subjects.push({id:uid(), name, level, defaultFee:+$("ns_fee").value||0});
+  DB.subjects.push({id:uid(), name, level, kind:$("ns_kind").value, classes:[], defaultFee:+$("ns_fee").value||0});
   $("ns_name").value=""; $("ns_fee").value="";
   save(); renderSubjectsAdmin(); toast("Subject add ho gaya: "+name);
+}
+const classesOfLevel = lvl => Object.keys(CLASS_LEVEL).filter(c=>CLASS_LEVEL[c]===lvl);
+function openClassPicker(id){
+  const x = DB.subjects.find(y=>y.id===id); if(!x) return;
+  const all = classesOfLevel(x.level);
+  openModal(`
+    <h3>${esc(x.name)} — kaunsi classes mein parhaya jata hai?</h3>
+    <p class="sub" style="margin-bottom:12px">Kuch bhi select na karein to ye subject <b>${esc(x.level)}</b> ki tamam classes ke dropdown mein aayega. Khaas grades chunne par sirf unhi mein aayega.</p>
+    <div style="max-height:320px;overflow-y:auto;border:1px solid var(--line);border-radius:8px;padding:10px">
+      ${all.map(c=>`<label style="display:flex;align-items:center;gap:9px;padding:7px 4px;font-weight:500;font-size:.92rem;text-transform:none;letter-spacing:0;margin:0">
+        <input type="checkbox" value="${esc(c)}" ${(x.classes||[]).includes(c)?"checked":""} style="width:auto;margin:0">${esc(c)}</label>`).join("")}
+    </div>
+    <div class="modal-foot">
+      <button class="btn-line" onclick="closeModal()">Cancel</button>
+      <button class="btn-red" onclick="saveClassPicker('${id}')">Save</button>
+    </div>`);
+}
+function saveClassPicker(id){
+  const x = DB.subjects.find(y=>y.id===id); if(!x) return;
+  x.classes = [...$("modalBox").querySelectorAll("input[type=checkbox]")].filter(i=>i.checked).map(i=>i.value);
+  save(); closeModal(); renderSubjectsAdmin();
+  toast(x.classes.length? `${x.name} — ${x.classes.length} classes mein` : `${x.name} — tamam ${x.level} classes mein`);
 }
 function delCatalogSubject(id){
   const x = DB.subjects.find(y=>y.id===id); if(!x) return;
