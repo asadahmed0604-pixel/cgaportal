@@ -247,10 +247,11 @@ tr:hover td{background:var(--soft)}
     <div class="card"><div class="k">🌆 Evening Students</div><div class="v" id="dEveStu">0</div><div class="hint" id="dEveStuT"></div></div>
     <div class="card"><div class="k">👥 Total Staff</div><div class="v" id="dStaff">0</div><div class="hint" id="dStaffHint"></div></div>
     <div class="card"><div class="k">Unpaid Challans</div><div class="v red" id="dUnpaid">0</div><div class="hint" id="dUnpaidAmt"></div></div>
-    <div class="card"><div class="k">Income (This Month)</div><div class="v green" id="dIncome">0</div><div class="hint">Paid fees + other income</div></div>
+    <div class="card"><div class="k">Billed (This Month)</div><div class="v" id="dBilled">0</div><div class="hint" id="dBilledHint">Challans ki kul raqam</div></div>
+    <div class="card"><div class="k">Received (This Month)</div><div class="v green" id="dIncome">0</div><div class="hint" id="dIncomeHint">Wasool shuda fees + other income</div></div>
     <div class="card"><div class="k">Expense (This Month)</div><div class="v red" id="dExpense">0</div><div class="hint" id="dNet"></div></div>
-    <div class="card"><div class="k">🌅 Morning (School) Income</div><div class="v" id="dMornInc">0</div><div class="hint">Paid fees — Morning shift (this month)</div></div>
-    <div class="card"><div class="k">🌆 Evening (Academy) Income</div><div class="v" id="dEveInc">0</div><div class="hint">Paid fees — Evening shift (this month)</div></div>
+    <div class="card"><div class="k">🌅 Morning (School)</div><div class="v" id="dMornInc">0</div><div class="hint" id="dMornIncHint"></div></div>
+    <div class="card"><div class="k">🌆 Evening (Academy)</div><div class="v" id="dEveInc">0</div><div class="hint" id="dEveIncHint"></div></div>
   </div>
   <div class="grid2">
     <div class="panel"><h3>Students per Class</h3><div class="tbl-wrap"><table><thead><tr><th>Class</th><th>🌅 Morning</th><th>🌆 Evening</th><th>Active</th><th>Total</th></tr></thead><tbody id="dCourseRows"></tbody></table></div></div>
@@ -356,10 +357,11 @@ tr:hover td{background:var(--soft)}
   </div>
   <div class="cards">
     <div class="card click" onclick="openDefaulters()" title="Defaulter list dekhne ke liye click karein"><div class="k">⚠ Defaulters</div><div class="v red" id="feeDefN">0</div><div class="hint" id="feeDefAmt"></div></div>
-    <div class="card"><div class="k">Paid (This Month)</div><div class="v" id="feePaidM">0</div></div>
-    <div class="card"><div class="k">Unpaid (All)</div><div class="v red" id="feeUnpaidAll">0</div></div>
-    <div class="card"><div class="k">🌅 Morning Paid (This Month)</div><div class="v" id="feeMornM">0</div></div>
-    <div class="card"><div class="k">🌆 Evening Paid (This Month)</div><div class="v" id="feeEveM">0</div></div>
+    <div class="card"><div class="k">Billed (This Month)</div><div class="v" id="feeBilledM">0</div><div class="hint" id="feeBilledHint"></div></div>
+    <div class="card"><div class="k">Received (This Month)</div><div class="v green" id="feePaidM">0</div><div class="hint" id="feePaidHint"></div></div>
+    <div class="card"><div class="k">Outstanding (All)</div><div class="v red" id="feeUnpaidAll">0</div><div class="hint">Unpaid + adhi payments ka balance</div></div>
+    <div class="card"><div class="k">🌅 Morning (This Month)</div><div class="v" id="feeMornM">0</div><div class="hint" id="feeMornHint"></div></div>
+    <div class="card"><div class="k">🌆 Evening (This Month)</div><div class="v" id="feeEveM">0</div><div class="hint" id="feeEveHint"></div></div>
   </div>
   <div class="toolbar">
     <div class="field"><label>Status</label><select id="feeFStatus" onchange="renderFees()"><option value="">All</option><option value="Paid">Paid</option><option value="Unpaid">Unpaid</option></select></div>
@@ -487,7 +489,8 @@ tr:hover td{background:var(--soft)}
     <div class="field"><label>Select Month</label><input type="month" id="repMonth" onchange="renderReport()"></div>
   </div>
   <div class="cards">
-    <div class="card"><div class="k">Fee Income</div><div class="v" id="rFee">0</div><div class="hint" id="rFeeCount"></div></div>
+    <div class="card"><div class="k">Fee Billed</div><div class="v" id="rBilled">0</div><div class="hint" id="rBilledCount"></div></div>
+    <div class="card"><div class="k">Fee Received</div><div class="v green" id="rFee">0</div><div class="hint" id="rFeeCount"></div></div>
     <div class="card"><div class="k">🌅 Morning Slot</div><div class="v" id="rMorn">0</div><div class="hint" id="rMornCount"></div></div>
     <div class="card"><div class="k">🌆 Evening Slot</div><div class="v" id="rEve">0</div><div class="hint" id="rEveCount"></div></div>
     <div class="card"><div class="k">Other Income</div><div class="v" id="rOther">0</div></div>
@@ -818,9 +821,16 @@ function renderDashboard(){
   $("dExpense").textContent = money(exp);
   const net = inc.total-exp;
   $("dNet").textContent = "Net: " + money(net);
+  const billed = monthBilled(m);
+  $("dBilled").textContent = money(billed);
+  $("dBilledHint").textContent = feesOfMonth(m).length + " challans · " + money(billed - inc.fee) + " abhi baqi";
+  $("dIncomeHint").textContent = "Billed " + money(billed) + " mein se";
   const si = shiftIncome(m);
+  const shiftHint = x => `Billed ${money(x.billed)} · baqi ${money(x.due)} · ${x.bn} challans`;
   $("dMornInc").textContent = money(si.Morning.amt);
+  $("dMornIncHint").textContent = shiftHint(si.Morning);
   $("dEveInc").textContent = money(si.Evening.amt);
+  $("dEveIncHint").textContent = shiftHint(si.Evening);
   $("dCourseRows").innerHTML = COURSES.map(c=>{
     const all = DB.students.filter(s=>s.course===c);
     const actS = all.filter(s=>s.status==="Active");
@@ -850,7 +860,11 @@ const feeReceived = f => hasVal(f.paidAmount) ? (+f.paidAmount || 0)
 const feeOutstanding = f => hasVal(f.balance) ? Math.max(0, +f.balance || 0)
                                               : (f.status === "Unpaid" ? (+f.amount || 0) : 0);
 
+/* Kitne ka challan bana (Total Payable) — chahe wasool hua ho ya nahi */
+const feeBilled = f => +f.amount || 0;
+
 const feesOfMonth = m => DB.fees.filter(f => feeMonthOf(f) === m);
+const monthBilled = m => feesOfMonth(m).reduce((a,f)=>a + feeBilled(f), 0);
 
 function monthIncome(m){
   const fee = feesOfMonth(m).reduce((a,f)=>a + feeReceived(f), 0);
@@ -859,12 +873,16 @@ function monthIncome(m){
 }
 /* Shift-wise (Morning/Evening) wasool shuda fee */
 function shiftIncome(m){
-  const r = {Morning:{amt:0,n:0}, Evening:{amt:0,n:0}};
+  const r = {Morning:{amt:0,n:0,billed:0,due:0,bn:0}, Evening:{amt:0,n:0,billed:0,due:0,bn:0}};
   feesOfMonth(m).forEach(f=>{
-    const got = feeReceived(f); if(!got) return;
     const st = stuById(f.studentId);
     const sh = f.shift || (st? st.shift : "");   // challan par saved shift, warna student ki current shift
-    if(r[sh]){ r[sh].amt += got; r[sh].n++; }
+    if(!r[sh]) return;
+    r[sh].billed += feeBilled(f);
+    r[sh].due    += feeOutstanding(f);
+    r[sh].bn++;
+    const got = feeReceived(f);
+    if(got){ r[sh].amt += got; r[sh].n++; }
   });
   return r;
 }
@@ -1586,11 +1604,18 @@ function renderFees(){
     </tr>`;
   }).join("") : `<tr><td colspan="8" class="empty">Koi challan nahi — "New Fee Challan" se add karein.</td></tr>`;
   const m = thisMonth();
-  $("feePaidM").textContent = money(feesOfMonth(m).reduce((a,f)=>a + feeReceived(f), 0));
+  const mBilled = monthBilled(m), mGot = feesOfMonth(m).reduce((a,f)=>a + feeReceived(f), 0);
+  $("feeBilledM").textContent = money(mBilled);
+  $("feeBilledHint").textContent = feesOfMonth(m).length + " challans is month";
+  $("feePaidM").textContent = money(mGot);
+  $("feePaidHint").textContent = mBilled? Math.round(mGot/mBilled*100) + "% wasool" : "";
   $("feeUnpaidAll").textContent = money(DB.fees.reduce((a,f)=>a + feeOutstanding(f), 0));
   const si = shiftIncome(m);
+  const fHint = x => `Billed ${money(x.billed)} · baqi ${money(x.due)}`;
   $("feeMornM").textContent = money(si.Morning.amt);
+  $("feeMornHint").textContent = fHint(si.Morning);
   $("feeEveM").textContent = money(si.Evening.amt);
+  $("feeEveHint").textContent = fHint(si.Evening);
   const defs = defaulterList();
   $("feeDefN").textContent = defs.length;
   $("feeDefAmt").textContent = money(defs.reduce((a,d)=>a+ +d.f.amount,0)) + " overdue · list ke liye click karein";
@@ -2663,11 +2688,14 @@ function renderReport(){
   const paidFees = feesOfMonth(m).filter(f=>feeReceived(f) > 0);
   $("rFee").textContent = money(inc.fee);
   $("rFeeCount").textContent = paidFees.length + " challans mein wasooli";
+  const rB = monthBilled(m);
+  $("rBilled").textContent = money(rB);
+  $("rBilledCount").textContent = feesOfMonth(m).length + " challans · " + money(rB - inc.fee) + " baqi";
   const si = shiftIncome(m);
   $("rMorn").textContent = money(si.Morning.amt);
-  $("rMornCount").textContent = si.Morning.n + " challans";
+  $("rMornCount").textContent = "Billed " + money(si.Morning.billed) + " · baqi " + money(si.Morning.due);
   $("rEve").textContent = money(si.Evening.amt);
-  $("rEveCount").textContent = si.Evening.n + " challans";
+  $("rEveCount").textContent = "Billed " + money(si.Evening.billed) + " · baqi " + money(si.Evening.due);
   $("rOther").textContent = money(inc.other);
   $("rExp").textContent = money(exp);
   const net = inc.total-exp;
