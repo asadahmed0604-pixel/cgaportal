@@ -399,6 +399,7 @@ tr:hover td{background:var(--soft)}
   <div class="page-head">
     <div><h2>Exams</h2><div class="sub">Exam marks record</div></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn-black" onclick="openImport('exams')">⬆ Import CSV</button>
       <button class="btn-black" onclick="openClassResult()">📊 Class Result</button>
       <button class="btn-black" onclick="openReportCard()">🎓 Report Card / Transcript</button>
       <button class="btn-red" onclick="openExamForm()">+ Add Exam Marks</button>
@@ -730,7 +731,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v17 · 21 Sept 2026";
+const BUILD = "v18 · 21 Sept 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -3684,6 +3685,25 @@ const IMPORT_TYPES = {
     ],
     note: "Din wale columns (1, 2, 3 …) khud pehchane jate hain — P = Present, L = Late, A = Absent, E = Leave."
   },
+  exams: {
+    label: "Exam Marks",
+    fields: [
+      {k:"name",     l:"Student Name",   syn:["studentname","name","student","fullname"], req:true},
+      {k:"course",   l:"Class / Grade",  syn:["grade","class","course","level","section"]},
+      {k:"regNo",    l:"Reg No",         syn:["regno","registrationno","rollno","roll"]},
+      {k:"exam",     l:"Exam Name",      syn:["examname","exam","test","testname","assessment","paper"]},
+      {k:"subject",  l:"Subject",        syn:["subject","topic","paper","subjectname"]},
+      {k:"obtained", l:"Obtained Marks", syn:["obtainedmarks","obtained","marks","score","gotmarks","securedmarks"]},
+      {k:"total",    l:"Total Marks",    syn:["totalmarks","total","outof","maxmarks","fullmarks"]},
+      {k:"date",     l:"Date",           syn:["date","examdate","testdate"]},
+      {k:"comment",  l:"Comment",        syn:["comment","remarks","remark","teachercomment","notes"]}
+    ],
+    samples: [
+      ["Ahmed Raza","O2","","Mid Term","Physics","72","100","15/09/2026","Achi performance"],
+      ["Bilal Ahmed","O1","","Mid Term","Chemistry","58","100","15/09/2026",""]
+    ],
+    note: "Do tarah ki sheet chalti hai — (1) har row mein ek subject ke marks, ya (2) har subject ka apna column (Physics, Chemistry …) jismein sirf obtained marks hon."
+  },
   inquiries: {
     label: "Inquiries",
     fields: [
@@ -3830,6 +3850,11 @@ function impRender(){
       ${impType==="employees"? `
       <div class="field"><label>Shift (jahan sheet mein na ho)</label>
         <select id="imp_empshift"><option>Morning</option><option>Evening</option><option>Both</option></select></div>`:""}
+      ${impType==="exams"? `
+      <div class="field"><label>Exam ka naam (jahan sheet mein na ho)</label><input id="imp_exam" value="Test" placeholder="e.g. Mid Term"></div>
+      <div class="field"><label>Date (jahan sheet mein na ho)</label><input type="date" id="imp_exdate" value="${todayStr()}"></div>
+      <div class="field"><label>Total marks (jahan na likhe hon)</label><input type="number" id="imp_total" value="100" style="max-width:120px"></div>
+      <div class="field"><label>Shift</label><select id="imp_exshift"><option>Morning</option><option>Evening</option></select></div>`:""}
       ${impType==="attendance"? `
       <div class="field"><label>Month *</label><input type="month" id="imp_month" value="${thisMonth()}"></div>
       <div class="field"><label>Shift</label><select id="imp_attshift"><option>Morning</option><option>Evening</option></select></div>
@@ -3888,6 +3913,19 @@ function runImport(){
   const impDefShift = $("imp_empshift") ? $("imp_empshift").value : "";
   const feeShift = $("imp_feeshift") ? $("imp_feeshift").value : "Morning";
   let sectionClass = "";
+  /* Exam sheet matrix bhi ho sakti hai — headings jo catalogue ke subject hain.
+     Sirf tab jab sheet mein Subject/Obtained ka apna column na ho. */
+  const examSubjCols = (impType === "exams" && impMap.subject === undefined && impMap.obtained === undefined)
+    ? impRows[0].map((h,i)=>({i, raw:String(h||"").trim()}))
+        .filter(x=>x.raw && !Object.values(impMap).includes(x.i))
+        .map(x=>{
+          const mm = x.raw.match(/^(.*?)\s*\((\d+)\)\s*$/);      // "Physics (75)"
+          const nm = mm ? mm[1].trim() : x.raw;
+          return {i:x.i, name:resolveSubject(nm, ""), total: mm? +mm[2] : 0, raw:x.raw};
+        })
+        .filter(x=>DB.subjects.some(y=>keyify(y.name) === keyify(x.name)))
+    : [];
+
   /* Attendance sheet mein har din ka apna column hota hai — headings jo 1..31 hain */
   const dayCols = impType === "attendance"
     ? impRows[0].map((h,i)=>({i, d:+String(h).trim()})).filter(x=>x.d >= 1 && x.d <= 31 && String(x.d) === String(impRows[0][x.i]).trim())
@@ -4172,6 +4210,58 @@ function runImport(){
       DB.fees.push(rec); added++;
     }
 
+    else if(impType === "exams"){
+      const shift    = $("imp_exshift").value;
+      const defExam  = $("imp_exam").value.trim() || "Test";
+      const defDate  = $("imp_exdate").value || todayStr();
+      const defTotal = cleanNum($("imp_total").value) || 100;
+      const course   = matchClass(g("course"), shift) || "";
+
+      const m = bestStudentMatch(name, g("regNo"), shift, course);
+      let st = (m && m.score >= 0.82 && !m.otherShift) ? m.st : null;
+      if(st && keyify(name) !== keyify(st.name))
+        note(line, `"${name}" ko "${st.name}" se match kiya (${Math.round(m.score*100)}%)`);
+      if(!st && m && m.score >= 0.5)
+        note(line, `"${name}" nahi mila — shayad "${m.st.name}" ho (${Math.round(m.score*100)}%), check kar lein`);
+      if(!st){ skipped++; note(line, `"${name}" EMS mein nahi mila — row skip (pehle student add karein)`); return; }
+
+      const exam = g("exam") || defExam;
+      const date = cleanDate(g("date")) || defDate;
+      const comment = g("comment");
+
+      /* Har subject ke marks ek row mein, ya har subject ka apna column */
+      const entries = examSubjCols.length
+        ? examSubjCols.map(c=>({subject:c.name, obtained:String(r[c.i] ?? "").trim(), total:c.total || defTotal}))
+        : [{subject: resolveSubject(g("subject"), st.course) || g("subject"),
+            obtained: g("obtained"), total: cleanNum(g("total")) || defTotal}];
+
+      let n = 0;
+      entries.forEach(e=>{
+        if(e.obtained === "" || e.obtained === undefined) return;
+        if(/^(ab|absent|-|n\/a|na)$/i.test(String(e.obtained).trim())){
+          note(line, `${st.name} · ${e.subject}: "${e.obtained}" likha hai — marks nahi daale`);
+          return;
+        }
+        const obt = cleanNum(e.obtained), tot = e.total;
+        if(!tot){ note(line, `${st.name} · ${e.subject}: total marks nahi mile — skip`); return; }
+        if(obt > tot){ note(line, `${st.name} · ${e.subject}: obtained ${obt} total ${tot} se zyada hai — phir bhi rakha`); }
+        const key = st.id + "|" + keyify(exam) + "|" + keyify(e.subject) + "|" + date;
+        if(seen.has(key)){ note(line, `${st.name} · ${e.subject}: isi file mein dobara aaya (line ${seen.get(key)})`); return; }
+        seen.set(key, line);
+        const hit = DB.exams.find(x=>x.studentId === st.id && keyify(x.exam) === keyify(exam)
+                                  && keyify(x.subject||"") === keyify(e.subject) && x.date === date);
+        if(hit){
+          if(dup === "update"){ Object.assign(hit, {obtained:obt, total:tot, comment: comment || hit.comment}); updated++; }
+          else note(line, `${st.name} · ${e.subject}: ye record pehle se mojood hai`);
+          return;
+        }
+        DB.exams.push({id:uid(), studentId:st.id, exam, subject:e.subject,
+                       comment, total:tot, obtained:obt, date});
+        n++;
+      });
+      if(n) added++; else if(!entries.some(e=>e.obtained)) { skipped++; note(line, `${st.name}: koi marks nahi mile`); }
+    }
+
     else if(impType === "attendance"){
       const month = $("imp_month").value || thisMonth();
       const shift = $("imp_attshift").value;
@@ -4330,7 +4420,7 @@ function runImport(){
 
   save();
   renderStudents(); renderEmployees(); renderInquiries(); renderFees();
-  renderInventory(); renderIssuance(); renderFinance(); renderDashboard();
+  renderInventory(); renderIssuance(); renderFinance(); renderExams(); renderDashboard();
   if($("attDate")) loadAttendance();
   $("impBody").innerHTML = `
     <div class="cards" style="margin-bottom:14px">
