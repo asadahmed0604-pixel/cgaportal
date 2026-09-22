@@ -92,4 +92,20 @@ Dono ke link seedha lesson form mein paste karein — app khud embed bana leti h
 
 ---
 
+## Is repo mein doosra project: `twigntale/`
+
+`twigntale/` folder aik alag app hai — **Twig n Tale** ka online store
+(products, cart, checkout, customer account aur admin console).
+EduGrads se iska koi taalluq nahi, na hi koi file share hoti hai.
+
+```bash
+cd twigntale
+npm run seed
+npm start          # http://localhost:3000
+```
+
+Tafseel `twigntale/README.md` mein hai.
+
+---
+
 Cambridge Grads Academy · cga.com.pk · 0302 9255003

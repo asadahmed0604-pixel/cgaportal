@@ -1,0 +1,13 @@
+{
+  "name": "twigntale",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Twig n Tale — handmade goods store (storefront + admin console). Zero dependencies.",
+  "type": "commonjs",
+  "engines": { "node": ">=22.5" },
+  "scripts": {
+    "start": "node server/server.js",
+    "seed": "node server/seed.js",
+    "reseed": "node server/seed.js --force"
+  }
+}
