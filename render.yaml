@@ -1,0 +1,30 @@
+# Render Blueprint — CGA EMS ko free static site ke taur par host karta hai.
+# Render dashboard: New → Blueprint → is repo ko select karein.
+services:
+  - type: web
+    name: cga-ems
+    runtime: static
+    branch: main
+    autoDeploy: true
+    buildCommand: echo "CGA EMS is a single HTML file; nothing to build"
+    staticPublishPath: ./ems
+    headers:
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Referrer-Policy
+        value: same-origin
+      - path: /*
+        name: X-Robots-Tag
+        value: noindex, nofollow
+      - path: /index.html
+        name: Cache-Control
+        value: no-cache
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html

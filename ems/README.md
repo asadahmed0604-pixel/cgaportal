@@ -3,7 +3,16 @@
 Cambridge Grads Academy ka Education Management System — aik hi HTML file (`index.html`),
 koi server ya database nahi chahiye.
 
-**Live:** https://asadahmed0604-pixel.github.io/cgaportal/
+## Render par live karna (aik dafa)
+
+1. https://dashboard.render.com par GitHub se login karein.
+2. **New → Blueprint** dabayein aur `asadahmed0604-pixel/cgaportal` repo select karein.
+3. Render `render.yaml` khud parh lega aur `cga-ems` naam ki **Static Site** (free) bana dega → **Apply**.
+4. Link milega: `https://cga-ems.onrender.com` (naam pehle se liya hua ho to thoda alag hoga).
+5. Apna domain lagana ho (jaise `ems.cga.com.pk`): Render mein site → **Settings → Custom Domains**,
+   phir domain ke DNS mein jo CNAME Render bataye wo add kar dein. SSL Render khud laga deta hai.
+
+Static site free hai aur "sleep" nahi hoti — foran khulti hai.
 
 ## Data kahan save hota hai
 
@@ -16,4 +25,7 @@ Sara data browser ke `localStorage` mein save hota hai (key: `schoolAcademyDB`).
 ## Update karna
 
 Naya version aaye to `ems/index.html` ko replace karke `main` par push karein —
-GitHub Actions (`.github/workflows/pages.yml`) khud site dobara deploy kar dega.
+Render khud naya version deploy kar dega (`autoDeploy`).
+
+GitHub Pages backup ke taur par mojood hai: Settings → Pages → Source "GitHub Actions" karke
+Actions tab se "Deploy CGA EMS to GitHub Pages" hath se chalayein.

@@ -1,9 +1,8 @@
 name: Deploy CGA EMS to GitHub Pages
 
+# Main hosting Render par hai (render.yaml). GitHub Pages sirf backup ke taur par:
+# Settings → Pages → Source: "GitHub Actions" karke Actions tab se hath se chalayein.
 on:
-  push:
-    branches: ["main"]
-    paths: ["ems/**", ".github/workflows/pages.yml"]
   workflow_dispatch:
 
 permissions:
