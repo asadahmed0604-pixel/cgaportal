@@ -279,6 +279,7 @@ label.chk input{width:auto}
     <div class="card"><div class="k">Billed (This Month)</div><div class="v" id="dBilled">0</div><div class="hint" id="dBilledHint">Challans ki kul raqam</div></div>
     <div class="card"><div class="k">Received (This Month)</div><div class="v green" id="dIncome">0</div><div class="hint" id="dIncomeHint">Wasool shuda fees + other income</div></div>
     <div class="card click" onclick="document.querySelector('#nav button[data-page=finance]').click()" title="Income / Expense page kholein"><div class="k">Total Expense (This Month)</div><div class="v red" id="dExpense">0</div><div class="hint" id="dNet"></div></div>
+    <div class="card click" onclick="document.querySelector('#nav button[data-page=finance]').click()" title="Income / Expense page kholein — Salaries → Expense panel"><div class="k">💼 Salaries (This Month)</div><div class="v red" id="dSalary">0</div><div class="hint" id="dSalaryHint"></div></div>
     <div class="card"><div class="k">🌅 Morning (School)</div><div class="v" id="dMornInc">0</div><div class="hint" id="dMornIncHint"></div></div>
     <div class="card"><div class="k">🌆 Evening (Academy)</div><div class="v" id="dEveInc">0</div><div class="hint" id="dEveIncHint"></div></div>
   </div>
@@ -791,7 +792,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v21 · 23 Sept 2026";
+const BUILD = "v22 · 25 Sept 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -1080,6 +1081,7 @@ function renderDashboard(){
   const expDue = monthExpenseUnpaid(m);
   $("dNet").textContent = "Net: " + money(net) + (expDue? " · " + money(expDue) + " abhi adaa nahi" : " · sab adaa");
   drawCatBreak(m, "dCatBreak");
+  drawSalaryCard(m, exp);
   const billed = monthBilled(m);
   $("dBilled").textContent = money(billed);
   $("dBilledHint").textContent = feesOfMonth(m).length + " challans · " + money(billed - inc.fee) + " abhi baqi";
@@ -1101,6 +1103,18 @@ function renderDashboard(){
   drawExportGrid();
   $("dInqRows").innerHTML = inq.length? inq.map(i=>`<tr><td>${esc(i.name)}</td><td>${esc(i.course)}</td><td>${esc(i.phone)}</td><td>${fmtD(i.date)}</td></tr>`).join("") : `<tr><td colspan="4" class="empty">Abhi koi inquiry nahi</td></tr>`;
 }
+/* v22: Dashboard ka salary card — is mahine ki "Salary & Wages" expense entries (auto + manual) */
+function drawSalaryCard(m, exp){
+  const cfg = salCfg();
+  const sal = txnsOf(m,"Expense").filter(t=>t.category==="Salary & Wages");
+  const tot = sal.reduce((a,t)=>a+(+t.amount||0),0);
+  const due = sal.filter(txnUnpaid).reduce((a,t)=>a+(+t.amount||0),0);
+  $("dSalary").textContent = money(tot);
+  $("dSalaryHint").textContent = !cfg.on && !sal.length
+    ? "Auto salary OFF — Income / Expense page par ON karein"
+    : `${sal.length} entries · kul kharch ka ${exp? Math.round(tot*100/exp) : 0}%` + (due? ` · ${money(due)} abhi adaa nahi` : "");
+}
+
 /* ---------- Fee ka hisaab: teen bunyadi sawal ----------
    Har jagah yehi teen functions chalte hain taake dashboard, fees page, monthly report
    aur P&L ek hi baat kahein. */
@@ -5308,9 +5322,13 @@ function saveClassPay(){
    - Aap auto entry delete karein to wo us mahine dobara nahi banti.
    - Us mahine ki koi manual "Salary & Wages" entry jis mein employee ka naam ho, to auto entry nahi banti (double na ho). */
 function salCfg(){
-  DB.settings.salaryAuto = Object.assign({on:false, who:"Teacher", from:thisMonth(), day:1, status:"Paid", skip:[]}, DB.settings.salaryAuto||{});
-  if(!Array.isArray(DB.settings.salaryAuto.skip)) DB.settings.salaryAuto.skip = [];
-  return DB.settings.salaryAuto;
+  DB.settings.salaryAuto = Object.assign({on:true, who:"All", from:thisMonth(), day:1, status:"Paid", skip:[]}, DB.settings.salaryAuto||{});
+  const cfg = DB.settings.salaryAuto;
+  if(!Array.isArray(cfg.skip)) cfg.skip = [];
+  /* v22: Salaries by default sab staff ki kharch mein aati hain. Purane version ne jo "off / sirf teachers"
+     khud se likh diya tha (user ne kabhi Save nahi dabaya) wo yahan ek dafa badal jata hai. */
+  if(!cfg.userSet){ cfg.on = true; cfg.who = "All"; }
+  return cfg;
 }
 function salaryOf(e){
   const perClass = Object.values(DB.classCosts||{}).flat().filter(r=>r.teacherId===e.id).reduce((a,r)=>a+(+r.amount||0),0);
@@ -5365,6 +5383,7 @@ function syncSalaries(){
 }
 function saveSalCfg(){
   const cfg = salCfg();
+  cfg.userSet = true;
   cfg.on = $("salOn").checked; cfg.who = $("salWho").value; cfg.from = $("salFrom").value || thisMonth();
   cfg.day = Math.min(28, Math.max(1, +$("salDay").value||1)); cfg.status = $("salStatus").value;
   save();
