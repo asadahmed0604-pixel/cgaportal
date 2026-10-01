@@ -1,0 +1,13 @@
+{
+  "name": "cga-ems",
+  "version": "23.0.0",
+  "private": true,
+  "description": "CGA EMS — online server (shared data, office password login)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

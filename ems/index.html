@@ -262,7 +262,7 @@ label.chk input{width:auto}
     <button data-page="biz"><span class="ico">📑</span> Business Reports</button>
     <button data-page="settings"><span class="ico">⚙</span> Settings</button>
   </nav>
-  <div class="side-foot"><b id="buildTag" style="color:#fff"></b><br>Offline system — data is saved in this browser</div>
+  <div class="side-foot"><b id="buildTag" style="color:#fff"></b><br><span id="syncLine">Offline system — data is saved in this browser</span></div>
 </aside>
 
 <main class="main">
@@ -715,6 +715,7 @@ label.chk input{width:auto}
 <div class="toast" id="toast"></div>
 <div id="challanPrint"></div>
 
+<!--EMS_SERVER_BOOT-->
 <script>
 /* ================= DATA STORE ================= */
 /* Morning = Main School System · Evening = Academy */
@@ -792,7 +793,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v22 · 25 Sept 2026";
+const BUILD = "v23 · 1 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -913,7 +914,11 @@ const DEFAULT_DB = {
 
 let DB;
 let storageOK = true;
-try{
+/* v23: Online (server) mode — server ne page ke saath data aur version bhej diya.
+   File seedha computer par kholi ho to pehle ki tarah browser (localStorage) mode chalta hai. */
+const SERVER = window.__EMS__ || null;
+if(SERVER) DB = SERVER.data || structuredClone(DEFAULT_DB);
+else try{
   localStorage.setItem("__t","1"); localStorage.removeItem("__t");
   DB = JSON.parse(localStorage.getItem("schoolAcademyDB")) || structuredClone(DEFAULT_DB);
 }catch(e){ storageOK = false; DB = structuredClone(DEFAULT_DB); }
@@ -947,6 +952,7 @@ DB.txns.forEach(t=>{
 });
 
 function save(){
+  if(SERVER){ queuePush(); return; }
   if(!storageOK){ toast("⚠ Warning: Is preview mein data save nahi hota. File download kar ke laptop par kholein."); return; }
   try{ localStorage.setItem("schoolAcademyDB", JSON.stringify(DB)); }
   catch(e){ toast("⚠ Data save nahi hua — storage full ho sakta hai. Backup download karein."); }
@@ -4736,6 +4742,17 @@ function applyBackup(){
   if(!DB.subjects || !DB.subjects.length) DB.subjects = seedSubjects();
   DB.students.forEach(x=>{ if(!x.subjects) x.subjects = []; });
 
+  if(SERVER){
+    pushNow(true).then(ok=>{
+      if(!ok){ backupFail("Backup server par save nahi ho saka — internet check karein, page reload karein aur dobara import karein."); return; }
+      pendingBackup = null;
+      openModal(`
+        <h3>Backup import ho gaya ✓</h3>
+        <div class="note"><b>${DB.students.length}</b> students · <b>${DB.fees.length}</b> challans · <b>${DB.employees.length}</b> employees server par save ho gaye — ab har computer par yahi data nazar aayega.</div>
+        <div class="modal-foot"><button class="btn-red" onclick="location.reload()">Kholein</button></div>`);
+    });
+    return;
+  }
   /* Save karo AUR parh kar tasdeeq karo — pehle save chupchaap fail ho jata tha
      aur reload ke baad purana khali data wapas aa jata tha */
   let err = "";
@@ -5430,6 +5447,148 @@ function toggleTxnStatus(id){
   toast(`"${t.desc}" — ${t.status}`);
 }
 
+
+/* ================= v23: ONLINE SYNC =================
+   Server mode mein har save() thori der baad poora data server ko jata hai (version ke saath).
+   Agar beech mein kisi aur computer ne save kiya ho to server 409 deta hai — tab dono taraf ki
+   tabdeeliyan record-by-record (id se) mila kar dobara bheja jata hai, taake kisi ka kaam na mitay.
+   Har 8 second baad dekhte hain ke kisi aur ne kuch badla to nahi; badla ho to screen khud update. */
+const SYNC = {version: SERVER? SERVER.version : 0, base: SERVER? JSON.stringify(SERVER.data ?? null) : "",
+              timer:null, busy:false, again:false, failed:false, retry:null, conflict:false};
+const syncDirty = () => !!SERVER && JSON.stringify(DB) !== SYNC.base;
+const jclone = x => x===undefined ? undefined : JSON.parse(JSON.stringify(x));
+const same = (a,b) => JSON.stringify(a) === JSON.stringify(b);
+const isObj = x => x && typeof x === "object" && !Array.isArray(x);
+const idList = a => Array.isArray(a) && a.length > 0 && a.every(x=>isObj(x) && x.id!==undefined);
+
+/* 3-way merge: base = jo dono ne aakhri dafa dekha, local = is computer ka, remote = server ka */
+function merge3(base, local, remote){
+  if(same(local, base)) return jclone(remote);
+  if(same(remote, base) || same(local, remote)) return jclone(local);
+  if(Array.isArray(local) && Array.isArray(remote) && (idList(local) || idList(remote))){
+    const B = new Map((Array.isArray(base)?base:[]).filter(isObj).map(x=>[String(x.id),x]));
+    const L = new Map(local.filter(isObj).map(x=>[String(x.id),x]));
+    const R = new Map(remote.filter(isObj).map(x=>[String(x.id),x]));
+    const out = [];
+    const pick = id => {
+      const b=B.get(id), l=L.get(id), r=R.get(id);
+      if(l && r) return merge3(b, l, r);
+      if(l && !r) return (b && same(l,b)) ? undefined : l;      // server ne delete kiya; yahan badla na ho to delete
+      if(r && !l) return (b && same(r,b)) ? undefined : r;      // yahan delete hua; server ne badla na ho to delete
+    };
+    remote.forEach(x=>{ if(!isObj(x)) return; const v = pick(String(x.id)); if(v!==undefined) out.push(v); });
+    local.forEach(x=>{ if(isObj(x) && !R.has(String(x.id))){ const v = pick(String(x.id)); if(v!==undefined) out.push(v); } });
+    return jclone(out);
+  }
+  if(isObj(local) && isObj(remote)){
+    const b = isObj(base) ? base : {}, out = {};
+    new Set([...Object.keys(remote), ...Object.keys(local)]).forEach(k=>{
+      const inL = k in local, inR = k in remote;
+      if(inL && inR) out[k] = merge3(b[k], local[k], remote[k]);
+      else if(inL){ if(!(k in b) || !same(local[k], b[k])) out[k] = jclone(local[k]); }
+      else        { if(!(k in b) || !same(remote[k], b[k])) out[k] = jclone(remote[k]); }
+    });
+    return out;
+  }
+  return same(local, base) ? jclone(remote) : jclone(local);   // dono ne badla — is computer ka aakhri faisla
+}
+function mergeDB(base, local, remote){
+  const m = merge3(base, local, remote);
+  /* Naye registration/challan number kabhi peeche na jayein */
+  m.counters = m.counters || {};
+  for(const k of new Set([...Object.keys(local.counters||{}), ...Object.keys(remote.counters||{})]))
+    m.counters[k] = Math.max(+(local.counters||{})[k]||0, +(remote.counters||{})[k]||0, +m.counters[k]||0);
+  /* Do computers ne aik hi mahine ki auto salary bana di ho to aik rakho */
+  const seen = new Set();
+  m.txns = (m.txns||[]).filter(t=>!t.autoKey || (seen.has(t.autoKey) ? false : (seen.add(t.autoKey), true)));
+  return m;
+}
+
+function setSyncState(){
+  const el = $("syncLine"); if(!el || !SERVER) return;
+  const state = SYNC.failed ? `<span style="color:#FFCC68">⚠ Server se rabta nahi — dobara koshish ho rahi hai</span>`
+              : (SYNC.busy || syncDirty()) ? "⏳ Save ho raha hai…"
+              : "☁ Online — har computer par sync";
+  el.innerHTML = state + ` · <a href="/logout" style="color:#9CBCC9">Logout</a>`;
+}
+function queuePush(){
+  clearTimeout(SYNC.timer);
+  SYNC.timer = setTimeout(()=>pushNow(), 700);
+  setSyncState();
+}
+const modalOpen = () => $("modalOverlay").classList.contains("show");
+const typing = () => { const a = document.activeElement; return !!a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && !!a.closest(".main, .modal"); };
+
+/* Server ka naya data screen par lagao (jo page khula hai wahi dobara banao) */
+function adoptRemote(remote){
+  const local = DB, base = SYNC.base ? JSON.parse(SYNC.base) : null;
+  DB = syncDirty() ? mergeDB(base, local, remote.data) : remote.data;
+  for(const k in DEFAULT_DB) if(DB[k]===undefined) DB[k] = structuredClone(DEFAULT_DB[k]);
+  SYNC.base = JSON.stringify(remote.data);
+  SYNC.version = remote.version;
+  $("brandName").textContent = DB.settings.name||"Cambridge Grads Academy";
+  const cur = document.querySelector("#nav button.active");
+  renderPage(cur ? cur.dataset.page : "dashboard");
+}
+
+/* Data server ko bhejo. force = backup import (server ka data poora badal do). true/false lautata hai. */
+async function pushNow(force){
+  if(!SERVER) return true;
+  if(SYNC.busy){ SYNC.again = true; return false; }
+  clearTimeout(SYNC.timer); clearTimeout(SYNC.retry);
+  if(!force && SYNC.conflict && modalOpen()){ SYNC.timer = setTimeout(()=>pushNow(), 2000); return false; }
+  SYNC.busy = true; setSyncState();
+  let ok = false;
+  try{
+    for(let tries=0; tries<5; tries++){
+      if(!force && !syncDirty()){ ok = true; break; }
+      const text = JSON.stringify(DB);
+      const r = await fetch("/api/db", {method:"PUT", headers:{"Content-Type":"application/json"}, credentials:"same-origin",
+        body:`{"baseVersion":${SYNC.version},"force":${!!force},"data":${text}}`});
+      if(r.status===401){ location.href = "/login"; return false; }
+      if(r.status===409){
+        /* Kisi aur ne save kiya — modal khula ho to us ke band hone ka intezar, phir mila kar dobara */
+        if(modalOpen()){ SYNC.conflict = true; SYNC.again = true; break; }
+        SYNC.conflict = false;
+        adoptRemote(await r.json()); continue;
+      }
+      if(!r.ok) throw new Error("HTTP " + r.status);
+      const j = await r.json();
+      SYNC.version = j.version; SYNC.base = text; SYNC.failed = false; ok = true;
+      if(force) break;
+    }
+  }catch(e){
+    SYNC.failed = true;
+    if(!force) SYNC.retry = setTimeout(()=>pushNow(), 5000);
+  }finally{
+    SYNC.busy = false; setSyncState();
+    if(SYNC.again){ SYNC.again = false; SYNC.timer = setTimeout(()=>pushNow(), modalOpen()? 2000 : 300); }
+    else if(!force && syncDirty() && !SYNC.failed) queuePush();
+  }
+  return ok;
+}
+
+async function pullRemote(){
+  if(!SERVER || SYNC.busy || document.hidden) return;
+  if(syncDirty()) return queuePush();                 // pehle apni tabdeeli bhejo; takrao hua to wahan merge
+  if(modalOpen() || typing()) return;                  // form bharte waqt screen nahi badalte
+  try{
+    const r = await fetch("/api/version", {credentials:"same-origin", cache:"no-store"});
+    if(r.status===401){ location.href = "/login"; return; }
+    const v = await r.json();
+    if(SYNC.failed){ SYNC.failed = false; setSyncState(); }
+    if(v.version === SYNC.version) return;
+    const d = await (await fetch("/api/db", {credentials:"same-origin", cache:"no-store"})).json();
+    if(SYNC.busy || syncDirty() || modalOpen() || typing()) return;   // beech mein kaam shuru ho gaya — agli dafa
+    adoptRemote(d);
+  }catch(e){ SYNC.failed = true; setSyncState(); }
+}
+if(SERVER){
+  setInterval(pullRemote, 8000);
+  document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) pullRemote(); });
+  window.addEventListener("beforeunload", e=>{ if(SYNC.busy || syncDirty()){ e.preventDefault(); e.returnValue = ""; } });
+}
+
 /* ---------- Populate course filter & init ---------- */
 $("stuFCourse").innerHTML = `<option value="">All Classes</option>` + COURSES.map(c=>`<option>${c}</option>`).join("");
 $("hwFCourse").innerHTML = `<option value="">All Classes</option>` + COURSES.map(c=>`<option>${c}</option>`).join("");
@@ -5440,6 +5599,7 @@ $("buildTag").textContent = "CGA EMS " + BUILD;
 drawLogo();
 if(!storageOK) toast("⚠ Preview mode: data save nahi hoga. File download kar ke laptop par kholein.");
 renderDashboard();
+if(SERVER){ setSyncState(); if(syncDirty()) queuePush(); }
 </script>
 </body>
 </html>
