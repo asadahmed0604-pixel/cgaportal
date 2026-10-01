@@ -3,6 +3,7 @@
 Cambridge Grads Academy ka Education Management System.
 
 - `index.html` — poori app (aik file).
+- `parent.html`, `parent-bot.js` — parents ka chat (neeche dekhein).
 - `server.js` — online server: office password se login, aur sara data aik jagah taake
   **har computer aur phone par wahi data** nazar aaye. Koi npm package nahi chahiye.
 
@@ -16,6 +17,17 @@ Cambridge Grads Academy ka Education Management System.
   aur har "Import Backup" se pehle ka haal `before-import-*.json` mein.
 - Sidebar ke neeche haal likha hota hai: **☁ Online**, **⏳ Save ho raha hai…**, ya **⚠ Server se rabta nahi**.
 - `index.html` ko seedha computer par kholein to purane tareeqe (sirf is browser mein) se chalti hai.
+
+## Parents chat (`/parent`)
+
+- Parents ka link: `https://<aap-ka-render-link>/parent` — staff login se bilkul alag.
+- Parent apna **phone number** (jo student profile mein Father / Mother / Student phone likha ho) aur
+  **6 digit PIN** se login karta hai. PIN EMS ke **👪 Parents** page se banta hai aur wahin se WhatsApp par bheja jata hai.
+- Chat mein menu / keywords: attendance, test results, homework, fee, teacher remarks — aur school ko message.
+  Jawab server par sirf us parent ke bachon ke data se banta hai (`parent-bot.js`); poora database kabhi parent ke browser tak nahi jata.
+- PIN ka sirf PBKDF2 hash save hota hai. Naya PIN banane ya "Band karein" se purana login foran khatam.
+- Parent ke messages EMS ke Parents page par aate hain; admin ka jawab parent ko "Teacher Remarks" mein dikhta hai.
+- Student profile → **Remarks** tab: teacher / admin ke remarks ("Parent ko dikhayein" off ho to sirf staff dekhta hai).
 
 ## Render par live karna (aik dafa)
 

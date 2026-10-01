@@ -262,6 +262,7 @@ label.chk input{width:auto}
     <button data-page="attendance"><span class="ico">🗓</span> Attendance</button>
     <button data-page="fees"><span class="ico">₨</span> Fee / Billing</button>
     <button data-page="homework"><span class="ico">📚</span> Homework</button>
+    <button data-page="parents"><span class="ico">👪</span> Parents</button>
     <button data-page="inquiries"><span class="ico">☎</span> Inquiries</button>
     <button data-page="exams"><span class="ico">📝</span> Exams</button>
     <button data-page="audit"><span class="ico">🔍</span> Class Audit</button>
@@ -294,6 +295,7 @@ label.chk input{width:auto}
     <div class="card"><div class="k">👥 Total Staff</div><div class="v" id="dStaff">0</div><div class="hint" id="dStaffHint"></div></div>
     <div class="card"><div class="k">Unpaid Challans</div><div class="v red" id="dUnpaid">0</div><div class="hint" id="dUnpaidAmt"></div></div>
     <div class="card click" onclick="document.querySelector('#nav button[data-page=inquiries]').click()" title="Inquiries page"><div class="k">📞 Inquiries (<span class="dm">This Month</span>)</div><div class="v" id="dInq">0</div><div class="hint" id="dInqHint"></div></div>
+    <div class="card click" onclick="document.querySelector('#nav button[data-page=parents]').click()" title="Parents page"><div class="k">✉️ Parent Messages</div><div class="v red" id="dPMsg">0</div><div class="hint" id="dPMsgHint"></div></div>
     <div class="card click" onclick="openNewAdmissions()" title="Naye students ki list"><div class="k">🆕 New Admissions (<span class="dm">This Month</span>)</div><div class="v green" id="dNew">0</div><div class="hint" id="dNewHint"></div></div>
     <div class="card"><div class="k">Billed (<span class="dm">This Month</span>)</div><div class="v" id="dBilled">0</div><div class="hint" id="dBilledHint">Challans ki kul raqam</div></div>
     <div class="card"><div class="k">Received (<span class="dm">This Month</span>)</div><div class="v green" id="dIncome">0</div><div class="hint" id="dIncomeHint">Wasool shuda fees + other income</div></div>
@@ -520,6 +522,34 @@ label.chk input{width:auto}
 </section>
 
 <!-- ================= EMPLOYEES ================= -->
+<section class="page" id="page-parents">
+  <div class="page-head">
+    <div><h2>Parents — Chat & Messages</h2><div class="sub">Parents phone + PIN se login kar ke chat mein apne bache ki attendance, tests, homework, fee aur remarks dekhte hain</div></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn-line" onclick="copyParentLink()">🔗 Parent link copy</button>
+      <button class="btn-red" onclick="openManualAccess()">+ Kisi number ko access</button>
+    </div>
+  </div>
+  <div id="parOffline"></div>
+  <div class="cards">
+    <div class="card"><div class="k">Families (phone number)</div><div class="v" id="parFam">0</div><div class="hint" id="parFamHint"></div></div>
+    <div class="card"><div class="k">Access diya (PIN)</div><div class="v green" id="parAcc">0</div><div class="hint" id="parAccHint"></div></div>
+    <div class="card"><div class="k">Login — pichle 7 din</div><div class="v" id="parLog">—</div><div class="hint">Kitni families ne chat kholi</div></div>
+    <div class="card"><div class="k">Open Messages</div><div class="v red" id="parOpen">0</div><div class="hint" id="parOpenHint"></div></div>
+  </div>
+  <div class="panel"><h3>✉️ Parents ke messages</h3>
+    <div class="toolbar" style="margin-top:8px">
+      <div class="field"><label>Dikhayein</label><select id="parMsgF" onchange="renderParents()"><option value="open">Jawab baqi</option><option value="">Sab</option></select></div>
+    </div>
+    <div class="tbl-wrap"><table><thead><tr><th>Date</th><th>Student</th><th>Phone</th><th>Message</th><th>Jawab</th><th>Status</th><th>Actions</th></tr></thead><tbody id="parMsgs"></tbody></table></div></div>
+  <div class="panel"><h3>👪 Families & access</h3>
+    <p class="sub" style="margin:4px 0 10px">Family = student profile mein likha Father / Mother / Student phone. Aik number par jitne bache hon, parent sab ko chat mein dekh sakta hai. Jin students ka phone nahi likha, unhein access nahi mil sakta.</p>
+    <div class="toolbar"><div class="field"><label>Search</label><input id="parSearch" placeholder="Naam / phone" oninput="renderParents()"></div>
+      <div class="field"><label>Access</label><select id="parAccF" onchange="renderParents()"><option value="">Sab</option><option value="yes">PIN diya</option><option value="no">PIN nahi diya</option></select></div></div>
+    <div class="tbl-wrap"><table><thead><tr><th>Phone</th><th>Bache</th><th>Kis ka number</th><th>Access</th><th>Aakhri login</th><th>Actions</th></tr></thead><tbody id="parFams"></tbody></table></div>
+    <div id="parNoPhone" style="margin-top:10px"></div></div>
+</section>
+
 <section class="page" id="page-audit">
   <div class="page-head">
     <div><h2>Class Audit & KPIs</h2><div class="sub">Roz / hafta-war class visit — subject aur teacher ke hisaab se score, aur jo baat theek karni hai uska follow-up</div></div>
@@ -893,7 +923,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v27 · 1 Oct 2026";
+const BUILD = "v28 · 1 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -1008,6 +1038,8 @@ const DEFAULT_DB = {
   attendance:{},           // { "2026-07-07": { studentId: {s:"P|A|L", t:"08:05", shift:"Morning"} } }
   empAttendance:{},        // { "2026-07-07": { empId: {s:"P|A|L", t:"09:00"} } }
   classCosts:{},           // { "Morning|O1": [{id, teacherId, subject, amount}] } — teacher pay per class
+  parentAccess:[],         // v28: [{id, phone(10 digit key), salt, hash, iter, active, pinSetOn}] — parents chat login
+  parentMsgs:[],           // v28: [{id, studentId, studentName, phone, d, text, status, reply, repliedOn, repliedBy}]
   audits:[],               // v27: class audit — [{id,date,shift,course,subject,teacherId,auditor,topic,plan,strength,present,scores{},homework,remarks,action,actionDone}]
   counters:{reg:1, ch:1},
   settings:{name:"Cambridge Grads Academy", addr:"", phone:"", logo:""}
@@ -1230,7 +1262,7 @@ function renderPage(p){
   ({dashboard:renderDashboard, students:renderStudents, gallery:renderGallery, attendance:loadAttendance,
     fees:renderFees, homework:renderHomework, inquiries:renderInquiries, exams:renderExams,
     employees:renderEmployees, inventory:renderInventory, issuance:renderIssuance,
-    finance:renderFinance, reports:renderReport, biz:renderBiz, audit:renderAudit,
+    finance:renderFinance, reports:renderReport, biz:renderBiz, audit:renderAudit, parents:renderParents,
     settings:loadSettings}[p]||(()=>{}))();
 }
 
@@ -1309,6 +1341,9 @@ function renderDashboard(){
   const iqDue = DB.inquiries.filter(i=>INQ_OPEN(i.stage) && i.nextFollow && i.nextFollow <= todayStr()).length;
   $("dInq").textContent = iqM.length;
   $("dInqHint").textContent = `${iqC} admission bane${iqM.length?` (${Math.round(iqM.filter(i=>i.stage==="Converted").length*100/iqM.length)}%)`:""} · ${iqDue} follow-up${iqDue===1?"":"s"} aaj tak baqi`;
+  const pOpen = (DB.parentMsgs||[]).filter(x=>x.status==="Open");
+  $("dPMsg").textContent = pOpen.length;
+  $("dPMsgHint").textContent = pOpen.length ? `Jawab baqi · sab se purana ${fmtD(pOpen.map(x=>x.d).sort()[0].slice(0,10))}` : `${(DB.parentAccess||[]).filter(a=>a.active!==false&&a.hash).length} families ko chat access`;
   const nw = newIn(m);
   $("dNew").textContent = nw.length;
   $("dNewHint").textContent = nw.length
@@ -1836,7 +1871,9 @@ function openProfile(id){
       <button onclick="swTab(this,'tpFee')">Fee Record</button>
       <button onclick="swTab(this,'tpExam')">Exams</button>
       <button onclick="swTab(this,'tpHw')">Homework ${hws.length?`(${hws.length})`:""}</button>
+      <button onclick="swTab(this,'tpRem')">Remarks ${(s.remarks||[]).length?`(${s.remarks.length})`:""}</button>
     </div>
+    <div class="tabpane" id="tpRem">${remarksHTML(id)}</div>
     <div class="tabpane on" id="tpSub"><div class="tbl-wrap"><table>
       <thead><tr><th>#</th><th>Subject</th><th>Teacher</th>${s.shift==="Evening"?"<th>Fee (Rs)</th>":""}</tr></thead>
       <tbody>${(s.subjects||[]).length? s.subjects.map((x,i)=>`<tr><td><b>${i+1}</b></td><td><b>${esc(x.name)}</b></td><td>${esc(teacherName(x.teacherId))}</td>${s.shift==="Evening"?`<td><b>${money(x.fee)}</b></td>`:""}</tr>`).join("")
@@ -1864,7 +1901,7 @@ function hwToggle(hwId, sid, val){
 function swTab(btn,id){
   btn.parentElement.querySelectorAll("button").forEach(b=>b.classList.remove("on"));
   btn.classList.add("on");
-  ["tpSub","tpIss","tpAtt","tpFee","tpExam","tpHw"].forEach(t=>$(t).classList.toggle("on",t===id));
+  ["tpSub","tpIss","tpAtt","tpFee","tpExam","tpHw","tpRem"].forEach(t=>$(t) && $(t).classList.toggle("on",t===id));
 }
 function changeStatus(id,val){ stuById(id).status=val; save(); toast("Status: "+val); renderStudents(); renderDashboard(); }
 
@@ -2831,6 +2868,191 @@ function inqConverted(st){
   inqNorm(i);
   i.stage = "Converted"; i.studentId = st.id; i.convertedOn = st.doj || wmDate(); i.nextFollow = "";
   i.log.push({id:uid(), d:i.convertedOn, stage:"Converted", note:`Admission ho gaya — ${st.regNo} (${st.course})`, by:staffName()});
+}
+
+/* ================= v28: PARENTS — chat access, messages, remarks =================
+   PIN yahan browser mein banta hai aur sirf us ka PBKDF2 hash DB mein jata hai (server login par check karta hai).
+   PIN sirf aik dafa dikhaya jata hai — bhool jayein to naya banayein (purana khud band). */
+const pKey = v => { let d = String(v||"").replace(/\D/g,""); if(d.startsWith("92") && d.length >= 12) d = d.slice(2); if(d.startsWith("0")) d = d.slice(1); return d.length >= 10 ? d.slice(-10) : ""; };
+const pDisplay = k => k ? "0" + k.slice(0,3) + "-" + k.slice(3) : "";
+const parentLink = () => location.origin + "/parent";
+let parentLogins = {};
+function families(){
+  const map = {};
+  DB.students.filter(st=>st.status !== "Left").forEach(st=>{
+    [["Father", st.fatherPhone], ["Mother", st.motherPhone], ["Student", st.phone]].forEach(([rel, ph])=>{
+      const k = pKey(ph); if(!k) return;
+      const f = map[k] = map[k] || {key:k, rels:new Set(), kids:[]};
+      f.rels.add(rel); if(!f.kids.includes(st)) f.kids.push(st);
+    });
+  });
+  (DB.parentAccess||[]).forEach(a=>{ if(!map[a.phone]) map[a.phone] = {key:a.phone, rels:new Set(), kids:[]}; });
+  return Object.values(map);
+}
+const accessOf = k => (DB.parentAccess||[]).find(a=>a.phone === k);
+
+function renderParents(){
+  if(!DB.parentAccess) DB.parentAccess = [];
+  if(!DB.parentMsgs) DB.parentMsgs = [];
+  $("parOffline").innerHTML = SERVER ? "" : `<div class="note" style="border-left-color:var(--danger)"><b>Parents chat sirf online version (Render link) par chalti hai.</b> Ye file computer par khuli hai — yahan PIN nahi ban sakta.</div>`;
+  if(SERVER) fetch("/api/parent-logins", {credentials:"same-origin", cache:"no-store"}).then(r=>r.ok?r.json():{}).then(j=>{ parentLogins = j||{}; drawParentLogins(); }).catch(()=>{});
+  const fams = families();
+  const withKids = fams.filter(f=>f.kids.length);
+  const act = (DB.parentAccess||[]).filter(a=>a.active !== false && a.hash);
+  const noPhone = DB.students.filter(st=>st.status === "Active" && ![st.fatherPhone, st.motherPhone, st.phone].some(pKey));
+  $("parFam").textContent = withKids.length;
+  $("parFamHint").textContent = `${withKids.reduce((a,f)=>a+f.kids.length,0)} bache · ${noPhone.length} active students ka phone nahi`;
+  $("parAcc").textContent = act.length;
+  $("parAccHint").textContent = withKids.length ? `${Math.round(act.filter(a=>fams.some(f=>f.key===a.phone && f.kids.length)).length*100/withKids.length)}% families ko PIN mil gaya` : "";
+  const open = DB.parentMsgs.filter(m=>m.status === "Open");
+  $("parOpen").textContent = open.length;
+  $("parOpenHint").textContent = open.length ? `Sab se purana: ${fmtD(open.map(m=>m.d).sort()[0].slice(0,10))}` : "Sab messages ka jawab de diya ✓";
+
+  /* --- messages --- */
+  const mf = $("parMsgF").value;
+  const msgs = DB.parentMsgs.filter(m=>!mf || m.status === "Open").sort((a,b)=>b.d.localeCompare(a.d));
+  $("parMsgs").innerHTML = msgs.length ? msgs.map(m=>{ const st = stuById(m.studentId); return `<tr>
+      <td>${fmtD(String(m.d).slice(0,10))}<br><span class="sub">${new Date(m.d).toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"})}</span></td>
+      <td><b>${esc(st ? st.name : m.studentName)}</b><br><span class="sub">${st ? esc(st.course + " · " + st.shift) : ""}</span></td>
+      <td>${esc(pDisplay(m.phone))}<br><a class="sub" target="_blank" rel="noopener" href="${waLink(pDisplay(m.phone))}">WhatsApp</a></td>
+      <td style="max-width:280px">${esc(m.text)}</td>
+      <td style="max-width:240px" class="sub">${m.reply ? `${esc(m.reply)}<br>— ${esc(m.repliedBy||"")} ${fmtD(m.repliedOn)}` : "—"}</td>
+      <td><span class="badge ${m.status==="Open"?"b-unpaid":m.status==="Replied"?"b-freeze":"b-paid"}">${esc(m.status)}</span></td>
+      <td style="white-space:nowrap"><button class="btn-black btn-sm" onclick="openParentReply('${m.id}')">${m.reply?"Jawab badlein":"Jawab dein"}</button>
+        ${m.status !== "Resolved" ? `<button class="btn-line btn-sm" onclick="resolveParentMsg('${m.id}')">Hal ho gaya</button>` : ""}</td></tr>`; }).join("")
+    : `<tr><td colspan="7" class="empty">${mf ? "Koi message jawab ke intezar mein nahi ✓" : "Abhi tak koi message nahi aaya"}</td></tr>`;
+
+  /* --- families --- */
+  const q = ($("parSearch").value||"").toLowerCase(), af = $("parAccF").value;
+  const rows = fams.filter(f=>{
+    const a = accessOf(f.key), has = !!(a && a.active !== false && a.hash);
+    if(af === "yes" && !has) return false;
+    if(af === "no" && has) return false;
+    return !q || (f.key + " " + pDisplay(f.key) + " " + f.kids.map(k=>k.name).join(" ")).toLowerCase().includes(q.replace(/\D/g,"") || q);
+  }).sort((a,b)=>(a.kids[0]?.name||"zz").localeCompare(b.kids[0]?.name||"zz"));
+  $("parFams").innerHTML = rows.length ? rows.map(f=>{
+    const a = accessOf(f.key), has = !!(a && a.active !== false && a.hash);
+    return `<tr>
+      <td><b>${esc(pDisplay(f.key))}</b></td>
+      <td>${f.kids.length ? f.kids.map(k=>`${esc(k.name)} <span class="sub">${esc(k.course)}</span>`).join("<br>") : `<span class="sub">Is number par koi student nahi</span>`}</td>
+      <td class="sub">${[...f.rels].join(", ") || "—"}</td>
+      <td>${has ? `<span class="badge b-paid">PIN ✓</span><br><span class="sub">${fmtD(a.pinSetOn)}</span>` : a ? `<span class="badge b-left">Band</span>` : `<span class="sub">—</span>`}</td>
+      <td class="sub" data-login="${f.key}">${parentLogins[f.key] ? fmtD(parentLogins[f.key]) : "—"}</td>
+      <td style="white-space:nowrap">${f.kids.length ? `<button class="btn-red btn-sm" onclick="genParentPin('${f.key}')">${has ? "Naya PIN" : "PIN banayein"}</button>` : ""}
+        ${has ? `<button class="btn-line btn-sm" onclick="blockParent('${f.key}')">Band karein</button>` : ""}</td></tr>`;
+  }).join("") : `<tr><td colspan="6" class="empty">Koi family nahi mili — student profile mein Father / Mother phone likhein</td></tr>`;
+  $("parNoPhone").innerHTML = noPhone.length
+    ? `<div class="note"><b>${noPhone.length} active students ka koi phone nahi likha</b> — in ke parents ko access nahi diya ja sakta: ` +
+      noPhone.slice(0, 30).map(st=>`<a href="#" class="chip" onclick="openStudentForm('${st.id}');return false">${esc(st.name)} · ${esc(st.course)}</a>`).join(" ") + (noPhone.length > 30 ? ` +${noPhone.length-30}` : "") + `</div>` : "";
+}
+function drawParentLogins(){
+  document.querySelectorAll("#parFams [data-login]").forEach(td=>{ const v = parentLogins[td.dataset.login]; td.textContent = v ? fmtD(v) : "—"; });
+  const wk = new Date(Date.now() - 7*864e5).toISOString();
+  $("parLog").textContent = Object.values(parentLogins).filter(d=>d >= wk).length;
+}
+async function pinHash(pin){
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const km = await crypto.subtle.importKey("raw", new TextEncoder().encode(pin), "PBKDF2", false, ["deriveBits"]);
+  const bits = await crypto.subtle.deriveBits({name:"PBKDF2", salt, iterations:100000, hash:"SHA-256"}, km, 256);
+  const hex = b => [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,"0")).join("");
+  return {salt:hex(salt), hash:hex(bits), iter:100000};
+}
+async function genParentPin(key){
+  if(!SERVER){ toast("Parents chat sirf online version mein chalti hai"); return; }
+  if(!window.crypto || !crypto.subtle){ toast("Ye browser PIN nahi bana sakta — Chrome / Edge use karein"); return; }
+  const fam = families().find(f=>f.key === key);
+  const pin = String(crypto.getRandomValues(new Uint32Array(1))[0] % 1000000).padStart(6, "0");
+  const h = await pinHash(pin);
+  DB.parentAccess = DB.parentAccess || [];
+  const a = accessOf(key);
+  if(a) Object.assign(a, h, {active:true, pinSetOn:todayStr()});
+  else DB.parentAccess.push({id:uid(), phone:key, ...h, active:true, pinSetOn:todayStr()});
+  save(); renderParents();
+  const kids = fam ? fam.kids.map(k=>k.name).join(", ") : "";
+  const msg = `Assalam o Alaikum! ${DB.settings.name||"Cambridge Grads Academy"} — Parents Chat:\n${parentLink()}\n\nLogin: aap ka phone number ${pDisplay(key)}\nPIN: ${pin}\n\nIs chat mein ${kids||"aap ke bache"} ki attendance, test results, homework, fee aur teacher remarks dekh sakte hain, aur school ko message bhi bhej sakte hain.`;
+  openModal(`
+    <h3>🔑 PIN ban gaya — ${esc(pDisplay(key))}</h3>
+    <div class="note"><b>${kids ? esc(kids) : "Is number"}</b> ke parent ka PIN: <b style="font-size:1.6rem;letter-spacing:.2em;font-family:monospace">${pin}</b><br>
+      Ye PIN sirf abhi dikh raha hai. Parent ko WhatsApp par bhej dein. ${a ? "Purana PIN ab kaam nahi karega." : ""}</div>
+    <div class="field"><label>Message</label><textarea id="pinMsg" rows="7">${esc(msg)}</textarea></div>
+    <div class="modal-foot">
+      <button class="btn-line" onclick="navigator.clipboard&&navigator.clipboard.writeText($('pinMsg').value).then(()=>toast('Copy ho gaya'))">📋 Copy</button>
+      <a class="btn-red" style="padding:9px 14px" target="_blank" rel="noopener" href="${waLink(pDisplay(key))}?text=${encodeURIComponent(msg)}">WhatsApp par bhejein</a>
+      <button class="btn-line" onclick="closeModal()">Band karein</button>
+    </div>`, true);
+}
+function blockParent(key){
+  const a = accessOf(key); if(!a) return;
+  askConfirm("Parent access band karein?", `${esc(pDisplay(key))} — is number se chat login nahi hoga (pehle se khula chat bhi band).`, ()=>{
+    a.active = false; save(); renderParents(); toast("Access band");
+  }, "Haan, band karein");
+}
+function openManualAccess(){
+  openModal(`
+    <h3>Kisi number ko access dein</h3>
+    <p class="sub" style="margin-bottom:10px">Number jo student profile mein Father / Mother / Student phone mein likha ho. Na likha ho to pehle student profile mein likhein.</p>
+    <div class="field"><label>Phone number</label><input id="maPhone" placeholder="03XX XXXXXXX"></div>
+    <div class="modal-foot"><button class="btn-line" onclick="closeModal()">Cancel</button>
+      <button class="btn-red" onclick="const k=pKey($('maPhone').value);if(!k){toast('Sahi phone number likhein');return;}if(!families().some(f=>f.key===k&&f.kids.length)){toast('Is number par koi student nahi — pehle student profile mein likhein');return;}closeModal();genParentPin(k)">PIN banayein</button></div>`);
+}
+function copyParentLink(){
+  const l = parentLink();
+  (navigator.clipboard ? navigator.clipboard.writeText(l) : Promise.reject()).then(()=>toast("Copy: " + l)).catch(()=>toast(l));
+}
+function openParentReply(id){
+  const m = DB.parentMsgs.find(x=>x.id===id); if(!m) return;
+  const st = stuById(m.studentId);
+  openModal(`
+    <h3>✉️ ${esc(st ? st.name : m.studentName)} — ${esc(pDisplay(m.phone))}</h3>
+    <div class="note">${fmtD(String(m.d).slice(0,10))}: ${esc(m.text)}</div>
+    <div class="field"><label>Jawab (parent ko chat mein "Teacher Remarks" mein nazar aayega)</label><textarea id="prText" rows="4">${esc(m.reply||"")}</textarea></div>
+    <div class="field"><label>Kis ne</label><input id="prBy" value="${esc(m.repliedBy||staffName())}"></div>
+    <label class="chk"><input type="checkbox" id="prResolved" ${m.status==="Resolved"?"checked":""}> Masla hal ho gaya</label>
+    <div class="modal-foot"><button class="btn-line" onclick="closeModal()">Cancel</button>
+      <button class="btn-red" onclick="saveParentReply('${id}')">Jawab bhejein</button></div>`, true);
+}
+function saveParentReply(id){
+  const m = DB.parentMsgs.find(x=>x.id===id); if(!m) return;
+  const t = $("prText").value.trim(); if(!t){ toast("Jawab likhein"); return; }
+  m.reply = t; m.repliedBy = $("prBy").value.trim(); m.repliedOn = todayStr();
+  m.status = $("prResolved").checked ? "Resolved" : "Replied";
+  setStaffName(m.repliedBy);
+  save(); closeModal(); renderParents(); renderDashboard(); toast("Jawab save — parent ko chat mein nazar aayega");
+}
+function resolveParentMsg(id){
+  const m = DB.parentMsgs.find(x=>x.id===id); if(!m) return;
+  m.status = "Resolved"; save(); renderParents(); renderDashboard(); toast("Hal ho gaya ✓");
+}
+
+/* --- Student remarks (teacher / admin) — parent ko chat mein dikhte hain --- */
+const REMARK_TYPES = ["Remark","Appreciation","Behaviour","Academic concern","Issue"];
+function remarksHTML(sid){
+  const st = stuById(sid), rm = (st.remarks||[]).slice().sort((a,b)=>b.d.localeCompare(a.d));
+  const msgs = (DB.parentMsgs||[]).filter(m=>m.studentId===sid).sort((a,b)=>b.d.localeCompare(a.d));
+  return `<div class="toolbar">
+      <div class="field"><label>Type</label><select id="rmType">${REMARK_TYPES.map(x=>`<option>${x}</option>`).join("")}</select></div>
+      <div class="field" style="flex:1;min-width:220px"><label>Remark</label><input id="rmNote" placeholder="e.g. Math mein behtari aayi hai, homework waqt par"></div>
+      <div class="field"><label>Kis ne</label><input id="rmBy" value="${esc(staffName())}" style="max-width:150px"></div>
+      <label class="chk" style="margin-bottom:10px"><input type="checkbox" id="rmVis" checked> Parent ko dikhayein</label>
+      <button class="btn-red" onclick="addRemark('${sid}')">+ Add</button></div>
+    <div class="tbl-wrap"><table><thead><tr><th>Date</th><th>Type</th><th>Remark</th><th>Kis ne</th><th>Parent</th><th></th></tr></thead><tbody>
+      ${rm.length ? rm.map(r=>`<tr><td>${fmtD(r.d)}</td><td>${esc(r.type||"Remark")}</td><td>${esc(r.note)}</td><td>${esc(r.by||"")}</td>
+        <td>${r.parentVisible===false?"<span class='sub'>Chhupa</span>":"✓"}</td><td><button class="btn-danger btn-sm" onclick="delRemark('${sid}','${r.id}')">Delete</button></td></tr>`).join("")
+        : `<tr><td colspan="6" class="empty">Abhi koi remark nahi</td></tr>`}</tbody></table></div>
+    ${msgs.length ? `<h3 style="margin:14px 0 8px">Parent ke messages</h3><div class="tbl-wrap"><table><tbody>${msgs.map(m=>`<tr><td>${fmtD(String(m.d).slice(0,10))}</td><td>${esc(m.text)}</td>
+      <td class="sub">${m.reply?esc(m.reply):"jawab baqi"}</td><td><button class="btn-line btn-sm" onclick="openParentReply('${m.id}')">Jawab</button></td></tr>`).join("")}</tbody></table></div>` : ""}`;
+}
+function addRemark(sid){
+  const st = stuById(sid), note = $("rmNote").value.trim();
+  if(!note){ toast("Remark likhein"); return; }
+  st.remarks = st.remarks || [];
+  const by = $("rmBy").value.trim(); setStaffName(by);
+  st.remarks.push({id:uid(), d:wmDate(), type:$("rmType").value, note, by, parentVisible:$("rmVis").checked});
+  save(); $("tpRem").innerHTML = remarksHTML(sid); toast("Remark save" + ($("rmVis") && $("rmVis").checked ? " — parent ko chat mein dikhega" : ""));
+}
+function delRemark(sid, rid){
+  const st = stuById(sid); st.remarks = (st.remarks||[]).filter(r=>r.id!==rid);
+  save(); $("tpRem").innerHTML = remarksHTML(sid);
 }
 
 /* ================= v27: CLASS AUDIT & KPIs =================
