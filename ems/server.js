@@ -103,6 +103,60 @@ function persist(next, label) {
 }
 const stamp = () => new Date().toISOString().replace(/[:.]/g, "-");
 
+/* ================= v28: PARENTS CHATBOT =================
+   Parents ka login staff se bilkul alag: phone + 6 digit PIN (admin EMS ke "Parents" page se banata hai,
+   PBKDF2 hash DB mein). Parent sirf apne bachon ka data dekh sakta hai — jawab yahin server par
+   banta hai aur poora database kabhi browser tak nahi jata. */
+const bot = require("./parent-bot");
+const PARENT_HTML = fs.readFileSync(path.join(__dirname, "parent.html"), "utf8");
+const PARENT_KEY = crypto.createHash("sha256").update(fs.readFileSync(SECRET_FILE, "utf8") + "|parents").digest();
+const psign = (x) => crypto.createHmac("sha256", PARENT_KEY).update(x).digest("base64url");
+const LOGINS_FILE = path.join(DATA_DIR, "parent-logins.json");
+let parentLogins = {};
+try { parentLogins = JSON.parse(fs.readFileSync(LOGINS_FILE, "utf8")); } catch { parentLogins = {}; }
+let parsed = { v: -1, db: null };
+function dbNow() {
+  if (parsed.v !== state.version) parsed = { v: state.version, db: JSON.parse(state.dataText) || {} };
+  return parsed.db;
+}
+/* Server khud data badle (parent ka message) — version barhta hai, staff ke browsers 8 sec mein utha lete hain */
+function mutateDb(fn) {
+  const data = JSON.parse(state.dataText) || {};
+  fn(data);
+  persist({ version: state.version + 1, updatedAt: new Date().toISOString(), dataText: JSON.stringify(data) }, "");
+}
+const accessFor = (db, key) => (db.parentAccess || []).find((a) => a.phone === key && a.active !== false && a.hash);
+function pinOk(acc, pin) {
+  if (!acc || !/^\d{6}$/.test(String(pin))) return false;
+  const h = crypto.pbkdf2Sync(String(pin), Buffer.from(acc.salt, "hex"), +acc.iter || 100000, 32, "sha256").toString("hex");
+  return safeEq(h, acc.hash);
+}
+function parentToken(acc) {
+  const exp = Date.now() + 60 * 864e5, tag = acc.hash.slice(0, 12);
+  return `${acc.phone}.${exp}.${tag}.${psign(`p|${acc.phone}|${exp}|${tag}`)}`;
+}
+/* PIN badla ya access band hua to purana login khud khatam (tag match nahi karega) */
+function parentOf(req) {
+  const [key, exp, tag, sig] = String(cookies(req).ems_p || "").split(".");
+  if (!key || !exp || !tag || !sig || +exp < Date.now() || !safeEq(sig, psign(`p|${key}|${exp}|${tag}`))) return null;
+  const db = dbNow(), acc = accessFor(db, key);
+  if (!acc || !acc.hash.startsWith(tag)) return null;
+  return { key, db, acc };
+}
+function setParentCookie(req, res, token, maxAge) {
+  res.setHeader("Set-Cookie", `ems_p=${token}; Path=/parent; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${isHttps(req) ? "; Secure" : ""}`);
+}
+const hits = new Map();
+function tooMany(key, limit, windowMs) {
+  const now = Date.now(), h = (hits.get(key) || []).filter((t) => now - t < windowMs);
+  h.push(now); hits.set(key, h);
+  return h.length > limit;
+}
+const pktToday = () => new Date(Date.now() + 5 * 3600e3).toISOString().slice(0, 10);   // Pakistan time (UTC+5)
+const schoolName = (db) => (db && db.settings && db.settings.name) || "Cambridge Grads Academy";
+const childView = (st) => ({ id: st.id, name: st.name, course: st.course, shift: st.shift, regNo: st.regNo });
+const escHtml = (x) => String(x).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
 /* ---------- pages ---------- */
 const APP_HTML = fs.readFileSync(path.join(__dirname, "index.html"), "utf8");
 if (!APP_HTML.includes("<!--EMS_SERVER_BOOT-->")) throw new Error("index.html mein <!--EMS_SERVER_BOOT--> nahi mila");
@@ -191,6 +245,63 @@ const server = http.createServer(async (req, res) => {
 
     if (p === "/healthz") return send(res, 200, "ok");
 
+    /* ---------- parents (staff login se alag) ---------- */
+    if (p === "/parent" && req.method === "GET")
+      return send(res, 200, PARENT_HTML.replace(/\{\{SCHOOL\}\}/g, escHtml(schoolName(dbNow()))), "text/html; charset=utf-8");
+    if (p === "/parent/login" && req.method === "POST") {
+      if (!sameOrigin(req)) return sendJson(res, 403, { error: "origin" });
+      const ip = clientIp(req);
+      const body = JSON.parse((await readBody(req)) || "{}");
+      const key = bot.phoneKey(body.phone);
+      if (blocked("p:" + ip) || (key && blocked("pp:" + key)))
+        return sendJson(res, 429, { error: "Bohat ghalat koshishen — 15 minute baad dobara try karein." });
+      const acc = key && accessFor(dbNow(), key);
+      if (!acc || !pinOk(acc, String(body.pin || "").trim())) {
+        failed("p:" + ip); if (key) failed("pp:" + key);
+        return sendJson(res, 401, { error: "Phone number ya PIN ghalat hai." });
+      }
+      fails.delete("p:" + ip); fails.delete("pp:" + key);
+      parentLogins[key] = new Date().toISOString();
+      try { writeAtomic(LOGINS_FILE, JSON.stringify(parentLogins)); } catch {}
+      setParentCookie(req, res, parentToken(acc), 60 * 86400);
+      return sendJson(res, 200, { ok: true });
+    }
+    if (p === "/parent/logout") {
+      setParentCookie(req, res, "", 0);
+      return redirect(res, "/parent");
+    }
+    if (p.startsWith("/parent/api/")) {
+      const who = parentOf(req);
+      if (!who) return sendJson(res, 401, { error: "login" });
+      const kids = bot.childrenOf(who.db, who.key);
+      if (p === "/parent/api/me" && req.method === "GET") {
+        const replies = (who.db.parentMsgs || []).filter((m) => m.phone === who.key && m.reply).length;
+        return sendJson(res, 200, { school: schoolName(who.db), children: kids.map(childView), menu: bot.MENU, replies });
+      }
+      if (req.method !== "POST") return send(res, 404, "Not found");
+      if (!sameOrigin(req)) return sendJson(res, 403, { error: "origin" });
+      const body = JSON.parse((await readBody(req)) || "{}");
+      const child = kids.find((k) => k.id === body.studentId) || (kids.length === 1 ? kids[0] : null);
+      if (!child) return sendJson(res, 400, { error: "Pehle bacha chunein." });
+      if (p === "/parent/api/chat") {
+        if (tooMany("chat:" + who.key, 40, 60e3)) return sendJson(res, 429, { error: "Thora ruk kar dobara poochein." });
+        const r = bot.reply(who.db, child, String(body.text || "").slice(0, 300), who.key, pktToday());
+        return sendJson(res, 200, { ...r, child: childView(child) });
+      }
+      if (p === "/parent/api/message") {
+        const text = String(body.text || "").trim().slice(0, 1000);
+        if (text.length < 3) return sendJson(res, 400, { error: "Message likhein." });
+        if (tooMany("msg:" + who.key, 10, 864e5)) return sendJson(res, 429, { error: "Aaj ke messages ki had poori — kal dobara bhejein ya school call karein." });
+        mutateDb((d) => {
+          d.parentMsgs = d.parentMsgs || [];
+          d.parentMsgs.push({ id: crypto.randomBytes(8).toString("hex"), studentId: child.id, studentName: child.name,
+            phone: who.key, d: new Date().toISOString(), text, status: "Open", reply: "", repliedOn: "" });
+        });
+        return sendJson(res, 200, { ok: true });
+      }
+      return send(res, 404, "Not found");
+    }
+
     if (p === "/login" && req.method === "GET") {
       if (authed(req)) return redirect(res, "/");
       return send(res, 200, loginPage(""), "text/html; charset=utf-8");
@@ -220,6 +331,9 @@ const server = http.createServer(async (req, res) => {
 
     if ((p === "/" || p === "/index.html") && req.method === "GET")
       return send(res, 200, appPage(), "text/html; charset=utf-8");
+
+    if (p === "/api/parent-logins" && req.method === "GET")
+      return sendJson(res, 200, parentLogins);
 
     if (p === "/api/version" && req.method === "GET")
       return sendJson(res, 200, { version: state.version, updatedAt: state.updatedAt });

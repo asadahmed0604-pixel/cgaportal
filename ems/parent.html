@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>{{SCHOOL}} — Parents</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=League+Spartan:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--green:#159670;--green-dark:#0F7657;--tint:#E6F5F0;--navy:#174B60;--ink:#12313D;--muted:#6d6d6d;--line:#e3e8e8;--bg:#F3F6F6;--danger:#C0392B;--accent:#FFCC68}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{font-family:"League Spartan","Segoe UI",Arial,sans-serif;background:var(--bg);color:var(--ink);font-size:16px}
+button,input,textarea{font:inherit}
+/* ---------- login ---------- */
+.login{min-height:100%;display:flex;align-items:center;justify-content:center;padding:16px;background:var(--navy)}
+.login form{background:#fff;border-radius:16px;padding:28px 22px;width:100%;max-width:380px;box-shadow:0 10px 40px rgba(0,0,0,.25)}
+.mark{width:48px;height:48px;border-radius:12px;background:var(--green);color:#fff;font-weight:800;display:flex;align-items:center;justify-content:center;margin-bottom:14px}
+.login h1{font-size:1.4rem;font-weight:800}
+.login p{color:var(--muted);font-size:.92rem;margin:4px 0 18px;line-height:1.35}
+.login label{display:block;font-size:.82rem;font-weight:600;margin:12px 0 6px}
+.login input{width:100%;padding:12px;border:1px solid #cfd6d6;border-radius:10px;font-size:1.05rem}
+.login input:focus{outline:2px solid var(--green);border-color:var(--green)}
+.login button{width:100%;margin-top:18px;padding:13px;border:none;border-radius:10px;background:var(--green);color:#fff;font-weight:700;font-size:1rem;cursor:pointer}
+.login button:disabled{opacity:.6}
+.err{background:#fdecea;color:var(--danger);border-radius:8px;padding:9px 11px;font-size:.9rem;margin-top:12px;display:none}
+.help{font-size:.82rem;color:var(--muted);margin-top:14px;line-height:1.4}
+/* ---------- chat ---------- */
+.app{display:none;flex-direction:column;height:100%;max-width:720px;margin:0 auto;background:#fff}
+.top{background:var(--navy);color:#fff;padding:12px 14px calc(10px);display:flex;align-items:center;gap:10px}
+.top .mark{width:36px;height:36px;margin:0;border-radius:9px;font-size:.85rem;flex-shrink:0}
+.top b{display:block;font-size:1rem;line-height:1.15}
+.top small{color:#9CBCC9;font-size:.75rem}
+.top a{margin-left:auto;color:#cfe3ea;font-size:.85rem;text-decoration:none;border:1px solid #3b6b80;border-radius:8px;padding:6px 10px}
+.kids{display:flex;gap:6px;padding:8px 12px;overflow-x:auto;border-bottom:1px solid var(--line);background:#fff}
+.kids button{border:1px solid var(--line);background:#fff;border-radius:999px;padding:7px 13px;font-size:.88rem;font-weight:600;white-space:nowrap;cursor:pointer;color:var(--ink)}
+.kids button.on{background:var(--green);border-color:var(--green);color:#fff}
+.msgs{flex:1;overflow-y:auto;padding:14px 12px;background:var(--bg);display:flex;flex-direction:column;gap:10px}
+.b{max-width:88%;padding:10px 13px;border-radius:14px;line-height:1.38;font-size:.95rem;overflow-wrap:anywhere}
+.b.bot{background:#fff;border:1px solid var(--line);align-self:flex-start;border-top-left-radius:4px}
+.b.me{background:var(--green);color:#fff;align-self:flex-end;border-top-right-radius:4px}
+.b h4{font-size:.98rem;margin-bottom:6px}
+.b p{margin:4px 0}
+.b ul{margin:6px 0 2px 18px}
+.b li{margin:3px 0}
+.b .kv{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;margin:6px 0;font-size:.92rem}
+.b .kv span:nth-child(odd){color:var(--muted);font-weight:600}
+.b.note{background:var(--tint);border-color:#bfe3d6}
+.typing{color:var(--muted);font-size:.85rem;align-self:flex-start}
+.quick{display:flex;gap:6px;flex-wrap:wrap;padding:8px 12px;border-top:1px solid var(--line);background:#fff}
+.quick button{border:1px solid #cfe3dc;background:var(--tint);color:var(--ink);border-radius:999px;padding:8px 12px;font-size:.86rem;font-weight:600;cursor:pointer}
+.compose{display:flex;gap:8px;padding:10px 12px calc(10px + env(safe-area-inset-bottom));border-top:1px solid var(--line);background:#fff;align-items:flex-end}
+.compose textarea{flex:1;resize:none;border:1px solid #cfd6d6;border-radius:12px;padding:10px 12px;max-height:120px;min-height:44px;font-size:1rem}
+.compose textarea:focus{outline:2px solid var(--green);border-color:var(--green)}
+.compose button{border:none;background:var(--green);color:#fff;border-radius:12px;padding:0 16px;height:44px;font-weight:700;cursor:pointer}
+.mode{display:none;align-items:center;gap:8px;padding:8px 12px;background:#FFF6E0;border-top:1px solid #f0d9a0;font-size:.86rem;color:#6b4a00}
+.mode button{margin-left:auto;border:1px solid #e0c27a;background:#fff;border-radius:8px;padding:4px 10px;cursor:pointer}
+</style>
+</head>
+<body>
+
+<div class="login" id="login">
+  <form id="loginForm" autocomplete="on">
+    <div class="mark">CGA</div>
+    <h1>Parents Chat</h1>
+    <p>{{SCHOOL}} — apne bache ki attendance, test results, homework aur fee yahan dekhein.</p>
+    <label for="phone">Phone number (jo school mein likha hai)</label>
+    <input id="phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="03XX XXXXXXX" required>
+    <label for="pin">6 digit PIN (school ne diya)</label>
+    <input id="pin" name="pin" type="password" inputmode="numeric" autocomplete="current-password" pattern="\d{6}" maxlength="6" placeholder="••••••" required>
+    <button type="submit" id="loginBtn">Login</button>
+    <div class="err" id="loginErr"></div>
+    <p class="help">PIN nahi mila ya bhool gaye? School office se rabta karein — wo naya PIN de denge.</p>
+  </form>
+</div>
+
+<div class="app" id="app">
+  <div class="top">
+    <div class="mark">CGA</div>
+    <div><b>{{SCHOOL}}</b><small>Parents chat</small></div>
+    <a href="/parent/logout">Logout</a>
+  </div>
+  <div class="kids" id="kids"></div>
+  <div class="msgs" id="msgs" aria-live="polite"></div>
+  <div class="quick" id="quick"></div>
+  <div class="mode" id="mode"><span>✉️ Ye message school admin ko jayega — <b id="modeKid"></b> ke baare mein</span><button type="button" id="modeCancel">Cancel</button></div>
+  <form class="compose" id="compose">
+    <textarea id="text" rows="1" placeholder="Likhein: attendance, test, homework, fee…" aria-label="Message"></textarea>
+    <button type="submit">Bhejein</button>
+  </form>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let ME = null, KID = null, MODE = "chat";
+
+async function api(path, body){
+  const r = await fetch(path, body ? {method:"POST", headers:{"Content-Type":"application/json"}, credentials:"same-origin", body:JSON.stringify(body)}
+                                  : {credentials:"same-origin", cache:"no-store"});
+  const j = await r.json().catch(()=>({}));
+  if(r.status === 401 && path !== "/parent/login"){ showLogin(); throw new Error("login"); }
+  if(!r.ok) throw new Error(j.error || ("Masla aa gaya (" + r.status + ")"));
+  return j;
+}
+
+/* ---------- chat bubbles (sirf text — koi HTML server se nahi) ---------- */
+function el(tag, cls, text){ const e = document.createElement(tag); if(cls) e.className = cls; if(text !== undefined) e.textContent = text; return e; }
+function scrollDown(){ const m = $("msgs"); m.scrollTop = m.scrollHeight; }
+function say(text){ const b = el("div", "b me", text); $("msgs").appendChild(b); scrollDown(); }
+function bot(blocks, cls){
+  const b = el("div", "b bot" + (cls ? " " + cls : ""));
+  (blocks || []).forEach(x=>{
+    if(x.t === "h") b.appendChild(el("h4", "", x.text));
+    else if(x.t === "p") b.appendChild(el("p", "", x.text));
+    else if(x.t === "li"){ const ul = el("ul"); x.items.forEach(i=>ul.appendChild(el("li", "", i))); b.appendChild(ul); }
+    else if(x.t === "kv"){ const d = el("div", "kv"); x.rows.forEach(([k,v])=>{ d.appendChild(el("span", "", k)); d.appendChild(el("span", "", v)); }); b.appendChild(d); }
+  });
+  $("msgs").appendChild(b); scrollDown();
+}
+function typing(on){
+  let t = document.querySelector(".typing");
+  if(on && !t){ t = el("div", "typing", "…"); $("msgs").appendChild(t); scrollDown(); }
+  if(!on && t) t.remove();
+}
+
+/* ---------- login ---------- */
+function showLogin(){ $("app").style.display = "none"; $("login").style.display = "flex"; }
+$("loginForm").addEventListener("submit", async (e)=>{
+  e.preventDefault();
+  $("loginErr").style.display = "none"; $("loginBtn").disabled = true;
+  try{ await api("/parent/login", {phone:$("phone").value, pin:$("pin").value}); $("pin").value = ""; await start(); }
+  catch(err){ $("loginErr").textContent = err.message; $("loginErr").style.display = "block"; }
+  finally{ $("loginBtn").disabled = false; }
+});
+
+/* ---------- chat ---------- */
+function drawKids(){
+  const box = $("kids"); box.innerHTML = "";
+  box.style.display = ME.children.length > 1 ? "flex" : "none";
+  ME.children.forEach(k=>{
+    const b = el("button", k.id === KID.id ? "on" : "", `${k.name} · ${k.course}`);
+    b.type = "button";
+    b.onclick = ()=>{ KID = k; drawKids(); setMode("chat"); ask("menu", true); };
+    box.appendChild(b);
+  });
+}
+function drawQuick(){
+  const box = $("quick"); box.innerHTML = "";
+  ME.menu.forEach(m=>{
+    const b = el("button", "", m.label); b.type = "button";
+    b.onclick = ()=>{ if(m.id === "issue"){ setMode("message"); bot([{t:"p", text:`${KID.name} ke baare mein apna masla ya message neeche likh kar "Bhejein" dabayein.`}]); $("text").focus(); } else { setMode("chat"); ask(m.id); } };
+    box.appendChild(b);
+  });
+}
+function setMode(m){
+  MODE = m;
+  $("mode").style.display = m === "message" ? "flex" : "none";
+  $("modeKid").textContent = KID ? KID.name : "";
+  $("text").placeholder = m === "message" ? "Apna message likhein…" : "Likhein: attendance, test, homework, fee…";
+}
+$("modeCancel").onclick = ()=> setMode("chat");
+
+async function ask(text, silent){
+  const label = (ME.menu.find(m=>m.id === text) || {}).label;
+  if(!silent) say(label || text);
+  typing(true);
+  try{ const r = await api("/parent/api/chat", {studentId:KID.id, text}); typing(false); bot(r.blocks); }
+  catch(err){ typing(false); if(err.message !== "login") bot([{t:"p", text:err.message}]); }
+}
+$("compose").addEventListener("submit", async (e)=>{
+  e.preventDefault();
+  const text = $("text").value.trim(); if(!text) return;
+  $("text").value = ""; autoGrow();
+  say(text);
+  if(MODE === "message"){
+    typing(true);
+    try{ await api("/parent/api/message", {studentId:KID.id, text}); typing(false);
+         bot([{t:"p", text:"✓ Aap ka message school ko mil gaya. Jawab \"Teacher Remarks\" mein nazar aayega."}], "note"); setMode("chat"); }
+    catch(err){ typing(false); if(err.message !== "login") bot([{t:"p", text:err.message}]); }
+    return;
+  }
+  ask(text, true);
+});
+function autoGrow(){ const t = $("text"); t.style.height = "auto"; t.style.height = Math.min(120, t.scrollHeight) + "px"; }
+$("text").addEventListener("input", autoGrow);
+$("text").addEventListener("keydown", (e)=>{ if(e.key === "Enter" && !e.shiftKey){ e.preventDefault(); $("compose").requestSubmit(); } });
+
+async function start(){
+  ME = await api("/parent/api/me");
+  $("login").style.display = "none"; $("app").style.display = "flex";
+  $("msgs").innerHTML = "";
+  if(!ME.children.length){
+    bot([{t:"p", text:"Is phone number par abhi koi student nahi mila. School office se rabta karein."}]);
+    $("quick").innerHTML = ""; $("compose").style.display = "none"; return;
+  }
+  KID = ME.children[0];
+  drawKids(); drawQuick(); setMode("chat");
+  bot([{t:"h", text:"Assalam o Alaikum! 👋"},
+       {t:"p", text: ME.children.length > 1 ? `Aap ke ${ME.children.length} bache: ${ME.children.map(k=>k.name).join(", ")}. Upar se bacha chunein.` : `${KID.name} (${KID.course}, ${KID.shift}) ke baare mein poochein.`},
+       ...(ME.replies ? [{t:"p", text:`School ne aap ke ${ME.replies} message${ME.replies>1?"s":""} ka jawab diya hai — "Teacher Remarks" dabayein.`}] : [])]);
+  ask("menu", true);
+}
+start().catch(()=> showLogin());
+</script>
+</body>
+</html>
