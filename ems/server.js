@@ -17,6 +17,10 @@ const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, "data");
 const PASSWORD = process.env.EMS_PASSWORD || "";
 const DB_FILE = path.join(DATA_DIR, "db.json");
 const BACKUP_DIR = path.join(DATA_DIR, "backups");
+const FILES_DIR = path.join(DATA_DIR, "files");     // v27: expense receipts (tasveer / PDF)
+const MAX_FILE = 8 * 1024 * 1024;
+const FILE_TYPES = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "application/pdf": "pdf" };
+const EXT_TYPES = { jpg: "image/jpeg", png: "image/png", webp: "image/webp", pdf: "application/pdf" };
 const KEEP_BACKUPS = 45;                      // din
 const MAX_BODY = 60 * 1024 * 1024;            // photos ke saath bhi kaafi
 const SESSION_DAYS = 30;
@@ -26,6 +30,7 @@ if (PASSWORD.length < 8) {
   process.exit(1);
 }
 fs.mkdirSync(BACKUP_DIR, { recursive: true });
+fs.mkdirSync(FILES_DIR, { recursive: true });
 
 /* ---------- session cookie: password badalte hi purane login khud khatam ---------- */
 const SECRET_FILE = path.join(DATA_DIR, ".secret");
@@ -148,6 +153,18 @@ function send(res, code, body, type, extra) {
 const sendJson = (res, code, obj) => send(res, code, typeof obj === "string" ? obj : JSON.stringify(obj), "application/json; charset=utf-8");
 const redirect = (res, to) => send(res, 303, "", "text/plain", { Location: to });
 
+function readRaw(req, limit) {
+  return new Promise((resolve, reject) => {
+    const chunks = []; let size = 0;
+    req.on("data", (c) => {
+      size += c.length;
+      if (size > limit) { reject(Object.assign(new Error("too large"), { code: 413 })); req.destroy(); return; }
+      chunks.push(c);
+    });
+    req.on("end", () => resolve(Buffer.concat(chunks)));
+    req.on("error", reject);
+  });
+}
 function readBody(req) {
   return new Promise((resolve, reject) => {
     const chunks = []; let size = 0;
@@ -222,6 +239,26 @@ const server = http.createServer(async (req, res) => {
       persist({ version: state.version + 1, updatedAt: new Date().toISOString(), dataText: JSON.stringify(data) },
               body.force ? "import" : "");
       return sendJson(res, 200, { version: state.version, updatedAt: state.updatedAt });
+    }
+
+    /* v27: receipt upload — sirf tasveer / PDF, random naam, login ke peeche */
+    if (p === "/api/files" && req.method === "POST") {
+      if (!sameOrigin(req)) return sendJson(res, 403, { error: "origin" });
+      const type = String(req.headers["content-type"] || "").split(";")[0].trim().toLowerCase();
+      const ext = FILE_TYPES[type];
+      if (!ext) return sendJson(res, 415, { error: "Sirf JPG / PNG / WEBP / PDF" });
+      const buf = await readRaw(req, MAX_FILE);
+      if (!buf.length) return sendJson(res, 400, { error: "Khali file" });
+      const name = `${crypto.randomBytes(12).toString("hex")}.${ext}`;
+      writeAtomic(path.join(FILES_DIR, name), buf);
+      return sendJson(res, 200, { url: `/files/${name}`, size: buf.length });
+    }
+    const fm = p.match(/^\/files\/([a-f0-9]{24})\.(jpg|png|webp|pdf)$/);
+    if (fm && req.method === "GET") {
+      const file = path.join(FILES_DIR, `${fm[1]}.${fm[2]}`);
+      if (!fs.existsSync(file)) return send(res, 404, "Not found");
+      return send(res, 200, fs.readFileSync(file), EXT_TYPES[fm[2]],
+        { "Cache-Control": "private, max-age=31536000, immutable", "Content-Disposition": "inline" });
     }
 
     return send(res, 404, "Not found");
