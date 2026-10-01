@@ -48,6 +48,15 @@ h3{font-size:1.02rem;font-weight:700}
 .page{display:none}
 .page.show{display:block;animation:fade .18s ease}
 @keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.dchart{position:relative}
+.dchart svg{display:block;width:100%;height:auto}
+.dchart .tip{position:absolute;pointer-events:none;background:var(--ink);color:#fff;font-size:.78rem;padding:6px 9px;border-radius:6px;white-space:nowrap;transform:translate(-50%,-100%);margin-top:-8px;display:none;z-index:3}
+.rcpt-thumb{width:34px;height:34px;object-fit:cover;border-radius:6px;border:1px solid var(--line);cursor:pointer;vertical-align:middle}
+.wmbar{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#fff;border:1px solid var(--line);border-radius:10px;padding:8px 12px;margin:-6px 0 18px;box-shadow:0 2px 8px rgba(0,0,0,.04)}
+.wmbar input{width:auto;max-width:170px;padding:6px 9px}
+.wmbar.past{background:#FFF6E0;border-color:var(--accent-dark)}
+.wmbar .wmh{font-size:.82rem;color:var(--muted)}
+.wmbar.past .wmh{color:#7a5300;font-weight:600}
 .page-head{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:20px;flex-wrap:wrap}
 .page-head h2{position:relative;padding-bottom:8px}
 .page-head h2::after{content:"";position:absolute;left:0;bottom:0;width:44px;height:3px;background:var(--red);border-radius:2px}
@@ -63,6 +72,7 @@ h3{font-size:1.02rem;font-weight:700}
 .btn-danger{background:var(--danger);color:#fff;padding:10px 16px;font-weight:600}
 .btn-danger:hover{background:#9C2C1F}
 .btn-sm{padding:6px 10px;font-size:.8rem;border-radius:6px}
+a.btn-line,a.btn-black,a.btn-red{display:inline-block;text-decoration:none;border-radius:6px;font-size:.8rem}
 .btn-red:focus-visible,.btn-black:focus-visible,.btn-line:focus-visible{outline:2px solid var(--red);outline-offset:2px}
 
 /* ---------- Cards / grid ---------- */
@@ -254,6 +264,7 @@ label.chk input{width:auto}
     <button data-page="homework"><span class="ico">📚</span> Homework</button>
     <button data-page="inquiries"><span class="ico">☎</span> Inquiries</button>
     <button data-page="exams"><span class="ico">📝</span> Exams</button>
+    <button data-page="audit"><span class="ico">🔍</span> Class Audit</button>
     <button data-page="employees"><span class="ico">👥</span> Employees</button>
     <button data-page="inventory"><span class="ico">📦</span> Inventory</button>
     <button data-page="issuance"><span class="ico">📤</span> Issuance</button>
@@ -266,19 +277,23 @@ label.chk input{width:auto}
 </aside>
 
 <main class="main">
+<div class="wmbar" id="wmBar">
+  <span>📅 <b>Working month</b></span>
+  <input type="month" id="wm" onchange="setWM(this.value)">
+  <button class="btn-line btn-sm" onclick="setWM(thisMonth())">Is mahina</button>
+  <span class="wmh" id="wmHint"></span>
+</div>
 
 <!-- ================= DASHBOARD ================= -->
 <section class="page show" id="page-dashboard">
-  <div class="page-head"><div><h2>Dashboard</h2><div class="sub" id="todayLine"></div></div>
-    <div class="field" style="margin:0"><label>Mahina dekhein</label>
-      <div style="display:flex;gap:6px"><input type="month" id="dMonth" onchange="renderDashboard()" style="max-width:170px">
-      <button class="btn-line" onclick="$('dMonth').value=thisMonth();renderDashboard()" title="Is mahine par wapas">Aaj</button></div></div></div>
+  <div class="page-head"><div><h2>Dashboard</h2><div class="sub" id="todayLine"></div></div></div>
   <div class="cards">
     <div class="card"><div class="k">Active Students</div><div class="v" id="dActive">0</div><div class="hint" id="dTotal"></div></div>
     <div class="card"><div class="k">🌅 Morning Students</div><div class="v" id="dMornStu">0</div><div class="hint" id="dMornStuT"></div></div>
     <div class="card"><div class="k">🌆 Evening Students</div><div class="v" id="dEveStu">0</div><div class="hint" id="dEveStuT"></div></div>
     <div class="card"><div class="k">👥 Total Staff</div><div class="v" id="dStaff">0</div><div class="hint" id="dStaffHint"></div></div>
     <div class="card"><div class="k">Unpaid Challans</div><div class="v red" id="dUnpaid">0</div><div class="hint" id="dUnpaidAmt"></div></div>
+    <div class="card click" onclick="document.querySelector('#nav button[data-page=inquiries]').click()" title="Inquiries page"><div class="k">📞 Inquiries (<span class="dm">This Month</span>)</div><div class="v" id="dInq">0</div><div class="hint" id="dInqHint"></div></div>
     <div class="card click" onclick="openNewAdmissions()" title="Naye students ki list"><div class="k">🆕 New Admissions (<span class="dm">This Month</span>)</div><div class="v green" id="dNew">0</div><div class="hint" id="dNewHint"></div></div>
     <div class="card"><div class="k">Billed (<span class="dm">This Month</span>)</div><div class="v" id="dBilled">0</div><div class="hint" id="dBilledHint">Challans ki kul raqam</div></div>
     <div class="card"><div class="k">Received (<span class="dm">This Month</span>)</div><div class="v green" id="dIncome">0</div><div class="hint" id="dIncomeHint">Wasool shuda fees + other income</div></div>
@@ -289,7 +304,7 @@ label.chk input{width:auto}
   </div>
   <div class="grid2">
     <div class="panel"><h3>Students per Class</h3><div class="tbl-wrap"><table><thead><tr><th>Class</th><th>🌅 Morning</th><th>🌆 Evening</th><th>Active</th><th>Total</th></tr></thead><tbody id="dCourseRows"></tbody></table></div></div>
-    <div class="panel"><h3>Recent Inquiries</h3><div class="tbl-wrap"><table><thead><tr><th>Name</th><th>Class</th><th>Phone</th><th>Date</th></tr></thead><tbody id="dInqRows"></tbody></table></div></div>
+    <div class="panel"><h3>Recent Inquiries</h3><div class="tbl-wrap"><table><thead><tr><th>Name</th><th>Class</th><th>Stage</th><th>Date</th></tr></thead><tbody id="dInqRows"></tbody></table></div></div>
   </div>
   <div class="panel">
     <h3>🧾 Kharch — <span class="dm">This Month</span></h3>
@@ -407,6 +422,7 @@ label.chk input{width:auto}
   <div class="toolbar">
     <div class="field"><label>Class</label><select id="hwFCourse" onchange="renderHomework()"><option value="">All Classes</option></select></div>
     <div class="field"><label>Shift</label><select id="hwFShift" onchange="renderHomework()"><option value="">All</option><option>Morning</option><option>Evening</option></select></div>
+    <div class="field"><label>Month (khali = sab)</label><input type="month" id="hwFMonth" onchange="renderHomework()"></div>
   </div>
   <div class="tbl-wrap"><table>
     <thead><tr><th>Date Given</th><th>Title</th><th>Class</th><th>Shift</th><th>Due Date</th><th>Detail</th><th>Submitted</th><th>Actions</th></tr></thead>
@@ -447,13 +463,37 @@ label.chk input{width:auto}
 <!-- ================= INQUIRIES ================= -->
 <section class="page" id="page-inquiries">
   <div class="page-head">
-    <div><h2>Inquiries</h2><div class="sub">Phone call inquiries record</div></div>
+    <div><h2>Inquiries → Admissions</h2><div class="sub">Har inquiry ka safar: pehli call se admission tak — roz ke follow-ups ke sath</div></div>
     <button class="btn-red" onclick="openInqForm()">+ New Inquiry</button>
   </div>
+  <div class="cards">
+    <div class="card"><div class="k">Inquiries (<span class="wmL"></span>)</div><div class="v" id="iqN">0</div><div class="hint" id="iqNHint"></div></div>
+    <div class="card"><div class="k">Admissions (<span class="wmL"></span>)</div><div class="v green" id="iqConv">0</div><div class="hint" id="iqConvHint"></div></div>
+    <div class="card"><div class="k">Conversion Rate</div><div class="v" id="iqRate">0%</div><div class="hint" id="iqRateHint"></div></div>
+    <div class="card click" onclick="$('inqFDue').checked=true;renderInquiries()"><div class="k">📞 Follow-ups Aaj</div><div class="v red" id="iqDue">0</div><div class="hint" id="iqDueHint"></div></div>
+    <div class="card"><div class="k">Lost (<span class="wmL"></span>)</div><div class="v" id="iqLost">0</div><div class="hint" id="iqLostHint"></div></div>
+  </div>
+  <div class="panel" id="iqTodayPanel"></div>
+  <div class="toolbar">
+    <div class="field"><label>Month (khali = sab)</label><input type="month" id="inqFMonth" onchange="renderInquiries()"></div>
+    <div class="field"><label>Stage</label><select id="inqFStage" onchange="renderInquiries()"><option value="">All stages</option></select></div>
+    <div class="field"><label>Source</label><select id="inqFSource" onchange="renderInquiries()"><option value="">All sources</option></select></div>
+    <div class="field"><label>Search</label><input id="inqSearch" placeholder="Naam / phone" oninput="renderInquiries()"></div>
+    <label class="chk" style="margin-bottom:10px"><input type="checkbox" id="inqFDue" onchange="renderInquiries()"> Sirf aaj / pichle follow-ups</label>
+  </div>
   <div class="tbl-wrap"><table>
-    <thead><tr><th>Date</th><th>Name</th><th>Phone</th><th>Interested Class</th><th>Agreed Fee</th><th>City / Area</th><th>Detail</th><th>Actions</th></tr></thead>
+    <thead><tr><th>Date</th><th>Name / Phone</th><th>Class</th><th>Source</th><th>Stage</th><th>Next Follow-up</th><th>Aakhri baat</th><th>Actions</th></tr></thead>
     <tbody id="inqRows"></tbody>
   </table></div>
+  <div class="grid2" style="margin-top:16px">
+    <div class="panel"><h3>📅 Roz ka hisaab (<span class="wmL"></span>)</h3>
+      <p class="sub" style="margin:4px 0 12px">Har din kitni nayi inquiries aayin, kitne follow-ups hue, kitne admission bane.</p>
+      <div class="tbl-wrap"><table><thead><tr><th>Date</th><th style="text-align:right">Nayi</th><th style="text-align:right">Follow-ups</th><th style="text-align:right">Admissions</th><th style="text-align:right">Lost</th></tr></thead><tbody id="iqDaily"></tbody></table></div></div>
+    <div class="panel"><h3>📊 Source & Stage (<span class="wmL"></span>)</h3>
+      <p class="sub" style="margin:4px 0 12px">Kahan se inquiries aa rahi hain aur kitni admission banti hain.</p>
+      <div class="tbl-wrap"><table><thead><tr><th>Source</th><th style="text-align:right">Inquiries</th><th style="text-align:right">Admissions</th><th style="text-align:right">Rate</th></tr></thead><tbody id="iqSource"></tbody></table></div>
+      <div id="iqFunnel" style="margin-top:14px"></div></div>
+  </div>
 </section>
 
 <!-- ================= EXAMS ================= -->
@@ -480,6 +520,38 @@ label.chk input{width:auto}
 </section>
 
 <!-- ================= EMPLOYEES ================= -->
+<section class="page" id="page-audit">
+  <div class="page-head">
+    <div><h2>Class Audit & KPIs</h2><div class="sub">Roz / hafta-war class visit — subject aur teacher ke hisaab se score, aur jo baat theek karni hai uska follow-up</div></div>
+    <button class="btn-red" onclick="openAuditForm()">+ New Audit</button>
+  </div>
+  <div class="toolbar">
+    <div class="field"><label>Month</label><input type="month" id="audFMonth" onchange="renderAudit()"></div>
+    <div class="field"><label>Hafta</label><select id="audFWeek" onchange="renderAudit()"><option value="">Poora mahina</option><option value="1">Week 1 (1–7)</option><option value="2">Week 2 (8–14)</option><option value="3">Week 3 (15–21)</option><option value="4">Week 4 (22–28)</option><option value="5">Week 5 (29–31)</option></select></div>
+    <div class="field"><label>Shift</label><select id="audFShift" onchange="renderAudit()"><option value="">All</option><option>Morning</option><option>Evening</option></select></div>
+    <div class="field"><label>Teacher</label><select id="audFTeacher" onchange="renderAudit()"><option value="">All teachers</option></select></div>
+  </div>
+  <div class="cards">
+    <div class="card"><div class="k">Audits</div><div class="v" id="auN">0</div><div class="hint" id="auNHint"></div></div>
+    <div class="card"><div class="k">Average Score</div><div class="v" id="auAvg">—</div><div class="hint" id="auAvgHint"></div></div>
+    <div class="card"><div class="k">Class Attendance</div><div class="v" id="auAtt">—</div><div class="hint">Audit ke waqt hazir students</div></div>
+    <div class="card"><div class="k">Pending Action Items</div><div class="v red" id="auAct">0</div><div class="hint" id="auActHint"></div></div>
+    <div class="card"><div class="k">Subject Coverage</div><div class="v" id="auCov">—</div><div class="hint" id="auCovHint"></div></div>
+  </div>
+  <div class="panel"><h3>👩‍🏫 Teacher KPIs</h3>
+    <p class="sub" style="margin:4px 0 12px">Har criteria 1–5. Score = sab criteria ka ausat (100 mein se). Pichle mahine se farq bhi.</p>
+    <div class="tbl-wrap"><table><thead><tr><th>Teacher</th><th style="text-align:right">Audits</th><th style="text-align:right">Score</th><th style="text-align:right">vs pichla mahina</th>
+      <th style="text-align:right" title="Punctuality">Waqt</th><th style="text-align:right" title="Lesson preparation">Tayari</th><th style="text-align:right" title="Teaching delivery">Parhana</th>
+      <th style="text-align:right" title="Student engagement">Engage</th><th style="text-align:right" title="Discipline">Discipline</th><th style="text-align:right" title="Notebook / homework checking">Copies</th>
+      <th style="text-align:right">Plan follow</th><th style="text-align:right">Homework</th><th style="text-align:right">Open actions</th></tr></thead><tbody id="auTeachers"></tbody></table></div></div>
+  <div class="panel"><h3>📚 Subject-wise (class + subject)</h3>
+    <p class="sub" style="margin:4px 0 12px">Kis class ka kaunsa subject is muddat mein audit hua — aur kaun sa abhi tak nahi hua.</p>
+    <div class="tbl-wrap"><table><thead><tr><th>Class</th><th>Subject</th><th>Teacher</th><th style="text-align:right">Audits</th><th style="text-align:right">Score</th><th>Aakhri audit</th><th>Aakhri topic</th></tr></thead><tbody id="auSubjects"></tbody></table></div>
+    <div id="auMissing" style="margin-top:12px"></div></div>
+  <div class="panel"><h3>🗒 Audit entries</h3>
+    <div class="tbl-wrap"><table><thead><tr><th>Date</th><th>Class / Subject</th><th>Teacher</th><th>Topic</th><th style="text-align:right">Hazri</th><th style="text-align:right">Score</th><th>Action item</th><th>Auditor</th><th>Actions</th></tr></thead><tbody id="auRows"></tbody></table></div></div>
+</section>
+
 <section class="page" id="page-employees">
   <div class="page-head">
     <div><h2>Employees</h2><div class="sub">Admin · Teachers · Coordinator · Supportive Staff</div></div>
@@ -600,9 +672,16 @@ label.chk input{width:auto}
     <div class="field"><label>Type</label><select id="txnFType" onchange="renderFinance()"><option value="">All</option><option value="Income">Income</option><option value="Expense">Expense</option></select></div>
     <div class="field"><label>Category</label><select id="txnFCat" onchange="renderFinance()"><option value="">All Categories</option></select></div>
     <div class="field"><label>Month</label><input type="month" id="txnFMonth" onchange="renderFinance()"></div>
+    <label class="chk" style="margin-bottom:10px"><input type="checkbox" id="txnFNoRcpt" onchange="renderFinance()"> Sirf bina receipt wale kharch</label>
   </div>
+  <div class="panel" style="margin-bottom:16px">
+    <h3>📅 Roz ka kharch — <span id="dxMonth"></span></h3>
+    <p class="sub" style="margin:4px 0 10px" id="dxSummary"></p>
+    <div class="dchart" id="dxChart"></div>
+  </div>
+  <input type="file" id="rcptPick" accept="image/*,application/pdf" style="display:none" onchange="attachReceipt(this)">
   <div class="tbl-wrap"><table>
-    <thead><tr><th>#</th><th>Date</th><th>Type</th><th>Category</th><th>Description</th><th>Amount (Rs)</th><th>Actions</th></tr></thead>
+    <thead><tr><th>#</th><th>Date</th><th>Type</th><th>Category</th><th>Description</th><th>Amount (Rs)</th><th>Receipt</th><th>Actions</th></tr></thead>
     <tbody id="txnRows"></tbody>
   </table></div>
 
@@ -814,7 +893,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v26 · 1 Oct 2026";
+const BUILD = "v27 · 1 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -929,6 +1008,7 @@ const DEFAULT_DB = {
   attendance:{},           // { "2026-07-07": { studentId: {s:"P|A|L", t:"08:05", shift:"Morning"} } }
   empAttendance:{},        // { "2026-07-07": { empId: {s:"P|A|L", t:"09:00"} } }
   classCosts:{},           // { "Morning|O1": [{id, teacherId, subject, amount}] } — teacher pay per class
+  audits:[],               // v27: class audit — [{id,date,shift,course,subject,teacherId,auditor,topic,plan,strength,present,scores{},homework,remarks,action,actionDone}]
   counters:{reg:1, ch:1},
   settings:{name:"Cambridge Grads Academy", addr:"", phone:"", logo:""}
 };
@@ -1105,6 +1185,36 @@ function closeModal(){ $("modalOverlay").classList.remove("show"); }
 $("modalOverlay").addEventListener("click", e=>{ if(e.target.id==="modalOverlay") closeModal(); });
 document.addEventListener("keydown", e=>{ if(e.key==="Escape") closeModal(); });
 
+/* ================= v27: WORKING MONTH =================
+   Upar wali bar ka mahina poore portal ka mahina hai: har page ka month filter, dashboard, reports
+   usi par aa jate hain, aur nayi entries / imports ki tareekh bhi usi mahine ki hoti hai.
+   Page reload par hamesha is mahine par wapas (ghalti se purane mahine mein entry na ho). */
+let WM = thisMonth();
+const wm = () => WM;
+function wmDate(){
+  if(WM === thisMonth()) return todayStr();
+  const [y, mo] = WM.split("-").map(Number), last = new Date(y, mo, 0).getDate();
+  return WM + "-" + String(Math.min(new Date().getDate(), last)).padStart(2, "0");
+}
+const WM_FILTERS = ["feeFMonth","examFMonth","isFMonth","txnFMonth","plMonth","repMonth","attRepMonth","empAttRepMonth","hwFMonth","inqFMonth","audFMonth"];
+function syncWMFilters(){
+  WM_FILTERS.forEach(id=>{ if($(id)) $(id).value = WM; });
+  ["attDate","empAttDate"].forEach(id=>{ const el = $(id); if(el && (!el.value || el.value.slice(0,7) !== WM)) el.value = wmDate(); });
+  if(typeof BZ !== "undefined"){ BZ.month = WM; BZ.from = WM; BZ.to = WM; }
+  $("wm").value = WM;
+  const past = WM !== thisMonth();
+  $("wmBar").classList.toggle("past", past);
+  $("wmHint").textContent = past
+    ? `Aap ${fmtM(WM)} mein kaam kar rahe hain — nayi entries aur imports isi mahine ki tareekh par save honge`
+    : "Har page isi mahine ka record dikhata hai — purana mahina chun kar us ka record dekhein ya entry karein";
+}
+function setWM(m){
+  WM = m || thisMonth();
+  syncWMFilters();
+  const cur = document.querySelector("#nav button.active");
+  renderPage(cur ? cur.dataset.page : "dashboard");
+}
+
 /* Navigation */
 document.querySelectorAll("#nav button").forEach(b=>{
   b.onclick = ()=>{
@@ -1112,6 +1222,7 @@ document.querySelectorAll("#nav button").forEach(b=>{
     b.classList.add("active");
     document.querySelectorAll(".page").forEach(p=>p.classList.remove("show"));
     $("page-"+b.dataset.page).classList.add("show");
+    syncWMFilters();
     renderPage(b.dataset.page);
   };
 });
@@ -1119,7 +1230,7 @@ function renderPage(p){
   ({dashboard:renderDashboard, students:renderStudents, gallery:renderGallery, attendance:loadAttendance,
     fees:renderFees, homework:renderHomework, inquiries:renderInquiries, exams:renderExams,
     employees:renderEmployees, inventory:renderInventory, issuance:renderIssuance,
-    finance:renderFinance, reports:renderReport, biz:renderBiz,
+    finance:renderFinance, reports:renderReport, biz:renderBiz, audit:renderAudit,
     settings:loadSettings}[p]||(()=>{}))();
 }
 
@@ -1132,7 +1243,7 @@ const activeIn = (s, m) => joinedBy(s, m) &&
 const newIn = m => DB.students.filter(s => s.doj && s.doj.slice(0,7) === m);
 const addMonths = (m, n) => { const [y, mo] = m.split("-").map(Number); const d = new Date(y, mo - 1 + n, 1);
   return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0"); };
-const dashMonth = () => ($("dMonth") && $("dMonth").value) || thisMonth();
+const dashMonth = () => wm();
 
 function openNewAdmissions(){
   const m = dashMonth(), list = newIn(m).sort((a,b)=>a.doj.localeCompare(b.doj));
@@ -1154,7 +1265,7 @@ function drawMonthRows(cur){
     const inc = monthIncome(m), exp = monthExpense(m);
     const sal = txnsOf(m,"Expense").filter(t=>t.category==="Salary & Wages").reduce((a,t)=>a+(+t.amount||0),0);
     const net = inc.total - exp;
-    return `<tr class="${m===cur?"sel":""}" style="cursor:pointer;white-space:nowrap;${m===cur?"background:var(--red-tint)":""}" onclick="$('dMonth').value='${m}';renderDashboard();window.scrollTo({top:0,behavior:'smooth'})">
+    return `<tr class="${m===cur?"sel":""}" style="cursor:pointer;white-space:nowrap;${m===cur?"background:var(--red-tint)":""}" onclick="setWM('${m}');window.scrollTo({top:0,behavior:'smooth'})">
       <td><b>${fmtM(m)}</b></td>
       <td style="text-align:right">${DB.students.filter(s=>activeIn(s,m)).length}</td>
       <td style="text-align:right">${newIn(m).length || "—"}</td>
@@ -1169,7 +1280,6 @@ function drawMonthRows(cur){
 
 function renderDashboard(){
   syncSalaries();
-  if(!$("dMonth").value) $("dMonth").value = thisMonth();
   const m = dashMonth(), isNow = m === thisMonth();
   document.querySelectorAll("#page-dashboard .dm").forEach(x=>x.textContent = isNow ? "This Month" : fmtM(m));
   $("todayLine").textContent = isNow
@@ -1193,6 +1303,12 @@ function renderDashboard(){
   const dueM = monthDue(m);
   $("dUnpaidAmt").textContent = money(unpaid.reduce((a,f)=>a + feeOutstanding(f), 0)) + " pending (sab mahine)" +
     (dueM ? ` · ${fmtM(m)}: ${money(dueM)}` : "");
+  DB.inquiries.forEach(inqNorm);
+  const iqM = DB.inquiries.filter(i=>String(i.date||"").startsWith(m));
+  const iqC = DB.inquiries.filter(i=>i.stage==="Converted" && String(i.convertedOn||"").startsWith(m)).length;
+  const iqDue = DB.inquiries.filter(i=>INQ_OPEN(i.stage) && i.nextFollow && i.nextFollow <= todayStr()).length;
+  $("dInq").textContent = iqM.length;
+  $("dInqHint").textContent = `${iqC} admission bane${iqM.length?` (${Math.round(iqM.filter(i=>i.stage==="Converted").length*100/iqM.length)}%)`:""} · ${iqDue} follow-up${iqDue===1?"":"s"} aaj tak baqi`;
   const nw = newIn(m);
   $("dNew").textContent = nw.length;
   $("dNewHint").textContent = nw.length
@@ -1229,7 +1345,7 @@ function renderDashboard(){
   const inq = [...DB.inquiries].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,6);
   drawMonthRows(m);
   drawExportGrid();
-  $("dInqRows").innerHTML = inq.length? inq.map(i=>`<tr><td>${esc(i.name)}</td><td>${esc(i.course)}</td><td>${esc(i.phone)}</td><td>${fmtD(i.date)}</td></tr>`).join("") : `<tr><td colspan="4" class="empty">Abhi koi inquiry nahi</td></tr>`;
+  $("dInqRows").innerHTML = inq.length? inq.map(i=>`<tr><td>${esc(i.name)}</td><td>${esc(i.course)}</td><td>${inqStageBadge(i.stage)}</td><td>${fmtD(i.date)}</td></tr>`).join("") : `<tr><td colspan="4" class="empty">Abhi koi inquiry nahi</td></tr>`;
 }
 /* v22: Dashboard ka salary card — is mahine ki "Salary & Wages" expense entries (auto + manual) */
 function drawSalaryCard(m, exp){
@@ -1368,6 +1484,7 @@ function renderStudents(){
 }
 
 function openStudentForm(id, prefill){
+  pendingInq = (!id && prefill && prefill._inq) || null;
   const s = id? stuById(id) : (prefill||{});
   photoTemp = s.photo || null;
   const teachers = DB.employees.filter(e=>e.category==="Teacher");
@@ -1384,7 +1501,7 @@ function openStudentForm(id, prefill){
       <div class="field"><label>Date of Birth</label><input type="date" id="f_dob" value="${s.dob||""}"></div>
       <div class="field"><label>Education / Qualification</label><input id="f_edu" value="${esc(s.education||"")}" placeholder="e.g. Matric / Inter / BA / BSc"></div>
       <div class="field"><label>Previous School / College / University</label><input id="f_prev" value="${esc(s.prevInst||"")}" placeholder="e.g. Govt. High School Lahore"></div>
-      <div class="field"><label>Date of Join *</label><input type="date" id="f_doj" value="${s.id ? (s.doj||"") : todayStr()}"></div>
+      <div class="field"><label>Date of Join *</label><input type="date" id="f_doj" value="${s.id ? (s.doj||"") : wmDate()}"></div>
       <div class="field"><label>Shift *</label><select id="f_shift" onchange="syncClassSel('f_shift','f_course');subjModeSync()">
         <option value="Morning" ${s.shift==="Morning"?"selected":""}>Morning — School System</option>
         <option value="Evening" ${s.shift==="Evening"?"selected":""}>Evening — Academy</option></select></div>
@@ -1552,7 +1669,7 @@ function saveStudent(id){
     name, fatherName:father,
     cnic:$("f_cnic").value.trim(), fatherCnic:$("f_fcnic").value.trim(),
     phone:$("f_phone").value.trim(), fatherPhone:$("f_fphone").value.trim(), motherPhone:$("f_mphone").value.trim(),
-    address:$("f_addr").value.trim(), dob:$("f_dob").value||"", doj:$("f_doj").value||(id? "" : todayStr()),
+    address:$("f_addr").value.trim(), dob:$("f_dob").value||"", doj:$("f_doj").value||(id? "" : wmDate()),
     education:$("f_edu").value.trim(), prevInst:$("f_prev").value.trim(),
     course:$("f_course").value, shift:$("f_shift").value,
     monthlyFee:$("f_fee").value||0, teacherId:$("f_teacher").value,
@@ -1573,6 +1690,7 @@ function saveStudent(id){
     data.id = uid();
     data.regNo = "REG-" + new Date().getFullYear() + "-" + String(DB.counters.reg++).padStart(4,"0");
     DB.students.push(data);
+    inqConverted(data);
     toast("Enrolled — Reg No: " + data.regNo);
   }
   save(); closeModal(); renderStudents(); renderDashboard();
@@ -1856,7 +1974,7 @@ function downloadProfile(id){
 /* ================= ATTENDANCE ================= */
 let attDraft = {};
 function loadAttendance(){
-  if(!$("attDate").value) $("attDate").value = todayStr();
+  if(!$("attDate").value) $("attDate").value = wmDate();
   const date = $("attDate").value, shift = $("attShift").value;
   const warn = $("attWarn");
   if(isWeekend(date)){
@@ -1982,8 +2100,8 @@ function exportAttPDF(){
 
 /* ================= HOMEWORK / ASSIGNMENTS ================= */
 function renderHomework(){
-  const fc=$("hwFCourse").value, fs=$("hwFShift").value;
-  const rows = DB.homework.filter(h=>(!fc||h.course===fc)&&(!fs||h.shift===fs)).sort((a,b)=>b.dateGiven.localeCompare(a.dateGiven));
+  const fc=$("hwFCourse").value, fs=$("hwFShift").value, fm=$("hwFMonth").value;
+  const rows = DB.homework.filter(h=>(!fc||h.course===fc)&&(!fs||h.shift===fs)&&(!fm||String(h.dateGiven||"").startsWith(fm))).sort((a,b)=>b.dateGiven.localeCompare(a.dateGiven));
   $("hwRows").innerHTML = rows.length? rows.map(h=>{
     const total = DB.students.filter(s=>s.status==="Active"&&s.course===h.course&&s.shift===h.shift).length;
     const sub = h.done? Object.keys(h.done).length : 0;
@@ -2013,7 +2131,7 @@ function openHwForm(id){
         <option value="Morning" ${h.shift==="Morning"?"selected":""}>Morning — School System</option>
         <option value="Evening" ${h.shift==="Evening"?"selected":""}>Evening — Academy</option></select></div>
       <div class="field"><label>Class *</label><select id="h_course">${courseOptions(h.course, h.shift||"Morning")}</select></div>
-      <div class="field"><label>Date Given</label><input type="date" id="h_date" value="${h.dateGiven||todayStr()}"></div>
+      <div class="field"><label>Date Given</label><input type="date" id="h_date" value="${h.dateGiven||wmDate()}"></div>
       <div class="field"><label>Due Date</label><input type="date" id="h_due" value="${h.dueDate||""}"></div>
     </div>
     <div class="field"><label>Detail / Instructions</label><textarea id="h_detail" rows="3" placeholder="Homework ki tafseel...">${esc(h.detail||"")}</textarea></div>
@@ -2025,7 +2143,7 @@ function openHwForm(id){
 function saveHw(id){
   const title=$("h_title").value.trim();
   if(!title){ toast("Homework title likhein"); return; }
-  const data = {title, course:$("h_course").value, shift:$("h_shift").value, dateGiven:$("h_date").value||todayStr(), dueDate:$("h_due").value||"", detail:$("h_detail").value.trim()};
+  const data = {title, course:$("h_course").value, shift:$("h_shift").value, dateGiven:$("h_date").value||wmDate(), dueDate:$("h_due").value||"", detail:$("h_detail").value.trim()};
   if(id) Object.assign(DB.homework.find(x=>x.id===id), data);
   else { data.id=uid(); data.done={}; DB.homework.push(data); }
   save(); closeModal(); renderHomework();
@@ -2065,7 +2183,7 @@ function renderFees(){
       </td>
     </tr>`;
   }).join("") : `<tr><td colspan="8" class="empty">Koi challan nahi — "New Fee Challan" se add karein.</td></tr>`;
-  const m = thisMonth();
+  const m = wm();
   const mBilled = monthBilled(m), mGot = feesOfMonth(m).reduce((a,f)=>a + feeReceived(f), 0);
   $("feeBilledM").textContent = money(mBilled);
   $("feeBilledHint").textContent = feesBilledIn(m).length + " challans is month";
@@ -2186,13 +2304,13 @@ function openChallanForm(){
       <div class="sugg" id="c_stuList"></div>
     </div>
     <div class="grid2">
-      <div class="field"><label>Fee Month *</label><input type="month" id="c_month" value="${thisMonth()}" onchange="prefDue()"></div>
+      <div class="field"><label>Fee Month *</label><input type="month" id="c_month" value="${wm()}" onchange="prefDue()"></div>
       <div class="field"><label>Monthly Fee (Rs) *</label><input type="number" id="c_amt" value="" oninput="chTotal()"></div>
       <div class="field" id="c_discWrap"><label>Discount (Rs)</label><input type="number" id="c_disc" value="" placeholder="0" oninput="chTotal()"></div>
-      <div class="field"><label>Due Date (fee kis date tak pay karni hai)</label><input type="date" id="c_due" value="${thisMonth()}-10"></div>
+      <div class="field"><label>Due Date (fee kis date tak pay karni hai)</label><input type="date" id="c_due" value="${wm()}-10"></div>
       <div class="field"><label>Status</label><select id="c_status" onchange="$('c_paidwrap').style.display=this.value==='Paid'?'block':'none'"><option>Unpaid</option><option>Paid</option></select></div>
     </div>
-    <div class="field" id="c_paidwrap" style="display:none"><label>Paid Date</label><input type="date" id="c_paid" value="${todayStr()}"></div>
+    <div class="field" id="c_paidwrap" style="display:none"><label>Paid Date</label><input type="date" id="c_paid" value="${wmDate()}"></div>
     <div id="chSubBox"></div>
     <label class="chk" style="margin:8px 0"><input type="checkbox" id="c_arr" checked onchange="chTotal()"> Pichla baqaya (arrears) shamil karein <b id="c_arrAmt"></b></label>
     <div id="chOneTime"></div>
@@ -2341,13 +2459,13 @@ function saveChallan(){
   const status = $("c_status").value;
   const f = {
     id:uid(), chNo:"CH-"+String(DB.counters.ch++).padStart(5,"0"),
-    studentId:$("c_stu").value, month:$("c_month").value||thisMonth(),
+    studentId:$("c_stu").value, month:$("c_month").value||wm(),
     tuition: t.gross, items:[...chItems], amount:t.net - t.arr,
     discount: t.disc, discountPct: t.pct,
     subjects: chSubs.map(x=>({name:x.name, fee:+x.fee||0, disc:+x.disc||0, teacherId:x.teacherId||""})),
     course: st? st.course : "", group: st? groupOf(st) : "",
     dueDate:$("c_due").value||"", status, shift: st? st.shift : "",
-    paidDate: status==="Paid"? ($("c_paid").value||todayStr()) : ""
+    paidDate: status==="Paid"? ($("c_paid").value||wmDate()) : ""
   };
   if(t.arr) carryArrears(f);
   DB.fees.push(f); save(); closeModal(); renderFees(); renderDashboard();
@@ -2362,9 +2480,9 @@ function openBulkChallan(){
     <h3>⚡ Generate All Challans</h3>
     <p class="sub" style="margin-bottom:12px">Ek click mein tamam <b>Active students</b> ke challans ban jayenge (unki monthly fee ke mutabiq). Jin students ka is month ka challan pehle se bana hua hai, wo skip ho jayenge.</p>
     <div class="grid2">
-      <div class="field"><label>Fee Month *</label><input type="month" id="bc_month" value="${thisMonth()}" onchange="$('bc_due').value=this.value+'-10'"></div>
+      <div class="field"><label>Fee Month *</label><input type="month" id="bc_month" value="${wm()}" onchange="$('bc_due').value=this.value+'-10'"></div>
       <div class="field"><label>Shift</label><select id="bc_shift"><option value="">Both Shifts</option><option>Morning</option><option>Evening</option></select></div>
-      <div class="field"><label>Due Date (sab challans par)</label><input type="date" id="bc_due" value="${thisMonth()}-10"></div>
+      <div class="field"><label>Due Date (sab challans par)</label><input type="date" id="bc_due" value="${wm()}-10"></div>
     </div>
     <label class="chk" style="margin:4px 0 10px"><input type="checkbox" id="bc_arr" checked> Pichle mahinon ka baqaya (arrears) challan mein khud jor dein</label>
     <div class="note">Total active students: <b>${act.length}</b> · Morning: <b>${act.filter(s=>s.shift==="Morning").length}</b> · Evening: <b>${act.filter(s=>s.shift==="Evening").length}</b></div>
@@ -2374,7 +2492,7 @@ function openBulkChallan(){
     </div>`);
 }
 function runBulkChallan(){
-  const m = $("bc_month").value || thisMonth();
+  const m = $("bc_month").value || wm();
   const sh = $("bc_shift").value, due = $("bc_due").value||"";
   const withArr = !$("bc_arr") || $("bc_arr").checked;
   const act = DB.students.filter(s=>s.status==="Active" && (!sh || s.shift===sh));
@@ -2406,7 +2524,7 @@ function markPaid(id){
   openModal(`
     <h3>Mark Paid — ${f.chNo}</h3>
     <p class="sub" style="margin-bottom:12px">${st?esc(st.name):""} · ${fmtM(f.month)} · <b>${money(f.amount)}</b></p>
-    <div class="field"><label>Payment Date (student ne kis date ko fee pay ki)</label><input type="date" id="mp_date" value="${todayStr()}"></div>
+    <div class="field"><label>Payment Date (student ne kis date ko fee pay ki)</label><input type="date" id="mp_date" value="${wmDate()}"></div>
     <div class="modal-foot">
       <button class="btn-line" onclick="closeModal()">Cancel</button>
       <button class="btn-red" onclick="confirmPaid('${id}')">Confirm Paid ✓</button>
@@ -2414,7 +2532,7 @@ function markPaid(id){
 }
 function confirmPaid(id){
   const f=DB.fees.find(x=>x.id===id);
-  f.status="Paid"; f.paidDate=$("mp_date").value||todayStr();
+  f.status="Paid"; f.paidDate=$("mp_date").value||wmDate();
   if(hasVal(f.balance) || hasVal(f.paidAmount)){ f.paidAmount = +f.amount||0; f.balance = 0; }   // v26: adhi payment wala bhi ab poora
   save(); closeModal(); renderFees(); renderDashboard(); toast("Paid ✓ ("+f.chNo+" — "+fmtD(f.paidDate)+")");
 }
@@ -2498,34 +2616,134 @@ function printChallan(id){
 }
 
 /* ================= INQUIRIES ================= */
+/* ================= v27: INQUIRIES → ADMISSIONS =================
+   Har inquiry ki stage, source, agla follow-up aur poora log (kab, kis ne, kya baat hui).
+   "Enroll" se student banta hai aur inquiry khud "Converted" ho jati hai. */
+const INQ_STAGES  = ["New","Contacted","Visit / Test Scheduled","Visited / Test Done","Follow-up","Converted","Lost"];
+const INQ_SOURCES = ["Walk-in","Phone Call","WhatsApp","Facebook / Instagram","Referral","Website","Banner / Flyer","Other"];
+const INQ_OPEN = st => st !== "Converted" && st !== "Lost";
+const inqStageBadge = st => `<span class="badge ${st==="Converted"?"b-paid":st==="Lost"?"b-left":st==="New"?"b-unpaid":"b-freeze"}">${esc(st)}</span>`;
+function inqNorm(i){
+  if(!i.stage) i.stage = "New";
+  if(!Array.isArray(i.log)) i.log = [];
+  if(!i.source) i.source = "";
+  return i;
+}
+const staffName = () => { try{ return localStorage.getItem("emsUser") || ""; }catch(e){ return ""; } };
+const setStaffName = n => { try{ if(n) localStorage.setItem("emsUser", n); }catch(e){} };
+const telLink = p => `tel:${String(p||"").replace(/[^\d+]/g,"")}`;
+const waLink  = p => { let d = String(p||"").replace(/\D/g,""); if(d.startsWith("0")) d = "92" + d.slice(1); return `https://wa.me/${d}`; };
+
 function renderInquiries(){
-  const rows = [...DB.inquiries].sort((a,b)=>b.date.localeCompare(a.date));
-  $("inqRows").innerHTML = rows.length? rows.map(i=>`
-    <tr>
+  DB.inquiries.forEach(inqNorm);
+  const m = $("inqFMonth").value, mm = m || wm();
+  const t = todayStr();
+  document.querySelectorAll("#page-inquiries .wmL").forEach(x=>x.textContent = fmtM(mm));
+  if($("inqFStage").options.length <= 1) $("inqFStage").innerHTML = `<option value="">All stages</option>` + INQ_STAGES.map(x=>`<option>${x}</option>`).join("");
+  if($("inqFSource").options.length <= 1) $("inqFSource").innerHTML = `<option value="">All sources</option>` + INQ_SOURCES.map(x=>`<option>${x}</option>`).join("");
+
+  /* --- mahine ke cards --- */
+  const inM = DB.inquiries.filter(i=>String(i.date||"").startsWith(mm));
+  const convM = DB.inquiries.filter(i=>i.stage==="Converted" && String(i.convertedOn||"").startsWith(mm));
+  const lostM = DB.inquiries.filter(i=>i.stage==="Lost" && (i.log.slice().reverse().find(l=>l.stage==="Lost")||{d:i.date}).d.startsWith(mm));
+  const convOfM = inM.filter(i=>i.stage==="Converted").length;
+  const due = DB.inquiries.filter(i=>INQ_OPEN(i.stage) && i.nextFollow && i.nextFollow <= t);
+  $("iqN").textContent = inM.length;
+  $("iqNHint").textContent = `${inM.filter(i=>INQ_OPEN(i.stage)).length} abhi khuli · ${DB.inquiries.filter(i=>INQ_OPEN(i.stage)).length} kul khuli`;
+  $("iqConv").textContent = convM.length;
+  const days = convM.map(i=>(new Date(i.convertedOn) - new Date(i.date))/864e5).filter(x=>x>=0);
+  $("iqConvHint").textContent = days.length ? `Ausat ${Math.round(days.reduce((a,x)=>a+x,0)/days.length)} din mein admission` : "Is mahine admissions";
+  $("iqRate").textContent = inM.length ? Math.round(convOfM*100/inM.length) + "%" : "—";
+  $("iqRateHint").textContent = `${fmtM(mm)} ki ${inM.length} inquiries mein se ${convOfM} admission`;
+  $("iqDue").textContent = due.length;
+  $("iqDueHint").textContent = `${due.filter(i=>i.nextFollow < t).length} pichle reh gaye · ${due.filter(i=>i.nextFollow === t).length} aaj`;
+  $("iqLost").textContent = lostM.length;
+  const reasons = {}; lostM.forEach(i=>{ const r = i.lostReason || "Wajah nahi likhi"; reasons[r] = (reasons[r]||0)+1; });
+  $("iqLostHint").textContent = Object.entries(reasons).sort((a,b)=>b[1]-a[1]).slice(0,2).map(([r,n])=>`${r} (${n})`).join(" · ") || "—";
+
+  /* --- aaj ka kaam --- */
+  const todayList = due.sort((a,b)=>a.nextFollow.localeCompare(b.nextFollow));
+  $("iqTodayPanel").innerHTML = `<h3>📞 Aaj ka kaam — ${todayList.length} follow-up${todayList.length===1?"":"s"}</h3>` + (todayList.length
+    ? `<div class="tbl-wrap" style="margin-top:10px"><table><tbody>${todayList.slice(0,12).map(i=>`<tr>
+        <td><b>${esc(i.name)}</b> <span class="sub">${esc(i.course||"")}</span></td>
+        <td>${inqStageBadge(i.stage)}</td>
+        <td style="${i.nextFollow<t?"color:var(--danger);font-weight:700":""}">${i.nextFollow<t?"⚠ ":""}${fmtD(i.nextFollow)}</td>
+        <td class="sub" style="max-width:280px">${esc((i.log[i.log.length-1]||{}).note || i.detail || "")}</td>
+        <td style="white-space:nowrap"><a class="btn-line btn-sm" href="${telLink(i.phone)}">📞 Call</a>
+          <a class="btn-line btn-sm" target="_blank" rel="noopener" href="${waLink(i.phone)}">WhatsApp</a>
+          <button class="btn-black btn-sm" onclick="openInqLog('${i.id}')">Log</button></td></tr>`).join("")}</tbody></table></div>`
+      + (todayList.length > 12 ? `<p class="sub" style="margin-top:8px">+${todayList.length-12} aur — neeche "Sirf aaj / pichle follow-ups" se sab dekhein</p>` : "")
+    : `<p class="sub" style="margin-top:6px">Aaj koi follow-up baqi nahi ✓</p>`);
+
+  /* --- list --- */
+  const fst = $("inqFStage").value, fsrc = $("inqFSource").value, q = ($("inqSearch").value||"").toLowerCase(), onlyDue = $("inqFDue").checked;
+  const rows = DB.inquiries.filter(i=>
+      (!m || String(i.date||"").startsWith(m)) && (!fst || i.stage===fst) && (!fsrc || i.source===fsrc) &&
+      (!q || (i.name+" "+i.phone).toLowerCase().includes(q)) &&
+      (!onlyDue || (INQ_OPEN(i.stage) && i.nextFollow && i.nextFollow <= t)))
+    .sort((a,b)=>b.date.localeCompare(a.date));
+  $("inqRows").innerHTML = rows.length ? rows.map(i=>{
+    const last = i.log[i.log.length-1];
+    return `<tr>
       <td>${fmtD(i.date)}</td>
-      <td><b>${esc(i.name)}</b></td>
-      <td>${esc(i.phone)}</td>
-      <td>${esc(i.course)}</td>
-      <td>${i.fee? "<b>"+money(i.fee)+"</b>" : "—"}</td>
-      <td>${esc(i.city)}${i.area?(" · "+esc(i.area)):""}</td>
-      <td style="max-width:260px">${esc(i.detail||"—")}</td>
+      <td><b>${esc(i.name)}</b><br><span class="sub">${esc(i.phone)}${i.city||i.area?` · ${esc(i.city||"")}${i.area?", "+esc(i.area):""}`:""}</span></td>
+      <td>${esc(i.course||"—")}${i.shift?`<br><span class="sub">${esc(i.shift)}</span>`:""}${i.fee?`<br><span class="sub">Fee ${money(i.fee)}</span>`:""}</td>
+      <td>${esc(i.source||"—")}</td>
+      <td>${inqStageBadge(i.stage)}${i.stage==="Converted"&&i.studentId&&stuById(i.studentId)?`<br><span class="sub">${esc(stuById(i.studentId).regNo)}</span>`:""}${i.stage==="Lost"&&i.lostReason?`<br><span class="sub">${esc(i.lostReason)}</span>`:""}</td>
+      <td>${INQ_OPEN(i.stage) && i.nextFollow ? `<span style="${i.nextFollow<t?"color:var(--danger);font-weight:700":i.nextFollow===t?"font-weight:700":""}">${i.nextFollow<t?"⚠ ":""}${fmtD(i.nextFollow)}</span>` : "—"}</td>
+      <td class="sub" style="max-width:240px">${last ? `${fmtD(last.d)}${last.by?` · ${esc(last.by)}`:""}: ${esc(last.note||last.stage)}` : esc(i.detail||"—")}<br>${i.log.length?`<a href="#" onclick="openInqLog('${i.id}');return false">${i.log.length} entries</a>`:""}</td>
       <td style="white-space:nowrap">
-        <button class="btn-black btn-sm" onclick="inqToStudent('${i.id}')">Enroll</button>
+        <button class="btn-black btn-sm" onclick="openInqLog('${i.id}')">Log</button>
+        ${INQ_OPEN(i.stage) ? `<button class="btn-red btn-sm" onclick="inqToStudent('${i.id}')">Enroll</button>` : ""}
         <button class="btn-line btn-sm" onclick="openInqForm('${i.id}')">Edit</button>
         <button class="btn-danger btn-sm" onclick="delInq('${i.id}')">Delete</button>
-      </td>
-    </tr>`).join("") : `<tr><td colspan="8" class="empty">Koi inquiry nahi — phone call aane par yahan note karein.</td></tr>`;
+      </td></tr>`;
+  }).join("") : `<tr><td colspan="8" class="empty">Koi inquiry nahi${m?` — ${fmtM(m)} mein`:""}. Call ya walk-in aane par "+ New Inquiry" se likhein.</td></tr>`;
+
+  /* --- roz ka hisaab --- */
+  const byDay = {};
+  const bump = (d, k) => { if(!String(d||"").startsWith(mm)) return; const r = byDay[d.slice(0,10)] = byDay[d.slice(0,10)] || {n:0,f:0,c:0,l:0}; r[k]++; };
+  DB.inquiries.forEach(i=>{
+    bump(i.date, "n");
+    i.log.forEach(l=>{ if(l.kind !== "new") bump(l.d, l.stage==="Converted" ? "c" : l.stage==="Lost" ? "l" : "f"); });
+  });
+  const dk = Object.keys(byDay).sort().reverse();
+  $("iqDaily").innerHTML = dk.length ? dk.map(d=>{ const r = byDay[d]; return `<tr><td>${fmtD(d)}</td><td style="text-align:right">${r.n||"—"}</td>
+      <td style="text-align:right">${r.f||"—"}</td><td style="text-align:right">${r.c?`<b style="color:var(--ok)">${r.c}</b>`:"—"}</td><td style="text-align:right">${r.l||"—"}</td></tr>`; }).join("")
+    + `<tr style="background:var(--soft)"><td><b>Total</b></td>${["n","f","c","l"].map(k=>`<td style="text-align:right"><b>${dk.reduce((a,d)=>a+byDay[d][k],0)}</b></td>`).join("")}</tr>`
+    : `<tr><td colspan="5" class="empty">${fmtM(mm)} mein koi activity nahi</td></tr>`;
+
+  /* --- source & stage --- */
+  const src = {};
+  inM.forEach(i=>{ const k = i.source || "Nahi likha"; const r = src[k] = src[k] || {n:0,c:0}; r.n++; if(i.stage==="Converted") r.c++; });
+  $("iqSource").innerHTML = Object.keys(src).length ? Object.entries(src).sort((a,b)=>b[1].n-a[1].n).map(([k,r])=>`<tr><td>${esc(k)}</td>
+      <td style="text-align:right">${r.n}</td><td style="text-align:right">${r.c}</td><td style="text-align:right"><b>${Math.round(r.c*100/r.n)}%</b></td></tr>`).join("")
+    : `<tr><td colspan="4" class="empty">${fmtM(mm)} mein koi inquiry nahi</td></tr>`;
+  const maxN = Math.max(1, ...INQ_STAGES.map(st=>inM.filter(i=>i.stage===st).length));
+  $("iqFunnel").innerHTML = `<div class="sub" style="margin-bottom:6px"><b>${fmtM(mm)} ki inquiries — abhi kis stage par</b></div>` + INQ_STAGES.map(st=>{
+    const n = inM.filter(i=>i.stage===st).length;
+    return `<div style="display:flex;align-items:center;gap:8px;margin:3px 0;font-size:.85rem">
+      <span style="width:150px;flex-shrink:0">${esc(st)}</span>
+      <span style="flex:1;background:var(--soft);border-radius:4px;height:14px;overflow:hidden"><span style="display:block;height:100%;width:${n*100/maxN}%;background:${st==="Converted"?"var(--ok)":st==="Lost"?"var(--danger)":"var(--black)"}"></span></span>
+      <b style="width:28px;text-align:right">${n}</b></div>`; }).join("");
 }
+
 function openInqForm(id){
-  const i = id? DB.inquiries.find(x=>x.id===id) : {};
+  const i = id ? inqNorm(DB.inquiries.find(x=>x.id===id)) : {};
+  const staff = DB.employees.map(e=>e.name).sort();
   openModal(`
     <h3>${id?"Edit Inquiry":"New Inquiry"}</h3>
     <div class="grid2">
       <div class="field"><label>Name *</label><input id="i_name" value="${esc(i.name||"")}"></div>
       <div class="field"><label>Phone Number *</label><input id="i_phone" value="${esc(i.phone||"")}"></div>
       <div class="field"><label>Interested Class</label><select id="i_course">${courseOptions(i.course)}</select></div>
-      <div class="field"><label>Agreed / Decided Fee (Rs)</label><input type="number" id="i_fee" value="${i.fee||""}" placeholder="e.g. 3000 — jis fee par baat pakki hui"></div>
-      <div class="field"><label>Date</label><input type="date" id="i_date" value="${i.date||todayStr()}"></div>
+      <div class="field"><label>Shift</label><select id="i_shift"><option value="">—</option>${["Morning","Evening"].map(x=>`<option ${i.shift===x?"selected":""}>${x}</option>`).join("")}</select></div>
+      <div class="field"><label>Source (kahan se aaye?)</label><select id="i_source"><option value="">—</option>${INQ_SOURCES.map(x=>`<option ${i.source===x?"selected":""}>${x}</option>`).join("")}</select></div>
+      <div class="field"><label>Agreed / Decided Fee (Rs)</label><input type="number" id="i_fee" value="${i.fee||""}" placeholder="jis fee par baat hui"></div>
+      <div class="field"><label>Inquiry Date</label><input type="date" id="i_date" value="${i.date||wmDate()}"></div>
+      <div class="field"><label>Agla Follow-up</label><input type="date" id="i_next" value="${i.nextFollow || (id ? "" : wmDate())}"></div>
+      <div class="field"><label>Zimmedar (staff)</label><input id="i_assigned" list="i_staffList" value="${esc(i.assignedTo || (id ? "" : staffName()))}"><datalist id="i_staffList">${staff.map(n=>`<option value="${esc(n)}">`).join("")}</datalist></div>
+      <div class="field"><label>Stage</label><select id="i_stage">${INQ_STAGES.filter(x=>x!=="Converted").map(x=>`<option ${(i.stage||"New")===x?"selected":""}>${x}</option>`).join("")}${i.stage==="Converted"?`<option selected>Converted</option>`:""}</select></div>
       <div class="field"><label>City</label><input id="i_city" value="${esc(i.city||"")}"></div>
       <div class="field"><label>Area</label><input id="i_area" value="${esc(i.area||"")}"></div>
     </div>
@@ -2538,19 +2756,236 @@ function openInqForm(id){
 function saveInq(id){
   const name=$("i_name").value.trim(), phone=$("i_phone").value.trim();
   if(!name||!phone){ toast("Name aur phone zaroori hain"); return; }
-  const data = {name, phone, course:$("i_course").value, fee:$("i_fee").value||"", date:$("i_date").value||todayStr(), city:$("i_city").value.trim(), area:$("i_area").value.trim(), detail:$("i_detail").value.trim()};
-  if(id) Object.assign(DB.inquiries.find(x=>x.id===id), data);
-  else { data.id=uid(); DB.inquiries.push(data); }
+  const data = {name, phone, course:$("i_course").value, shift:$("i_shift").value, source:$("i_source").value,
+    fee:$("i_fee").value||"", date:$("i_date").value||wmDate(), nextFollow:$("i_next").value||"",
+    assignedTo:$("i_assigned").value.trim(), stage:$("i_stage").value||"New",
+    city:$("i_city").value.trim(), area:$("i_area").value.trim(), detail:$("i_detail").value.trim()};
+  setStaffName(data.assignedTo);
+  /* Pehle se isi number ki khuli inquiry ho to bata dein (double entry na ho) */
+  if(!id){
+    const dupe = DB.inquiries.find(x=>INQ_OPEN(inqNorm(x).stage) && x.phone.replace(/\D/g,"").slice(-10) === phone.replace(/\D/g,"").slice(-10));
+    if(dupe) toast(`Note: isi number ki inquiry pehle se khuli hai — "${dupe.name}" (${fmtD(dupe.date)})`);
+  }
+  if(id){
+    const i = inqNorm(DB.inquiries.find(x=>x.id===id));
+    if(i.stage !== data.stage) i.log.push({id:uid(), d:wmDate(), stage:data.stage, note:"Stage badli: " + i.stage + " → " + data.stage, by:staffName()});
+    Object.assign(i, data);
+  } else {
+    data.id = uid(); data.log = [{id:uid(), kind:"new", d:data.date, stage:data.stage, note:"Inquiry aayi" + (data.source?` (${data.source})`:""), by:data.assignedTo}];
+    DB.inquiries.push(data);
+  }
   save(); closeModal(); renderInquiries(); renderDashboard(); toast("Inquiry saved");
+}
+/* Har call / visit / test ka record — stage aur agla follow-up bhi yahin se */
+function openInqLog(id){
+  const i = inqNorm(DB.inquiries.find(x=>x.id===id));
+  openModal(`
+    <h3>📞 ${esc(i.name)} — ${esc(i.phone)}</h3>
+    <p class="sub" style="margin-bottom:10px">${esc(i.course||"")} ${i.shift?"· "+esc(i.shift):""} ${i.source?"· "+esc(i.source):""} · Inquiry ${fmtD(i.date)} · ${inqStageBadge(i.stage)}
+      &nbsp;<a href="${telLink(i.phone)}">Call</a> · <a target="_blank" rel="noopener" href="${waLink(i.phone)}">WhatsApp</a></p>
+    <div class="tbl-wrap" style="max-height:220px;overflow:auto"><table><thead><tr><th>Date</th><th>Stage</th><th>Baat</th><th>Kis ne</th></tr></thead><tbody>
+      ${i.log.length ? i.log.slice().reverse().map(l=>`<tr><td>${fmtD(l.d)}</td><td>${esc(l.stage||"")}</td><td>${esc(l.note||"")}</td><td>${esc(l.by||"")}</td></tr>`).join("")
+        : `<tr><td colspan="4" class="empty">Abhi koi follow-up nahi</td></tr>`}</tbody></table></div>
+    ${i.stage==="Converted" ? `<div class="note" style="margin-top:12px">Admission ho chuka${i.studentId&&stuById(i.studentId)?` — ${esc(stuById(i.studentId).name)} (${esc(stuById(i.studentId).regNo)})`:""} · ${fmtD(i.convertedOn)}</div>` : `
+    <h3 style="margin:16px 0 8px">Naya follow-up likhein</h3>
+    <div class="grid2">
+      <div class="field"><label>Date</label><input type="date" id="l_date" value="${wmDate()}"></div>
+      <div class="field"><label>Stage</label><select id="l_stage" onchange="$('l_lostWrap').style.display=this.value==='Lost'?'block':'none'">${INQ_STAGES.filter(x=>x!=="Converted").map(x=>`<option ${x===(i.stage==="New"?"Contacted":i.stage)?"selected":""}>${x}</option>`).join("")}</select></div>
+      <div class="field"><label>Agla Follow-up</label><input type="date" id="l_next" value=""></div>
+      <div class="field"><label>Kis ne baat ki</label><input id="l_by" value="${esc(staffName())}"></div>
+    </div>
+    <div class="field" id="l_lostWrap" style="display:none"><label>Lost kyun hua?</label>
+      <select id="l_lost">${["Fee zyada lagi","Doosre school/academy mein chala gaya","Location door hai","Timing match nahi","Jawab nahi diya","Class / subject available nahi","Other"].map(x=>`<option>${x}</option>`).join("")}</select></div>
+    <div class="field"><label>Kya baat hui? *</label><textarea id="l_note" rows="2" placeholder="e.g. Father se baat hui, Saturday ko test ke liye aayenge"></textarea></div>
+    <div class="modal-foot">
+      <button class="btn-line" onclick="closeModal()">Band karein</button>
+      <button class="btn-red" onclick="saveInqLog('${id}')">Save Follow-up</button>
+    </div>`}`, true);
+}
+function saveInqLog(id){
+  const i = inqNorm(DB.inquiries.find(x=>x.id===id));
+  const note = $("l_note").value.trim(), stage = $("l_stage").value, by = $("l_by").value.trim();
+  if(!note){ toast("Kya baat hui — likhein"); return; }
+  if(stage !== "Lost" && INQ_OPEN(stage) && !$("l_next").value){ toast("Agla follow-up kab hai — date daalein (ya stage Lost karein)"); return; }
+  setStaffName(by);
+  i.log.push({id:uid(), d:$("l_date").value||wmDate(), stage, note, by});
+  i.stage = stage;
+  i.nextFollow = stage === "Lost" ? "" : $("l_next").value;
+  if(stage === "Lost") i.lostReason = $("l_lost").value;
+  save(); closeModal(); renderInquiries(); renderDashboard(); toast(`${i.name} — follow-up saved`);
 }
 function delInq(id){
   const i = DB.inquiries.find(x=>x.id===id); if(!i) return;
   askConfirm("Inquiry delete karein?", `<b>${esc(i.name)}</b> — ${esc(i.phone)}`,
     ()=>{ DB.inquiries=DB.inquiries.filter(x=>x.id!==id); save(); renderInquiries(); toast("Inquiry delete ho gayi"); });
 }
+let pendingInq = null;      // jis inquiry se student form khula — save par "Converted"
 function inqToStudent(id){
   const i = DB.inquiries.find(x=>x.id===id);
-  openStudentForm(null, {name:i.name, phone:i.phone, course:i.course, monthlyFee:i.fee||"", address:(i.city||"")+(i.area?(", "+i.area):"")});
+  openStudentForm(null, {_inq:id, name:i.name, phone:i.phone, course:i.course, shift:i.shift||"", monthlyFee:i.fee||"", address:(i.city||"")+(i.area?(", "+i.area):"")});
+}
+function inqConverted(st){
+  const i = pendingInq && DB.inquiries.find(x=>x.id===pendingInq);
+  pendingInq = null;
+  if(!i) return;
+  inqNorm(i);
+  i.stage = "Converted"; i.studentId = st.id; i.convertedOn = st.doj || wmDate(); i.nextFollow = "";
+  i.log.push({id:uid(), d:i.convertedOn, stage:"Converted", note:`Admission ho gaya — ${st.regNo} (${st.course})`, by:staffName()});
+}
+
+/* ================= v27: CLASS AUDIT & KPIs =================
+   Admin / coordinator class mein ja kar 6 cheezon par 1–5 number deta hai. Inhi se teacher aur subject
+   ke KPI bante hain — hafta, mahina, aur pichle mahine se muqabla. */
+const AUD_CRIT = [["punct","Punctuality — waqt par class"],["prep","Lesson preparation / plan"],["deliv","Teaching delivery — concept clear"],
+                  ["engage","Student engagement"],["disc","Class discipline"],["copies","Notebook / homework checking"]];
+const audScore = a => { const v = AUD_CRIT.map(([k])=>+((a.scores||{})[k])||0).filter(Boolean); return v.length ? v.reduce((x,y)=>x+y,0)/v.length/5*100 : 0; };
+const avgOf = arr => arr.length ? arr.reduce((a,x)=>a+x,0)/arr.length : 0;
+const pctTxt = v => v ? Math.round(v) + "%" : "—";
+const scoreColor = v => !v ? "" : v >= 80 ? "color:var(--ok)" : v >= 60 ? "" : "color:var(--danger)";
+const subjKey = x => keyify(String(x||"").replace(/\(.*?\)/g, ""));   // "Mathematics (D)" = "Mathematics"
+const audWeek = d => Math.min(5, Math.ceil(+String(d).slice(8,10) / 7));
+function audList(m, wk, sh, tid){
+  return (DB.audits||[]).filter(a=>String(a.date||"").startsWith(m) && (!wk || audWeek(a.date)===+wk) && (!sh || a.shift===sh) && (!tid || a.teacherId===tid));
+}
+
+function renderAudit(){
+  if(!DB.audits) DB.audits = [];
+  if(!$("audFMonth").value) $("audFMonth").value = wm();
+  const m = $("audFMonth").value, wk = $("audFWeek").value, sh = $("audFShift").value, ft = $("audFTeacher").value;
+  const teachers = DB.employees.filter(e=>e.category==="Teacher" || DB.audits.some(a=>a.teacherId===e.id)).sort((a,b)=>a.name.localeCompare(b.name));
+  $("audFTeacher").innerHTML = `<option value="">All teachers</option>` + teachers.map(e=>`<option value="${e.id}" ${e.id===ft?"selected":""}>${esc(e.name)}</option>`).join("");
+  const list = audList(m, wk, sh, ft).sort((a,b)=>b.date.localeCompare(a.date));
+  const period = fmtM(m) + (wk ? ` · Week ${wk}` : "");
+
+  const scores = list.map(audScore).filter(Boolean);
+  $("auN").textContent = list.length;
+  $("auNHint").textContent = `${period} · ${new Set(list.map(a=>a.teacherId)).size} teachers`;
+  $("auAvg").textContent = pctTxt(avgOf(scores));
+  $("auAvg").style.cssText = scoreColor(avgOf(scores));
+  const prevM = addMonths(m, -1), prev = audList(prevM, "", sh, ft).map(audScore).filter(Boolean);
+  $("auAvgHint").textContent = prev.length ? `${fmtM(prevM)}: ${pctTxt(avgOf(prev))}` : "Pichle mahine ka audit nahi";
+  const att = list.filter(a=>+a.strength>0);
+  $("auAtt").textContent = att.length ? pctTxt(att.reduce((x,a)=>x+ +a.present,0) * 100 / att.reduce((x,a)=>x+ +a.strength,0)) : "—";
+  const open = (DB.audits||[]).filter(a=>a.action && !a.actionDone && (!ft || a.teacherId===ft));
+  $("auAct").textContent = open.length;
+  $("auActHint").textContent = open.length ? `Sab se purana: ${fmtD(open.map(a=>a.date).sort()[0])}` : "Sab action items poore ✓";
+
+  /* --- subject coverage: active classes ke offered subjects mein se kitne audit hue --- */
+  const classes = [...new Set(DB.students.filter(st=>st.status==="Active" && (!sh || st.shift===sh)).map(st=>st.shift+"|"+st.course))];
+  const expected = [];
+  classes.forEach(k=>{ const [shf, c] = k.split("|"); subjectsForClass(c).forEach(x=>expected.push({shift:shf, course:c, subject:x.name})); });
+  const done = new Set(list.map(a=>`${a.shift}|${a.course}|${subjKey(a.subject)}`));
+  const missing = expected.filter(x=>!done.has(`${x.shift}|${x.course}|${subjKey(x.subject)}`));
+  $("auCov").textContent = expected.length ? pctTxt((expected.length - missing.length) * 100 / expected.length) : "—";
+  $("auCovHint").textContent = expected.length ? `${expected.length - missing.length} / ${expected.length} class-subjects audit hue` : "Active classes nahi";
+
+  /* --- teacher KPIs --- */
+  const byT = {};
+  list.forEach(a=>{ (byT[a.teacherId] = byT[a.teacherId] || []).push(a); });
+  $("auTeachers").innerHTML = Object.keys(byT).length ? Object.entries(byT).map(([tid, as])=>{
+    const sc = avgOf(as.map(audScore).filter(Boolean));
+    const pv = avgOf(audList(prevM, "", sh, tid).map(audScore).filter(Boolean));
+    const crit = AUD_CRIT.map(([k])=>{ const v = as.map(a=>+((a.scores||{})[k])||0).filter(Boolean); return v.length ? avgOf(v).toFixed(1) : "—"; });
+    const rate = (k, yes) => { const n = as.filter(a=>a[k]).length; return n ? Math.round(as.filter(a=>a[k]===yes).length*100/n) + "%" : "—"; };
+    const planY = rate("plan", "Yes"), hwY = rate("homework", "Yes");
+    const op = (DB.audits||[]).filter(a=>a.teacherId===tid && a.action && !a.actionDone).length;
+    return {tid, sc, row:`<tr><td><b>${esc(teacherName(tid))}</b></td><td style="text-align:right">${as.length}</td>
+      <td style="text-align:right"><b style="${scoreColor(sc)}">${pctTxt(sc)}</b></td>
+      <td style="text-align:right">${pv ? `<span style="${sc>=pv?"color:var(--ok)":"color:var(--danger)"}">${sc>=pv?"▲":"▼"} ${Math.abs(Math.round(sc-pv))}</span>` : "—"}</td>
+      ${crit.map(c=>`<td style="text-align:right;${+c && +c<3?"color:var(--danger);font-weight:700":""}">${c}</td>`).join("")}
+      <td style="text-align:right">${planY}</td><td style="text-align:right">${hwY}</td>
+      <td style="text-align:right;${op?"color:var(--danger);font-weight:700":""}">${op||"—"}</td></tr>`};
+  }).sort((a,b)=>b.sc-a.sc).map(x=>x.row).join("") : `<tr><td colspan="13" class="empty">${period} mein koi audit nahi — "+ New Audit" se shuru karein</td></tr>`;
+
+  /* --- subject-wise --- */
+  const byS = {};
+  list.forEach(a=>{ const k = `${a.shift}|${a.course}|${subjKey(a.subject)}`; (byS[k] = byS[k] || []).push(a); });
+  $("auSubjects").innerHTML = Object.keys(byS).length ? Object.values(byS).sort((a,b)=>(a[0].course+a[0].subject).localeCompare(b[0].course+b[0].subject)).map(as=>{
+    const last = as.slice().sort((a,b)=>b.date.localeCompare(a.date))[0], sc = avgOf(as.map(audScore).filter(Boolean));
+    return `<tr><td>${esc(last.course)} <span class="sub">${esc(last.shift)}</span></td><td><b>${esc(last.subject)}</b></td>
+      <td>${[...new Set(as.map(a=>teacherName(a.teacherId)))].map(esc).join(", ")}</td><td style="text-align:right">${as.length}</td>
+      <td style="text-align:right"><b style="${scoreColor(sc)}">${pctTxt(sc)}</b></td><td>${fmtD(last.date)}</td><td class="sub">${esc(last.topic||"—")}</td></tr>`;
+  }).join("") : `<tr><td colspan="7" class="empty">Koi audit nahi</td></tr>`;
+  $("auMissing").innerHTML = missing.length
+    ? `<div class="note"><b>${period} mein abhi audit nahi hua (${missing.length}):</b> ` +
+      missing.slice(0, 40).map(x=>`<span class="chip">${esc(x.course)} · ${esc(x.subject)}</span>`).join(" ") + (missing.length>40?` +${missing.length-40}`:"") + `</div>`
+    : (expected.length ? `<div class="note ok">Sab active classes ke sab subjects audit ho gaye ✓</div>` : "");
+
+  /* --- entries --- */
+  $("auRows").innerHTML = list.length ? list.map(a=>{ const sc = audScore(a); return `<tr>
+      <td>${fmtD(a.date)}</td><td><b>${esc(a.course)}</b> · ${esc(a.subject)}<br><span class="sub">${esc(a.shift)}${a.period?` · ${esc(a.period)}`:""}</span></td>
+      <td>${esc(teacherName(a.teacherId))}</td><td class="sub" style="max-width:200px">${esc(a.topic||"—")}${a.plan?`<br>Plan: ${esc(a.plan)}`:""}</td>
+      <td style="text-align:right">${+a.strength ? `${+a.present||0}/${+a.strength}` : "—"}</td>
+      <td style="text-align:right"><b style="${scoreColor(sc)}">${pctTxt(sc)}</b></td>
+      <td style="max-width:220px">${a.action ? `${a.actionDone?"✓ ":"⏳ "}${esc(a.action)}` : "—"}</td>
+      <td>${esc(a.auditor||"")}</td>
+      <td style="white-space:nowrap">${a.action && !a.actionDone ? `<button class="btn-black btn-sm" onclick="auditActionDone('${a.id}')">Action done</button>` : ""}
+        <button class="btn-line btn-sm" onclick="openAuditForm('${a.id}')">Edit</button>
+        <button class="btn-danger btn-sm" onclick="delAudit('${a.id}')">Delete</button></td></tr>`; }).join("")
+    : `<tr><td colspan="9" class="empty">${period} mein koi audit nahi</td></tr>`;
+}
+
+function openAuditForm(id){
+  const a = id ? DB.audits.find(x=>x.id===id) : {shift:"Morning", scores:{}};
+  const teachers = DB.employees.filter(e=>e.category==="Teacher").sort((x,y)=>x.name.localeCompare(y.name));
+  openModal(`
+    <h3>${id?"Edit Audit":"🔍 New Class Audit"}</h3>
+    <div class="grid2">
+      <div class="field"><label>Date *</label><input type="date" id="au_date" value="${a.date||wmDate()}"></div>
+      <div class="field"><label>Period / Time</label><input id="au_period" value="${esc(a.period||"")}" placeholder="e.g. 2nd period / 10:30"></div>
+      <div class="field"><label>Shift *</label><select id="au_shift" onchange="syncClassSel('au_shift','au_course');auditSubjOpts()">${["Morning","Evening"].map(x=>`<option ${a.shift===x?"selected":""}>${x}</option>`).join("")}</select></div>
+      <div class="field"><label>Class *</label><select id="au_course" onchange="auditSubjOpts()">${courseOptions(a.course, a.shift||"Morning")}</select></div>
+      <div class="field"><label>Subject *</label><input id="au_subject" list="au_subjList" value="${esc(a.subject||"")}"><datalist id="au_subjList"></datalist></div>
+      <div class="field"><label>Teacher *</label><select id="au_teacher"><option value="">— chunein —</option>${teachers.map(e=>`<option value="${e.id}" ${a.teacherId===e.id?"selected":""}>${esc(e.name)}</option>`).join("")}</select></div>
+      <div class="field"><label>Topic jo parhaya ja raha tha</label><input id="au_topic" value="${esc(a.topic||"")}"></div>
+      <div class="field"><label>Lesson plan ke mutabiq?</label><select id="au_plan">${["","Yes","Partly","No"].map(x=>`<option ${a.plan===x?"selected":""} value="${x}">${x||"—"}</option>`).join("")}</select></div>
+      <div class="field"><label>Class strength</label><input type="number" id="au_strength" value="${a.strength||""}"></div>
+      <div class="field"><label>Hazir students</label><input type="number" id="au_present" value="${a.present||""}"></div>
+      <div class="field"><label>Homework diya / check hua?</label><select id="au_hw">${["","Yes","No"].map(x=>`<option ${a.homework===x?"selected":""} value="${x}">${x||"—"}</option>`).join("")}</select></div>
+      <div class="field"><label>Auditor</label><input id="au_auditor" value="${esc(a.auditor||staffName())}"></div>
+    </div>
+    <h3 style="margin:14px 0 8px">Scores (1 = kamzor · 5 = behtareen)</h3>
+    ${AUD_CRIT.map(([k,l])=>`<div style="display:flex;align-items:center;gap:10px;margin:6px 0;flex-wrap:wrap">
+      <span style="flex:1;min-width:200px;font-size:.88rem">${l}</span>
+      <span>${[1,2,3,4,5].map(n=>`<label style="display:inline-flex;align-items:center;gap:2px;margin:0 6px 0 0;font-weight:500"><input type="radio" name="au_${k}" value="${n}" style="width:auto" ${+((a.scores||{})[k])===n?"checked":""}>${n}</label>`).join("")}</span></div>`).join("")}
+    <div class="field" style="margin-top:10px"><label>Remarks (kya acha tha / kya kami thi)</label><textarea id="au_remarks" rows="2">${esc(a.remarks||"")}</textarea></div>
+    <div class="field"><label>Action item (teacher ko kya theek karna hai)</label><input id="au_action" value="${esc(a.action||"")}" placeholder="e.g. Har class ke aakhir mein 5 min recap"></div>
+    <div class="modal-foot">
+      <button class="btn-line" onclick="closeModal()">Cancel</button>
+      <button class="btn-red" onclick="saveAudit('${id||""}')">Save Audit</button>
+    </div>`, true);
+  auditSubjOpts();
+}
+function auditSubjOpts(){
+  const c = $("au_course").value;
+  $("au_subjList").innerHTML = subjectsForClass(c).map(x=>`<option value="${esc(x.name)}">`).join("");
+}
+function saveAudit(id){
+  const subject = $("au_subject").value.trim(), teacherId = $("au_teacher").value;
+  if(!subject || !teacherId){ toast("Subject aur teacher zaroori hain"); return; }
+  const scores = {};
+  AUD_CRIT.forEach(([k])=>{ const r = document.querySelector(`input[name="au_${k}"]:checked`); if(r) scores[k] = +r.value; });
+  if(Object.keys(scores).length < AUD_CRIT.length){ toast("Har criteria ko 1–5 number dein"); return; }
+  const data = {date:$("au_date").value||wmDate(), period:$("au_period").value.trim(), shift:$("au_shift").value, course:$("au_course").value,
+    subject, teacherId, topic:$("au_topic").value.trim(), plan:$("au_plan").value, strength:+$("au_strength").value||0,
+    present:+$("au_present").value||0, homework:$("au_hw").value, auditor:$("au_auditor").value.trim(),
+    scores, remarks:$("au_remarks").value.trim(), action:$("au_action").value.trim()};
+  if(data.present > data.strength && data.strength){ toast("Hazir students strength se zyada nahi ho sakte"); return; }
+  setStaffName(data.auditor);
+  if(!DB.audits) DB.audits = [];
+  if(id){ const a = DB.audits.find(x=>x.id===id); if(a.action !== data.action) data.actionDone = false; Object.assign(a, data); }
+  else { data.id = uid(); data.actionDone = false; DB.audits.push(data); }
+  save(); closeModal(); renderAudit(); toast(`Audit saved — score ${pctTxt(audScore(data))}`);
+}
+function auditActionDone(id){
+  const a = DB.audits.find(x=>x.id===id); if(!a) return;
+  a.actionDone = true; a.actionDoneOn = todayStr();
+  save(); renderAudit(); toast("Action item poora ✓");
+}
+function delAudit(id){
+  const a = DB.audits.find(x=>x.id===id); if(!a) return;
+  askConfirm("Audit delete karein?", `${fmtD(a.date)} — ${esc(a.course)} · ${esc(a.subject)} · ${esc(teacherName(a.teacherId))}`,
+    ()=>{ DB.audits = DB.audits.filter(x=>x.id!==id); save(); renderAudit(); toast("Audit delete ho gaya"); });
 }
 
 /* ================= EXAMS ================= */
@@ -2593,7 +3028,7 @@ function openExamForm(id){
     <div class="grid2">
       <div class="field"><label>Exam Name *</label><input id="e_name" value="${esc(ex.exam||"")}" placeholder="e.g. MS Word Test / Final Exam"></div>
       <div class="field"><label>Subject / Topic</label><input id="e_subj" list="subjList" value="${esc(ex.subject||"")}" placeholder="e.g. MS Word / Photoshop Basics / SEO On-Page"><datalist id="subjList">${subjects.map(s=>`<option value="${esc(s)}">`).join("")}</datalist></div>
-      <div class="field"><label>Date</label><input type="date" id="e_date" value="${ex.date||todayStr()}"></div>
+      <div class="field"><label>Date</label><input type="date" id="e_date" value="${ex.date||wmDate()}"></div>
       <div class="field"><label>Total Marks *</label><input type="number" id="e_total" value="${ex.total??100}"></div>
       <div class="field"><label>Obtained Marks *</label><input type="number" id="e_obt" value="${ex.obtained??""}"></div>
     </div>
@@ -2607,7 +3042,7 @@ function saveExam(id){
   const total=+$("e_total").value, obt=+$("e_obt").value, name=$("e_name").value.trim();
   if(!name||!total||isNaN(obt)||$("e_obt").value===""){ toast("Exam name, total aur obtained marks likhein"); return; }
   if(obt>total){ toast("Obtained marks total se zyada nahi ho sakte"); return; }
-  const data = {studentId:$("e_stu").value, exam:name, subject:$("e_subj").value.trim(), comment:$("e_comment").value.trim(), total, obtained:obt, date:$("e_date").value||todayStr()};
+  const data = {studentId:$("e_stu").value, exam:name, subject:$("e_subj").value.trim(), comment:$("e_comment").value.trim(), total, obtained:obt, date:$("e_date").value||wmDate()};
   if(id){ Object.assign(DB.exams.find(x=>x.id===id), data); toast("Exam record updated"); }
   else { data.id = uid(); DB.exams.push(data); toast("Exam marks saved"); }
   save(); closeModal(); renderExams();
@@ -2818,7 +3253,7 @@ function renderEmployees(){
 let empAttDraft = {};
 function loadEmpAttendance(){
   if(!$("empAttDate")) return;
-  if(!$("empAttDate").value) $("empAttDate").value = todayStr();
+  if(!$("empAttDate").value) $("empAttDate").value = wmDate();
   const date = $("empAttDate").value;
   const warn = $("empAttWarn");
   if(isWeekend(date)){
@@ -2957,7 +3392,7 @@ function openEmpForm(id){
       <div class="field"><label>Category *</label><select id="m_cat" onchange="toggleAsg()">${["Admin","Teacher","Coordinator","Supportive Staff"].map(c=>`<option ${e.category===c?"selected":""}>${c}</option>`).join("")}</select></div>
       <div class="field"><label>Shift</label><select id="m_shift">${["Morning","Evening","Both"].map(c=>`<option ${e.shift===c?"selected":""}>${c}</option>`).join("")}</select></div>
       <div class="field"><label>Phone</label><input id="m_phone" value="${esc(e.phone||"")}"></div>
-      <div class="field"><label>Joining Date</label><input type="date" id="m_doj" value="${e.doj||todayStr()}"></div>
+      <div class="field"><label>Joining Date</label><input type="date" id="m_doj" value="${e.doj||wmDate()}"></div>
       <div class="field"><label>Monthly Salary (Rs)</label><input type="number" id="m_sal" value="${e.salary||""}"></div>
       <div class="field"><label>Employee Photo</label><input type="file" id="m_photo" accept="image/*" onchange="pickPhoto(this)"><div id="photoPrev" style="margin-top:6px">${photoTemp?`<img class="avatar-lg" src="${photoTemp}">`:""}</div></div>
     </div>
@@ -3116,7 +3551,7 @@ function openInvForm(id, prefill){
       <div class="field"><label>Item Name *</label><input id="i_name" value="${esc(x.name||"")}" placeholder="e.g. O2 Physics Book"></div>
       <div class="field"><label>Type</label><select id="i_type">${INV_TYPES.map(t=>`<option ${x.type===t?"selected":""}>${t}</option>`).join("")}</select></div>
       <div class="field"><label>Class (optional)</label><select id="i_course"><option value="">— koi bhi —</option>${COURSES.map(c=>`<option ${x.course===c?"selected":""}>${esc(c)}</option>`).join("")}</select></div>
-      <div class="field"><label>Date</label><input type="date" id="i_date" value="${x.date||todayStr()}"></div>
+      <div class="field"><label>Date</label><input type="date" id="i_date" value="${x.date||wmDate()}"></div>
       <div class="field"><label>Quantity (kitne aaye) *</label><input type="number" id="i_qty" value="${x.qty??1}" oninput="invTotHint()"></div>
       <div class="field"><label>Unit Cost (Rs)</label><input type="number" id="i_cost" value="${x.unitCost??""}" oninput="invTotHint()"></div>
       <div class="field"><label>Pehle se issue (opening)</label><input type="number" id="i_issued" value="${x.issuedOpening||0}"><span class="sub">Issuance log alag se ginta hai</span></div>
@@ -3137,7 +3572,7 @@ function saveInv(id){
   const name = $("i_name").value.trim();
   if(!name){ toast("Item ka naam likhein"); return; }
   const data = { name, type:$("i_type").value, course:$("i_course").value,
-                 date:$("i_date").value||todayStr(), qty:+$("i_qty").value||0,
+                 date:$("i_date").value||wmDate(), qty:+$("i_qty").value||0,
                  unitCost:+$("i_cost").value||0, issuedOpening:+$("i_issued").value||0,
                  note:$("i_note").value.trim() };
   if(id) Object.assign(DB.inventory.find(y=>y.id===id), data);
@@ -3169,7 +3604,7 @@ function renderIssuance(){
   $("isUnits").textContent   = all.reduce((a,x)=>a+issueQty(x), 0);
   $("isValue").textContent   = money(all.reduce((a,x)=>a+issueValue(x), 0));
   $("isCharge").textContent  = money(all.reduce((a,x)=>a+issueCharge(x), 0));
-  const m = thisMonth();
+  const m = wm();
   $("isMonth").textContent   = all.filter(x=>String(x.date||"").startsWith(m)).reduce((a,x)=>a+issueQty(x), 0);
   $("isMonthHint").textContent = fmtM(m);
 
@@ -3211,7 +3646,7 @@ function openIssueForm(itemId){
     <div class="grid2">
       <div class="field"><label>Item *</label><select id="s_item" onchange="issueSync()">
         ${items.map(x=>`<option value="${x.id}" ${x.id===pick?"selected":""}>${esc(x.name)} — stock ${invStock(x)}</option>`).join("")}</select></div>
-      <div class="field"><label>Date</label><input type="date" id="s_date" value="${todayStr()}"></div>
+      <div class="field"><label>Date</label><input type="date" id="s_date" value="${wmDate()}"></div>
     </div>
     <div class="field"><label>Kisko dena hai?</label>
       <select id="s_toType" onchange="issueSync()">
@@ -3327,7 +3762,7 @@ function renderFinance(){
   renderSalPanel();
   const ft=$("txnFType").value, fm=$("txnFMonth").value;
   /* Finance mini dashboard — selected month (default: current month) */
-  const m = fm || thisMonth();
+  const m = fm || wm();
   const inc = monthIncome(m), exp = monthExpense(m), net = inc.total - exp;
   $("finInc").textContent = money(inc.total);
   $("finIncHint").textContent = fmtM(m) + " · fees + other income";
@@ -3344,7 +3779,8 @@ function renderFinance(){
   const cats = [...new Set(DB.txns.map(t=>t.category).filter(Boolean))].sort();
   if($("txnFCat")) $("txnFCat").innerHTML = `<option value="">All Categories</option>` +
     cats.map(c=>`<option ${c===fc?"selected":""}>${esc(c)}</option>`).join("");
-  const rows = DB.txns.filter(t=>(!ft||t.type===ft)&&(!fm||t.date.startsWith(fm))&&(!fc||t.category===fc))
+  const noR = $("txnFNoRcpt") && $("txnFNoRcpt").checked;
+  const rows = DB.txns.filter(t=>(!ft||t.type===ft)&&(!fm||t.date.startsWith(fm))&&(!fc||t.category===fc)&&(!noR||(t.type==="Expense"&&!t.receipt&&!t.autoKey)))
                       .sort((a,b)=>b.date.localeCompare(a.date));
   $("txnRows").innerHTML = rows.length? rows.map((t,i)=>`
     <tr>
@@ -3354,10 +3790,12 @@ function renderFinance(){
       <td><span class="chip">${esc(t.category||"Other")}</span></td>
       <td>${esc(t.desc)}${t.autoKey?` <span class="badge b-freeze" title="Salary auto-expense ne banayi">Auto</span>`:""}</td>
       <td><b>${money(t.amount)}</b></td>
+      <td>${rcptCell(t)}</td>
       <td style="white-space:nowrap"><button class="btn-line btn-sm" onclick="toggleTxnStatus('${t.id}')">${txnUnpaid(t)?"Mark Paid":"Mark Unpaid"}</button>
         <button class="btn-danger btn-sm" onclick="delTxn('${t.id}')">Delete</button></td>
-    </tr>`).join("") : `<tr><td colspan="7" class="empty">Koi entry nahi — petty expense ya other income yahan add karein.</td></tr>`;
-  drawCatBreak(fm || thisMonth());
+    </tr>`).join("") : `<tr><td colspan="8" class="empty">Koi entry nahi — petty expense ya other income yahan add karein.</td></tr>`;
+  drawCatBreak(fm || wm());
+  drawDailyExpense(fm || wm());
 }
 /* Category-wise kharcha — kahan sab se zyada ja raha hai */
 function drawCatBreak(m, target){
@@ -3462,7 +3900,7 @@ function openTxnForm(){
     <h3>Add Income / Expense</h3>
     <div class="grid2">
       <div class="field"><label>Type *</label><select id="t_type" onchange="txnCatOpts()"><option>Expense</option><option>Income</option></select></div>
-      <div class="field"><label>Date</label><input type="date" id="t_date" value="${todayStr()}"></div>
+      <div class="field"><label>Date</label><input type="date" id="t_date" value="${wmDate()}"></div>
     </div>
     <div class="field"><label>Description *</label><input id="t_desc" placeholder="e.g. Electricity bill / Printer paper / Registration fee" oninput="txnCatHint()"></div>
     <div class="grid2">
@@ -3471,9 +3909,11 @@ function openTxnForm(){
       <div class="field"><label>Status</label><select id="t_status"><option>Paid</option><option>Unpaid</option></select></div>
     </div>
     <div class="sub" id="t_catHint"></div>
+    <div class="field" style="margin-top:10px"><label>Receipt (photo ya PDF) — kharch ka saboot</label>
+      <input type="file" id="t_rcpt" accept="image/*,application/pdf" onchange="previewRcpt(this)"><div id="t_rcptPrev" class="sub" style="margin-top:6px"></div></div>
     <div class="modal-foot">
       <button class="btn-line" onclick="closeModal()">Cancel</button>
-      <button class="btn-red" onclick="saveTxn()">Save Entry</button>
+      <button class="btn-red" id="t_save" onclick="saveTxn()">Save Entry</button>
     </div>`);
   txnCatOpts();
 }
@@ -3491,13 +3931,173 @@ function txnCatHint(){
     $("t_catHint").textContent = `Description se "${g}" laga di — badalna ho to dropdown se chun lein`;
   } else $("t_catHint").textContent = "";
 }
-function saveTxn(){
+async function saveTxn(){
   const desc=$("t_desc").value.trim(), amt=+$("t_amt").value;
   if(!desc||!amt){ toast("Description aur amount likhein"); return; }
+  const f = $("t_rcpt").files[0];
+  let receipt = "";
+  if(f){
+    $("t_save").disabled = true; $("t_save").textContent = "Receipt upload ho rahi hai…";
+    try{ receipt = await storeReceipt(f); }
+    catch(e){ $("t_save").disabled = false; $("t_save").textContent = "Save Entry"; toast("Receipt save nahi hui — " + e.message); return; }
+  }
   DB.txns.push({id:uid(), type:$("t_type").value, desc, amount:amt,
                 category:$("t_cat").value||"Other", status:$("t_status").value,
-                date:$("t_date").value||todayStr()});
-  save(); closeModal(); renderFinance(); renderDashboard(); toast("Entry saved");
+                date:$("t_date").value||wmDate(), ...(receipt ? {receipt, receiptOn:todayStr()} : {})});
+  save(); closeModal(); renderFinance(); renderDashboard(); toast("Entry saved" + (receipt ? " — receipt ke sath ✓" : ""));
+}
+
+/* ================= v27: RECEIPTS =================
+   Online: tasveer server par alag file (DB halka rehta hai). Browser mode: chhoti JPEG data mein.
+   Tasveer bhejne se pehle chhoti kar dete hain (phone ki 4MB photo → ~150KB). */
+function shrinkImage(file, maxSide, quality){
+  return new Promise((resolve, reject)=>{
+    const img = new Image(), url = URL.createObjectURL(file);
+    img.onload = ()=>{
+      const k = Math.min(1, maxSide / Math.max(img.width, img.height));
+      const c = document.createElement("canvas");
+      c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+      const g = c.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height);
+      g.drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      c.toBlob(b => b ? resolve(b) : reject(new Error("tasveer nahi bani")), "image/jpeg", quality);
+    };
+    img.onerror = ()=>{ URL.revokeObjectURL(url); reject(new Error("ye tasveer khul nahi saki")); };
+    img.src = url;
+  });
+}
+const blobToDataURL = b => new Promise((res, rej)=>{ const r = new FileReader(); r.onload = ()=>res(r.result); r.onerror = rej; r.readAsDataURL(b); });
+async function storeReceipt(file){
+  const isPdf = file.type === "application/pdf";
+  if(!isPdf && !/^image\//.test(file.type)) throw new Error("sirf photo ya PDF");
+  if(SERVER){
+    const body = isPdf ? file : await shrinkImage(file, 1600, 0.75);
+    if(body.size > 8*1024*1024) throw new Error("file 8MB se bari hai");
+    const r = await fetch("/api/files", {method:"POST", headers:{"Content-Type": isPdf ? "application/pdf" : "image/jpeg"}, body, credentials:"same-origin"});
+    if(r.status === 401){ location.href = "/login"; throw new Error("login"); }
+    if(!r.ok) throw new Error("server ne file nahi li (" + r.status + ")");
+    return (await r.json()).url;
+  }
+  if(isPdf){
+    if(file.size > 400*1024) throw new Error("browser mode mein PDF 400KB se choti honi chahiye — online version use karein");
+    return await blobToDataURL(file);
+  }
+  return await blobToDataURL(await shrinkImage(file, 1000, 0.6));
+}
+const isPdfRef = r => /\.pdf$|^data:application\/pdf/.test(String(r||""));
+function rcptCell(t){
+  if(t.receipt) return isPdfRef(t.receipt)
+    ? `<a href="#" onclick="viewReceipt('${t.id}');return false" title="Receipt dekhein">📄 PDF</a>`
+    : `<img class="rcpt-thumb" src="${esc(t.receipt)}" alt="Receipt" title="Receipt dekhein" onclick="viewReceipt('${t.id}')" loading="lazy">`;
+  if(t.type !== "Expense" || t.autoKey) return `<span class="sub">—</span>`;
+  return `<button class="btn-line btn-sm" style="white-space:nowrap" onclick="pickReceipt('${t.id}')" title="Receipt lagayein">📎 Lagayein</button>`;
+}
+function previewRcpt(inp){
+  const f = inp.files[0]; if(!f){ $("t_rcptPrev").innerHTML = ""; return; }
+  $("t_rcptPrev").innerHTML = f.type.startsWith("image/")
+    ? `<img src="${URL.createObjectURL(f)}" style="max-height:90px;border-radius:6px;border:1px solid var(--line)"> ${esc(f.name)}`
+    : `📄 ${esc(f.name)}`;
+}
+let rcptFor = null;
+function pickReceipt(id){ rcptFor = id; $("rcptPick").value = ""; $("rcptPick").click(); }
+async function attachReceipt(inp){
+  const f = inp.files[0], t = DB.txns.find(x=>x.id===rcptFor);
+  if(!f || !t) return;
+  toast("Receipt upload ho rahi hai…");
+  try{ t.receipt = await storeReceipt(f); t.receiptOn = todayStr(); }
+  catch(e){ toast("Receipt save nahi hui — " + e.message); return; }
+  save(); renderFinance(); toast(`"${t.desc}" — receipt lag gayi ✓`);
+}
+function viewReceipt(id){
+  const t = DB.txns.find(x=>x.id===id); if(!t || !t.receipt) return;
+  openModal(`
+    <h3>🧾 ${esc(t.desc)}</h3>
+    <p class="sub" style="margin-bottom:10px">${fmtD(t.date)} · ${esc(t.category||"")} · <b>${money(t.amount)}</b>${t.receiptOn?` · receipt ${fmtD(t.receiptOn)} ko lagi`:""}</p>
+    ${isPdfRef(t.receipt)
+      ? `<p><a class="btn-red" href="${esc(t.receipt)}" target="_blank" rel="noopener">PDF kholein</a></p>`
+      : `<a href="${esc(t.receipt)}" target="_blank" rel="noopener"><img src="${esc(t.receipt)}" alt="Receipt" style="max-width:100%;max-height:70vh;border-radius:8px;border:1px solid var(--line)"></a>`}
+    <div class="modal-foot">
+      <button class="btn-line" onclick="removeReceipt('${t.id}')">Receipt hatayein</button>
+      <button class="btn-line" onclick="closeModal();pickReceipt('${t.id}')">Doosri lagayein</button>
+      <button class="btn-red" onclick="closeModal()">Theek hai</button>
+    </div>`, true);
+}
+function removeReceipt(id){
+  const t = DB.txns.find(x=>x.id===id); if(!t) return;
+  delete t.receipt; delete t.receiptOn;
+  save(); closeModal(); renderFinance(); toast("Receipt hata di");
+}
+
+/* Roz ka kharch — har din ka column (aik hi rang; din ki receipt baqi ho to neeche nishan) */
+function drawDailyExpense(m){
+  const [y, mo] = m.split("-").map(Number), days = new Date(y, mo, 0).getDate();
+  const list = txnsOf(m, "Expense");
+  const per = Array.from({length:days}, (_, i)=>{
+    const d = `${m}-${String(i+1).padStart(2,"0")}`, xs = list.filter(t=>t.date===d && !t.autoKey);
+    return {d, amt: xs.reduce((a,t)=>a+(+t.amount||0),0), n: xs.length, noR: xs.filter(t=>!t.receipt).length,
+            noRAmt: xs.filter(t=>!t.receipt).reduce((a,t)=>a+(+t.amount||0),0)};
+  });
+  const sal = list.filter(t=>t.autoKey).reduce((a,t)=>a+(+t.amount||0),0);
+  const tot = per.reduce((a,x)=>a+x.amt,0), active = per.filter(x=>x.amt), top = per.slice().sort((a,b)=>b.amt-a.amt)[0];
+  const noR = per.reduce((a,x)=>a+x.noR,0), noRAmt = per.reduce((a,x)=>a+x.noRAmt,0);
+  $("dxMonth").textContent = fmtM(m);
+  $("dxSummary").innerHTML = tot
+    ? `Roz ke kharch: <b>${money(tot)}</b> · ${active.length} din · ausat ${money(Math.round(tot/Math.max(1,active.length)))} / din · sab se zyada ${fmtD(top.d)} (${money(top.amt)})` +
+      (sal ? ` · salaries alag: ${money(sal)}` : "") +
+      (noR ? ` · <a href="#" onclick="$('txnFNoRcpt').checked=true;renderFinance();return false" style="color:var(--danger);font-weight:700">⚠ ${noR} entries bina receipt (${money(noRAmt)})</a>` : (active.length ? ` · sab receipts lagi hain ✓` : ""))
+    : `${fmtM(m)} mein abhi koi roz ka kharch nahi (salaries ke ilawa).`;
+  if(!tot){ $("dxChart").innerHTML = ""; return; }
+
+  const W = 900, H = 230, L = 56, R = 10, T = 18, B = 34, pw = W - L - R, ph = H - T - B;
+  const rawMax = Math.max(...per.map(x=>x.amt));
+  const pow = Math.pow(10, Math.floor(Math.log10(rawMax))), step0 = rawMax / 4 / pow;
+  const step = (step0 <= 1 ? 1 : step0 <= 2 ? 2 : step0 <= 2.5 ? 2.5 : step0 <= 5 ? 5 : 10) * pow;
+  const max = Math.ceil(rawMax / step) * step;
+  const slot = pw / days, bw = Math.min(24, slot - 2);
+  const yv = v => T + ph - v / max * ph;
+  const fmtK = v => v >= 1000 ? (v/1000).toLocaleString("en-US", {maximumFractionDigits:1}) + "k" : String(v);
+  let g = "";
+  for(let v = 0; v <= max + 1e-9; v += step)
+    g += `<line x1="${L}" x2="${W-R}" y1="${yv(v)}" y2="${yv(v)}" stroke="#e8ecec" stroke-width="1"/>
+          <text x="${L-8}" y="${yv(v)+4}" text-anchor="end" font-size="11" fill="#6d6d6d">${fmtK(v)}</text>`;
+  per.forEach((x, i)=>{
+    const cx = L + slot * i + slot / 2, day = i + 1;
+    if(day === 1 || day % 5 === 0 || day === days)
+      g += `<text x="${cx}" y="${H-B+16}" text-anchor="middle" font-size="11" fill="#6d6d6d">${day}</text>`;
+    if(x.amt){
+      const top = yv(x.amt), h = T + ph - top, r = Math.min(4, h, bw/2), x0 = cx - bw/2;
+      g += `<path d="M${x0},${T+ph} V${top+r} Q${x0},${top} ${x0+r},${top} H${x0+bw-r} Q${x0+bw},${top} ${x0+bw},${top+r} V${T+ph} Z" fill="#159670"/>`;
+      if(x.noR) g += `<circle cx="${cx}" cy="${H-B+26}" r="3" fill="#C0392B"/>`;
+    }
+    if(x === top && x.amt) g += `<text x="${cx}" y="${yv(x.amt)-6}" text-anchor="middle" font-size="11" font-weight="700" fill="#12313D">${fmtK(x.amt)}</text>`;
+    g += `<rect x="${L + slot*i}" y="${T}" width="${slot}" height="${ph+B}" fill="transparent" data-i="${i}"/>`;
+  });
+  g += `<line x1="${L}" x2="${W-R}" y1="${T+ph}" y2="${T+ph}" stroke="#c9d3d3" stroke-width="1"/>`;
+  $("dxChart").innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${fmtM(m)} — roz ka kharch">${g}</svg><div class="tip" id="dxTip"></div>
+    <p class="sub" style="margin-top:4px"><span style="color:#C0392B">●</span> = us din ki koi receipt baqi · column par click karein to us din ki entries</p>`;
+  const svg = $("dxChart").querySelector("svg"), tip = $("dxTip");
+  svg.querySelectorAll("rect[data-i]").forEach(r=>{
+    const x = per[+r.dataset.i];
+    r.addEventListener("mouseenter", ()=>{
+      const box = svg.getBoundingClientRect(), k = box.width / W;
+      tip.innerHTML = `<b>${fmtD(x.d)}</b><br>${x.amt ? `${money(x.amt)} · ${x.n} entr${x.n===1?"y":"ies"}${x.noR?` · ${x.noR} bina receipt`:""}` : "Koi kharch nahi"}`;
+      tip.style.left = ((+r.getAttribute("x") + slot/2) * k) + "px";
+      tip.style.top = (yv(x.amt || 0) * k) + "px";
+      tip.style.display = "block";
+    });
+    r.addEventListener("mouseleave", ()=>{ tip.style.display = "none"; });
+    r.style.cursor = x.amt ? "pointer" : "default";
+    r.addEventListener("click", ()=>{ if(x.amt) openDayExpenses(x.d); });
+  });
+}
+function openDayExpenses(d){
+  const xs = DB.txns.filter(t=>t.type==="Expense" && t.date===d && !t.autoKey);
+  openModal(`
+    <h3>🧾 ${fmtD(d)} — ${money(xs.reduce((a,t)=>a+(+t.amount||0),0))}</h3>
+    <div class="tbl-wrap"><table><thead><tr><th>Description</th><th>Category</th><th style="text-align:right">Amount</th><th>Receipt</th></tr></thead><tbody>
+      ${xs.map(t=>`<tr><td>${esc(t.desc)}</td><td>${esc(t.category||"")}</td><td style="text-align:right"><b>${money(t.amount)}</b></td><td>${rcptCell(t)}</td></tr>`).join("")}
+    </tbody></table></div>
+    <div class="modal-foot"><button class="btn-red" onclick="closeModal()">Theek hai</button></div>`, true);
 }
 function delTxn(id){
   const t = DB.txns.find(x=>x.id===id); if(!t) return;
@@ -3509,7 +4109,7 @@ function delTxn(id){
 
 /* ================= REPORTS ================= */
 function renderReport(){
-  if(!$("repMonth").value) $("repMonth").value = thisMonth();
+  if(!$("repMonth").value) $("repMonth").value = wm();
   const m = $("repMonth").value;
   const inc = monthIncome(m), exp = monthExpense(m);
   const paidFees = feesOfMonth(m).filter(f=>feeReceived(f) > 0);
@@ -4112,16 +4712,16 @@ function impRender(){
         <select id="imp_empshift"><option>Morning</option><option>Evening</option><option>Both</option></select></div>`:""}
       ${impType==="exams"? `
       <div class="field"><label>Exam ka naam (jahan sheet mein na ho)</label><input id="imp_exam" value="Test" placeholder="e.g. Mid Term"></div>
-      <div class="field"><label>Date (jahan sheet mein na ho)</label><input type="date" id="imp_exdate" value="${todayStr()}"></div>
+      <div class="field"><label>Date (jahan sheet mein na ho)</label><input type="date" id="imp_exdate" value="${wmDate()}"></div>
       <div class="field"><label>Total marks (jahan na likhe hon)</label><input type="number" id="imp_total" value="100" style="max-width:120px"></div>
       <div class="field"><label>Shift</label><select id="imp_exshift"><option>Morning</option><option>Evening</option></select></div>`:""}
       ${impType==="attendance"? `
-      <div class="field"><label>Month *</label><input type="month" id="imp_month" value="${thisMonth()}"></div>
+      <div class="field"><label>Month *</label><input type="month" id="imp_month" value="${wm()}"></div>
       <div class="field"><label>Shift</label><select id="imp_attshift"><option>Morning</option><option>Evening</option></select></div>
       <div class="field"><label>Weekend par nishaan</label>
         <select id="imp_wk"><option value="0">Chhor dein (Sat/Sun off hai)</option><option value="1">Phir bhi rakh lein</option></select></div>`:""}
       ${impType==="fees"? `
-      <div class="field"><label>Fee Month *</label><input type="month" id="imp_month" value="${thisMonth()}"></div>
+      <div class="field"><label>Fee Month *</label><input type="month" id="imp_month" value="${wm()}"></div>
       <div class="field"><label>Shift</label>
         <select id="imp_feeshift" onchange="impSyncFeeCourse()"><option>Morning</option><option>Evening</option></select></div>
       <div class="field"><label>Class (jahan sheet mein na ho)</label>
@@ -5022,6 +5622,11 @@ const EXPORTS = {
     return [["Date","Type","Category","Description","Amount (Rs)","Status","Note"],
       ...[...DB.txns].sort((a,b)=>String(a.date).localeCompare(String(b.date))).map(t=>[t.date,t.type,t.category,t.desc,+t.amount||0,t.status||"Paid",t.note])];
   }},
+  audits:{label:"Class audits", file:"class-audits", count:()=>(DB.audits||[]).length, rows(){
+    return [["Date","Shift","Class","Subject","Teacher","Topic","Plan followed","Strength","Present","Homework",...AUD_CRIT.map(c=>c[1]),"Score %","Remarks","Action item","Action done","Auditor"],
+      ...(DB.audits||[]).slice().sort((a,b)=>a.date.localeCompare(b.date)).map(a=>[a.date,a.shift,a.course,a.subject,teacherName(a.teacherId),a.topic,a.plan,a.strength,a.present,a.homework,
+        ...AUD_CRIT.map(([k])=>(a.scores||{})[k]||""),Math.round(audScore(a)),a.remarks,a.action,a.actionDone?"Yes":"No",a.auditor])];
+  }},
   employees:{label:"Employees", file:"employees", count:()=>DB.employees.length, rows(){
     return [["Name","Category","Shift","Phone","Joining Date","Monthly Salary (Rs)","Address","Class Assignments"],
       ...DB.employees.map(e=>[e.name,e.category,e.shift,e.phone,e.doj,+e.salary||0,e.address,(e.assignments||[]).map(a=>`${a.course} (${a.shift})`).join("; ")])];
@@ -5789,6 +6394,7 @@ $("examFCourse").innerHTML = `<option value="">All Classes</option>` + COURSES.m
 $("brandName").textContent = DB.settings.name||"Cambridge Grads Academy";
 $("buildTag").textContent = "CGA EMS " + BUILD;
 drawLogo();
+syncWMFilters();
 if(!storageOK) toast("⚠ Preview mode: data save nahi hoga. File download kar ke laptop par kholein.");
 renderDashboard();
 if(SERVER){ setSyncState(); if(syncDirty()) queuePush(); }
