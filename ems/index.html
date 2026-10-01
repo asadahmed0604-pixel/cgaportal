@@ -471,7 +471,8 @@ label.chk input{width:auto}
 <section class="page" id="page-employees">
   <div class="page-head">
     <div><h2>Employees</h2><div class="sub">Admin · Teachers · Coordinator · Supportive Staff</div></div>
-    <button class="btn-red" onclick="openEmpForm()">+ New Employee</button>
+    <div><button class="btn-line" onclick="openImport('employees')">⬆ Import CSV (Excel)</button>
+      <button class="btn-red" onclick="openEmpForm()">+ New Employee</button></div>
   </div>
   <div class="toolbar">
     <div class="field"><label>Category</label><select id="empFCat" onchange="renderEmployees()"><option value="">All</option><option>Admin</option><option>Teacher</option><option>Coordinator</option><option>Supportive Staff</option></select></div>
@@ -801,7 +802,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v24 · 1 Oct 2026";
+const BUILD = "v25 · 1 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -4193,7 +4194,8 @@ function runImport(){
       const raw = g("category");
       const cat = cats.find(c=>keyify(c) === keyify(raw)) || cats.find(c=>keyify(raw) && keyify(c).includes(keyify(raw))) || "Teacher";
       if(raw && !cats.find(c=>keyify(c) === keyify(raw))) note(line, `Category "${raw}" pehchani nahi — "${cat}" laga di`);
-      const shift = normShift(g("shift")) || (impDefShift || "Morning");
+      /* "Both" / "Morning + Evening" ko normShift "Evening" samajh leta — pehle yahan pakrein */
+      const shift = /both|dono|morn.*even|even.*morn/i.test(g("shift")) ? "Both" : (normShift(g("shift")) || (impDefShift || "Morning"));
       const rec = { name, category:cat, shift, phone:cleanPhone(g("phone")), doj:cleanDate(g("doj")) || todayStr(),
                     salary:cleanNum(g("salary")), address:g("address"), assignments:[] };
       const near = DB.employees.find(x=>keyify(x.name) === keyify(name))
@@ -4206,11 +4208,19 @@ function runImport(){
       }
       if(near){
         /* Wohi ustad dono shifts mein parhata ho to duplicate na banayein — "Both" kar dein */
-        if(near.shift && near.shift !== shift && near.shift !== "Both"){
-          note(line, `"${name}" pehle se ${near.shift} mein hai — ab "Both" kar diya`);
-          near.shift = "Both"; updated++; return;
-        }
-        if(dup === "update"){ Object.assign(near, rec); updated++; }
+        const both = !!g("shift") && near.shift && near.shift !== shift && near.shift !== "Both" && shift !== "Both";
+        if(both) note(line, `"${name}" pehle se ${near.shift} mein hai — ab "Both" kar diya`);
+        if(dup === "update"){
+          /* v25: Sirf wohi khane badlein jo sheet mein bhare hain. Phone, address, photo aur class
+             assignments khali column ki wajah se kabhi na mitein. */
+          if(g("category")) near.category = cat;
+          if(g("shift")) near.shift = both ? "Both" : shift;   // sheet mein shift na ho to purani hi rahe
+          if(rec.phone)   near.phone = rec.phone;
+          if(g("doj"))    near.doj = rec.doj;
+          if(String(g("salary")).trim() !== "") near.salary = rec.salary;
+          if(rec.address) near.address = rec.address;
+          updated++;
+        } else if(both){ near.shift = "Both"; updated++; }
         else { skipped++; note(line, `"${name}" pehle se mojood${keyify(near.name)!==keyify(name)?` ("${near.name}")`:""}`); }
         return;
       }
