@@ -1,30 +1,25 @@
-# Render Blueprint — CGA EMS ko free static site ke taur par host karta hai.
-# Render dashboard: New → Blueprint → is repo ko select karein.
+# Render Blueprint — CGA EMS online (sab computers par aik hi data).
+# Render dashboard: New → Blueprint → is repo ko select karein → EMS_PASSWORD likhein → Apply.
 services:
   - type: web
-    name: cga-ems
-    runtime: static
+    name: cga-ems-online
+    runtime: node
+    plan: starter            # disk sirf paid plan par milti hai (~$7/mahina + disk)
+    region: singapore        # Pakistan ke qareeb
     branch: main
+    rootDir: ems
     autoDeploy: true
-    buildCommand: echo "CGA EMS is a single HTML file; nothing to build"
-    staticPublishPath: ./ems
-    headers:
-      - path: /*
-        name: X-Frame-Options
-        value: DENY
-      - path: /*
-        name: X-Content-Type-Options
-        value: nosniff
-      - path: /*
-        name: Referrer-Policy
-        value: same-origin
-      - path: /*
-        name: X-Robots-Tag
-        value: noindex, nofollow
-      - path: /index.html
-        name: Cache-Control
-        value: no-cache
-    routes:
-      - type: rewrite
-        source: /*
-        destination: /index.html
+    buildCommand: echo "No dependencies to install"
+    startCommand: node server.js
+    healthCheckPath: /healthz
+    envVars:
+      - key: EMS_PASSWORD
+        sync: false          # Render pehli dafa khud poochega — office ka password (8+ characters)
+      - key: DATA_DIR
+        value: /var/data
+      - key: NODE_VERSION
+        value: "22"
+    disk:
+      name: ems-data
+      mountPath: /var/data
+      sizeGB: 1
