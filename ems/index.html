@@ -269,17 +269,21 @@ label.chk input{width:auto}
 
 <!-- ================= DASHBOARD ================= -->
 <section class="page show" id="page-dashboard">
-  <div class="page-head"><div><h2>Dashboard</h2><div class="sub" id="todayLine"></div></div></div>
+  <div class="page-head"><div><h2>Dashboard</h2><div class="sub" id="todayLine"></div></div>
+    <div class="field" style="margin:0"><label>Mahina dekhein</label>
+      <div style="display:flex;gap:6px"><input type="month" id="dMonth" onchange="renderDashboard()" style="max-width:170px">
+      <button class="btn-line" onclick="$('dMonth').value=thisMonth();renderDashboard()" title="Is mahine par wapas">Aaj</button></div></div></div>
   <div class="cards">
     <div class="card"><div class="k">Active Students</div><div class="v" id="dActive">0</div><div class="hint" id="dTotal"></div></div>
     <div class="card"><div class="k">🌅 Morning Students</div><div class="v" id="dMornStu">0</div><div class="hint" id="dMornStuT"></div></div>
     <div class="card"><div class="k">🌆 Evening Students</div><div class="v" id="dEveStu">0</div><div class="hint" id="dEveStuT"></div></div>
     <div class="card"><div class="k">👥 Total Staff</div><div class="v" id="dStaff">0</div><div class="hint" id="dStaffHint"></div></div>
     <div class="card"><div class="k">Unpaid Challans</div><div class="v red" id="dUnpaid">0</div><div class="hint" id="dUnpaidAmt"></div></div>
-    <div class="card"><div class="k">Billed (This Month)</div><div class="v" id="dBilled">0</div><div class="hint" id="dBilledHint">Challans ki kul raqam</div></div>
-    <div class="card"><div class="k">Received (This Month)</div><div class="v green" id="dIncome">0</div><div class="hint" id="dIncomeHint">Wasool shuda fees + other income</div></div>
-    <div class="card click" onclick="document.querySelector('#nav button[data-page=finance]').click()" title="Income / Expense page kholein"><div class="k">Total Expense (This Month)</div><div class="v red" id="dExpense">0</div><div class="hint" id="dNet"></div></div>
-    <div class="card click" onclick="document.querySelector('#nav button[data-page=finance]').click()" title="Income / Expense page kholein — Salaries → Expense panel"><div class="k">💼 Salaries (This Month)</div><div class="v red" id="dSalary">0</div><div class="hint" id="dSalaryHint"></div></div>
+    <div class="card click" onclick="openNewAdmissions()" title="Naye students ki list"><div class="k">🆕 New Admissions (<span class="dm">This Month</span>)</div><div class="v green" id="dNew">0</div><div class="hint" id="dNewHint"></div></div>
+    <div class="card"><div class="k">Billed (<span class="dm">This Month</span>)</div><div class="v" id="dBilled">0</div><div class="hint" id="dBilledHint">Challans ki kul raqam</div></div>
+    <div class="card"><div class="k">Received (<span class="dm">This Month</span>)</div><div class="v green" id="dIncome">0</div><div class="hint" id="dIncomeHint">Wasool shuda fees + other income</div></div>
+    <div class="card click" onclick="document.querySelector('#nav button[data-page=finance]').click()" title="Income / Expense page kholein"><div class="k">Total Expense (<span class="dm">This Month</span>)</div><div class="v red" id="dExpense">0</div><div class="hint" id="dNet"></div></div>
+    <div class="card click" onclick="document.querySelector('#nav button[data-page=finance]').click()" title="Income / Expense page kholein — Salaries → Expense panel"><div class="k">💼 Salaries (<span class="dm">This Month</span>)</div><div class="v red" id="dSalary">0</div><div class="hint" id="dSalaryHint"></div></div>
     <div class="card"><div class="k">🌅 Morning (School)</div><div class="v" id="dMornInc">0</div><div class="hint" id="dMornIncHint"></div></div>
     <div class="card"><div class="k">🌆 Evening (Academy)</div><div class="v" id="dEveInc">0</div><div class="hint" id="dEveIncHint"></div></div>
   </div>
@@ -288,9 +292,17 @@ label.chk input{width:auto}
     <div class="panel"><h3>Recent Inquiries</h3><div class="tbl-wrap"><table><thead><tr><th>Name</th><th>Class</th><th>Phone</th><th>Date</th></tr></thead><tbody id="dInqRows"></tbody></table></div></div>
   </div>
   <div class="panel">
-    <h3>🧾 Is mahine ka kharch</h3>
+    <h3>🧾 Kharch — <span class="dm">This Month</span></h3>
     <p class="sub" style="margin:4px 0 12px">Category-wise — salaries samet. Iska total upar wale "Total Expense" card ke barabar hai.</p>
     <div id="dCatBreak"></div>
+  </div>
+  <div class="panel">
+    <h3>📅 Mahina-war khulasa</h3>
+    <p class="sub" style="margin:4px 0 12px">Pichle 6 mahine. Kisi mahine par click karein to poora dashboard us mahine ka ho jayega.</p>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Mahina</th><th style="text-align:right">Active Students</th><th style="text-align:right">New Admissions</th><th style="text-align:right">Billed</th><th style="text-align:right">Received</th><th style="text-align:right">Baqi (us mahine ke challans)</th><th style="text-align:right">Kharch</th><th style="text-align:right">Salaries</th><th style="text-align:right">Net</th></tr></thead>
+      <tbody id="dMonthRows"></tbody>
+    </table></div>
   </div>
   <div class="panel">
     <h3>📑 Reports</h3>
@@ -471,7 +483,8 @@ label.chk input{width:auto}
 <section class="page" id="page-employees">
   <div class="page-head">
     <div><h2>Employees</h2><div class="sub">Admin · Teachers · Coordinator · Supportive Staff</div></div>
-    <button class="btn-red" onclick="openEmpForm()">+ New Employee</button>
+    <div><button class="btn-line" onclick="openImport('employees')">⬆ Import CSV (Excel)</button>
+      <button class="btn-red" onclick="openEmpForm()">+ New Employee</button></div>
   </div>
   <div class="toolbar">
     <div class="field"><label>Category</label><select id="empFCat" onchange="renderEmployees()"><option value="">All</option><option>Admin</option><option>Teacher</option><option>Coordinator</option><option>Supportive Staff</option></select></div>
@@ -801,7 +814,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v24 · 1 Oct 2026";
+const BUILD = "v26 · 1 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -1111,24 +1124,81 @@ function renderPage(p){
 }
 
 /* ================= DASHBOARD ================= */
+/* v26: Dashboard kisi bhi mahine ka. Student kis mahine mein active tha — join date (doj) aur
+   status kab badla (statusSince) se. Join date na ho to purana student maana jata hai. */
+const joinedBy = (s, m) => !s.doj || s.doj.slice(0,7) <= m;
+const activeIn = (s, m) => joinedBy(s, m) &&
+  (s.status === "Active" ? true : !!(s.statusSince && s.statusSince.slice(0,7) > m));
+const newIn = m => DB.students.filter(s => s.doj && s.doj.slice(0,7) === m);
+const addMonths = (m, n) => { const [y, mo] = m.split("-").map(Number); const d = new Date(y, mo - 1 + n, 1);
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0"); };
+const dashMonth = () => ($("dMonth") && $("dMonth").value) || thisMonth();
+
+function openNewAdmissions(){
+  const m = dashMonth(), list = newIn(m).sort((a,b)=>a.doj.localeCompare(b.doj));
+  openModal(`
+    <h3>🆕 New Admissions — ${fmtM(m)}</h3>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Student</th><th>Reg No</th><th>Class</th><th>Shift</th><th>Join Date</th><th>Status</th></tr></thead>
+      <tbody>${list.length ? list.map(s=>`<tr><td><b>${esc(s.name)}</b></td><td>${esc(s.regNo)}</td><td>${esc(s.course)}</td>
+        <td>${esc(s.shift)}</td><td>${fmtD(s.doj)}</td><td><span class="badge b-${String(s.status).toLowerCase()}">${esc(s.status)}</span></td></tr>`).join("")
+        : `<tr><td colspan="6" class="empty">${fmtM(m)} mein koi naya admission nahi</td></tr>`}</tbody>
+    </table></div>
+    <div class="modal-foot"><button class="btn-red" onclick="closeModal()">Theek hai</button></div>`, true);
+}
+
+function drawMonthRows(cur){
+  const months = []; for(let i = 5; i >= 0; i--) months.push(addMonths(cur > thisMonth() ? cur : thisMonth(), -i));
+  const hasData = m => monthBilled(m) || monthIncome(m).total || monthExpense(m) || newIn(m).length;
+  $("dMonthRows").innerHTML = months.reverse().filter(m=>m===cur || hasData(m)).map(m=>{
+    const inc = monthIncome(m), exp = monthExpense(m);
+    const sal = txnsOf(m,"Expense").filter(t=>t.category==="Salary & Wages").reduce((a,t)=>a+(+t.amount||0),0);
+    const net = inc.total - exp;
+    return `<tr class="${m===cur?"sel":""}" style="cursor:pointer;white-space:nowrap;${m===cur?"background:var(--red-tint)":""}" onclick="$('dMonth').value='${m}';renderDashboard();window.scrollTo({top:0,behavior:'smooth'})">
+      <td><b>${fmtM(m)}</b></td>
+      <td style="text-align:right">${DB.students.filter(s=>activeIn(s,m)).length}</td>
+      <td style="text-align:right">${newIn(m).length || "—"}</td>
+      <td style="text-align:right">${money(monthBilled(m))}</td>
+      <td style="text-align:right">${money(inc.total)}</td>
+      <td style="text-align:right;${monthDue(m)?"color:var(--danger)":""}">${money(monthDue(m))}${monthCarried(m)?`<br><span class="sub">${money(monthCarried(m))} agle challan mein gaya</span>`:""}</td>
+      <td style="text-align:right">${money(exp)}</td>
+      <td style="text-align:right">${money(sal)}</td>
+      <td style="text-align:right"><b style="color:${net<0?"var(--danger)":"var(--ok)"}">${money(net)}</b></td></tr>`;
+  }).join("");
+}
+
 function renderDashboard(){
   syncSalaries();
-  $("todayLine").textContent = new Date().toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long",year:"numeric"});
-  const act = DB.students.filter(s=>s.status==="Active").length;
+  if(!$("dMonth").value) $("dMonth").value = thisMonth();
+  const m = dashMonth(), isNow = m === thisMonth();
+  document.querySelectorAll("#page-dashboard .dm").forEach(x=>x.textContent = isNow ? "This Month" : fmtM(m));
+  $("todayLine").textContent = isNow
+    ? new Date().toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long",year:"numeric"})
+    : `${fmtM(m)} ka hisaab — students us mahine ke aakhir tak`;
+  const stuM = DB.students.filter(s=>joinedBy(s,m));
+  const actM = stuM.filter(s=>activeIn(s,m));
+  const act = actM.length;
   $("dActive").textContent = act;
-  $("dTotal").textContent = DB.students.length + " total students";
+  $("dTotal").textContent = stuM.length + " total students";
   $("dStaff").textContent = DB.employees.length;
   const tch = DB.employees.filter(e=>e.category==="Teacher").length;
   $("dStaffHint").textContent = tch + " teachers · " + (DB.employees.length - tch) + " other staff";
-  const mAll = DB.students.filter(s=>s.shift==="Morning"), eAll = DB.students.filter(s=>s.shift==="Evening");
-  $("dMornStu").textContent = mAll.filter(s=>s.status==="Active").length;
+  const mAll = stuM.filter(s=>s.shift==="Morning"), eAll = stuM.filter(s=>s.shift==="Evening");
+  $("dMornStu").textContent = actM.filter(s=>s.shift==="Morning").length;
   $("dMornStuT").textContent = mAll.length + " total · Morning shift";
-  $("dEveStu").textContent = eAll.filter(s=>s.status==="Active").length;
+  $("dEveStu").textContent = actM.filter(s=>s.shift==="Evening").length;
   $("dEveStuT").textContent = eAll.length + " total · Evening shift";
   const unpaid = DB.fees.filter(f=>feeOutstanding(f) > 0);   // adhi payment wale bhi shamil
   $("dUnpaid").textContent = unpaid.length;
-  $("dUnpaidAmt").textContent = money(unpaid.reduce((a,f)=>a + feeOutstanding(f), 0)) + " pending";
-  const m = thisMonth();
+  const dueM = monthDue(m);
+  $("dUnpaidAmt").textContent = money(unpaid.reduce((a,f)=>a + feeOutstanding(f), 0)) + " pending (sab mahine)" +
+    (dueM ? ` · ${fmtM(m)}: ${money(dueM)}` : "");
+  const nw = newIn(m);
+  $("dNew").textContent = nw.length;
+  $("dNewHint").textContent = nw.length
+    ? `🌅 ${nw.filter(s=>s.shift==="Morning").length} · 🌆 ${nw.filter(s=>s.shift==="Evening").length} — ` +
+      nw.slice(0,3).map(s=>s.name).join(", ") + (nw.length>3 ? ` +${nw.length-3}` : "")
+    : "Is mahine koi naya admission nahi";
   const inc = monthIncome(m), exp = monthExpense(m);
   $("dIncome").textContent = money(inc.total);
   $("dExpense").textContent = money(exp);
@@ -1139,8 +1209,10 @@ function renderDashboard(){
   drawSalaryCard(m, exp);
   const billed = monthBilled(m);
   $("dBilled").textContent = money(billed);
-  $("dBilledHint").textContent = feesOfMonth(m).length + " challans · " + money(billed - inc.fee) + " abhi baqi";
-  $("dIncomeHint").textContent = "Billed " + money(billed) + " mein se";
+  $("dBilledHint").textContent = feesBilledIn(m).length + " challans · " + money(dueM) + " abhi baqi";
+  const adv = monthAdvance(m), carried = monthCarried(m);
+  $("dIncomeHint").textContent = "Is mahine aaya paisa" + (adv ? ` · is mahine ke challans ka ${money(adv)} pichle mahine advance mila` : "");
+  if(carried) $("dBilledHint").textContent += ` · ${money(carried)} arrears agle challan mein gaye`;
   const si = shiftIncome(m);
   const shiftHint = x => `Billed ${money(x.billed)} · baqi ${money(x.due)} · ${x.bn} challans`;
   $("dMornInc").textContent = money(si.Morning.amt);
@@ -1155,6 +1227,7 @@ function renderDashboard(){
     return `<tr><td>${c}</td><td><b>${mo}</b></td><td><b>${ev}</b></td><td><b>${actS.length}</b></td><td>${all.length}</td></tr>`;
   }).join("");
   const inq = [...DB.inquiries].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,6);
+  drawMonthRows(m);
   drawExportGrid();
   $("dInqRows").innerHTML = inq.length? inq.map(i=>`<tr><td>${esc(i.name)}</td><td>${esc(i.course)}</td><td>${esc(i.phone)}</td><td>${fmtD(i.date)}</td></tr>`).join("") : `<tr><td colspan="4" class="empty">Abhi koi inquiry nahi</td></tr>`;
 }
@@ -1186,14 +1259,38 @@ const feeReceived = f => hasVal(f.paidAmount) ? (+f.paidAmount || 0)
                                              : (f.status === "Paid" ? (+f.amount || 0) : 0);
 
 /* Kitna paisa abhi baqi hai? Balance likha ho to wohi, warna unpaid challan ki poori raqam. */
-const feeOutstanding = f => hasVal(f.balance) ? Math.max(0, +f.balance || 0)
+const feeOutstanding = f => f.carriedTo ? 0 :                     // v26: baqaya agle challan mein chala gaya
+                           hasVal(f.balance) ? Math.max(0, +f.balance || 0)
                                               : (f.status === "Unpaid" ? (+f.amount || 0) : 0);
 
 /* Kitne ka challan bana (Total Payable) — chahe wasool hua ho ya nahi */
-const feeBilled = f => +f.amount || 0;
+const feeBilled = f => (+f.amount || 0) - (+f.arrears || 0);   // v26: pichle mahine ka baqaya dobara "billed" nahi
 
 const feesOfMonth = m => DB.fees.filter(f => feeMonthOf(f) === m);
-const monthBilled = m => feesOfMonth(m).reduce((a,f)=>a + feeBilled(f), 0);
+/* v26: Billing fee ke mahine se (Sep ka challan Sep ka billed, chahe August mein advance mila ho).
+   Wasooli (income) payment ki date se — feesOfMonth. */
+const feesBilledIn = m => DB.fees.filter(f => f.month === m);
+const monthBilled = m => feesBilledIn(m).reduce((a,f)=>a + feeBilled(f), 0);
+const monthDue    = m => feesBilledIn(m).reduce((a,f)=>a + feeOutstanding(f), 0);
+const monthCarried = m => feesBilledIn(m).filter(f=>f.carriedTo).reduce((a,f)=>a + (+f.carriedAmt||0), 0);
+/* Is mahine ke challans ki jo raqam pichle mahine (advance) mil gayi thi */
+const monthAdvance = m => feesBilledIn(m).filter(f=>feeMonthOf(f) < m).reduce((a,f)=>a + feeReceived(f), 0);
+
+/* v26: Arrears — student ke pichle mahinon ke baqi challans naye challan mein khud jur jate hain.
+   Purane challan par "carriedTo" lag jata hai taake baqaya do jagah na gina jaye. */
+function prevDues(sid, m){
+  const list = DB.fees.filter(f=>f.studentId===sid && f.month < m && feeOutstanding(f) > 0);
+  return {list, amt: list.reduce((a,f)=>a + feeOutstanding(f), 0)};
+}
+function carryArrears(f){
+  const d = prevDues(f.studentId, f.month);
+  if(!d.amt) return 0;
+  f.arrears = d.amt;
+  f.items = [...(f.items||[]), {desc:`Arrears (${[...new Set(d.list.map(x=>fmtM(x.month)))].join(", ")})`, amt:d.amt, arrears:true}];
+  f.amount = (+f.amount||0) + d.amt;
+  d.list.forEach(x=>{ x.carriedAmt = feeOutstanding(x); x.carriedTo = f.id; x.carriedChNo = f.chNo; });
+  return d.amt;
+}
 
 function monthIncome(m){
   const fee = feesOfMonth(m).reduce((a,f)=>a + feeReceived(f), 0);
@@ -1203,15 +1300,16 @@ function monthIncome(m){
 /* Shift-wise (Morning/Evening) wasool shuda fee */
 function shiftIncome(m){
   const r = {Morning:{amt:0,n:0,billed:0,due:0,bn:0}, Evening:{amt:0,n:0,billed:0,due:0,bn:0}};
+  const shOf = f => { const st = stuById(f.studentId); return f.shift || (st? st.shift : ""); };   // challan par saved shift, warna student ki
+  /* v26: billed/baqi fee ke mahine se, wasooli payment ki date se */
+  feesBilledIn(m).forEach(f=>{
+    const x = r[shOf(f)]; if(!x) return;
+    x.billed += feeBilled(f); x.due += feeOutstanding(f); x.bn++;
+  });
   feesOfMonth(m).forEach(f=>{
-    const st = stuById(f.studentId);
-    const sh = f.shift || (st? st.shift : "");   // challan par saved shift, warna student ki current shift
-    if(!r[sh]) return;
-    r[sh].billed += feeBilled(f);
-    r[sh].due    += feeOutstanding(f);
-    r[sh].bn++;
+    const x = r[shOf(f)]; if(!x) return;
     const got = feeReceived(f);
-    if(got){ r[sh].amt += got; r[sh].n++; }
+    if(got){ x.amt += got; x.n++; }
   });
   return r;
 }
@@ -1286,7 +1384,7 @@ function openStudentForm(id, prefill){
       <div class="field"><label>Date of Birth</label><input type="date" id="f_dob" value="${s.dob||""}"></div>
       <div class="field"><label>Education / Qualification</label><input id="f_edu" value="${esc(s.education||"")}" placeholder="e.g. Matric / Inter / BA / BSc"></div>
       <div class="field"><label>Previous School / College / University</label><input id="f_prev" value="${esc(s.prevInst||"")}" placeholder="e.g. Govt. High School Lahore"></div>
-      <div class="field"><label>Date of Join *</label><input type="date" id="f_doj" value="${s.doj||todayStr()}"></div>
+      <div class="field"><label>Date of Join *</label><input type="date" id="f_doj" value="${s.id ? (s.doj||"") : todayStr()}"></div>
       <div class="field"><label>Shift *</label><select id="f_shift" onchange="syncClassSel('f_shift','f_course');subjModeSync()">
         <option value="Morning" ${s.shift==="Morning"?"selected":""}>Morning — School System</option>
         <option value="Evening" ${s.shift==="Evening"?"selected":""}>Evening — Academy</option></select></div>
@@ -1454,7 +1552,7 @@ function saveStudent(id){
     name, fatherName:father,
     cnic:$("f_cnic").value.trim(), fatherCnic:$("f_fcnic").value.trim(),
     phone:$("f_phone").value.trim(), fatherPhone:$("f_fphone").value.trim(), motherPhone:$("f_mphone").value.trim(),
-    address:$("f_addr").value.trim(), dob:$("f_dob").value||"", doj:$("f_doj").value||todayStr(),
+    address:$("f_addr").value.trim(), dob:$("f_dob").value||"", doj:$("f_doj").value||(id? "" : todayStr()),
     education:$("f_edu").value.trim(), prevInst:$("f_prev").value.trim(),
     course:$("f_course").value, shift:$("f_shift").value,
     monthlyFee:$("f_fee").value||0, teacherId:$("f_teacher").value,
@@ -1466,7 +1564,11 @@ function saveStudent(id){
     if(t) data.monthlyFee = t;      // sirf tab overwrite karein jab subjects par fees hon
   }
   data.group = hasGroups(data.shift, data.course) ? (grpOverride || detectGroup(data.subjects, data.course)) : "";
-  if(id){ Object.assign(stuById(id), data); toast("Student updated"); }
+  if(id){
+    const old = stuById(id);
+    if(old.status !== data.status) data.statusSince = todayStr();   // v26: dashboard ke purane mahinon ke liye
+    Object.assign(old, data); toast("Student updated");
+  }
   else{
     data.id = uid();
     data.regNo = "REG-" + new Date().getFullYear() + "-" + String(DB.counters.reg++).padStart(4,"0");
@@ -1952,12 +2054,12 @@ function renderFees(){
       <td><b>${f.chNo}</b></td>
       <td>${st? esc(st.name)+" <span class='sub'>("+esc(st.regNo)+")</span>" : "<i>Deleted student</i>"}</td>
       <td>${fmtM(f.month)}</td>
-      <td><b>${money(f.amount)}</b>${+f.balance>0?`<br><span class="sub" style="color:var(--danger)">Balance ${money(f.balance)}${+f.paidAmount?` (paid ${money(f.paidAmount)})`:""}</span>`:""}${+f.discount?`<br><span class="sub" style="color:var(--danger)">− ${money(f.discount)} discount (${f.discountPct||0}%)</span>`:""}${(f.subjects||[]).length?`<br><span class="sub" title="${esc(f.subjects.map(x=>x.name+(x.fee?(": Rs "+x.fee):"")+(x.disc?(" − "+x.disc):"")).join(", "))}">${f.subjects.length} subjects</span>`:""}${f.items&&f.items.length?` <span class="sub" title="${esc(f.items.map(i=>i.desc+": Rs "+i.amt).join(", "))}">(+${f.items.length} charges)</span>`:""}</td>
+      <td><b>${money(f.amount)}</b>${+f.arrears?`<br><span class="sub">incl. ${money(f.arrears)} arrears</span>`:""}${+f.balance>0?`<br><span class="sub" style="color:var(--danger)">Balance ${money(f.balance)}${+f.paidAmount?` (paid ${money(f.paidAmount)})`:""}</span>`:""}${+f.discount?`<br><span class="sub" style="color:var(--danger)">− ${money(f.discount)} discount (${f.discountPct||0}%)</span>`:""}${(f.subjects||[]).length?`<br><span class="sub" title="${esc(f.subjects.map(x=>x.name+(x.fee?(": Rs "+x.fee):"")+(x.disc?(" − "+x.disc):"")).join(", "))}">${f.subjects.length} subjects</span>`:""}${f.items&&f.items.length?` <span class="sub" title="${esc(f.items.map(i=>i.desc+": Rs "+i.amt).join(", "))}">(+${f.items.length} charges)</span>`:""}</td>
       <td>${f.dueDate? `<span style="${f.status==="Unpaid"&&f.dueDate<todayStr()?"color:var(--red);font-weight:700":""}">${fmtD(f.dueDate)}${f.status==="Unpaid"&&f.dueDate<todayStr()?" ⚠":""}</span>` : "—"}</td>
-      <td><span class="badge b-${f.status.toLowerCase()}">${f.status}</span></td>
+      <td>${f.carriedTo ? `<span class="badge b-freeze" title="Baqaya agle challan mein chala gaya">Arrears → ${esc(f.carriedChNo||"")}</span>` : `<span class="badge b-${f.status.toLowerCase()}">${f.status}</span>`}</td>
       <td>${fmtD(f.paidDate)}</td>
       <td style="white-space:nowrap">
-        ${f.status==="Unpaid"?`<button class="btn-black btn-sm" onclick="markPaid('${f.id}')">Mark Paid</button>`:`<button class="btn-line btn-sm" onclick="markUnpaid('${f.id}')">Undo Paid</button>`}
+        ${f.carriedTo? "" : f.status==="Unpaid"?`<button class="btn-black btn-sm" onclick="markPaid('${f.id}')">Mark Paid</button>`:`<button class="btn-line btn-sm" onclick="markUnpaid('${f.id}')">Undo Paid</button>`}
         <button class="btn-line btn-sm" onclick="printChallan('${f.id}')">Print</button>
         <button class="btn-danger btn-sm" onclick="delFee('${f.id}')">Delete</button>
       </td>
@@ -1966,7 +2068,7 @@ function renderFees(){
   const m = thisMonth();
   const mBilled = monthBilled(m), mGot = feesOfMonth(m).reduce((a,f)=>a + feeReceived(f), 0);
   $("feeBilledM").textContent = money(mBilled);
-  $("feeBilledHint").textContent = feesOfMonth(m).length + " challans is month";
+  $("feeBilledHint").textContent = feesBilledIn(m).length + " challans is month";
   $("feePaidM").textContent = money(mGot);
   $("feePaidHint").textContent = mBilled? Math.round(mGot/mBilled*100) + "% wasool" : "";
   $("feeUnpaidAll").textContent = money(DB.fees.reduce((a,f)=>a + feeOutstanding(f), 0));
@@ -1984,7 +2086,7 @@ function renderFees(){
 /* ---------- Defaulter list (due date guzar chuki, fee unpaid) ---------- */
 function defaulterList(){
   const t = todayStr();
-  return DB.fees.filter(f=>f.status==="Unpaid" && f.dueDate && f.dueDate < t)
+  return DB.fees.filter(f=>f.status==="Unpaid" && !f.carriedTo && f.dueDate && f.dueDate < t)
     .map(f=>{
       const st = stuById(f.studentId);
       const days = Math.max(1, Math.round((new Date(t+"T00:00") - new Date(f.dueDate+"T00:00"))/864e5));
@@ -2092,6 +2194,7 @@ function openChallanForm(){
     </div>
     <div class="field" id="c_paidwrap" style="display:none"><label>Paid Date</label><input type="date" id="c_paid" value="${todayStr()}"></div>
     <div id="chSubBox"></div>
+    <label class="chk" style="margin:8px 0"><input type="checkbox" id="c_arr" checked onchange="chTotal()"> Pichla baqaya (arrears) shamil karein <b id="c_arrAmt"></b></label>
     <div id="chOneTime"></div>
     <div class="note" style="margin:10px 0"><b>Other Charges</b> — books, AC charges, admission fee, exam fee waghera yahan add karein (optional)</div>
     <div class="toolbar">
@@ -2170,7 +2273,7 @@ function drawChSubs(){
       </tr>`).join("")}</tbody>
     </table></div>`;
 }
-function prefDue(){ const m=$("c_month").value; if(m) $("c_due").value = m+"-10"; }
+function prefDue(){ const m=$("c_month").value; if(m) $("c_due").value = m+"-10"; chTotal(); }
 function addChItem(){
   const desc=$("c_idesc").value.trim(), amt=+$("c_iamt").value;
   if(!desc||!amt){ toast("Charge ki description aur amount likhein"); return; }
@@ -2217,13 +2320,18 @@ function chTotal(){
     disc  = Math.min(Math.max(0, +($("c_disc")? $("c_disc").value:0)||0), gross);
   }
   const items = chItems.reduce((a,i)=>a+ +i.amt,0);
-  const net = gross - disc + items;
+  const sid = $("c_stu") ? $("c_stu").value : "";
+  const arrD = sid ? prevDues(sid, ($("c_month") && $("c_month").value) || thisMonth()) : {amt:0, list:[]};
+  const arr = ($("c_arr") && $("c_arr").checked) ? arrD.amt : 0;
+  if($("c_arrAmt")) $("c_arrAmt").textContent = !sid ? "" : arrD.amt ? `— ${money(arrD.amt)} (${[...new Set(arrD.list.map(x=>fmtM(x.month)))].join(", ")})` : "— koi baqaya nahi";
+  const net = gross - disc + items + arr;
   const pct = gross? Math.round(disc/gross*1000)/10 : 0;
   if($("c_discLine")) $("c_discLine").innerHTML = disc
     ? `Fee: ${money(gross)} · Discount: <b style="color:var(--danger)">− ${money(disc)} (${pct}%)</b>${items?` · Other charges: ${money(items)}`:""}`
     : (items? `Fee: ${money(gross)} · Other charges: ${money(items)}` : "");
+  if(arr && $("c_discLine")) $("c_discLine").innerHTML += `${$("c_discLine").innerHTML?" · ":""}Arrears: <b>${money(arr)}</b>`;
   if($("c_total")) $("c_total").textContent = money(net);
-  return {gross, disc, pct, items, net};
+  return {gross, disc, pct, items, net, arr};
 }
 function saveChallan(){
   if(!$("c_stu").value){ toast("Pehle student select karein — search bar mein naam type karke list se choose karein"); return; }
@@ -2234,15 +2342,16 @@ function saveChallan(){
   const f = {
     id:uid(), chNo:"CH-"+String(DB.counters.ch++).padStart(5,"0"),
     studentId:$("c_stu").value, month:$("c_month").value||thisMonth(),
-    tuition: t.gross, items:[...chItems], amount:t.net,
+    tuition: t.gross, items:[...chItems], amount:t.net - t.arr,
     discount: t.disc, discountPct: t.pct,
     subjects: chSubs.map(x=>({name:x.name, fee:+x.fee||0, disc:+x.disc||0, teacherId:x.teacherId||""})),
     course: st? st.course : "", group: st? groupOf(st) : "",
     dueDate:$("c_due").value||"", status, shift: st? st.shift : "",
     paidDate: status==="Paid"? ($("c_paid").value||todayStr()) : ""
   };
+  if(t.arr) carryArrears(f);
   DB.fees.push(f); save(); closeModal(); renderFees(); renderDashboard();
-  toast("Challan created: "+f.chNo+" — Total "+money(t.net)+(t.disc?` (${money(t.disc)} discount, ${t.pct}%)`:""));
+  toast("Challan created: "+f.chNo+" — Total "+money(f.amount)+(t.disc?` (${money(t.disc)} discount, ${t.pct}%)`:""));
 }
 
 /* ---------- One-click bulk challan generation ---------- */
@@ -2257,6 +2366,7 @@ function openBulkChallan(){
       <div class="field"><label>Shift</label><select id="bc_shift"><option value="">Both Shifts</option><option>Morning</option><option>Evening</option></select></div>
       <div class="field"><label>Due Date (sab challans par)</label><input type="date" id="bc_due" value="${thisMonth()}-10"></div>
     </div>
+    <label class="chk" style="margin:4px 0 10px"><input type="checkbox" id="bc_arr" checked> Pichle mahinon ka baqaya (arrears) challan mein khud jor dein</label>
     <div class="note">Total active students: <b>${act.length}</b> · Morning: <b>${act.filter(s=>s.shift==="Morning").length}</b> · Evening: <b>${act.filter(s=>s.shift==="Evening").length}</b></div>
     <div class="modal-foot">
       <button class="btn-line" onclick="closeModal()">Cancel</button>
@@ -2266,25 +2376,29 @@ function openBulkChallan(){
 function runBulkChallan(){
   const m = $("bc_month").value || thisMonth();
   const sh = $("bc_shift").value, due = $("bc_due").value||"";
+  const withArr = !$("bc_arr") || $("bc_arr").checked;
   const act = DB.students.filter(s=>s.status==="Active" && (!sh || s.shift===sh));
-  let created=0, skipped=0, noFee=0;
+  let created=0, skipped=0, noFee=0, arrN=0, arrAmt=0;
   act.forEach(s=>{
     if(DB.fees.some(f=>f.studentId===s.id && f.month===m)){ skipped++; return; }
     const amt = studentFee(s);
     if(!amt){ noFee++; return; }
-    DB.fees.push({
+    const f = {
       id:uid(), chNo:"CH-"+String(DB.counters.ch++).padStart(5,"0"),
       studentId:s.id, month:m, tuition:amt, items:[], amount:amt,
       subjects:(s.subjects||[]).map(x=>({name:x.name, fee:+x.fee||0, teacherId:x.teacherId||""})),
       course:s.course, group:groupOf(s),
       dueDate:due, status:"Unpaid", shift:s.shift, paidDate:""
-    });
+    };
+    if(withArr){ const a = carryArrears(f); if(a){ arrN++; arrAmt += a; } }
+    DB.fees.push(f);
     created++;
   });
   save(); closeModal(); renderFees(); renderDashboard();
   let msg = `✓ ${created} challans generated (${fmtM(m)})`;
   if(skipped) msg += ` · ${skipped} pehle se maujood (skip)`;
   if(noFee) msg += ` · ${noFee} students ki fee set nahi (skip)`;
+  if(arrN) msg += ` · ${arrN} challans mein ${money(arrAmt)} arrears jure`;
   toast(msg);
 }
 function markPaid(id){
@@ -2301,15 +2415,19 @@ function markPaid(id){
 function confirmPaid(id){
   const f=DB.fees.find(x=>x.id===id);
   f.status="Paid"; f.paidDate=$("mp_date").value||todayStr();
+  if(hasVal(f.balance) || hasVal(f.paidAmount)){ f.paidAmount = +f.amount||0; f.balance = 0; }   // v26: adhi payment wala bhi ab poora
   save(); closeModal(); renderFees(); renderDashboard(); toast("Paid ✓ ("+f.chNo+" — "+fmtD(f.paidDate)+")");
 }
-function markUnpaid(id){ const f=DB.fees.find(x=>x.id===id); f.status="Unpaid"; f.paidDate=""; save(); renderFees(); renderDashboard(); }
+function markUnpaid(id){ const f=DB.fees.find(x=>x.id===id); f.status="Unpaid"; f.paidDate=""; delete f.paidAmount; delete f.balance; save(); renderFees(); renderDashboard(); }
 function delFee(id){
   const f = DB.fees.find(x=>x.id===id); if(!f) return;
   const st = stuById(f.studentId);
   askConfirm("Challan delete karein?",
     `<b>${f.chNo}</b> — ${st? esc(st.name) : "student"} · ${fmtM(f.month)} · <b>${money(f.amount)}</b>`,
-    ()=>{ DB.fees=DB.fees.filter(x=>x.id!==id); save(); renderFees(); renderDashboard(); toast("Challan delete ho gaya"); });
+    ()=>{ DB.fees=DB.fees.filter(x=>x.id!==id);
+          /* Is challan mein jo arrears gaye thay wo wapas purane challans par */
+          DB.fees.forEach(x=>{ if(x.carriedTo===id){ delete x.carriedTo; delete x.carriedChNo; delete x.carriedAmt; } });
+          save(); renderFees(); renderDashboard(); toast("Challan delete ho gaya"); });
 }
 function printChallan(id){
   const f = DB.fees.find(x=>x.id===id), st = stuById(f.studentId)||{};
@@ -4054,6 +4172,7 @@ function runImport(){
   const addComp = $("imp_comp") ? $("imp_comp").value === "1" : false;
   const impDefShift = $("imp_empshift") ? $("imp_empshift").value : "";
   const feeShift = $("imp_feeshift") ? $("imp_feeshift").value : "Morning";
+  const impSeen = new Set();          // v26: is file mein jin students ko challan mil chuka
   let sectionClass = "";
   /* Exam sheet matrix bhi ho sakti hai — headings jo catalogue ke subject hain.
      Sirf tab jab sheet mein Subject/Obtained ka apna column na ho. */
@@ -4090,7 +4209,9 @@ function runImport(){
       const hasInfo  = g("subjects") || g("phone") || g("parentPhone") || g("parent");
       const hasMoney = ["tuition","amount","paidAmount","balance","discount","perSubjectFee","chReg","extras"]
                          .some(k => cleanNum(g(k)));
-      if(label && !hasInfo && !hasMoney){
+      /* "Grade" column mein class likhi ho to ye student hai (fee 0 ho tab bhi), section heading nahi */
+      const hasClass = !!(matchClass(g("course"), feeShift) || matchClass(g("category"), feeShift));
+      if(label && !hasInfo && !hasMoney && !hasClass){
         const c = matchClass(label, feeShift);
         if(c){ sectionClass = c; note(line, `Section "${label}" → class ${c}`); }
         else   note(line, `Section "${label}" kisi class se match nahi hui — pichli class chalti rahegi`);
@@ -4193,7 +4314,8 @@ function runImport(){
       const raw = g("category");
       const cat = cats.find(c=>keyify(c) === keyify(raw)) || cats.find(c=>keyify(raw) && keyify(c).includes(keyify(raw))) || "Teacher";
       if(raw && !cats.find(c=>keyify(c) === keyify(raw))) note(line, `Category "${raw}" pehchani nahi — "${cat}" laga di`);
-      const shift = normShift(g("shift")) || (impDefShift || "Morning");
+      /* "Both" / "Morning + Evening" ko normShift "Evening" samajh leta — pehle yahan pakrein */
+      const shift = /both|dono|morn.*even|even.*morn/i.test(g("shift")) ? "Both" : (normShift(g("shift")) || (impDefShift || "Morning"));
       const rec = { name, category:cat, shift, phone:cleanPhone(g("phone")), doj:cleanDate(g("doj")) || todayStr(),
                     salary:cleanNum(g("salary")), address:g("address"), assignments:[] };
       const near = DB.employees.find(x=>keyify(x.name) === keyify(name))
@@ -4206,11 +4328,19 @@ function runImport(){
       }
       if(near){
         /* Wohi ustad dono shifts mein parhata ho to duplicate na banayein — "Both" kar dein */
-        if(near.shift && near.shift !== shift && near.shift !== "Both"){
-          note(line, `"${name}" pehle se ${near.shift} mein hai — ab "Both" kar diya`);
-          near.shift = "Both"; updated++; return;
-        }
-        if(dup === "update"){ Object.assign(near, rec); updated++; }
+        const both = !!g("shift") && near.shift && near.shift !== shift && near.shift !== "Both" && shift !== "Both";
+        if(both) note(line, `"${name}" pehle se ${near.shift} mein hai — ab "Both" kar diya`);
+        if(dup === "update"){
+          /* v25: Sirf wohi khane badlein jo sheet mein bhare hain. Phone, address, photo aur class
+             assignments khali column ki wajah se kabhi na mitein. */
+          if(g("category")) near.category = cat;
+          if(g("shift")) near.shift = both ? "Both" : shift;   // sheet mein shift na ho to purani hi rahe
+          if(rec.phone)   near.phone = rec.phone;
+          if(g("doj"))    near.doj = rec.doj;
+          if(String(g("salary")).trim() !== "") near.salary = rec.salary;
+          if(rec.address) near.address = rec.address;
+          updated++;
+        } else if(both){ near.shift = "Both"; updated++; }
         else { skipped++; note(line, `"${name}" pehle se mojood${keyify(near.name)!==keyify(name)?` ("${near.name}")`:""}`); }
         return;
       }
@@ -4282,6 +4412,12 @@ function runImport(){
       /* student dhoondho — naam thora alag likha ho to bhi, magar shift ka khayal rakh kar */
       const m = bestStudentMatch(name, g("regNo"), feeShift, course);
       let st = (m && m.score >= 0.82 && !m.otherShift) ? m.st : null;
+      /* v26: Isi file ki pichli row ne ye student le liya ho aur naam alag ho ("M. Umer" / "M.Umer Rehan")
+         to ye alag bacha hai — naya record banao */
+      if(st && impSeen.has(st.id) && keyify(st.name) !== keyify(name)){
+        note(line, `"${name}" aur "${st.name}" alag students maane (dono isi file mein hain)`);
+        st = null;
+      }
       if(!st && m && m.otherShift && m.score >= 0.82)
         note(line, `"${name}" pehle se ${m.st.shift} shift mein hai (${m.st.regNo}) — ${feeShift} ke liye alag record banaya`);
       if(st && m.how === "name" && keyify(name) !== keyify(st.name))
@@ -4295,12 +4431,18 @@ function runImport(){
                regNo:"REG-" + new Date().getFullYear() + "-" + String(DB.counters.reg++).padStart(4,"0"),
                name, fatherName:g("parent"), cnic:"", fatherCnic:"",
                phone:cleanPhone(g("phone")), fatherPhone:cleanPhone(g("parentPhone")), motherPhone:"",
-               address:"", dob:"", doj:todayStr(), education:"", prevInst:"",
+               address:"", dob:"", doj:"", education:"", prevInst:"",
                course, shift:feeShift, monthlyFee:tuition, teacherId:"",
                subjects:subjects.map(x=>({...x})), groupOverride:"",
                group:"", status:"Active", charges:[] };
         if(addComp && feeShift === "Morning") seedInto(st.subjects, course);
         st.group = hasGroups(feeShift, course) ? detectGroup(st.subjects, course) : "";
+        /* v26: Admission/Registration fee wali row = naya admission. Baqi purane students hain jin ki
+           join date maloom nahi — wo kisi mahine ke "naye admission" mein nahi gine jate. */
+        if(cleanNum(g("chAdm")) || cleanNum(g("chReg"))){
+          const pd = cleanDate(g("paidDate"));
+          st.doj = (pd && pd.slice(0,7) <= month) ? pd : month + "-01";
+        }
         DB.students.push(st);
         note(line, `"${name}" EMS mein nahi tha — naya student bana diya (${st.regNo}, ${course}${subjects.length?`, ${subjects.length} subjects`:""})`);
       }else{
@@ -4329,6 +4471,7 @@ function runImport(){
         if(d && Math.abs(+d.slice(0,4) - yr) > 1) note(line, `${l} "${d}" fee month ${month} se bohat door hai — check kar lein`);
       });
 
+      impSeen.add(st.id);
       const dupKey = st.id + "|" + month + "|" + (course || st.course);
       if(seen.has(dupKey)) note(line, `${st.name} ka ${fmtM(month)} ka challan isi file mein dobara aaya (line ${seen.get(dupKey)})`);
       seen.set(dupKey, line);
