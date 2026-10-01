@@ -705,6 +705,14 @@ label.chk input{width:auto}
     <input type="file" id="importFile" style="display:none" onchange="importData(this)">
     <p class="sub" style="margin-top:10px">File select nahi ho rahi (khaas kar mobile par)? Backup file ko Notepad ya kisi text editor mein kholein, sab kuch copy karein, aur <b>"Text paste kar ke import"</b> dabayein.</p>
   </div>
+  <div class="panel" style="max-width:560px;border-color:var(--danger)">
+    <h3 style="color:var(--danger)">🗑 Students ka sara data delete karein</h3>
+    <p class="sub" style="margin:4px 0 12px">Naye session ke liye saaf shuruaat: <b>tamam students</b> aur un ka record — fee challans, attendance, exam marks,
+      homework ke "done" nishan aur students ko diye gaye items (issuance) — delete ho jata hai.
+      Employees, income/expense, inventory, inquiries, subjects aur settings waise hi rehte hain.
+      Delete se pehle backup file khud download hoti hai.</p>
+    <button class="btn-danger" onclick="openWipeStudents()">🗑 Students ka data delete karein…</button>
+  </div>
 </section>
 
 </main>
@@ -793,7 +801,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v23 · 1 Oct 2026";
+const BUILD = "v24 · 1 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -993,6 +1001,47 @@ function syncClassSel(shiftId, classId){
    settings) — us soorat mein delete jaise kaam bina kuch bataye fail ho jate the.
    Is liye ab app ka apna confirmation box chalta hai. */
 let _confirmFn = null;
+/* v24: Sab students aur un ka record ek saath delete (delStudent wala hi qaida, sab par) */
+const stuIds = () => new Set(DB.students.map(s=>s.id));
+function wipeCounts(){
+  return {stu:DB.students.length, fees:DB.fees.length, exams:DB.exams.length,
+          att:Object.values(DB.attendance||{}).reduce((a,d)=>a+Object.keys(d||{}).length,0),
+          iss:DB.issues.filter(x=>stuIds().has(x.toId)).length,
+          hw:DB.homework.reduce((a,h)=>a+Object.keys(h.done||{}).length,0)};
+}
+function openWipeStudents(){
+  const c = wipeCounts();
+  if(!c.stu && !c.fees && !c.exams && !c.att){ toast("Students ka koi data mojood nahi"); return; }
+  openModal(`
+    <h3 style="border-bottom-color:var(--danger)">Students ka sara data delete karein?</h3>
+    <div class="note" style="border-left-color:var(--danger)">Ye sab delete hoga:<br>
+      <b>${c.stu}</b> students · <b>${c.fees}</b> fee challans · <b>${c.att}</b> attendance entries ·
+      <b>${c.exams}</b> exam records · <b>${c.iss}</b> student issuance · <b>${c.hw}</b> homework done-marks<br><br>
+      Pehle backup file download hogi. ${SERVER ? "Delete <b>har computer</b> par ho jayega." : ""} Wapas lana ho to Settings → Import Backup se wahi file daalein.</div>
+    <div class="field"><label>Tasdeeq ke liye <b>DELETE</b> likhein</label><input id="wipeTxt" autocomplete="off" placeholder="DELETE"></div>
+    <div class="modal-foot">
+      <button class="btn-line" onclick="closeModal()">Cancel</button>
+      <button class="btn-danger" onclick="wipeStudents()">Backup lein aur delete karein</button>
+    </div>`);
+  setTimeout(()=>$("wipeTxt") && $("wipeTxt").focus(), 50);
+}
+function wipeStudents(){
+  if(($("wipeTxt").value||"").trim().toUpperCase() !== "DELETE"){ toast("Pehle DELETE likhein"); return; }
+  const c = wipeCounts();
+  exportData();                                        // pehle backup
+  const ids = stuIds();
+  DB.students = [];
+  DB.fees = [];
+  DB.exams = [];
+  DB.attendance = {};
+  DB.issues = DB.issues.filter(x=>!ids.has(x.toId));
+  DB.homework.forEach(h=>{ h.done = {}; });
+  save(); closeModal();
+  const cur = document.querySelector("#nav button.active");
+  renderPage(cur ? cur.dataset.page : "settings");
+  toast(`${c.stu} students aur un ka record delete ho gaya — backup file download ho gayi`);
+}
+
 function askConfirm(title, bodyHTML, onYes, yesLabel){
   _confirmFn = onYes;
   openModal(`
