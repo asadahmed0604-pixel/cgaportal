@@ -52,6 +52,10 @@ h3{font-size:1.02rem;font-weight:700}
 .dchart svg{display:block;width:100%;height:auto}
 .dchart .tip{position:absolute;pointer-events:none;background:var(--ink);color:#fff;font-size:.78rem;padding:6px 9px;border-radius:6px;white-space:nowrap;transform:translate(-50%,-100%);margin-top:-8px;display:none;z-index:3}
 .rcpt-thumb{width:34px;height:34px;object-fit:cover;border-radius:6px;border:1px solid var(--line);cursor:pointer;vertical-align:middle}
+.mchips{display:flex;gap:6px;flex-wrap:wrap;margin:-6px 0 16px}
+.mchips button{border:1px solid var(--line);background:#fff;border-radius:999px;padding:6px 13px;font-size:.84rem;font-weight:600;color:var(--ink)}
+.mchips button.on{background:var(--black);border-color:var(--black);color:#fff}
+.mchips button.all.on{background:var(--red);border-color:var(--red)}
 .wmbar{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#fff;border:1px solid var(--line);border-radius:10px;padding:8px 12px;margin:-6px 0 18px;box-shadow:0 2px 8px rgba(0,0,0,.04)}
 .wmbar input{width:auto;max-width:170px;padding:6px 9px}
 .wmbar.past{background:#FFF6E0;border-color:var(--accent-dark)}
@@ -288,6 +292,7 @@ label.chk input{width:auto}
 <!-- ================= DASHBOARD ================= -->
 <section class="page show" id="page-dashboard">
   <div class="page-head"><div><h2>Dashboard</h2><div class="sub" id="todayLine"></div></div></div>
+  <div class="mchips" id="dChips"></div>
   <div class="cards">
     <div class="card"><div class="k">Active Students</div><div class="v" id="dActive">0</div><div class="hint" id="dTotal"></div></div>
     <div class="card"><div class="k">🌅 Morning Students</div><div class="v" id="dMornStu">0</div><div class="hint" id="dMornStuT"></div></div>
@@ -312,6 +317,12 @@ label.chk input{width:auto}
     <h3>🧾 Kharch — <span class="dm">This Month</span></h3>
     <p class="sub" style="margin:4px 0 12px">Category-wise — salaries samet. Iska total upar wale "Total Expense" card ke barabar hai.</p>
     <div id="dCatBreak"></div>
+  </div>
+  <div class="panel">
+    <h3>📈 Mahina-war kamai</h3>
+    <div class="mchips" style="margin:10px 0 4px" id="ernModes"></div>
+    <p class="sub" style="margin:4px 0 8px" id="ernSub"></p>
+    <div class="dchart" id="ernChart"></div>
   </div>
   <div class="panel">
     <h3>📅 Mahina-war khulasa</h3>
@@ -355,6 +366,7 @@ label.chk input{width:auto}
     <div class="field" style="flex:1;min-width:200px"><label>Search</label><input id="stuSearch" placeholder="Name / Reg No / Phone" oninput="renderStudents()"></div>
     <div class="field"><label>Class</label><select id="stuFCourse" onchange="renderStudents()"><option value="">All Classes</option></select></div>
     <div class="field"><label>Shift</label><select id="stuFShift" onchange="renderStudents()"><option value="">All Shifts</option><option>Morning</option><option>Evening</option></select></div>
+    <div class="field"><label>Mahina (khali = sab)</label><input type="month" id="stuFMonth" onchange="renderStudents()"></div>
     <div class="field"><label>Status</label><select id="stuFStatus" onchange="renderStudents()"><option value="">All</option><option>Active</option><option>Graduate</option><option>Left</option><option>Freeze</option></select></div>
   </div>
   <div class="cards">
@@ -364,7 +376,7 @@ label.chk input{width:auto}
   </div>
   <div class="sub" id="stuCount" style="margin-bottom:8px"></div>
   <div class="tbl-wrap"><table>
-    <thead><tr><th>#</th><th></th><th>Reg No</th><th>Name</th><th>Father</th><th>Class</th><th>Shift</th><th>Subjects / Group</th><th>Fee</th><th>Status</th><th>Actions</th></tr></thead>
+    <thead><tr><th>#</th><th></th><th>Reg No</th><th>Name</th><th>Father</th><th>Class</th><th>Shift</th><th>Subjects / Group</th><th>Fee</th><th id="stuFeeMH">Is mahine ka challan</th><th>Status</th><th>Actions</th></tr></thead>
     <tbody id="stuRows"></tbody>
   </table></div>
 </section>
@@ -923,7 +935,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v28 · 1 Oct 2026";
+const BUILD = "v29 · 2 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -1228,7 +1240,7 @@ function wmDate(){
   const [y, mo] = WM.split("-").map(Number), last = new Date(y, mo, 0).getDate();
   return WM + "-" + String(Math.min(new Date().getDate(), last)).padStart(2, "0");
 }
-const WM_FILTERS = ["feeFMonth","examFMonth","isFMonth","txnFMonth","plMonth","repMonth","attRepMonth","empAttRepMonth","hwFMonth","inqFMonth","audFMonth"];
+const WM_FILTERS = ["stuFMonth","feeFMonth","examFMonth","isFMonth","txnFMonth","plMonth","repMonth","attRepMonth","empAttRepMonth","hwFMonth","inqFMonth","audFMonth"];
 function syncWMFilters(){
   WM_FILTERS.forEach(id=>{ if($(id)) $(id).value = WM; });
   ["attDate","empAttDate"].forEach(id=>{ const el = $(id); if(el && (!el.value || el.value.slice(0,7) !== WM)) el.value = wmDate(); });
@@ -1241,6 +1253,7 @@ function syncWMFilters(){
     : "Har page isi mahine ka record dikhata hai — purana mahina chun kar us ka record dekhein ya entry karein";
 }
 function setWM(m){
+  DASH_ALL = false;
   WM = m || thisMonth();
   syncWMFilters();
   const cur = document.querySelector("#nav button.active");
@@ -1270,9 +1283,35 @@ function renderPage(p){
 /* v26: Dashboard kisi bhi mahine ka. Student kis mahine mein active tha — join date (doj) aur
    status kab badla (statusSince) se. Join date na ho to purana student maana jata hai. */
 const joinedBy = (s, m) => !s.doj || s.doj.slice(0,7) <= m;
-const activeIn = (s, m) => joinedBy(s, m) &&
-  (s.status === "Active" ? true : !!(s.statusSince && s.statusSince.slice(0,7) > m));
-const newIn = m => DB.students.filter(s => s.doj && s.doj.slice(0,7) === m);
+/* v29: Mahine ki list (roster) — jin mahinon ki list import hui, un mein student wohi hain jo list mein thay.
+   Baad ke mahinon mein (list na ho) wohi gine jate hain jo aakhri list mein thay ya baad mein aaye. */
+function rosterMonths(){
+  const set = new Set();
+  DB.students.forEach(s=>{ if(s.roster) Object.keys(s.roster).forEach(k=>set.add(k)); });
+  return [...set].sort();
+}
+function inMonth(s, m, RM){
+  RM = RM || rosterMonths();
+  if(RM.includes(m)) return !!(s.roster && s.roster[m]);
+  const lastR = RM.filter(k=>k < m).pop();
+  if(lastR && s.roster && Object.keys(s.roster).length && !s.roster[lastR] && !Object.keys(s.roster).some(k=>k > lastR)) return false;
+  return joinedBy(s, m) && (s.status !== "Left" || !!(s.statusSince && s.statusSince.slice(0,7) > m));
+}
+function activeIn(s, m, RM){
+  RM = RM || rosterMonths();
+  if(RM.includes(m)) return !!(s.roster && s.roster[m] === "Active");
+  if(!inMonth(s, m, RM)) return false;
+  return s.status === "Active" ? true : !!(s.statusSince && s.statusSince.slice(0,7) > m);
+}
+/* Naya admission = jis mahine pehli dafa list mein aaya (list na ho to join date ka mahina) */
+const firstMonth = s => (s.roster && Object.keys(s.roster).length) ? Object.keys(s.roster).sort()[0] : String(s.doj||"").slice(0,7);
+const newIn = m => DB.students.filter(s => firstMonth(s) === m);
+function rosterMarkLeft(m){
+  const ids = window._rosterGone || [];
+  ids.forEach(id=>{ const st = stuById(id); if(st && st.status !== "Left"){ st.status = "Left"; st.statusSince = m + "-01"; } });
+  save(); renderStudents(); renderDashboard(); toast(`${ids.length} students "Left" mark ho gaye`);
+  closeModal();
+}
 const addMonths = (m, n) => { const [y, mo] = m.split("-").map(Number); const d = new Date(y, mo - 1 + n, 1);
   return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0"); };
 const dashMonth = () => wm();
@@ -1292,6 +1331,7 @@ function openNewAdmissions(){
 
 function drawMonthRows(cur){
   const months = []; for(let i = 5; i >= 0; i--) months.push(addMonths(cur > thisMonth() ? cur : thisMonth(), -i));
+  const RMx = rosterMonths();
   const hasData = m => monthBilled(m) || monthIncome(m).total || monthExpense(m) || newIn(m).length;
   $("dMonthRows").innerHTML = months.reverse().filter(m=>m===cur || hasData(m)).map(m=>{
     const inc = monthIncome(m), exp = monthExpense(m);
@@ -1299,7 +1339,7 @@ function drawMonthRows(cur){
     const net = inc.total - exp;
     return `<tr class="${m===cur?"sel":""}" style="cursor:pointer;white-space:nowrap;${m===cur?"background:var(--red-tint)":""}" onclick="setWM('${m}');window.scrollTo({top:0,behavior:'smooth'})">
       <td><b>${fmtM(m)}</b></td>
-      <td style="text-align:right">${DB.students.filter(s=>activeIn(s,m)).length}</td>
+      <td style="text-align:right">${DB.students.filter(s=>activeIn(s,m,RMx)).length}</td>
       <td style="text-align:right">${newIn(m).length || "—"}</td>
       <td style="text-align:right">${money(monthBilled(m))}</td>
       <td style="text-align:right">${money(inc.total)}</td>
@@ -1310,15 +1350,124 @@ function drawMonthRows(cur){
   }).join("");
 }
 
+/* v29: Jin mahinon mein koi bhi data hai (list, challan, kharch) — dashboard ke button aur graph inhi se */
+function dataMonths(){
+  const set = new Set(rosterMonths());
+  DB.fees.forEach(f=>{ if(f.month) set.add(f.month); const pm = String(f.paidDate||"").slice(0,7); if(pm && feeReceived(f)) set.add(pm); });
+  DB.txns.forEach(t=>{ const k = String(t.date||"").slice(0,7); if(k) set.add(k); });
+  set.add(thisMonth());
+  return [...set].filter(k=>/^\d{4}-\d{2}$/.test(k) && k <= thisMonth()).sort().slice(-12);
+}
+let DASH_ALL = false;
+function dashPick(m){ DASH_ALL = !m; if(m) setWM(m); else renderDashboard(); }
+function drawDashChips(m){
+  const ms = dataMonths();
+  $("dChips").innerHTML = ms.map(k=>`<button class="${!DASH_ALL && k===m?"on":""}" onclick="dashPick('${k}')">${fmtM(k)}</button>`).join("") +
+    `<button class="all ${DASH_ALL?"on":""}" onclick="dashPick('')">📊 Sab mahine</button>`;
+}
+const salOfMonth = m => txnsOf(m,"Expense").filter(t=>t.category==="Salary & Wages").reduce((a,t)=>a+(+t.amount||0),0);
+
+/* Sab mahine — har mahine ka jor (students: aaj ki tadad) */
+function dashAllMonths(){
+  const ms = dataMonths(), first = ms[0], last = ms[ms.length-1];
+  const sum = f => ms.reduce((a,k)=>a + f(k), 0);
+  const billed = sum(monthBilled), inc = sum(k=>monthIncome(k).total), fee = sum(k=>monthIncome(k).fee);
+  const exp = sum(monthExpense), sal = sum(salOfMonth), due = DB.fees.reduce((a,f)=>a+feeOutstanding(f),0);
+  document.querySelectorAll("#page-dashboard .dm").forEach(x=>x.textContent = "Sab mahine");
+  $("todayLine").textContent = `${fmtM(first)} se ${fmtM(last)} tak — ${ms.length} mahine ka jor`;
+  $("dBilled").textContent = money(billed);
+  $("dBilledHint").textContent = `${DB.fees.length} challans · ${money(due)} abhi baqi`;
+  $("dIncome").textContent = money(inc);
+  $("dIncomeHint").textContent = `Fees ${money(fee)} · other ${money(inc - fee)}`;
+  $("dExpense").textContent = money(exp);
+  $("dNet").textContent = "Net: " + money(inc - exp);
+  $("dSalary").textContent = money(sal);
+  $("dSalaryHint").textContent = exp ? `kul kharch ka ${Math.round(sal*100/exp)}%` : "";
+  const sh = {Morning:{amt:0,billed:0,due:0,bn:0}, Evening:{amt:0,billed:0,due:0,bn:0}};
+  ms.forEach(k=>{ const r = shiftIncome(k); ["Morning","Evening"].forEach(x=>{ ["amt","billed","due","bn"].forEach(f=>sh[x][f] += r[x][f]); }); });
+  $("dMornInc").textContent = money(sh.Morning.amt);
+  $("dMornIncHint").textContent = `Billed ${money(sh.Morning.billed)} · baqi ${money(sh.Morning.due)} · ${sh.Morning.bn} challans`;
+  $("dEveInc").textContent = money(sh.Evening.amt);
+  $("dEveIncHint").textContent = `Billed ${money(sh.Evening.billed)} · baqi ${money(sh.Evening.due)} · ${sh.Evening.bn} challans`;
+  const nw = DB.students.filter(st=>ms.includes(firstMonth(st)));
+  $("dNew").textContent = nw.length;
+  $("dNewHint").textContent = ms.map(k=>`${fmtM(k).slice(0,3)} ${newIn(k).length}`).join(" · ");
+  $("dInq").textContent = DB.inquiries.length;
+  const conv = DB.inquiries.filter(i=>i.stage==="Converted").length;
+  $("dInqHint").textContent = `${conv} admission bane${DB.inquiries.length?` (${Math.round(conv*100/DB.inquiries.length)}%)`:""}`;
+  /* Students: aaj ki tadad (sab mahinon ka jor students par maani nahi rakhta) */
+  const RM = rosterMonths(), now = thisMonth();
+  const stuN = DB.students.filter(st=>inMonth(st, now, RM)), actN = stuN.filter(st=>activeIn(st, now, RM));
+  $("dActive").textContent = actN.length;
+  $("dTotal").textContent = `${stuN.length} students abhi (${fmtM(now)}) · ${DB.students.length} kabhi bhi`;
+  $("dMornStu").textContent = actN.filter(st=>st.shift==="Morning").length;
+  $("dMornStuT").textContent = stuN.filter(st=>st.shift==="Morning").length + " total · Morning (abhi)";
+  $("dEveStu").textContent = actN.filter(st=>st.shift==="Evening").length;
+  $("dEveStuT").textContent = stuN.filter(st=>st.shift==="Evening").length + " total · Evening (abhi)";
+  drawCatBreak("", "dCatBreak");
+}
+
+let ERN_MODE = "got";
+function drawEarnings(cur){
+  const ms = dataMonths();
+  const modes = {got:"Wasooli (aaya paisa)", billed:"Billed (challans)", net:"Net munafa"};
+  $("ernModes").innerHTML = Object.entries(modes).map(([k,l])=>`<button class="${ERN_MODE===k?"on":""}" onclick="ERN_MODE='${k}';drawEarnings('${cur}')">${l}</button>`).join("");
+  const rows = ms.map(k=>{ const inc = monthIncome(k).total, exp = monthExpense(k);
+    return {m:k, got:inc, billed:monthBilled(k), exp, net:inc-exp}; });
+  const val = r => r[ERN_MODE];
+  const tot = rows.reduce((a,r)=>a+val(r),0);
+  $("ernSub").textContent = `${modes[ERN_MODE]} — ${fmtM(ms[0])} se ${fmtM(ms[ms.length-1])} tak kul ${money(tot)} · column par click karein to woh mahina khul jayega`;
+  const W = 900, H = 260, L = 64, R = 10, T = 22, B = 34, pw = W-L-R, ph = H-T-B;
+  const hi = Math.max(0, ...rows.map(val)), lo = Math.min(0, ...rows.map(val));
+  const span = (hi - lo) || 1, pow = Math.pow(10, Math.floor(Math.log10(span))), s0 = span/4/pow;
+  const step = (s0<=1?1:s0<=2?2:s0<=2.5?2.5:s0<=5?5:10) * pow;
+  const top = Math.ceil(hi/step)*step || step, bot = Math.floor(lo/step)*step;
+  const yv = v => T + (top - v) / (top - bot) * ph;
+  const fmtK = v => Math.abs(v) >= 1e6 ? (v/1e6).toLocaleString("en-US",{maximumFractionDigits:2})+"M" : Math.abs(v) >= 1000 ? Math.round(v/1000).toLocaleString("en-US")+"k" : String(Math.round(v));
+  const slot = pw / rows.length, bw = Math.min(56, slot*0.55);
+  let g = "";
+  for(let v = bot; v <= top + 1e-9; v += step)
+    g += `<line x1="${L}" x2="${W-R}" y1="${yv(v)}" y2="${yv(v)}" stroke="${v===0?"#c9d3d3":"#e8ecec"}" stroke-width="1"/>
+          <text x="${L-8}" y="${yv(v)+4}" text-anchor="end" font-size="11" fill="#6d6d6d">${fmtK(v)}</text>`;
+  const peak = rows.reduce((a,r)=>Math.abs(val(r))>Math.abs(val(a))?r:a, rows[0]);
+  rows.forEach((r,i)=>{
+    const cx = L + slot*i + slot/2, v = val(r), y0 = yv(0), y1 = yv(v), x0 = cx - bw/2;
+    const h = Math.abs(y1 - y0), rr = Math.min(4, h, bw/2), up = v >= 0;
+    const fill = v < 0 ? "#C0392B" : "#159670";
+    if(h > 0.5) g += up
+      ? `<path d="M${x0},${y0} V${y1+rr} Q${x0},${y1} ${x0+rr},${y1} H${x0+bw-rr} Q${x0+bw},${y1} ${x0+bw},${y1+rr} V${y0} Z" fill="${fill}"/>`
+      : `<path d="M${x0},${y0} V${y1-rr} Q${x0},${y1} ${x0+rr},${y1} H${x0+bw-rr} Q${x0+bw},${y1} ${x0+bw},${y1-rr} V${y0} Z" fill="${fill}"/>`;
+    g += `<text x="${cx}" y="${H-B+18}" text-anchor="middle" font-size="12" ${r.m===cur&&!DASH_ALL?'font-weight="800" fill="#12313D"':'fill="#6d6d6d"'}>${fmtM(r.m)}</text>`;
+    if(r === peak || r.m === cur) g += `<text x="${cx}" y="${up ? y1-6 : y1+14}" text-anchor="middle" font-size="11" font-weight="700" fill="#12313D">${fmtK(v)}</text>`;
+    g += `<rect x="${L+slot*i}" y="${T}" width="${slot}" height="${ph+B}" fill="transparent" data-i="${i}" style="cursor:pointer"/>`;
+  });
+  $("ernChart").innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Mahina-war kamai — ${modes[ERN_MODE]}">${g}</svg><div class="tip" id="ernTip"></div>`;
+  const svg = $("ernChart").querySelector("svg"), tip = $("ernTip");
+  svg.querySelectorAll("rect[data-i]").forEach(el=>{
+    const r = rows[+el.dataset.i];
+    el.addEventListener("mouseenter", ()=>{
+      const k = svg.getBoundingClientRect().width / W;
+      tip.innerHTML = `<b>${fmtM(r.m)}</b><br>Billed ${money(r.billed)}<br>Wasool ${money(r.got)}<br>Kharch ${money(r.exp)}<br>Net ${money(r.net)}`;
+      tip.style.left = ((+el.getAttribute("x") + slot/2) * k) + "px";
+      tip.style.top = (Math.min(yv(val(r)), yv(0)) * k) + "px";
+      tip.style.display = "block";
+    });
+    el.addEventListener("mouseleave", ()=>{ tip.style.display = "none"; });
+    el.addEventListener("click", ()=>dashPick(r.m));
+  });
+}
+
 function renderDashboard(){
   syncSalaries();
   const m = dashMonth(), isNow = m === thisMonth();
+  drawDashChips(m);
   document.querySelectorAll("#page-dashboard .dm").forEach(x=>x.textContent = isNow ? "This Month" : fmtM(m));
   $("todayLine").textContent = isNow
     ? new Date().toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long",year:"numeric"})
     : `${fmtM(m)} ka hisaab — students us mahine ke aakhir tak`;
-  const stuM = DB.students.filter(s=>joinedBy(s,m));
-  const actM = stuM.filter(s=>activeIn(s,m));
+  const RM = rosterMonths();
+  const stuM = DB.students.filter(s=>inMonth(s,m,RM));
+  const actM = stuM.filter(s=>activeIn(s,m,RM));
   const act = actM.length;
   $("dActive").textContent = act;
   $("dTotal").textContent = stuM.length + " total students";
@@ -1379,6 +1528,8 @@ function renderDashboard(){
   }).join("");
   const inq = [...DB.inquiries].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,6);
   drawMonthRows(m);
+  drawEarnings(m);
+  if(DASH_ALL) dashAllMonths();
   drawExportGrid();
   $("dInqRows").innerHTML = inq.length? inq.map(i=>`<tr><td>${esc(i.name)}</td><td>${esc(i.course)}</td><td>${inqStageBadge(i.stage)}</td><td>${fmtD(i.date)}</td></tr>`).join("") : `<tr><td colspan="4" class="empty">Abhi koi inquiry nahi</td></tr>`;
 }
@@ -1478,24 +1629,33 @@ function monthExpenseUnpaid(m){ return txnsOf(m,"Expense").filter(txnUnpaid).red
 let photoTemp = null;
 function renderStudents(){
   const q = ($("stuSearch").value||"").toLowerCase();
-  const fc=$("stuFCourse").value, fs=$("stuFShift").value, fst=$("stuFStatus").value;
+  const fc=$("stuFCourse").value, fs=$("stuFShift").value, fst=$("stuFStatus").value, fm=$("stuFMonth").value;
+  const RM = rosterMonths();
   const rows = DB.students.filter(s=>{
+    if(fm && !inMonth(s, fm, RM)) return false;
     if(fc && s.course!==fc) return false;
     if(fs && s.shift!==fs) return false;
     if(fst && s.status!==fst) return false;
     if(q && !((s.name+" "+s.regNo+" "+s.phone+" "+(s.cnic||"")+" "+(s.fatherCnic||"")).toLowerCase().includes(q))) return false;
     return true;
   }).sort((a,b)=>a.regNo.localeCompare(b.regNo));
-  /* mini dashboard on students page */
-  const actAll = DB.students.filter(s=>s.status==="Active");
-  $("sTotal").textContent = DB.students.length;
-  $("sTotalHint").textContent = actAll.length + " active";
-  const mAll = DB.students.filter(s=>s.shift==="Morning"), eAll = DB.students.filter(s=>s.shift==="Evening");
-  $("sMorn").textContent = mAll.filter(s=>s.status==="Active").length;
+  /* mini dashboard on students page — mahina chuna ho to usi mahine ki ginti */
+  const base = fm ? DB.students.filter(s=>inMonth(s, fm, RM)) : DB.students;
+  const isAct = s => fm ? activeIn(s, fm, RM) : s.status==="Active";
+  const actAll = base.filter(isAct);
+  $("sTotal").textContent = base.length;
+  $("sTotalHint").textContent = actAll.length + " active" + (fm ? ` · ${fmtM(fm)}` : "");
+  const mAll = base.filter(s=>s.shift==="Morning"), eAll = base.filter(s=>s.shift==="Evening");
+  $("sMorn").textContent = mAll.filter(isAct).length;
   $("sMornHint").textContent = mAll.length + " total · Morning";
-  $("sEve").textContent = eAll.filter(s=>s.status==="Active").length;
+  $("sEve").textContent = eAll.filter(isAct).length;
   $("sEveHint").textContent = eAll.length + " total · Evening";
-  $("stuCount").textContent = rows.length + " students is list mein";
+  const feeM = fm || wm();
+  $("stuFeeMH").textContent = fmtM(feeM) + " challan";
+  const mFees = feesBilledIn(feeM);
+  const rowsPaid = rows.filter(s=>mFees.some(f=>f.studentId===s.id && !feeOutstanding(f) && feeReceived(f))).length;
+  $("stuCount").textContent = rows.length + " students is list mein" + (fm ? ` · ${fmtM(fm)} — ${RM.includes(fm) ? "us mahine ki list" : "join date / status ke hisaab se"}` : "") +
+    ` · ${fmtM(feeM)}: ${rowsPaid} ne fee de di, ${money(rows.reduce((a,s)=>a+mFees.filter(f=>f.studentId===s.id).reduce((x,f)=>x+feeReceived(f),0),0))} wasool`;
   $("stuRows").innerHTML = rows.length? rows.map((s,i)=>`
     <tr>
       <td><b>${i+1}</b></td>
@@ -1509,13 +1669,16 @@ function renderStudents(){
         ? `<b>${s.subjects.length}</b> subjects<br><span class="sub">${esc(s.shift==="Morning"? groupOf(s) : s.subjects.map(x=>x.name).join(", "))}</span>`
         : `<span class="sub">— koi subject nahi —</span>`}</td>
       <td><b>${money(studentFee(s))}</b></td>
-      <td><span class="badge b-${s.status.toLowerCase()}">${s.status}</span></td>
+      <td>${(()=>{ const fs2 = mFees.filter(f=>f.studentId===s.id); if(!fs2.length) return `<span class="sub">—</span>`;
+        const amt = fs2.reduce((a,f)=>a+(+f.amount||0),0), due = fs2.reduce((a,f)=>a+feeOutstanding(f),0);
+        return `${money(amt)}<br>${fs2.some(f=>f.carriedTo) ? `<span class="badge b-freeze">Arrears →</span>` : due ? `<span class="badge b-unpaid">Baqi ${money(due)}</span>` : `<span class="badge b-paid">Paid</span>`}`; })()}</td>
+      <td><span class="badge b-${s.status.toLowerCase()}">${s.status}</span>${fm && s.roster && s.roster[fm] === "Inactive" ? `<br><span class="sub">${fmtM(fm)}: Inactive</span>` : ""}</td>
       <td style="white-space:nowrap">
         <button class="btn-black btn-sm" onclick="openProfile('${s.id}')">Profile</button>
         <button class="btn-line btn-sm" onclick="openStudentForm('${s.id}')">Edit</button>
         <button class="btn-danger btn-sm" onclick="delStudent('${s.id}')">Delete</button>
       </td>
-    </tr>`).join("") : `<tr><td colspan="11" class="empty">Koi student nahi mila — "New Enrollment" se pehla student add karein.</td></tr>`;
+    </tr>`).join("") : `<tr><td colspan="12" class="empty">Koi student nahi mila — "New Enrollment" se pehla student add karein.</td></tr>`;
 }
 
 function openStudentForm(id, prefill){
@@ -4447,7 +4610,7 @@ function normStatus(v){
   const t = String(v??"").toLowerCase();
   if(t.startsWith("grad")) return "Graduate";
   if(t.startsWith("left") || t.startsWith("quit")) return "Left";
-  if(t.startsWith("free") || t.startsWith("hold")) return "Freeze";
+  if(t.startsWith("free") || t.startsWith("hold") || t.startsWith("inactive") || t.startsWith("deactiv")) return "Freeze";
   return "Active";
 }
 const keyify = x => String(x??"").toLowerCase().replace(/[^a-z0-9]/g,"");
@@ -4963,7 +5126,16 @@ function impRender(){
       <div class="field"><label>Class (jahan CSV mein khali ho)</label>
         <select id="imp_course">${courseOptions(undefined,"Evening")}</select></div>
       <div class="field"><label>Morning ke compulsory subjects</label>
-        <select id="imp_comp"><option value="1">Khud add kar dein</option><option value="0">Sirf CSV wale rakhein</option></select></div>`:""}
+        <select id="imp_comp"><option value="1">Khud add kar dein</option><option value="0">Sirf CSV wale rakhein</option></select></div>
+    </div>
+    <div class="note" style="margin-top:6px"><b>📅 Mahine ki list?</b> Agar ye file kisi aik mahine ke students ki list hai (jaise "Portal Data Jul-26"),
+      to mahina chunein — har student us mahine ki list mein darj hoga, aur us mahine ka challan (Monthly Fee + Bag Pack / Registration / Admission / Security) ban jayega.
+      Jis student ka us mahine ka challan pehle se ho (jaise fee sheet se), wo waisa hi rahega.</div>
+    <div class="toolbar">
+      <div class="field"><label>Ye kis mahine ki list hai?</label><input type="month" id="imp_rmonth" value="" onchange="$('imp_rpaid').value=this.value?this.value+'-10':''"></div>
+      <div class="field"><label>Us mahine ke challan</label>
+        <select id="imp_rfee"><option value="Paid">Banayein — sab Paid</option><option value="Unpaid">Banayein — Unpaid</option><option value="none">Na banayein</option></select></div>
+      <div class="field"><label>Payment date (Paid ke liye)</label><input type="date" id="imp_rpaid" value=""></div>`:""}
     </div>
 
     <h3 style="margin:18px 0 8px">Preview — pehli ${Math.min(5, body.length)} rows</h3>
@@ -4995,6 +5167,11 @@ function runImport(){
   const impDefShift = $("imp_empshift") ? $("imp_empshift").value : "";
   const feeShift = $("imp_feeshift") ? $("imp_feeshift").value : "Morning";
   const impSeen = new Set();          // v26: is file mein jin students ko challan mil chuka
+  /* v29: mahine ki list (roster) */
+  const rosterM = (impType === "students" && $("imp_rmonth")) ? $("imp_rmonth").value : "";
+  const rosterFee = $("imp_rfee") ? $("imp_rfee").value : "none";
+  const rosterPaid = ($("imp_rpaid") && $("imp_rpaid").value) || (rosterM ? rosterM + "-10" : "");
+  const RS = {fees:0, feeAmt:0, feeSkip:0, inList:new Set()};
   let sectionClass = "";
   /* Exam sheet matrix bhi ho sakti hai — headings jo catalogue ke subject hain.
      Sirf tab jab sheet mein Subject/Obtained ka apna column na ho. */
@@ -5054,7 +5231,7 @@ function runImport(){
       const course = matchClass(rawC, shift) || defCourse;
       if(rawC && !matchClass(rawC, shift)) note(line, `Class "${rawC}" pehchani nahi gayi — "${course}" laga di`);
       const rawSubj = g("subjects");
-      const allSubj = keyify(rawSubj) === "all" || keyify(rawSubj) === "allsubjects";
+      const allSubj = ["all","allsubjects","complete","completesubjects"].includes(keyify(rawSubj));
       const subjects = allSubj ? [] : parseSubjects(rawSubj, course);
       if(allSubj) note(line, `Subject Group "All" likha hai — sirf compulsory subjects lagaye, electives baad mein chun lein`);
       /* Extra Subjects column bhi isi list mein aata hai ("No"/"None" ko chhor kar) */
@@ -5116,6 +5293,58 @@ function runImport(){
       if(!g("course"))    note(line, `Grade khali hai — "${course}" laga di`);
 
       const regNo = g("regNo");
+
+      /* ---------- v29: mahine ki list — student dhoondo/banao, us mahine mein darj karo, challan ---------- */
+      if(rosterM){
+        let st = (regNo && DB.students.find(x=>keyify(x.regNo) === keyify(regNo))) || null;
+        /* Pehle bilkul wohi naam (isi shift ka, jo is file mein abhi kisi row ko na mila ho), phir milta-julta */
+        if(!st) st = DB.students.find(x=>x.shift === shift && keyify(x.name) === keyify(name) && !impSeen.has(x.id)) || null;
+        if(!st){ const mm = bestStudentMatch(name, regNo, shift, course); if(mm && mm.score >= 0.82 && !mm.otherShift) st = mm.st; }
+        if(st && impSeen.has(st.id) && keyify(st.name) !== keyify(name)){
+          note(line, `"${name}" aur "${st.name}" alag students maane (dono isi file mein hain)`); st = null; }
+        if(st && keyify(st.name) !== keyify(name)) note(line, `"${name}" ko mojood "${st.name}" (${st.regNo}) se milaya`);
+        const sheetSt = /inactive|freeze|left|deactiv/i.test(g("status")) ? "Inactive" : "Active";
+        if(!st){
+          st = {...rec, id:uid(), photo:null, charges:[], roster:{},
+                regNo: regNo || ("REG-" + new Date().getFullYear() + "-" + String(DB.counters.reg++).padStart(4,"0")),
+                doj: cleanDate(g("doj")) || rosterM + "-01"};
+          DB.students.push(st); added++;
+        } else {
+          /* Sirf bhare hue khane — khali column purana data nahi mitata */
+          ["fatherName","cnic","fatherCnic","phone","fatherPhone","motherPhone","address","dob","education","prevInst"].forEach(k=>{ if(rec[k]) st[k] = rec[k]; });
+          if(g("course")) st.course = course;
+          if(g("subjects") && subjects.length){ st.subjects = subjects; st.group = rec.group; }
+          if(rec.teacherId) st.teacherId = rec.teacherId;
+          if(regNo && (!st.regNo || /^REG-\d{4}-/i.test(st.regNo))) st.regNo = regNo;
+          updated++;
+        }
+        st.roster = st.roster || {};
+        const later = Object.keys(st.roster).some(k=>k > rosterM);
+        st.roster[rosterM] = sheetSt;
+        if(!later){                      // sab se naya mahina — student ki fee, naam aur status isi se
+          if(rec.monthlyFee) st.monthlyFee = rec.monthlyFee;
+          if(name && st.name !== name) st.name = name;
+          st.status = sheetSt === "Inactive" ? "Freeze" : (st.status === "Graduate" ? st.status : "Active");
+        }
+        impSeen.add(st.id); RS.inList.add(st.id);
+        if(rosterFee !== "none"){
+          const tuition = cleanNum(g("monthlyFee"));
+          const amount = tuition + charges.reduce((a,x)=>a+x.amt, 0);
+          const hit = DB.fees.find(f=>f.studentId === st.id && f.month === rosterM);
+          if(hit) RS.feeSkip++;
+          else if(amount > 0){
+            const paid = rosterFee === "Paid";
+            DB.fees.push({id:uid(), chNo:"CH-" + String(DB.counters.ch++).padStart(5,"0"), studentId:st.id, month:rosterM,
+              tuition, items:charges.map(x=>({...x})), amount, discount:0, discountPct:0,
+              subjects:(st.subjects||[]).map(x=>({name:x.name, fee:+x.fee||0, teacherId:x.teacherId||""})),
+              course:st.course, group:groupOf(st), shift:st.shift, dueDate:rosterM + "-10",
+              status: paid ? "Paid" : "Unpaid", paidDate: paid ? rosterPaid : "", paidAmount: paid ? amount : 0, balance: paid ? 0 : amount,
+              remarks:`${fmtM(rosterM)} ki list se`});
+            RS.fees++; RS.feeAmt += amount;
+          } else note(line, `Fee 0 / khali — ${fmtM(rosterM)} ka challan nahi bana`);
+        }
+        return;
+      }
       const dupKey = keyify(regNo) || (keyify(name) + "|" + keyify(rec.fatherName));
       if(seen.has(dupKey)) note(line, `Isi file mein ye record line ${seen.get(dupKey)} par bhi hai — aakhri row ki values lagi hain`);
       seen.set(dupKey, line);
@@ -5529,7 +5758,17 @@ function runImport(){
   renderStudents(); renderEmployees(); renderInquiries(); renderFees();
   renderInventory(); renderIssuance(); renderFinance(); renderExams(); renderDashboard();
   if($("attDate")) loadAttendance();
-  $("impBody").innerHTML = `
+  /* v29: pichle mahine ki list mein the, is mahine ki list mein nahi */
+  let rosterHTML = "";
+  if(rosterM){
+    const prevM = addMonths(rosterM, -1);
+    const gone = DB.students.filter(st=>st.roster && st.roster[prevM] && !st.roster[rosterM] && !RS.inList.has(st.id));
+    window._rosterGone = gone.map(st=>st.id);
+    rosterHTML = `<div class="note"><b>${fmtM(rosterM)}:</b> ${RS.inList.size} students list mein darj · ${RS.fees} challan bane (${money(RS.feeAmt)})${RS.feeSkip ? ` · ${RS.feeSkip} ka challan pehle se tha (waisa hi rakha)` : ""}</div>` +
+      (gone.length ? `<div class="note" style="border-left-color:var(--danger)"><b>${gone.length} students ${fmtM(prevM)} ki list mein thay magar ${fmtM(rosterM)} mein nahi:</b> ${gone.map(st=>esc(st.name)).join(", ")}
+        <br><button class="btn-black btn-sm" style="margin-top:6px" onclick="rosterMarkLeft('${rosterM}')">Inhein "Left" mark karein</button></div>` : "");
+  }
+  $("impBody").innerHTML = rosterHTML + `
     <div class="cards" style="margin-bottom:14px">
       <div class="card"><div class="k">✓ Naye Add Hue</div><div class="v green">${added}</div></div>
       <div class="card"><div class="k">↻ Update Hue</div><div class="v">${updated}</div></div>
