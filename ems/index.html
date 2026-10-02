@@ -452,6 +452,7 @@ label.chk input{width:auto}
       <button class="btn-black" onclick="openImport('fees')">⬆ Import CSV</button>
       <button class="btn-black" onclick="openDefaulters()">⚠ Defaulter List</button>
       <button class="btn-black" onclick="openBulkChallan()">⚡ Generate All Challans</button>
+      <button class="btn-line" onclick="openFeeOnly()" title="Unpaid challans ko sirf monthly fee par laayein">🧹 Sirf monthly fee</button>
       <button class="btn-red" onclick="openChallanForm()">+ New Fee Challan</button>
     </div>
   </div>
@@ -935,7 +936,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v29 · 2 Oct 2026";
+const BUILD = "v30 · 2 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -2512,7 +2513,7 @@ function openChallanForm(){
     </div>
     <div class="field" id="c_paidwrap" style="display:none"><label>Paid Date</label><input type="date" id="c_paid" value="${wmDate()}"></div>
     <div id="chSubBox"></div>
-    <label class="chk" style="margin:8px 0"><input type="checkbox" id="c_arr" checked onchange="chTotal()"> Pichla baqaya (arrears) shamil karein <b id="c_arrAmt"></b></label>
+    <label class="chk" style="margin:8px 0"><input type="checkbox" id="c_arr" onchange="chTotal()"> Pichla baqaya (arrears) shamil karein <b id="c_arrAmt"></b></label>
     <div id="chOneTime"></div>
     <div class="note" style="margin:10px 0"><b>Other Charges</b> — books, AC charges, admission fee, exam fee waghera yahan add karein (optional)</div>
     <div class="toolbar">
@@ -2684,7 +2685,7 @@ function openBulkChallan(){
       <div class="field"><label>Shift</label><select id="bc_shift"><option value="">Both Shifts</option><option>Morning</option><option>Evening</option></select></div>
       <div class="field"><label>Due Date (sab challans par)</label><input type="date" id="bc_due" value="${wm()}-10"></div>
     </div>
-    <label class="chk" style="margin:4px 0 10px"><input type="checkbox" id="bc_arr" checked> Pichle mahinon ka baqaya (arrears) challan mein khud jor dein</label>
+    <label class="chk" style="margin:4px 0 10px"><input type="checkbox" id="bc_arr"> Pichle mahinon ka baqaya (arrears) bhi jor dein <span class="sub">— khali chhorein to challan mein sirf monthly fee</span></label>
     <div class="note">Total active students: <b>${act.length}</b> · Morning: <b>${act.filter(s=>s.shift==="Morning").length}</b> · Evening: <b>${act.filter(s=>s.shift==="Evening").length}</b></div>
     <div class="modal-foot">
       <button class="btn-line" onclick="closeModal()">Cancel</button>
@@ -2718,6 +2719,41 @@ function runBulkChallan(){
   if(noFee) msg += ` · ${noFee} students ki fee set nahi (skip)`;
   if(arrN) msg += ` · ${arrN} challans mein ${money(arrAmt)} arrears jure`;
   toast(msg);
+}
+/* v30: Kisi mahine ke challans ko bilkul student ki monthly fee par le aao — arrears / extra charges / discount hata kar.
+   Sirf Unpaid challans badalte hain; arrears wapas purane challan par chale jate hain. */
+function feeOnlyPlan(m){
+  return feesBilledIn(m).map(f=>{
+    const st = stuById(f.studentId), fee = studentFee(st);
+    const extra = (+f.amount||0) !== fee || (f.items||[]).length || +f.arrears || +f.discount;
+    return {f, st, fee, extra, paid: !!feeReceived(f) || f.status === "Paid"};
+  }).filter(x=>x.extra);
+}
+function openFeeOnly(){
+  const m = wm(), plan = feeOnlyPlan(m), fix = plan.filter(x=>!x.paid && x.fee), keep = plan.filter(x=>x.paid), noFee = plan.filter(x=>!x.paid && !x.fee);
+  openModal(`
+    <h3>🧹 ${fmtM(m)} — challans sirf monthly fee par</h3>
+    <p class="sub" style="margin-bottom:10px">Jin challans mein monthly fee ke ilawa kuch hai (arrears, bag pack, admission, discount waghera) ya raqam monthly fee se alag hai.
+      Mahina badalna ho to upar Working month badlein.</p>
+    ${fix.length ? `<div class="tbl-wrap" style="max-height:320px;overflow:auto"><table><thead><tr><th>Challan</th><th>Student</th><th style="text-align:right">Abhi</th><th style="text-align:right">Monthly fee</th><th>Kya hatega</th></tr></thead><tbody>
+      ${fix.map(x=>`<tr><td>${esc(x.f.chNo)}</td><td>${esc(x.st?x.st.name:"—")}</td><td style="text-align:right">${money(x.f.amount)}</td><td style="text-align:right"><b>${money(x.fee)}</b></td>
+        <td class="sub">${[...(x.f.items||[]).map(i=>`${i.desc} ${money(i.amt)}`), ...(+x.f.discount?[`discount ${money(x.f.discount)}`]:[]), ...(+x.f.tuition!==x.fee?[`fee ${money(x.f.tuition)} → ${money(x.fee)}`]:[])].map(esc).join(" · ")}</td></tr>`).join("")}
+      </tbody></table></div>` : `<div class="note">${fmtM(m)} ke sab unpaid challans pehle se sirf monthly fee par hain ✓</div>`}
+    ${keep.length ? `<div class="note" style="margin-top:10px"><b>${keep.length} challan Paid hain</b> — inhein nahi chheda: ${keep.map(x=>esc(x.st?x.st.name:x.f.chNo)).join(", ")}</div>` : ""}
+    ${noFee.length ? `<div class="note" style="margin-top:10px;border-left-color:var(--danger)"><b>${noFee.length} students ki monthly fee 0 hai</b> — pehle profile mein fee likhein: ${noFee.map(x=>esc(x.st?x.st.name:x.f.chNo)).join(", ")}</div>` : ""}
+    <div class="modal-foot"><button class="btn-line" onclick="closeModal()">Cancel</button>
+      ${fix.length ? `<button class="btn-red" onclick="applyFeeOnly('${m}')">${fix.length} challans theek karein</button>` : ""}</div>`, true);
+}
+function applyFeeOnly(m){
+  const fix = feeOnlyPlan(m).filter(x=>!x.paid && x.fee);
+  fix.forEach(({f, fee})=>{
+    DB.fees.forEach(x=>{ if(x.carriedTo === f.id){ delete x.carriedTo; delete x.carriedChNo; delete x.carriedAmt; } });   // arrears wapas
+    f.tuition = fee; f.amount = fee; f.items = []; f.discount = 0; f.discountPct = 0;
+    delete f.arrears; delete f.paidAmount; delete f.balance;
+    f.status = "Unpaid"; f.paidDate = "";
+  });
+  save(); closeModal(); renderFees(); renderDashboard();
+  toast(`${fix.length} challans ab sirf monthly fee par hain (${fmtM(m)})`);
 }
 function markPaid(id){
   const f=DB.fees.find(x=>x.id===id), st=stuById(f.studentId);
