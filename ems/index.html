@@ -521,6 +521,7 @@ label.chk input{width:auto}
       <button class="btn-black" onclick="openImport('exams')">⬆ Import CSV</button>
       <button class="btn-black" onclick="openClassResult()">📊 Class Result</button>
       <button class="btn-black" onclick="openReportCard()">🎓 Report Card / Transcript</button>
+      <button class="btn-black" onclick="openBulkReportCards()">🗂 Bulk report cards (class-wise)</button>
       <button class="btn-red" onclick="openExamForm()">+ Add Exam Marks</button>
     </div>
   </div>
@@ -940,7 +941,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v34 · 3 Oct 2026";
+const BUILD = "v35 · 3 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -3750,11 +3751,95 @@ function transcriptHTML(d, forPrint){
         <td style="border:1px solid #999;padding:6px 8px;text-align:center;${pct>=50?"color:#0f7b3d":"color:#C0392B"}">${pct>=50?"PASS":"FAIL"}</td>
       </tr></tfoot>`:""}
     </table>
+    ${d.rank ? `<div style="margin-top:10px;font-size:.82rem"><b>Class mein position:</b> ${d.rank} / ${d.rankOf} &nbsp;·&nbsp; <b>Class average:</b> ${d.classAvg}%</div>` : ""}
+    ${d.remarks && d.remarks.length ? `<div style="margin-top:8px;font-size:.8rem"><b>Teacher remarks:</b> ${d.remarks.map(r=>esc(r.note)).join(" · ")}</div>` : ""}
     <div style="display:flex;justify-content:space-between;margin-top:36px;font-size:.78rem;color:#444">
       <span>Issued: ${fmtD(todayStr())}</span><span>Teacher Signature: _______________</span><span>Admin Signature: _______________</span>
     </div>
   </div>`;
 }
+/* ================= v35: BULK REPORT CARDS — mahina + class-wise =================
+   Har bache ka aik page: us mahine ke tests, us mahine ki attendance, class mein position aur average,
+   aur us mahine ke (parent ko dikhne wale) teacher remarks. Print → "Save as PDF" se aik PDF. */
+function attInRange(sid, from, to){
+  let P=0, A=0, L=0, E=0;
+  Object.keys(DB.attendance).forEach(d=>{
+    const m = d.slice(0,7); if((from && m < from) || (to && m > to)) return;
+    const r = DB.attendance[d][sid]; if(!r) return;
+    if(r.s==="P")P++; else if(r.s==="A")A++; else if(r.s==="L")L++; else if(r.s==="E")E++;
+  });
+  const marked = P+A+L+E;
+  return {P, A, L, E, pct: marked ? Math.round((P+L)*100/marked) : 0};
+}
+function reportCardFor(sid, from, to){
+  const s = stuById(sid);
+  const ex = DB.exams.filter(e=>{ if(e.studentId!==sid) return false; const m = String(e.date).slice(0,7);
+    return !(from && m < from) && !(to && m > to); }).sort((a,b)=>a.date.localeCompare(b.date));
+  const obt = ex.reduce((a,e)=>a+ +e.obtained,0), tot = ex.reduce((a,e)=>a+ +e.total,0);
+  const remarks = (s.remarks||[]).filter(r=>r.parentVisible!==false && (!from || String(r.d).slice(0,7) >= from) && (!to || String(r.d).slice(0,7) <= to));
+  return {s, ex, obt, tot, pct: tot ? Math.round(obt/tot*100) : 0, att: attInRange(sid, from, to), from, to, remarks};
+}
+function bulkRcList(){
+  const m = $("brc_month").value, sh = $("brc_shift").value, cl = window._brcClass || "", onlyEx = $("brc_onlyex").checked;
+  const RM = rosterMonths();
+  const stus = DB.students.filter(st=>st.status!=="Left" && inMonth(st, m, RM) && (!sh || st.shift===sh) && (!cl || st.course===cl));
+  const cards = stus.map(st=>reportCardFor(st.id, m, m)).filter(d=>!onlyEx || d.ex.length);
+  /* position aur average — class + shift ke andar, sirf jin ke tests hain */
+  const groups = {};
+  cards.forEach(d=>{ if(d.ex.length) (groups[d.s.shift+"|"+d.s.course] = groups[d.s.shift+"|"+d.s.course] || []).push(d); });
+  Object.values(groups).forEach(g=>{
+    g.sort((a,b)=>b.pct - a.pct);
+    const avg = Math.round(g.reduce((a,d)=>a+d.pct,0)/g.length);
+    g.forEach((d,i)=>{ d.rank = (i && g[i-1].pct === d.pct) ? g[i-1].rank : i+1; d.rankOf = g.length; d.classAvg = avg; });
+  });
+  return cards.sort((a,b)=>(a.s.shift+a.s.course).localeCompare(b.s.shift+b.s.course) || (a.rank||999)-(b.rank||999) || a.s.name.localeCompare(b.s.name));
+}
+function bulkRcPreview(){
+  const sh = $("brc_shift").value, m = $("brc_month").value;
+  const classes = [...new Set(DB.students.filter(st=>st.status!=="Left" && (!sh || st.shift===sh)).map(st=>st.course))].sort();
+  if(window._brcClass && !classes.includes(window._brcClass)) window._brcClass = "";
+  $("brc_classWrap").innerHTML = `<label>Class</label><select onchange="window._brcClass=this.value;bulkRcPreview()"><option value="">Sab classes</option>${classes.map(c=>`<option ${c===window._brcClass?"selected":""}>${esc(c)}</option>`).join("")}</select>`;
+  const cards = bulkRcList();
+  const by = {};
+  cards.forEach(d=>{ const k = `${d.s.course} · ${d.s.shift}`; const r = by[k] = by[k] || {n:0, ex:0, sum:0}; r.n++; if(d.ex.length){ r.ex++; r.sum += d.pct; } });
+  $("brc_prev").innerHTML = Object.keys(by).length ? `<div class="tbl-wrap"><table><thead><tr><th>Class</th><th style="text-align:right">Report cards</th><th style="text-align:right">Jin ke tests hain</th><th style="text-align:right">Class average</th></tr></thead><tbody>
+      ${Object.entries(by).map(([k,r])=>`<tr><td>${esc(k)}</td><td style="text-align:right">${r.n}</td><td style="text-align:right">${r.ex}</td><td style="text-align:right">${r.ex?Math.round(r.sum/r.ex)+"%":"—"}</td></tr>`).join("")}
+    </tbody></table></div>` : `<div class="note">${fmtM(m)} mein is selection ka koi report card nahi${$("brc_onlyex").checked ? " — kisi ka test darj nahi. \"Sirf jin ke tests hain\" hata kar dekhein" : ""}.</div>`;
+  $("brc_print").disabled = !cards.length; $("brc_csv").disabled = !cards.length;
+  $("brc_print").textContent = cards.length ? `🖨 ${cards.length} report cards — Print / PDF` : "🖨 Print / PDF";
+}
+function openBulkReportCards(){
+  window._brcClass = "";
+  openModal(`
+    <h3>🗂 Bulk report cards — mahina aur class-wise</h3>
+    <p class="sub" style="margin-bottom:8px">Har bache ka alag page: us mahine ke tests, attendance, class mein position / average aur teacher remarks. Print window mein <b>"Save as PDF"</b> chunein to aik PDF ban jayegi.</p>
+    <div class="toolbar">
+      <div class="field"><label>Mahina</label><input type="month" id="brc_month" value="${wm()}" onchange="bulkRcPreview()"></div>
+      <div class="field"><label>Shift</label><select id="brc_shift" onchange="bulkRcPreview()"><option value="">Dono</option><option>Morning</option><option>Evening</option></select></div>
+      <div class="field" id="brc_classWrap"></div>
+    </div>
+    <label class="chk"><input type="checkbox" id="brc_onlyex" checked onchange="bulkRcPreview()"> Sirf jin bachon ke is mahine tests hain</label>
+    <div id="brc_prev"></div>
+    <div class="modal-foot">
+      <button class="btn-line" onclick="closeModal()">Band karein</button>
+      <button class="btn-black" id="brc_csv" onclick="bulkRcCSV()">⬇ Class result CSV</button>
+      <button class="btn-red" id="brc_print" onclick="bulkRcPrint()">🖨 Print / PDF</button>
+    </div>`, true);
+  bulkRcPreview();
+}
+function bulkRcPrint(){
+  const cards = bulkRcList(); if(!cards.length) return;
+  $("challanPrint").innerHTML = cards.map((d,i)=>`<div style="${i < cards.length-1 ? "page-break-after:always;break-after:page;" : ""}padding:6px 2px">${transcriptHTML(d, true)}</div>`).join("");
+  window.print();
+}
+function bulkRcCSV(){
+  const cards = bulkRcList(), m = $("brc_month").value;
+  downloadCSV(`report-cards-${m}${window._brcClass?"-"+window._brcClass.replace(/\W+/g,""):""}.csv`, [
+    ["Class","Shift","Reg No","Student","Tests","Obtained","Total","%","Grade","Position","Class Avg %","Attendance %","Present","Absent","Late","Leave"],
+    ...cards.map(d=>[d.s.course, d.s.shift, d.s.regNo, d.s.name, d.ex.length, d.obt, d.tot, d.ex.length?d.pct:"", d.ex.length?gradeOf(d.pct):"", d.rank||"", d.classAvg||"",
+      d.att.pct, d.att.P, d.att.A, d.att.L, d.att.E])]);
+}
+
 function renderReportCard(){ $("rcBody").innerHTML = transcriptHTML(reportCardData(), false); }
 function printReportCard(){ $("challanPrint").innerHTML = transcriptHTML(reportCardData(), true); window.print(); }
 
