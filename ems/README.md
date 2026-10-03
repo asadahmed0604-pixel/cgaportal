@@ -24,6 +24,9 @@ Cambridge Grads Academy ka Education Management System.
 - **Admin**: students, fees, attendance, homework, exams, inquiries, parents, class audit, staff, inventory,
   issuance, settings — lekin **Dashboard, Income / Expense, Monthly Report, Business Reports (P&L) aur salaries nahi**,
   aur backup import / download / students delete bhi nahi.
+- **Fee Admin** (sirf aik banda): Admin wali sab cheezein **plus Fee / Billing**. Aam Admin ko fees ka koi data
+  (challans, monthly fee, charges, subject fees) server se jata hi nahi — sirf Fee Admin aur Executive dekhte hain.
+  Fee Admin ka password bhi Settings → 🔐 Logins se (naam ke saath).
 - Admin ka password Executive EMS mein **⚙ Settings → 🔐 Logins** se rakhta / badalta / band karta hai
   (PBKDF2 hash DB mein). Password badalte hi purane admin logins khatam.
 - Ye sirf screen par chhupana nahi: server admin ko income/expense entries, salaries aur teacher pay bhejta hi nahi,
