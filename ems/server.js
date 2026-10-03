@@ -44,9 +44,12 @@ const safeEq = (a, b) => {
 /* v31: do roles — "exec" (Executive, office password = EMS_PASSWORD) aur "admin" (password Executive
    EMS ki Settings se rakhta hai; PBKDF2 hash DB.settings.adminAuth mein). Admin ka token us hash ke
    tag se bandha hai — password badla to sab admin logins khatam. */
+/* v32: teesra role "feeadmin" — admin jaisa, magar Fee / Billing bhi (password settings.feeAdminAuth).
+   Aam "admin" ko fees ka koi data nahi jata. */
+const ROLE_AUTH = { admin: "adminAuth", feeadmin: "feeAdminAuth" };
 function newToken(role, tag) {
   const exp = Date.now() + SESSION_DAYS * 864e5;
-  if (role === "admin") return `admin.${exp}.${tag}.${sign(`ems|admin|${exp}|${tag}`)}`;
+  if (ROLE_AUTH[role]) return `${role}.${exp}.${tag}.${sign(`ems|${role}|${exp}|${tag}`)}`;
   return `${exp}.${sign("ems|" + exp)}`;
 }
 function cookies(req) {
@@ -63,47 +66,65 @@ function authed(req) {
     const [exp, sig] = parts;
     return !!exp && !!sig && +exp > Date.now() && safeEq(sig, sign("ems|" + exp)) ? "exec" : null;
   }
-  if (parts.length === 4 && parts[0] === "admin") {
-    const [, exp, tag, sig] = parts;
-    if (!(+exp > Date.now()) || !safeEq(sig, sign(`ems|admin|${exp}|${tag}`))) return null;
-    const a = adminAuth();
-    return a && a.hash.startsWith(tag) ? "admin" : null;
+  if (parts.length === 4 && ROLE_AUTH[parts[0]]) {
+    const [role, exp, tag, sig] = parts;
+    if (!(+exp > Date.now()) || !safeEq(sig, sign(`ems|${role}|${exp}|${tag}`))) return null;
+    const a = roleAuth(role);
+    return a && a.hash.startsWith(tag) ? role : null;
   }
   return null;
 }
-function adminAuth() {
+function roleAuth(role) {
   const d = dbNow();
-  const a = d && d.settings && d.settings.adminAuth;
+  const a = d && d.settings && d.settings[ROLE_AUTH[role]];
   return a && a.hash && a.salt ? a : null;
 }
-function adminPwOk(pw) {
-  const a = adminAuth();
+function rolePwOk(role, pw) {
+  const a = roleAuth(role);
   if (!a || String(pw).length < 8) return false;
   const h = crypto.pbkdf2Sync(String(pw), Buffer.from(a.salt, "hex"), +a.iter || 100000, 32, "sha256").toString("hex");
   return safeEq(h, a.hash);
 }
-/* Admin ko hisaab-kitaab nahi jata: income/expense entries, salaries, teacher pay, admin password hash */
-let redactCache = { v: -1, text: "" };
+/* Admin / Fee Admin ko hisaab-kitaab nahi jata: income/expense, salaries, teacher pay, login hashes.
+   Aam Admin ko fees bhi nahi: challans, students ki monthly fee, one-time charges, subject fees. */
+const redactCache = {};
+const keyOf = (x) => String(x || "").toLowerCase().replace(/[^a-z0-9]/g, "");
 function dataFor(role) {
-  if (role !== "admin") return state.dataText;
-  if (redactCache.v === state.version) return redactCache.text;
+  if (role === "exec") return state.dataText;
+  const c = redactCache[role];
+  if (c && c.v === state.version) return c.text;
   const d = JSON.parse(state.dataText) || {};
   d.txns = []; d.classCosts = {};
-  if (d.settings) { delete d.settings.adminAuth; }
+  if (d.settings) { delete d.settings.adminAuth; delete d.settings.feeAdminAuth; }
   (d.employees || []).forEach((e) => { delete e.salary; });
-  redactCache = { v: state.version, text: JSON.stringify(d) };
-  return redactCache.text;
+  if (role === "admin") {
+    d.fees = [];
+    (d.students || []).forEach((st) => { delete st.monthlyFee; delete st.charges; (st.subjects || []).forEach((x) => { delete x.fee; }); });
+  }
+  redactCache[role] = { v: state.version, text: JSON.stringify(d) };
+  return redactCache[role].text;
 }
 /* Admin ke save mein chhupaye hue hisse server wale hi rehte hain */
-function keepProtected(data) {
+function keepProtected(data, role) {
   const cur = JSON.parse(state.dataText) || {};
   data.txns = cur.txns || [];
   data.classCosts = cur.classCosts || {};
   data.settings = Object.assign({}, data.settings || {});
   const cs = cur.settings || {};
-  ["adminAuth", "salaryAuto"].forEach((k) => { if (cs[k] !== undefined) data.settings[k] = cs[k]; else delete data.settings[k]; });
+  ["adminAuth", "feeAdminAuth", "salaryAuto"].forEach((k) => { if (cs[k] !== undefined) data.settings[k] = cs[k]; else delete data.settings[k]; });
   const sal = new Map((cur.employees || []).map((e) => [e.id, e.salary]));
   (data.employees || []).forEach((e) => { if (sal.has(e.id)) e.salary = sal.get(e.id); });
+  if (role === "admin") {
+    const ids = new Set((data.students || []).map((st) => st.id));
+    data.fees = (cur.fees || []).filter((f) => ids.has(f.studentId));       // admin ne student hataya to us ke challan bhi
+    const old = new Map((cur.students || []).map((st) => [st.id, st]));
+    (data.students || []).forEach((st) => {
+      const o = old.get(st.id); if (!o) return;
+      st.monthlyFee = o.monthlyFee; st.charges = o.charges;
+      const fee = new Map((o.subjects || []).map((x) => [keyOf(x.name), x.fee]));
+      (st.subjects || []).forEach((x) => { const k = keyOf(x.name); if (fee.has(k)) x.fee = fee.get(k); else delete x.fee; });
+    });
+  }
   return data;
 }
 const isHttps = (req) => String(req.headers["x-forwarded-proto"] || "").split(",")[0].trim() === "https";
@@ -236,7 +257,7 @@ button:hover{background:#0F7657}
   <div class="mark">CGA</div>
   <h1>CGA EMS</h1><p>Cambridge Grads Academy · Staff login</p>
   ${msg ? `<div class="err">${msg}</div>` : ""}
-  <label for="pw">Password (Executive ya Admin)</label>
+  <label for="pw">Password (Executive / Fee Admin / Admin)</label>
   <input id="pw" type="password" name="password" autocomplete="current-password" required autofocus>
   <button type="submit">Login</button>
 </form></body></html>`;
@@ -361,13 +382,13 @@ const server = http.createServer(async (req, res) => {
       if (blocked(ip)) return send(res, 429, loginPage("Bohat ghalat koshishen — 15 minute baad dobara try karein."), "text/html; charset=utf-8");
       const pw = new URLSearchParams(await readBody(req)).get("password") || "";
       const isExec = safeEq(crypto.createHash("sha256").update(pw).digest("hex"), crypto.createHash("sha256").update(PASSWORD).digest("hex"));
-      const isAdmin = !isExec && adminPwOk(pw);
-      if (!isExec && !isAdmin) {
+      const who = isExec ? "exec" : rolePwOk("feeadmin", pw) ? "feeadmin" : rolePwOk("admin", pw) ? "admin" : null;
+      if (!who) {
         failed(ip);
         return send(res, 401, loginPage("Password ghalat hai."), "text/html; charset=utf-8");
       }
       fails.delete(ip);
-      setSession(req, res, isExec ? newToken("exec") : newToken("admin", adminAuth().hash.slice(0, 12)), SESSION_DAYS * 86400);
+      setSession(req, res, who === "exec" ? newToken("exec") : newToken(who, roleAuth(who).hash.slice(0, 12)), SESSION_DAYS * 86400);
       return redirect(res, "/");
     }
     if (p === "/logout") {
@@ -400,10 +421,10 @@ const server = http.createServer(async (req, res) => {
       if (!data || typeof data !== "object" || !Array.isArray(data.students))
         return sendJson(res, 400, { error: "Ye EMS ka data nahi lagta." });
       /* Kisi aur ne beech mein save kiya — client pehle merge kare, phir dobara bheje */
-      if (role === "admin" && body.force) return sendJson(res, 403, { error: "Backup import sirf Executive kar sakta hai." });
+      if (role !== "exec" && body.force) return sendJson(res, 403, { error: "Backup import sirf Executive kar sakta hai." });
       if (!body.force && body.baseVersion !== state.version)
         return sendJson(res, 409, `{"version":${state.version},"data":${dataFor(role)}}`);
-      if (role === "admin") keepProtected(data);
+      if (role !== "exec") keepProtected(data, role);
       persist({ version: state.version + 1, updatedAt: new Date().toISOString(), dataText: JSON.stringify(data) },
               body.force ? "import" : "");
       return sendJson(res, 200, { version: state.version, updatedAt: state.updatedAt });

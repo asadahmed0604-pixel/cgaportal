@@ -57,6 +57,7 @@ h3{font-size:1.02rem;font-weight:700}
 .mchips button.on{background:var(--black);border-color:var(--black);color:#fff}
 .mchips button.all.on{background:var(--red);border-color:var(--red)}
 body.role-admin .exec-only{display:none!important}
+body.no-fees .fee-only{display:none!important}
 .wmbar{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#fff;border:1px solid var(--line);border-radius:10px;padding:8px 12px;margin:-6px 0 18px;box-shadow:0 2px 8px rgba(0,0,0,.04)}
 .wmbar input{width:auto;max-width:170px;padding:6px 9px}
 .wmbar.past{background:#FFF6E0;border-color:var(--accent-dark)}
@@ -377,7 +378,7 @@ label.chk input{width:auto}
   </div>
   <div class="sub" id="stuCount" style="margin-bottom:8px"></div>
   <div class="tbl-wrap"><table>
-    <thead><tr><th>#</th><th></th><th>Reg No</th><th>Name</th><th>Father</th><th>Class</th><th>Shift</th><th>Subjects / Group</th><th>Fee</th><th id="stuFeeMH">Is mahine ka challan</th><th>Status</th><th>Actions</th></tr></thead>
+    <thead><tr><th>#</th><th></th><th>Reg No</th><th>Name</th><th>Father</th><th>Class</th><th>Shift</th><th>Subjects / Group</th><th class="fee-only">Fee</th><th class="fee-only" id="stuFeeMH">Is mahine ka challan</th><th>Status</th><th>Actions</th></tr></thead>
     <tbody id="stuRows"></tbody>
   </table></div>
 </section>
@@ -938,7 +939,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v31 · 3 Oct 2026";
+const BUILD = "v32 · 3 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -1068,8 +1069,10 @@ const SERVER = window.__EMS__ || null;
 /* v31: Executive = sab kuch. Admin = dashboard, income/expense, reports, salaries ke baghair
    (server admin ko ye data bhejta hi nahi). File seedha kholi ho to Executive. */
 const ROLE = (SERVER && SERVER.role) || "exec";
-const IS_ADMIN = ROLE === "admin";
-const ADMIN_HIDDEN = ["dashboard","finance","reports","biz"];
+const IS_ADMIN = ROLE !== "exec";                    // admin ya feeadmin — hisaab-kitaab nahi
+const CAN_FEES = ROLE !== "admin";                   // v32: Fee / Billing sirf Executive aur Fee Admin
+const ADMIN_HIDDEN = ["dashboard","finance","reports","biz"].concat(CAN_FEES ? [] : ["fees"]);
+const ROLE_LABEL = {exec:"Executive", feeadmin:"Fee Admin", admin:"Admin"}[ROLE] || ROLE;
 if(SERVER) DB = SERVER.data || structuredClone(DEFAULT_DB);
 else try{
   localStorage.setItem("__t","1"); localStorage.removeItem("__t");
@@ -1664,8 +1667,8 @@ function renderStudents(){
   $("stuFeeMH").textContent = fmtM(feeM) + " challan";
   const mFees = feesBilledIn(feeM);
   const rowsPaid = rows.filter(s=>mFees.some(f=>f.studentId===s.id && !feeOutstanding(f) && feeReceived(f))).length;
-  $("stuCount").textContent = rows.length + " students is list mein" + (fm ? ` · ${fmtM(fm)} — ${RM.includes(fm) ? "us mahine ki list" : "join date / status ke hisaab se"}` : "") +
-    ` · ${fmtM(feeM)}: ${rowsPaid} ne fee de di, ${money(rows.reduce((a,s)=>a+mFees.filter(f=>f.studentId===s.id).reduce((x,f)=>x+feeReceived(f),0),0))} wasool`;
+  $("stuCount").textContent = rows.length + " students is list mein" + (fm ? ` · ${fmtM(fm)} — ${RM.includes(fm) ? "us mahine ki list" : "join date / status ke hisaab se"}` : "") + (!CAN_FEES ? "" :
+    ` · ${fmtM(feeM)}: ${rowsPaid} ne fee de di, ${money(rows.reduce((a,s)=>a+mFees.filter(f=>f.studentId===s.id).reduce((x,f)=>x+feeReceived(f),0),0))} wasool`);
   $("stuRows").innerHTML = rows.length? rows.map((s,i)=>`
     <tr>
       <td><b>${i+1}</b></td>
@@ -1678,8 +1681,8 @@ function renderStudents(){
       <td style="max-width:230px">${(s.subjects||[]).length
         ? `<b>${s.subjects.length}</b> subjects<br><span class="sub">${esc(s.shift==="Morning"? groupOf(s) : s.subjects.map(x=>x.name).join(", "))}</span>`
         : `<span class="sub">— koi subject nahi —</span>`}</td>
-      <td><b>${money(studentFee(s))}</b></td>
-      <td>${(()=>{ const fs2 = mFees.filter(f=>f.studentId===s.id); if(!fs2.length) return `<span class="sub">—</span>`;
+      <td class="fee-only"><b>${money(studentFee(s))}</b></td>
+      <td class="fee-only">${(()=>{ const fs2 = mFees.filter(f=>f.studentId===s.id); if(!fs2.length) return `<span class="sub">—</span>`;
         const amt = fs2.reduce((a,f)=>a+(+f.amount||0),0), due = fs2.reduce((a,f)=>a+feeOutstanding(f),0);
         return `${money(amt)}<br>${fs2.some(f=>f.carriedTo) ? `<span class="badge b-freeze">Arrears →</span>` : due ? `<span class="badge b-unpaid">Baqi ${money(due)}</span>` : `<span class="badge b-paid">Paid</span>`}`; })()}</td>
       <td><span class="badge b-${s.status.toLowerCase()}">${s.status}</span>${fm && s.roster && s.roster[fm] === "Inactive" ? `<br><span class="sub">${fmtM(fm)}: Inactive</span>` : ""}</td>
@@ -1714,7 +1717,7 @@ function openStudentForm(id, prefill){
         <option value="Morning" ${s.shift==="Morning"?"selected":""}>Morning — School System</option>
         <option value="Evening" ${s.shift==="Evening"?"selected":""}>Evening — Academy</option></select></div>
       <div class="field"><label>Class *</label><select id="f_course" onchange="subjModeSync()">${courseOptions(s.course, s.shift||"Morning")}</select></div>
-      <div class="field" id="f_feeWrap"><label id="f_feeLbl">Monthly Fee (Rs)</label><input type="number" id="f_fee" value="${s.monthlyFee||""}" placeholder="e.g. 3000"></div>
+      <div class="field fee-only" id="f_feeWrap"><label id="f_feeLbl">Monthly Fee (Rs)</label><input type="number" id="f_fee" value="${s.monthlyFee||""}" placeholder="e.g. 3000"></div>
       <div class="field"><label>Class Teacher (overall)</label><select id="f_teacher"><option value="">— No teacher —</option>${teachers.map(t=>`<option value="${t.id}" ${s.teacherId===t.id?"selected":""}>${esc(t.name)}</option>`).join("")}</select></div>
       <div class="field"><label>Status</label><select id="f_status">${["Active","Graduate","Left","Freeze"].map(x=>`<option ${s.status===x?"selected":""}>${x}</option>`).join("")}</select></div>
       <div class="field"><label>Student Photo</label><input type="file" id="f_photo" accept="image/*" onchange="pickPhoto(this)"><div id="photoPrev" style="margin-top:6px">${photoTemp?`<img class="avatar-lg" src="${photoTemp}">`:""}</div></div>
@@ -1832,12 +1835,12 @@ function drawSubjs(){
     ? `${subjDraft.length} subjects`
     : `<b>${nComp}</b> compulsory · <b style="color:${lim&&nElec>lim?"var(--danger)":"var(--red)"}">${nElec}</b> elective${lim?` / ${lim} allowed`:""}`;
   box.innerHTML = subjDraft.length? `<div class="tbl-wrap"><table>
-    <thead><tr><th>#</th><th>Subject</th>${evening?"":"<th>Type</th>"}${evening?"<th>Fee (Rs)</th>":""}<th>Teacher</th><th></th></tr></thead>
+    <thead><tr><th>#</th><th>Subject</th>${evening?"":"<th>Type</th>"}${evening&&CAN_FEES?"<th>Fee (Rs)</th>":""}<th>Teacher</th><th></th></tr></thead>
     <tbody>${subjDraft.map((x,i)=>`<tr>
       <td><b>${i+1}</b></td>
       <td><b>${esc(x.name)}</b></td>
       ${evening?"":`<td><span class="badge ${isComp(x)?"b-active":"b-freeze"}">${isComp(x)?"Compulsory":"Elective"}</span></td>`}
-      ${evening?`<td style="max-width:130px"><input type="number" value="${x.fee||""}" oninput="setSubjFee(${i},this.value)" placeholder="0"></td>`:""}
+      ${evening&&CAN_FEES?`<td style="max-width:130px"><input type="number" value="${x.fee||""}" oninput="setSubjFee(${i},this.value)" placeholder="0"></td>`:""}
       <td style="max-width:190px"><select onchange="setSubjTeacher(${i},this.value)">${teacherOpts(x.teacherId)}</select></td>
       <td><button class="btn-danger btn-sm" onclick="delSubj(${i})">✕</button></td>
     </tr>`).join("")}</tbody>
@@ -2016,7 +2019,7 @@ function openProfile(id){
           <span class="k">Father Phone</span><span>${esc(s.fatherPhone||"—")}</span>
           <span class="k">Mother Phone</span><span>${esc(s.motherPhone||"—")}</span>
           ${(s.charges||[]).length?`<span class="k">One-time Charges</span><span>${s.charges.map(c=>`${esc(c.desc)}: <b>${money(c.amt)}</b>`).join(" · ")}<br><span class="sub">Total ${money(s.charges.reduce((a,c)=>a+ +c.amt,0))} — challan banate waqt lag sakte hain</span></span>`:""}
-          <span class="k">Monthly Fee</span><span><b>${money(studentFee(s))}</b>${(s.subjects||[]).length&&s.shift==="Evening"?` <span class="sub">(${s.subjects.length} subjects ka total)</span>`:""}</span>
+          <span class="k fee-only">Monthly Fee</span><span class="fee-only"><b>${money(studentFee(s))}</b>${(s.subjects||[]).length&&s.shift==="Evening"?` <span class="sub">(${s.subjects.length} subjects ka total)</span>`:""}</span>
           <span class="k">Address</span><span>${esc(s.address||"—")}</span>
         </div>
       </div>
@@ -2041,17 +2044,17 @@ function openProfile(id){
       <button class="on" onclick="swTab(this,'tpSub')">Subjects ${(s.subjects||[]).length?`(${s.subjects.length})`:""}</button>
       <button onclick="swTab(this,'tpIss')">Issued ${DB.issues.filter(x=>x.toId===id).length?`(${DB.issues.filter(x=>x.toId===id).length})`:""}</button>
       <button onclick="swTab(this,'tpAtt')">Attendance</button>
-      <button onclick="swTab(this,'tpFee')">Fee Record</button>
+      <button class="fee-only" onclick="swTab(this,'tpFee')">Fee Record</button>
       <button onclick="swTab(this,'tpExam')">Exams</button>
       <button onclick="swTab(this,'tpHw')">Homework ${hws.length?`(${hws.length})`:""}</button>
       <button onclick="swTab(this,'tpRem')">Remarks ${(s.remarks||[]).length?`(${s.remarks.length})`:""}</button>
     </div>
     <div class="tabpane" id="tpRem">${remarksHTML(id)}</div>
     <div class="tabpane on" id="tpSub"><div class="tbl-wrap"><table>
-      <thead><tr><th>#</th><th>Subject</th><th>Teacher</th>${s.shift==="Evening"?"<th>Fee (Rs)</th>":""}</tr></thead>
-      <tbody>${(s.subjects||[]).length? s.subjects.map((x,i)=>`<tr><td><b>${i+1}</b></td><td><b>${esc(x.name)}</b></td><td>${esc(teacherName(x.teacherId))}</td>${s.shift==="Evening"?`<td><b>${money(x.fee)}</b></td>`:""}</tr>`).join("")
+      <thead><tr><th>#</th><th>Subject</th><th>Teacher</th>${s.shift==="Evening"&&CAN_FEES?"<th>Fee (Rs)</th>":""}</tr></thead>
+      <tbody>${(s.subjects||[]).length? s.subjects.map((x,i)=>`<tr><td><b>${i+1}</b></td><td><b>${esc(x.name)}</b></td><td>${esc(teacherName(x.teacherId))}</td>${s.shift==="Evening"&&CAN_FEES?`<td><b>${money(x.fee)}</b></td>`:""}</tr>`).join("")
         : `<tr><td colspan="4" class="empty">Koi subject add nahi — "Edit" se subjects add karein</td></tr>`}</tbody>
-      ${(s.subjects||[]).length&&s.shift==="Evening"?`<tfoot><tr><td colspan="3" style="text-align:right"><b>Total Monthly Fee</b></td><td><b style="color:var(--red)">${money(studentFee(s))}</b></td></tr></tfoot>`:""}
+      ${(s.subjects||[]).length&&s.shift==="Evening"&&CAN_FEES?`<tfoot><tr><td colspan="3" style="text-align:right"><b>Total Monthly Fee</b></td><td><b style="color:var(--red)">${money(studentFee(s))}</b></td></tr></tfoot>`:""}
     </table></div></div>
     <div class="tabpane" id="tpIss"><div class="tbl-wrap"><table>
       <thead><tr><th>Date</th><th>Item</th><th>Qty</th><th>Value</th><th>Charge</th><th>Remarks</th></tr></thead>
@@ -2060,7 +2063,7 @@ function openProfile(id){
           : `<tr><td colspan="6" class="empty">Is student ko abhi kuch issue nahi hua</td></tr>`; })()}</tbody>
     </table></div></div>
     <div class="tabpane" id="tpAtt"><div class="tbl-wrap"><table><thead><tr><th>Date</th><th>Status</th><th>Time</th><th>Shift</th></tr></thead><tbody>${attRows||`<tr><td colspan="4" class="empty">Attendance abhi mark nahi hui</td></tr>`}</tbody></table></div></div>
-    <div class="tabpane" id="tpFee"><div class="tbl-wrap"><table><thead><tr><th>Challan #</th><th>Month</th><th>Amount</th><th>Status</th><th>Paid Date</th></tr></thead><tbody>${fees.length?fees.map(f=>`<tr><td>${f.chNo}</td><td>${fmtM(f.month)}</td><td>${money(f.amount)}</td><td><span class="badge b-${f.status.toLowerCase()}">${f.status}</span></td><td>${fmtD(f.paidDate)}</td></tr>`).join(""):`<tr><td colspan="5" class="empty">Koi challan nahi</td></tr>`}</tbody></table></div></div>
+    <div class="tabpane fee-only" id="tpFee"><div class="tbl-wrap"><table><thead><tr><th>Challan #</th><th>Month</th><th>Amount</th><th>Status</th><th>Paid Date</th></tr></thead><tbody>${fees.length?fees.map(f=>`<tr><td>${f.chNo}</td><td>${fmtM(f.month)}</td><td>${money(f.amount)}</td><td><span class="badge b-${f.status.toLowerCase()}">${f.status}</span></td><td>${fmtD(f.paidDate)}</td></tr>`).join(""):`<tr><td colspan="5" class="empty">Koi challan nahi</td></tr>`}</tbody></table></div></div>
     <div class="tabpane" id="tpExam"><div class="tbl-wrap"><table><thead><tr><th>Date</th><th>Exam</th><th>Subject / Topic</th><th>Obtained</th><th>Total</th><th>%</th><th>Result</th><th>Teacher Comment</th></tr></thead><tbody>${exams.length?exams.map(e=>{const p=Math.round(e.obtained/e.total*100);return `<tr><td>${fmtD(e.date)}</td><td>${esc(e.exam)}</td><td>${esc(e.subject||"—")}</td><td>${e.obtained}</td><td>${e.total}</td><td>${p}%</td><td><span class="badge ${p>=50?"b-paid":"b-unpaid"}">${p>=50?"Pass":"Fail"}</span></td><td style="max-width:220px;font-size:.82rem">${esc(e.comment||"—")}</td></tr>`;}).join(""):`<tr><td colspan="8" class="empty">Koi exam record nahi</td></tr>`}</tbody></table></div></div>
     <div class="tabpane" id="tpHw"><div class="tbl-wrap"><table><thead><tr><th>Date Given</th><th>Title</th><th>Due Date</th><th>Detail</th><th>Status</th></tr></thead><tbody>${hwRows||`<tr><td colspan="5" class="empty">Is course/shift ke liye koi homework nahi</td></tr>`}</tbody></table></div></div>
   `, true);
@@ -2120,28 +2123,28 @@ function downloadProfile(id){
     <table style="width:100%;border-collapse:collapse;margin-bottom:12px">
       ${kv2("Class", esc(s.course), "Shift", s.shift+" ("+(SHIFTS[s.shift]||"")+")")}
       ${kv2(s.shift==="Morning"?"Group":"Subjects", s.shift==="Morning"? "<b>"+esc(groupOf(s))+"</b>" : ((s.subjects||[]).length+" subjects"), "Date of Join", fmtD(s.doj))}
-      ${kv2("Class Teacher", esc(teacherName(s.teacherId)), "Monthly Fee", "<b>"+money(studentFee(s))+"</b>")}
+      ${kv2("Class Teacher", esc(teacherName(s.teacherId)), CAN_FEES ? "Monthly Fee" : "", CAN_FEES ? "<b>"+money(studentFee(s))+"</b>" : "")}
       ${kv2("Education", esc(s.education||"—"), "Previous Institute", esc(s.prevInst||"—"))}
       ${kv2("Student Phone", esc(s.phone||"—"), "Father Phone", esc(s.fatherPhone||"—"))}
       ${kv2("Mother Phone", esc(s.motherPhone||"—"), "Student Phone", esc(s.phone||"—"))}
       ${kv("Address", esc(s.address||"—"))}
     </table>
-    <div style="font-weight:800;border-left:4px solid #159670;padding-left:8px;margin:14px 0 8px">Subjects${s.shift==="Evening"?" & Fee":""}</div>
+    <div style="font-weight:800;border-left:4px solid #159670;padding-left:8px;margin:14px 0 8px">Subjects${s.shift==="Evening"&&CAN_FEES?" & Fee":""}</div>
     <table style="width:100%;border-collapse:collapse;margin-bottom:12px">
-      <thead><tr>${["#","Subject","Teacher"].concat(s.shift==="Evening"?["Fee (Rs)"]:[]).map(h=>`<th style="${cell};background:#f0f0f0">${h}</th>`).join("")}</tr></thead>
+      <thead><tr>${["#","Subject","Teacher"].concat(s.shift==="Evening"&&CAN_FEES?["Fee (Rs)"]:[]).map(h=>`<th style="${cell};background:#f0f0f0">${h}</th>`).join("")}</tr></thead>
       <tbody>${(s.subjects||[]).length? s.subjects.map((x,i)=>`<tr>
         <td style="${cell};text-align:center">${i+1}</td>
         <td style="${cell}"><b>${esc(x.name)}</b></td>
         <td style="${cell}">${esc(teacherName(x.teacherId))}</td>
-        ${s.shift==="Evening"?`<td style="${cell};text-align:right"><b>${money(x.fee)}</b></td>`:""}
+        ${s.shift==="Evening"&&CAN_FEES?`<td style="${cell};text-align:right"><b>${money(x.fee)}</b></td>`:""}
       </tr>`).join("") : `<tr><td colspan="4" style="${cell};text-align:center;color:#777">Koi subject record nahi</td></tr>`}</tbody>
-      ${(s.subjects||[]).length&&s.shift==="Evening"?`<tfoot><tr style="background:#f7f7f7;font-weight:800"><td colspan="3" style="${cell};text-align:right">TOTAL MONTHLY FEE</td><td style="${cell};text-align:right">${money(studentFee(s))}</td></tr></tfoot>`:""}
+      ${(s.subjects||[]).length&&s.shift==="Evening"&&CAN_FEES?`<tfoot><tr style="background:#f7f7f7;font-weight:800"><td colspan="3" style="${cell};text-align:right">TOTAL MONTHLY FEE</td><td style="${cell};text-align:right">${money(studentFee(s))}</td></tr></tfoot>`:""}
     </table>
     <div style="font-weight:800;border-left:4px solid #159670;padding-left:8px;margin:14px 0 8px">Attendance Summary</div>
     <div style="display:flex;gap:8px;margin-bottom:12px">
       ${statBox(a.wd,"Working Days")}${statBox(a.P,"Present","color:#0f7b3d")}${statBox(a.L,"Late")}${statBox(a.A,"Absent","color:#C0392B")}${statBox(a.E,"Leave")}${statBox(a.pct+"%","Attendance")}
     </div>
-    <div style="font-weight:800;border-left:4px solid #159670;padding-left:8px;margin:14px 0 8px">Fee Record &nbsp;<span style="font-weight:600;font-size:.75rem;color:#555">Paid: ${money(paidT)} · Due: ${money(dueT)}</span></div>
+    ${CAN_FEES ? `    <div style="font-weight:800;border-left:4px solid #159670;padding-left:8px;margin:14px 0 8px">Fee Record &nbsp;<span style="font-weight:600;font-size:.75rem;color:#555">Paid: ${money(paidT)} · Due: ${money(dueT)}</span></div>
     <table style="width:100%;border-collapse:collapse;margin-bottom:12px">
       <thead><tr>${["#","Challan #","Fee Month","Amount","Due Date","Status","Paid Date"].map(h=>`<th style="${cell};background:#f0f0f0">${h}</th>`).join("")}</tr></thead>
       <tbody>${fees.length? fees.map((f,i)=>`<tr>
@@ -2153,7 +2156,7 @@ function downloadProfile(id){
         <td style="${cell};font-weight:700;${f.status==="Paid"?"color:#0f7b3d":"color:#C0392B"}">${f.status}</td>
         <td style="${cell}">${fmtD(f.paidDate)}</td>
       </tr>`).join("") : `<tr><td colspan="7" style="${cell};text-align:center;color:#777">Koi challan record nahi</td></tr>`}</tbody>
-    </table>
+    </table>` : ""}
     <div style="font-weight:800;border-left:4px solid #159670;padding-left:8px;margin:14px 0 8px">Exam / Test Record</div>
     <table style="width:100%;border-collapse:collapse;margin-bottom:12px">
       <thead><tr>${["#","Date","Exam","Subject / Topic","Obtained","Total","%","Grade","Result","Comment"].map(h=>`<th style="${cell};background:#f0f0f0">${h}</th>`).join("")}</tr></thead>
@@ -5063,7 +5066,7 @@ function openImport(preType){
     <div class="toolbar">
       <div class="field"><label>Kya import karna hai?</label>
         <select id="imp_type" onchange="openImport(this.value)">
-          ${Object.keys(IMPORT_TYPES).map(k=>`<option value="${k}" ${k===impType?"selected":""}>${IMPORT_TYPES[k].label}</option>`).join("")}
+          ${Object.keys(IMPORT_TYPES).filter(k=>(CAN_FEES || k!=="fees") && (!IS_ADMIN || k!=="expenses")).map(k=>`<option value="${k}" ${k===impType?"selected":""}>${IMPORT_TYPES[k].label}</option>`).join("")}
         </select></div>
       <div class="field" style="flex:1;min-width:220px"><label>CSV File</label>
         <input type="file" id="imp_file" accept=".csv,.txt" onchange="impLoad(this)"></div>
@@ -5178,9 +5181,9 @@ function impRender(){
       Jis student ka us mahine ka challan pehle se ho (jaise fee sheet se), wo waisa hi rahega.</div>
     <div class="toolbar">
       <div class="field"><label>Ye kis mahine ki list hai?</label><input type="month" id="imp_rmonth" value="" onchange="$('imp_rpaid').value=this.value?this.value+'-10':''"></div>
-      <div class="field"><label>Us mahine ke challan</label>
+      <div class="field fee-only"><label>Us mahine ke challan</label>
         <select id="imp_rfee"><option value="Paid">Banayein — sab Paid</option><option value="Unpaid">Banayein — Unpaid</option><option value="none">Na banayein</option></select></div>
-      <div class="field"><label>Payment date (Paid ke liye)</label><input type="date" id="imp_rpaid" value=""></div>`:""}
+      <div class="field fee-only"><label>Payment date (Paid ke liye)</label><input type="date" id="imp_rpaid" value=""></div>`:""}
     </div>
 
     <h3 style="margin:18px 0 8px">Preview — pehli ${Math.min(5, body.length)} rows</h3>
@@ -5214,7 +5217,7 @@ function runImport(){
   const impSeen = new Set();          // v26: is file mein jin students ko challan mil chuka
   /* v29: mahine ki list (roster) */
   const rosterM = (impType === "students" && $("imp_rmonth")) ? $("imp_rmonth").value : "";
-  const rosterFee = $("imp_rfee") ? $("imp_rfee").value : "none";
+  const rosterFee = (CAN_FEES && $("imp_rfee")) ? $("imp_rfee").value : "none";
   const rosterPaid = ($("imp_rpaid") && $("imp_rpaid").value) || (rosterM ? rosterM + "-10" : "");
   const RS = {fees:0, feeAmt:0, feeSkip:0, inList:new Set()};
   let sectionClass = "";
@@ -5846,11 +5849,11 @@ function runImport(){
 function renderLogins(){
   const box = $("logPanel"); if(!box) return;
   if(!SERVER){ box.innerHTML = `<h3>🔐 Logins</h3><p class="sub">Executive / Admin login sirf online version (Render link) par chalte hain.</p>`; return; }
-  const a = DB.settings.adminAuth;
+  const a = DB.settings.adminAuth, f = DB.settings.feeAdminAuth;
   box.innerHTML = `
     <h3>🔐 Logins — Executive & Admin</h3>
     <p class="sub" style="margin:4px 0 10px"><b>Executive</b> (aap): sab kuch — password Render par <code>EMS_PASSWORD</code>.<br>
-      <b>Admin</b>: students, fees, attendance, homework, exams, inquiries, parents, class audit, staff, inventory, settings —
+      <b>Admin</b>: students, attendance, homework, exams, inquiries, parents, class audit, staff, inventory, settings — <b>fees ke baghair</b> —
       lekin <b>Dashboard, Income / Expense, Monthly Report, Business Reports (P&L) aur salaries nahi</b>. Backup / delete bhi nahi.</p>
     <div class="note">${a ? `Admin login <b>chalu</b> hai — password ${fmtD(a.setOn)} ko rakha gaya.` : `Admin login abhi <b>band</b> hai — neeche password rakhein.`}</div>
     <div class="grid2">
@@ -5859,7 +5862,32 @@ function renderLogins(){
     </div>
     <p class="sub" style="margin-bottom:10px">Executive wala password yahan na likhein. Password badalte hi purane admin logins khud band ho jate hain.</p>
     <button class="btn-red" onclick="setAdminPassword()">${a?"Password badlein":"Admin login chalu karein"}</button>
-    ${a ? `<button class="btn-line" onclick="disableAdmin()">Admin login band karein</button>` : ""}`;
+    ${a ? `<button class="btn-line" onclick="disableAdmin()">Admin login band karein</button>` : ""}
+    <h3 style="margin:22px 0 6px">₨ Fee Admin — sirf aik banda</h3>
+    <p class="sub" style="margin-bottom:10px">Admin wali sab cheezein <b>plus Fee / Billing</b> (challans, fees, defaulters, fee import). Aam Admin ko fees ka koi data nahi jata — sirf Fee Admin aur Executive dekhte hain.</p>
+    <div class="note">${f ? `Fee Admin login <b>chalu</b> hai${f.who?` — <b>${esc(f.who)}</b>`:""} · password ${fmtD(f.setOn)} ko rakha gaya.` : `Fee Admin login abhi <b>band</b> hai.`}</div>
+    <div class="grid2">
+      <div class="field"><label>Kis ke liye (naam)</label><input id="feePwWho" value="${esc((f&&f.who)||"")}" placeholder="e.g. Sir Kamran"></div>
+      <div class="field"></div>
+      <div class="field"><label>${f?"Naya password":"Password"} (kam az kam 8)</label><input type="password" id="feePw" autocomplete="new-password"></div>
+      <div class="field"><label>Dobara likhein</label><input type="password" id="feePw2" autocomplete="new-password"></div>
+    </div>
+    <p class="sub" style="margin-bottom:10px">Ye password Admin aur Executive dono se alag rakhein. Badalte hi purana Fee Admin login band.</p>
+    <button class="btn-red" onclick="setFeeAdminPassword()">${f?"Password badlein":"Fee Admin login chalu karein"}</button>
+    ${f ? `<button class="btn-line" onclick="disableFeeAdmin()">Fee Admin login band karein</button>` : ""}`;
+}
+async function setFeeAdminPassword(){
+  const x = $("feePw").value, y = $("feePw2").value;
+  if(x.length < 8){ toast("Password kam az kam 8 characters ka rakhein"); return; }
+  if(x !== y){ toast("Dono password aik jaise nahi"); return; }
+  if(!window.crypto || !crypto.subtle){ toast("Ye browser password nahi bana sakta — Chrome / Edge use karein"); return; }
+  DB.settings.feeAdminAuth = {...(await pinHash(x)), setOn:todayStr(), who:$("feePwWho").value.trim()};
+  save(); renderLogins(); toast("Fee Admin password set ✓");
+}
+function disableFeeAdmin(){
+  askConfirm("Fee Admin login band karein?", "Fee Admin login nahi kar sakega, aur jo login hai wo bhi band ho jayega.", ()=>{
+    delete DB.settings.feeAdminAuth; save(); renderLogins(); toast("Fee Admin login band");
+  }, "Haan, band karein");
 }
 async function setAdminPassword(){
   const x = $("admPw").value, y = $("admPw2").value;
@@ -6845,7 +6873,7 @@ function setSyncState(){
   const state = SYNC.failed ? `<span style="color:#FFCC68">⚠ Server se rabta nahi — dobara koshish ho rahi hai</span>`
               : (SYNC.busy || syncDirty()) ? "⏳ Save ho raha hai…"
               : "☁ Online — har computer par sync";
-  el.innerHTML = state + ` · <b style="color:#fff">${IS_ADMIN ? "Admin" : "Executive"}</b> · <a href="/logout" style="color:#9CBCC9">Logout</a>`;
+  el.innerHTML = state + ` · <b style="color:#fff">${ROLE_LABEL}</b> · <a href="/logout" style="color:#9CBCC9">Logout</a>`;
 }
 function queuePush(){
   clearTimeout(SYNC.timer);
@@ -6937,6 +6965,7 @@ syncWMFilters();
 if(!storageOK) toast("⚠ Preview mode: data save nahi hoga. File download kar ke laptop par kholein.");
 if(IS_ADMIN){
   document.body.classList.add("role-admin");
+  if(!CAN_FEES) document.body.classList.add("no-fees");
   ADMIN_HIDDEN.forEach(pg=>{ const b = document.querySelector(`#nav button[data-page="${pg}"]`); if(b) b.style.display = "none"; });
   document.querySelector('#nav button[data-page="students"]').click();
 }
