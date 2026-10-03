@@ -18,6 +18,17 @@ Cambridge Grads Academy ka Education Management System.
 - Sidebar ke neeche haal likha hota hai: **☁ Online**, **⏳ Save ho raha hai…**, ya **⚠ Server se rabta nahi**.
 - `index.html` ko seedha computer par kholein to purane tareeqe (sirf is browser mein) se chalti hai.
 
+## Logins — Executive & Admin
+
+- **Executive**: sab kuch. Password = Render par `EMS_PASSWORD`.
+- **Admin**: students, fees, attendance, homework, exams, inquiries, parents, class audit, staff, inventory,
+  issuance, settings — lekin **Dashboard, Income / Expense, Monthly Report, Business Reports (P&L) aur salaries nahi**,
+  aur backup import / download / students delete bhi nahi.
+- Admin ka password Executive EMS mein **⚙ Settings → 🔐 Logins** se rakhta / badalta / band karta hai
+  (PBKDF2 hash DB mein). Password badalte hi purane admin logins khatam.
+- Ye sirf screen par chhupana nahi: server admin ko income/expense entries, salaries aur teacher pay bhejta hi nahi,
+  aur admin ke save mein ye hisse server wale hi rehte hain. Receipts (`/files`) bhi sirf Executive.
+
 ## Parents chat (`/parent`)
 
 - Parents ka link: `https://<aap-ka-render-link>/parent` — staff login se bilkul alag.

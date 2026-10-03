@@ -56,6 +56,7 @@ h3{font-size:1.02rem;font-weight:700}
 .mchips button{border:1px solid var(--line);background:#fff;border-radius:999px;padding:6px 13px;font-size:.84rem;font-weight:600;color:var(--ink)}
 .mchips button.on{background:var(--black);border-color:var(--black);color:#fff}
 .mchips button.all.on{background:var(--red);border-color:var(--red)}
+body.role-admin .exec-only{display:none!important}
 .wmbar{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#fff;border:1px solid var(--line);border-radius:10px;padding:8px 12px;margin:-6px 0 18px;box-shadow:0 2px 8px rgba(0,0,0,.04)}
 .wmbar input{width:auto;max-width:170px;padding:6px 9px}
 .wmbar.past{background:#FFF6E0;border-color:var(--accent-dark)}
@@ -825,7 +826,8 @@ label.chk input{width:auto}
     </div>
     <div id="subjAdmin"></div>
   </div>
-  <div class="panel" style="max-width:560px">
+  <div class="panel exec-only" style="max-width:560px" id="logPanel"></div>
+  <div class="panel exec-only" style="max-width:560px">
     <h3>Data Backup & Transfer (Laptop → Laptop)</h3>
     <p class="sub" style="margin-bottom:12px">Data isi browser mein save hota hai. Mahiney mein aik dafa backup file zaroor download karein.</p>
     <div class="note" style="margin-bottom:12px"><b>Dosre laptop par data le jane ka tareeqa:</b><br>
@@ -840,7 +842,7 @@ label.chk input{width:auto}
     <input type="file" id="importFile" style="display:none" onchange="importData(this)">
     <p class="sub" style="margin-top:10px">File select nahi ho rahi (khaas kar mobile par)? Backup file ko Notepad ya kisi text editor mein kholein, sab kuch copy karein, aur <b>"Text paste kar ke import"</b> dabayein.</p>
   </div>
-  <div class="panel" style="max-width:560px;border-color:var(--danger)">
+  <div class="panel exec-only" style="max-width:560px;border-color:var(--danger)">
     <h3 style="color:var(--danger)">🗑 Students ka sara data delete karein</h3>
     <p class="sub" style="margin:4px 0 12px">Naye session ke liye saaf shuruaat: <b>tamam students</b> aur un ka record — fee challans, attendance, exam marks,
       homework ke "done" nishan aur students ko diye gaye items (issuance) — delete ho jata hai.
@@ -936,7 +938,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v30 · 2 Oct 2026";
+const BUILD = "v31 · 3 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -1063,6 +1065,11 @@ let storageOK = true;
 /* v23: Online (server) mode — server ne page ke saath data aur version bhej diya.
    File seedha computer par kholi ho to pehle ki tarah browser (localStorage) mode chalta hai. */
 const SERVER = window.__EMS__ || null;
+/* v31: Executive = sab kuch. Admin = dashboard, income/expense, reports, salaries ke baghair
+   (server admin ko ye data bhejta hi nahi). File seedha kholi ho to Executive. */
+const ROLE = (SERVER && SERVER.role) || "exec";
+const IS_ADMIN = ROLE === "admin";
+const ADMIN_HIDDEN = ["dashboard","finance","reports","biz"];
 if(SERVER) DB = SERVER.data || structuredClone(DEFAULT_DB);
 else try{
   localStorage.setItem("__t","1"); localStorage.removeItem("__t");
@@ -1273,6 +1280,7 @@ document.querySelectorAll("#nav button").forEach(b=>{
   };
 });
 function renderPage(p){
+  if(IS_ADMIN && ADMIN_HIDDEN.includes(p)) p = "students";
   ({dashboard:renderDashboard, students:renderStudents, gallery:renderGallery, attendance:loadAttendance,
     fees:renderFees, homework:renderHomework, inquiries:renderInquiries, exams:renderExams,
     employees:renderEmployees, inventory:renderInventory, issuance:renderIssuance,
@@ -1459,6 +1467,7 @@ function drawEarnings(cur){
 }
 
 function renderDashboard(){
+  if(IS_ADMIN) return;
   syncSalaries();
   const m = dashMonth(), isNow = m === thisMonth();
   drawDashChips(m);
@@ -3814,7 +3823,7 @@ function openEmpForm(id){
       <div class="field"><label>Shift</label><select id="m_shift">${["Morning","Evening","Both"].map(c=>`<option ${e.shift===c?"selected":""}>${c}</option>`).join("")}</select></div>
       <div class="field"><label>Phone</label><input id="m_phone" value="${esc(e.phone||"")}"></div>
       <div class="field"><label>Joining Date</label><input type="date" id="m_doj" value="${e.doj||wmDate()}"></div>
-      <div class="field"><label>Monthly Salary (Rs)</label><input type="number" id="m_sal" value="${e.salary||""}"></div>
+      <div class="field" ${IS_ADMIN?'style="display:none"':""}><label>Monthly Salary (Rs)</label><input type="number" id="m_sal" value="${e.salary||""}"></div>
       <div class="field"><label>Employee Photo</label><input type="file" id="m_photo" accept="image/*" onchange="pickPhoto(this)"><div id="photoPrev" style="margin-top:6px">${photoTemp?`<img class="avatar-lg" src="${photoTemp}">`:""}</div></div>
     </div>
     <div class="field"><label>Address</label><input id="m_addr" value="${esc(e.address||"")}"></div>
@@ -3882,7 +3891,7 @@ function openEmpProfile(id){
           <span class="k">Shift</span><span><b>${esc(e.shift||"Morning")}</b></span>
           <span class="k">Phone</span><span>${esc(e.phone||"—")}</span>
           <span class="k">Joining Date</span><span>${fmtD(e.doj)}</span>
-          <span class="k">Monthly Salary</span><span>${money(e.salary)}</span>
+          ${IS_ADMIN ? "" : `<span class="k">Monthly Salary</span><span>${money(e.salary)}</span>`}
           <span class="k">Address</span><span>${esc(e.address||"—")}</span>
         </div>
       </div>
@@ -5834,7 +5843,39 @@ function runImport(){
 }
 
 /* ================= SETTINGS / BACKUP ================= */
+function renderLogins(){
+  const box = $("logPanel"); if(!box) return;
+  if(!SERVER){ box.innerHTML = `<h3>🔐 Logins</h3><p class="sub">Executive / Admin login sirf online version (Render link) par chalte hain.</p>`; return; }
+  const a = DB.settings.adminAuth;
+  box.innerHTML = `
+    <h3>🔐 Logins — Executive & Admin</h3>
+    <p class="sub" style="margin:4px 0 10px"><b>Executive</b> (aap): sab kuch — password Render par <code>EMS_PASSWORD</code>.<br>
+      <b>Admin</b>: students, fees, attendance, homework, exams, inquiries, parents, class audit, staff, inventory, settings —
+      lekin <b>Dashboard, Income / Expense, Monthly Report, Business Reports (P&L) aur salaries nahi</b>. Backup / delete bhi nahi.</p>
+    <div class="note">${a ? `Admin login <b>chalu</b> hai — password ${fmtD(a.setOn)} ko rakha gaya.` : `Admin login abhi <b>band</b> hai — neeche password rakhein.`}</div>
+    <div class="grid2">
+      <div class="field"><label>${a?"Naya admin password":"Admin password"} (kam az kam 8)</label><input type="password" id="admPw" autocomplete="new-password"></div>
+      <div class="field"><label>Dobara likhein</label><input type="password" id="admPw2" autocomplete="new-password"></div>
+    </div>
+    <p class="sub" style="margin-bottom:10px">Executive wala password yahan na likhein. Password badalte hi purane admin logins khud band ho jate hain.</p>
+    <button class="btn-red" onclick="setAdminPassword()">${a?"Password badlein":"Admin login chalu karein"}</button>
+    ${a ? `<button class="btn-line" onclick="disableAdmin()">Admin login band karein</button>` : ""}`;
+}
+async function setAdminPassword(){
+  const x = $("admPw").value, y = $("admPw2").value;
+  if(x.length < 8){ toast("Password kam az kam 8 characters ka rakhein"); return; }
+  if(x !== y){ toast("Dono password aik jaise nahi"); return; }
+  if(!window.crypto || !crypto.subtle){ toast("Ye browser password nahi bana sakta — Chrome / Edge use karein"); return; }
+  DB.settings.adminAuth = {...(await pinHash(x)), setOn:todayStr()};
+  save(); renderLogins(); toast("Admin password set ✓ — admin ab isi se login karein");
+}
+function disableAdmin(){
+  askConfirm("Admin login band karein?", "Koi admin login nahi kar sakega, aur jo login hain un ka bhi band ho jayega.", ()=>{
+    delete DB.settings.adminAuth; save(); renderLogins(); toast("Admin login band");
+  }, "Haan, band karein");
+}
 function loadSettings(){
+  renderLogins();
   $("setName").value = DB.settings.name||"";
   $("setAddr").value = DB.settings.addr||"";
   $("setPhone").value = DB.settings.phone||"";
@@ -6666,6 +6707,7 @@ function salState(e, m, cfg){
   return {key, s, st:"due", posted};
 }
 function syncSalaries(){
+  if(IS_ADMIN) return 0;
   const cfg = salCfg();
   if(!cfg.on) return 0;
   const cur = thisMonth(), day = String(Math.min(28, Math.max(1, +cfg.day||1))).padStart(2,"0");
@@ -6803,7 +6845,7 @@ function setSyncState(){
   const state = SYNC.failed ? `<span style="color:#FFCC68">⚠ Server se rabta nahi — dobara koshish ho rahi hai</span>`
               : (SYNC.busy || syncDirty()) ? "⏳ Save ho raha hai…"
               : "☁ Online — har computer par sync";
-  el.innerHTML = state + ` · <a href="/logout" style="color:#9CBCC9">Logout</a>`;
+  el.innerHTML = state + ` · <b style="color:#fff">${IS_ADMIN ? "Admin" : "Executive"}</b> · <a href="/logout" style="color:#9CBCC9">Logout</a>`;
 }
 function queuePush(){
   clearTimeout(SYNC.timer);
@@ -6893,6 +6935,11 @@ $("buildTag").textContent = "CGA EMS " + BUILD;
 drawLogo();
 syncWMFilters();
 if(!storageOK) toast("⚠ Preview mode: data save nahi hoga. File download kar ke laptop par kholein.");
+if(IS_ADMIN){
+  document.body.classList.add("role-admin");
+  ADMIN_HIDDEN.forEach(pg=>{ const b = document.querySelector(`#nav button[data-page="${pg}"]`); if(b) b.style.display = "none"; });
+  document.querySelector('#nav button[data-page="students"]').click();
+}
 renderDashboard();
 if(SERVER){ setSyncState(); if(syncDirty()) queuePush(); }
 </script>

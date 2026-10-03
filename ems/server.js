@@ -41,8 +41,12 @@ const safeEq = (a, b) => {
   const x = Buffer.from(String(a)), y = Buffer.from(String(b));
   return x.length === y.length && crypto.timingSafeEqual(x, y);
 };
-function newToken() {
+/* v31: do roles — "exec" (Executive, office password = EMS_PASSWORD) aur "admin" (password Executive
+   EMS ki Settings se rakhta hai; PBKDF2 hash DB.settings.adminAuth mein). Admin ka token us hash ke
+   tag se bandha hai — password badla to sab admin logins khatam. */
+function newToken(role, tag) {
   const exp = Date.now() + SESSION_DAYS * 864e5;
+  if (role === "admin") return `admin.${exp}.${tag}.${sign(`ems|admin|${exp}|${tag}`)}`;
   return `${exp}.${sign("ems|" + exp)}`;
 }
 function cookies(req) {
@@ -54,8 +58,53 @@ function cookies(req) {
   return out;
 }
 function authed(req) {
-  const [exp, sig] = String(cookies(req).ems_s || "").split(".");
-  return !!exp && !!sig && +exp > Date.now() && safeEq(sig, sign("ems|" + exp));
+  const parts = String(cookies(req).ems_s || "").split(".");
+  if (parts.length === 2) {                                   // Executive (purana format bhi yahi)
+    const [exp, sig] = parts;
+    return !!exp && !!sig && +exp > Date.now() && safeEq(sig, sign("ems|" + exp)) ? "exec" : null;
+  }
+  if (parts.length === 4 && parts[0] === "admin") {
+    const [, exp, tag, sig] = parts;
+    if (!(+exp > Date.now()) || !safeEq(sig, sign(`ems|admin|${exp}|${tag}`))) return null;
+    const a = adminAuth();
+    return a && a.hash.startsWith(tag) ? "admin" : null;
+  }
+  return null;
+}
+function adminAuth() {
+  const d = dbNow();
+  const a = d && d.settings && d.settings.adminAuth;
+  return a && a.hash && a.salt ? a : null;
+}
+function adminPwOk(pw) {
+  const a = adminAuth();
+  if (!a || String(pw).length < 8) return false;
+  const h = crypto.pbkdf2Sync(String(pw), Buffer.from(a.salt, "hex"), +a.iter || 100000, 32, "sha256").toString("hex");
+  return safeEq(h, a.hash);
+}
+/* Admin ko hisaab-kitaab nahi jata: income/expense entries, salaries, teacher pay, admin password hash */
+let redactCache = { v: -1, text: "" };
+function dataFor(role) {
+  if (role !== "admin") return state.dataText;
+  if (redactCache.v === state.version) return redactCache.text;
+  const d = JSON.parse(state.dataText) || {};
+  d.txns = []; d.classCosts = {};
+  if (d.settings) { delete d.settings.adminAuth; }
+  (d.employees || []).forEach((e) => { delete e.salary; });
+  redactCache = { v: state.version, text: JSON.stringify(d) };
+  return redactCache.text;
+}
+/* Admin ke save mein chhupaye hue hisse server wale hi rehte hain */
+function keepProtected(data) {
+  const cur = JSON.parse(state.dataText) || {};
+  data.txns = cur.txns || [];
+  data.classCosts = cur.classCosts || {};
+  data.settings = Object.assign({}, data.settings || {});
+  const cs = cur.settings || {};
+  ["adminAuth", "salaryAuto"].forEach((k) => { if (cs[k] !== undefined) data.settings[k] = cs[k]; else delete data.settings[k]; });
+  const sal = new Map((cur.employees || []).map((e) => [e.id, e.salary]));
+  (data.employees || []).forEach((e) => { if (sal.has(e.id)) e.salary = sal.get(e.id); });
+  return data;
 }
 const isHttps = (req) => String(req.headers["x-forwarded-proto"] || "").split(",")[0].trim() === "https";
 function setSession(req, res, token, maxAge) {
@@ -161,8 +210,8 @@ const escHtml = (x) => String(x).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<"
 const APP_HTML = fs.readFileSync(path.join(__dirname, "index.html"), "utf8");
 if (!APP_HTML.includes("<!--EMS_SERVER_BOOT-->")) throw new Error("index.html mein <!--EMS_SERVER_BOOT--> nahi mila");
 const jsonForScript = (text) => text.replace(/</g, "\\u003c").replace(/\u2028/g, "\\u2028").replace(/\u2029/g, "\\u2029");
-function appPage() {
-  const boot = `<script>window.__EMS__={version:${state.version},data:${jsonForScript(state.dataText)}};</script>`;
+function appPage(role) {
+  const boot = `<script>window.__EMS__={version:${state.version},role:${JSON.stringify(role)},data:${jsonForScript(dataFor(role))}};</script>`;
   return APP_HTML.replace("<!--EMS_SERVER_BOOT-->", () => boot);
 }
 function loginPage(msg) {
@@ -187,7 +236,7 @@ button:hover{background:#0F7657}
   <div class="mark">CGA</div>
   <h1>CGA EMS</h1><p>Cambridge Grads Academy · Staff login</p>
   ${msg ? `<div class="err">${msg}</div>` : ""}
-  <label for="pw">Office password</label>
+  <label for="pw">Password (Executive ya Admin)</label>
   <input id="pw" type="password" name="password" autocomplete="current-password" required autofocus>
   <button type="submit">Login</button>
 </form></body></html>`;
@@ -311,12 +360,14 @@ const server = http.createServer(async (req, res) => {
       const ip = clientIp(req);
       if (blocked(ip)) return send(res, 429, loginPage("Bohat ghalat koshishen — 15 minute baad dobara try karein."), "text/html; charset=utf-8");
       const pw = new URLSearchParams(await readBody(req)).get("password") || "";
-      if (!safeEq(crypto.createHash("sha256").update(pw).digest("hex"), crypto.createHash("sha256").update(PASSWORD).digest("hex"))) {
+      const isExec = safeEq(crypto.createHash("sha256").update(pw).digest("hex"), crypto.createHash("sha256").update(PASSWORD).digest("hex"));
+      const isAdmin = !isExec && adminPwOk(pw);
+      if (!isExec && !isAdmin) {
         failed(ip);
         return send(res, 401, loginPage("Password ghalat hai."), "text/html; charset=utf-8");
       }
       fails.delete(ip);
-      setSession(req, res, newToken(), SESSION_DAYS * 86400);
+      setSession(req, res, isExec ? newToken("exec") : newToken("admin", adminAuth().hash.slice(0, 12)), SESSION_DAYS * 86400);
       return redirect(res, "/");
     }
     if (p === "/logout") {
@@ -324,22 +375,23 @@ const server = http.createServer(async (req, res) => {
       return redirect(res, "/login");
     }
 
-    if (!authed(req)) {
+    const role = authed(req);
+    if (!role) {
       if (p.startsWith("/api/")) return sendJson(res, 401, { error: "login" });
       return redirect(res, "/login");
     }
 
     if ((p === "/" || p === "/index.html") && req.method === "GET")
-      return send(res, 200, appPage(), "text/html; charset=utf-8");
+      return send(res, 200, appPage(role), "text/html; charset=utf-8");
 
     if (p === "/api/parent-logins" && req.method === "GET")
       return sendJson(res, 200, parentLogins);
 
     if (p === "/api/version" && req.method === "GET")
-      return sendJson(res, 200, { version: state.version, updatedAt: state.updatedAt });
+      return sendJson(res, 200, { version: state.version, updatedAt: state.updatedAt, role });
 
     if (p === "/api/db" && req.method === "GET")
-      return sendJson(res, 200, `{"version":${state.version},"data":${state.dataText}}`);
+      return sendJson(res, 200, `{"version":${state.version},"data":${dataFor(role)}}`);
 
     if (p === "/api/db" && req.method === "PUT") {
       if (!sameOrigin(req)) return sendJson(res, 403, { error: "origin" });
@@ -348,8 +400,10 @@ const server = http.createServer(async (req, res) => {
       if (!data || typeof data !== "object" || !Array.isArray(data.students))
         return sendJson(res, 400, { error: "Ye EMS ka data nahi lagta." });
       /* Kisi aur ne beech mein save kiya — client pehle merge kare, phir dobara bheje */
+      if (role === "admin" && body.force) return sendJson(res, 403, { error: "Backup import sirf Executive kar sakta hai." });
       if (!body.force && body.baseVersion !== state.version)
-        return sendJson(res, 409, `{"version":${state.version},"data":${state.dataText}}`);
+        return sendJson(res, 409, `{"version":${state.version},"data":${dataFor(role)}}`);
+      if (role === "admin") keepProtected(data);
       persist({ version: state.version + 1, updatedAt: new Date().toISOString(), dataText: JSON.stringify(data) },
               body.force ? "import" : "");
       return sendJson(res, 200, { version: state.version, updatedAt: state.updatedAt });
@@ -357,6 +411,7 @@ const server = http.createServer(async (req, res) => {
 
     /* v27: receipt upload — sirf tasveer / PDF, random naam, login ke peeche */
     if (p === "/api/files" && req.method === "POST") {
+      if (role !== "exec") return sendJson(res, 403, { error: "Sirf Executive" });
       if (!sameOrigin(req)) return sendJson(res, 403, { error: "origin" });
       const type = String(req.headers["content-type"] || "").split(";")[0].trim().toLowerCase();
       const ext = FILE_TYPES[type];
@@ -369,6 +424,7 @@ const server = http.createServer(async (req, res) => {
     }
     const fm = p.match(/^\/files\/([a-f0-9]{24})\.(jpg|png|webp|pdf)$/);
     if (fm && req.method === "GET") {
+      if (role !== "exec") return send(res, 403, "Sirf Executive");
       const file = path.join(FILES_DIR, `${fm[1]}.${fm[2]}`);
       if (!fs.existsSync(file)) return send(res, 404, "Not found");
       return send(res, 200, fs.readFileSync(file), EXT_TYPES[fm[2]],
