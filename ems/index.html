@@ -940,7 +940,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v33 · 3 Oct 2026";
+const BUILD = "v34 · 3 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -4853,6 +4853,33 @@ function bestStudentMatch(name, regNo, shift, course){
   same.sort(rank); cross.sort(rank);
   return same[0] || cross[0] || null;
 }
+/* v34: Attendance sheet ka naam → EMS student. Sirf isi shift + class mein dhoondte hain, aam spelling farq
+   (Umar/Umer/Omer, M./Muhammad, Rehman/Rahman …) barabar maante hain, aur aik student ko aik file mein
+   do rows nahi milti. Shak ho (do barabar) to khud nahi milate — user se poochte hain. */
+const NAME_ALIAS = {omer:"umer", umar:"umer", omar:"umer", rehman:"rahman", rahmaan:"rahman", mehmood:"mahmood", mahmud:"mahmood",
+  zaafir:"zafir", zafeer:"zafir", muhammad:"m", mohammad:"m", muhammed:"m", mohammed:"m", mohd:"m", muhammd:"m",
+  abdur:"abdul", abd:"abdul", shehzeen:"shazeen", shahzeen:"shazeen", fatimah:"fatima", hussain:"husain", hassan:"hasan"};
+const normName = n => nameTokens(n).map(t=>NAME_ALIAS[t] || t).join(" ");
+function attMatch(name, shift, course, used){
+  const pool = DB.students.filter(st=>st.shift === shift && (!course || st.course === course) && st.status !== "Left" && !used.has(st.id));
+  const k = keyify(name), nn = normName(name);
+  let hit = pool.filter(st=>keyify(st.name) === k);
+  if(hit.length === 1) return {st:hit[0], how:"exact"};
+  hit = pool.filter(st=>normName(st.name) === nn);
+  if(hit.length === 1) return {st:hit[0], how:"spelling"};
+  const sc = pool.map(st=>({st, s:nameScore(nn, normName(st.name))})).filter(x=>x.s >= 0.82).sort((a,b)=>b.s - a.s);
+  if(sc.length && (sc.length === 1 || sc[0].s > sc[1].s)) return {st:sc[0].st, how:"naam", score:sc[0].s};
+  if(sc.length > 1) return {amb: sc.slice(0,3).map(x=>x.st)};
+  /* Pehla asal naam (initial nahi) milta ho aur class mein aik hi aisa bacha ho — "Talia Fatima" ↔ "Talia Iftikhar" */
+  const first = n => normName(n).split(" ").find(t=>t.length > 1) || "";
+  const f = first(name);
+  if(f.length >= 3){
+    const near = pool.filter(st=>{ const g = first(st.name); return g && (g === f || (f.length >= 5 && g.length >= 5 && editDist(f, g) <= 2)); });
+    if(near.length === 1) return {st:near[0], how:"pehla naam"};
+    if(near.length > 1) return {amb: near.slice(0,3)};
+  }
+  return null;
+}
 function teacherIdByName(v){
   const k = keyify(v); if(!k) return "";
   const t = DB.employees.find(e => e.category === "Teacher" && keyify(e.name) === k)
@@ -5189,6 +5216,55 @@ function impSample(){
   downloadFile(`cga-${impType}-template.csv`, new Blob([text],{type:"text/csv;charset=utf-8"}), text);
   toast("Template download ho gaya — Excel mein khol kar apna data bharein");
 }
+/* v34: Jo attendance rows kisi student se na milin — user khud student chune */
+let ATT_PENDING = [];
+function attPendingHTML(){
+  return `<div class="panel" style="border-color:var(--accent-dark);margin-bottom:14px" id="attPend">
+    <h3>⚠ ${ATT_PENDING.length} naam EMS mein khud nahi mile — student chunein</h3>
+    <p class="sub" style="margin:4px 0 10px">In ki attendance abhi nahi daali. Sahi student chunein (isi class ke pehle), ya "Naya student", ya chhor dein.</p>
+    <div class="tbl-wrap"><table><thead><tr><th>Sheet mein naam</th><th>Class</th><th>Din</th><th>EMS student</th></tr></thead><tbody>
+    ${ATT_PENDING.map((x,i)=>{
+      const same = DB.students.filter(st=>st.shift===x.shift && st.course===x.course && st.status!=="Left").sort((a,b)=>a.name.localeCompare(b.name));
+      const other = DB.students.filter(st=>st.shift===x.shift && st.course!==x.course && st.status!=="Left").sort((a,b)=>(a.course+a.name).localeCompare(b.course+b.name));
+      const pre = x.amb[0] || "";
+      return `<tr><td><b>${esc(x.name)}</b> <span class="sub">line ${x.line}</span></td><td>${esc(x.course)}</td><td>${x.marks.length}</td>
+        <td><select id="attp${i}" style="min-width:220px"><option value="">— Chhor dein —</option><option value="new">+ Naya student (${esc(x.course)})</option>
+          <optgroup label="${esc(x.course)}">${same.map(st=>`<option value="${st.id}" ${st.id===pre?"selected":""}>${esc(st.name)}${x.amb.includes(st.id)?" ★":""}</option>`).join("")}</optgroup>
+          <optgroup label="Doosri classes">${other.map(st=>`<option value="${st.id}">${esc(st.name)} · ${esc(st.course)}</option>`).join("")}</optgroup></select></td></tr>`; }).join("")}
+    </tbody></table></div>
+    <div style="margin-top:10px"><button class="btn-red" onclick="applyAttPending()">In ki attendance bhi daalein</button></div></div>`;
+}
+function applyAttPending(){
+  let done = 0, made = 0;
+  ATT_PENDING.forEach((x,i)=>{
+    const v = $("attp"+i) && $("attp"+i).value; if(!v) return;
+    let st = v === "new" ? null : stuById(v);
+    if(v === "new"){
+      st = { id:uid(), photo:null, regNo:"REG-" + new Date().getFullYear() + "-" + String(DB.counters.reg++).padStart(4,"0"),
+             name:x.name, fatherName:"", cnic:"", fatherCnic:"", phone:"", fatherPhone:"", motherPhone:"", address:"", dob:"",
+             doj:x.marks[0][0], education:"", prevInst:"", course:x.course, shift:x.shift, monthlyFee:0, teacherId:"", subjects:[],
+             groupOverride:"", group:"", status:"Active", charges:[] };
+      DB.students.push(st); made++;
+    }
+    if(!st) return;
+    x.marks.forEach(([date, code])=>{ (DB.attendance[date] = DB.attendance[date] || {})[st.id] = {s:code, t:SHIFT_START[x.shift], shift:x.shift}; });
+    done++;
+  });
+  save(); if($("attDate")) loadAttendance();
+  $("attPend").innerHTML = `<div class="note">✓ ${done} students ki attendance daal di${made?` (${made} naye students bane — profile mein father name / phone likh dein)`:""}.</div>`;
+  ATT_PENDING = [];
+  toast(`${done} aur students ki attendance daal di`);
+}
+
+/* v34: sheet ke title ("Monthly Attendance Sheet — September 2026") se mahina */
+function titleMonth(rows){
+  const t = rows.map(r=>(r||[]).join(" ")).join(" ").toLowerCase();
+  const M = ["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"];
+  const m = t.match(/\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*[\s\-',.]*((?:20)?\d{2})\b/);
+  if(!m) return "";
+  const y = m[2].length === 2 ? "20" + m[2] : m[2];
+  return `${y}-${String(M.indexOf(m[1]) + 1).padStart(2,"0")}`;
+}
 function impLoad(inp){
   const f = inp.files[0]; if(!f) return;
   impFile = f.name;
@@ -5198,6 +5274,7 @@ function impLoad(inp){
       impRows = parseCSV(r.result);
       if(impRows.length < 2){ $("impBody").innerHTML = `<div class="note"><b>File mein data nahi mila.</b> Headings wali line aur uske neeche kam az kam ek row honi chahiye.</div>`; return; }
       const hdr = pickHeaderRow(impRows, IMPORT_TYPES[impType].fields);
+      window._impTitleMonth = titleMonth(impRows.slice(0, Math.max(hdr, 1)));   // v34: "September 2026" title se
       impSkipped = hdr;                       // upar ki kitni lines chhori gayin
       if(hdr > 0){ impRows = impRows.slice(hdr); impLineNos = impLineNos.slice(hdr); }
       impMap = autoMap(impRows[0], IMPORT_TYPES[impType].fields);
@@ -5255,7 +5332,7 @@ function impRender(){
       <div class="field"><label>Total marks (jahan na likhe hon)</label><input type="number" id="imp_total" value="100" style="max-width:120px"></div>
       <div class="field"><label>Shift</label><select id="imp_exshift"><option>Morning</option><option>Evening</option></select></div>`:""}
       ${impType==="attendance"? `
-      <div class="field"><label>Month *</label><input type="month" id="imp_month" value="${wm()}"></div>
+      <div class="field"><label>Month *${window._impTitleMonth?` <span class="sub">(sheet ke title se)</span>`:""}</label><input type="month" id="imp_month" value="${window._impTitleMonth || wm()}"></div>
       <div class="field"><label>Shift</label><select id="imp_attshift"><option>Morning</option><option>Evening</option></select></div>
       <div class="field"><label>Weekend par nishaan</label>
         <select id="imp_wk"><option value="0">Chhor dein (Sat/Sun off hai)</option><option value="1">Phir bhi rakh lein</option></select></div>`:""}
@@ -5321,6 +5398,7 @@ function runImport(){
   const impDefShift = $("imp_empshift") ? $("imp_empshift").value : "";
   const feeShift = $("imp_feeshift") ? $("imp_feeshift").value : "Morning";
   const impSeen = new Set();          // v26: is file mein jin students ko challan mil chuka
+  ATT_PENDING = [];
   /* v29: mahine ki list (roster) */
   const rosterM = (impType === "students" && $("imp_rmonth")) ? $("imp_rmonth").value : "";
   const rosterFee = (CAN_FEES && $("imp_rfee")) ? $("imp_rfee").value : "none";
@@ -5756,19 +5834,29 @@ function runImport(){
       const month = $("imp_month").value || thisMonth();
       const shift = $("imp_attshift").value;
       const keepWk = $("imp_wk").value === "1";
-      const makeSt = $("imp_mk") ? $("imp_mk").value === "1" : true;
+      const makeSt = $("imp_mk") ? $("imp_mk").value === "1" : false;   // v34: na mile to khud chunein, naya nahi
       if(!dayCols.length){ skipped++; note(line, `Din wale columns (1, 2, 3 …) nahi mile — heading line check karein`); return; }
       if(/^(daily\s*totals?|total)/i.test(name)){ skipped++; return; }   // totals wali row
 
       const course = matchClass(g("course"), shift) || "";
-      const m = bestStudentMatch(name, g("regNo"), shift, course);
-      let st = (m && m.score >= 0.82 && !m.otherShift) ? m.st : null;
-      if(st && keyify(name) !== keyify(st.name))
-        note(line, `"${name}" ko "${st.name}" se match kiya (${Math.round(m.score*100)}%)`);
-      if(!st && m && m.score >= 0.5)
-        note(line, `"${name}" EMS mein nahi mila — shayad "${m.st.name}" ho (${Math.round(m.score*100)}%), check kar lein`);
+      const byReg = g("regNo") && DB.students.find(x=>keyify(x.regNo) === keyify(g("regNo")));
+      const mm = byReg ? {st:byReg, how:"reg no"} : attMatch(name, shift, course, impSeen);
+      let st = mm && mm.st ? mm.st : null;
+      if(st){ impSeen.add(st.id); if(mm.how !== "exact") note(line, `"${name}" ko "${st.name}" (${st.course}) se milaya — ${mm.how}`); }
+      /* Na mila / shak — attendance sambhal ke rakho, user result mein khud student chunega */
+      if(!st && !makeSt){
+        const marks = [];
+        dayCols.forEach(({i, d})=>{
+          const raw = String(r[i] ?? "").trim().toUpperCase();
+          const code = {P:"P", L:"L", A:"A", E:"E", PRESENT:"P", LATE:"L", ABSENT:"A", LEAVE:"E", EXCUSE:"E", EXCUSED:"E"}[raw];
+          const date = `${month}-${String(d).padStart(2,"0")}`;
+          if(code && (keepWk || !isWeekend(date))) marks.push([date, code]);
+        });
+        if(marks.length) ATT_PENDING.push({line, name, course: course || defCourse, shift, marks, amb:(mm && mm.amb) ? mm.amb.map(x=>x.id) : []});
+        skipped++; note(line, mm && mm.amb ? `"${name}" — ${mm.amb.length} milte-julte naam, khud chunein (neeche)` : `"${name}" ${course||""} mein nahi mila — neeche khud chunein`);
+        return;
+      }
       if(!st){
-        if(!makeSt){ skipped++; note(line, `"${name}" nahi mila — row skip`); return; }
         st = { id:uid(), photo:null,
                regNo:"REG-" + new Date().getFullYear() + "-" + String(DB.counters.reg++).padStart(4,"0"),
                name, fatherName:"", cnic:"", fatherCnic:"", phone:"", fatherPhone:"", motherPhone:"",
@@ -5922,7 +6010,8 @@ function runImport(){
       (gone.length ? `<div class="note" style="border-left-color:var(--danger)"><b>${gone.length} students ${fmtM(prevM)} ki list mein thay magar ${fmtM(rosterM)} mein nahi:</b> ${gone.map(st=>esc(st.name)).join(", ")}
         <br><button class="btn-black btn-sm" style="margin-top:6px" onclick="rosterMarkLeft('${rosterM}')">Inhein "Left" mark karein</button></div>` : "");
   }
-  $("impBody").innerHTML = rosterHTML + `
+  const pendHTML = (impType === "attendance" && ATT_PENDING.length) ? attPendingHTML() : "";
+  $("impBody").innerHTML = pendHTML + rosterHTML + `
     <div class="cards" style="margin-bottom:14px">
       <div class="card"><div class="k">✓ Naye Add Hue</div><div class="v green">${added}</div></div>
       <div class="card"><div class="k">↻ Update Hue</div><div class="v">${updated}</div></div>
