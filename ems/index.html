@@ -542,6 +542,7 @@ label.chk input{width:auto}
     <div><h2>Parents — Chat & Messages</h2><div class="sub">Parents phone + PIN se login kar ke chat mein apne bache ki attendance, tests, homework, fee aur remarks dekhte hain</div></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn-line" onclick="copyParentLink()">🔗 Parent link copy</button>
+      <button class="btn-black" onclick="openBulkAccess()">⚡ Bulk access (class / shift)</button>
       <button class="btn-red" onclick="openManualAccess()">+ Kisi number ko access</button>
     </div>
   </div>
@@ -939,7 +940,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v32 · 3 Oct 2026";
+const BUILD = "v33 · 3 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -3198,6 +3199,111 @@ function blockParent(key){
     a.active = false; save(); renderParents(); toast("Access band");
   }, "Haan, band karein");
 }
+/* ---------- v33: Bulk parent access — class / shift ke sab parents ko aik saath PIN ----------
+   Har student ka aik number chunte hain (Father → Mother → Student, jo pehle likha ho). Aik number par
+   kai bache hon to aik hi PIN — chat mein sab bache nazar aate hain. PIN sirf isi dafa dikhte hain,
+   is liye list CSV / print mein nikal lein. */
+const pinMessage = (key, pin, kids) => `Assalam o Alaikum! ${DB.settings.name||"Cambridge Grads Academy"} — Parents Chat:\n${parentLink()}\n\nLogin: aap ka phone number ${pDisplay(key)}\nPIN: ${pin}\n\nIs chat mein ${kids||"aap ke bache"} ki attendance, test results, homework, fee aur teacher remarks dekh sakte hain, aur school ko message bhi bhej sakte hain.`;
+let BULK_RESULT = [];
+function bulkPlan(){
+  const sh = $("ba_shift").value, cl = window._baClass || "", useStu = $("ba_stu").checked, redo = $("ba_redo").checked;
+  const stus = DB.students.filter(st=>st.status === "Active" && (!sh || st.shift === sh) && (!cl || st.course === cl));
+  const fams = new Map(families().map(f=>[f.key, f]));
+  const byKey = new Map(), noPhone = [];
+  stus.forEach(st=>{
+    const key = pKey(st.fatherPhone) || pKey(st.motherPhone) || (useStu ? pKey(st.phone) : "");
+    if(!key){ noPhone.push(st); return; }
+    if(!byKey.has(key)) byKey.set(key, {key, kids:(fams.get(key)||{kids:[st]}).kids, picked:[]});
+    byKey.get(key).picked.push(st);
+  });
+  const all = [...byKey.values()];
+  const has = k => { const a = accessOf(k); return !!(a && a.active !== false && a.hash); };
+  return {stus, noPhone, all, todo: all.filter(f=>redo || !has(f.key)), already: all.filter(f=>has(f.key))};
+}
+function bulkPreview(){
+  const pl = bulkPlan();
+  $("ba_classWrap").innerHTML = `<label>Class</label><select id="ba_class" onchange="window._baClass=this.value;bulkPreview()"><option value="">Sab classes</option>${
+    [...new Set(DB.students.filter(st=>st.status==="Active" && (!$("ba_shift").value || st.shift===$("ba_shift").value)).map(st=>st.course))].sort()
+      .map(c=>`<option ${c===(window._baClass||"")?"selected":""}>${esc(c)}</option>`).join("")}</select>`;
+  $("ba_preview").innerHTML = `
+    <div class="cards" style="margin:10px 0">
+      <div class="card"><div class="k">Students</div><div class="v">${pl.stus.length}</div></div>
+      <div class="card"><div class="k">Families (number)</div><div class="v">${pl.all.length}</div></div>
+      <div class="card"><div class="k">Naye PIN banenge</div><div class="v green">${pl.todo.length}</div><div class="hint">${pl.already.length} ke paas pehle se PIN${$("ba_redo").checked?" — un ka bhi naya banega":" — chhor diye"}</div></div>
+    </div>
+    ${pl.noPhone.length ? `<div class="note" style="border-left-color:var(--danger)"><b>${pl.noPhone.length} students ka koi number nahi</b> — in ke parents ko access nahi mil sakta: ${pl.noPhone.slice(0,25).map(st=>esc(st.name)).join(", ")}${pl.noPhone.length>25?` +${pl.noPhone.length-25}`:""}</div>` : ""}`;
+  $("ba_go").disabled = !pl.todo.length;
+  $("ba_go").textContent = pl.todo.length ? `${pl.todo.length} families ko PIN dein` : "Koi nayi family nahi";
+}
+function openBulkAccess(){
+  if(!SERVER){ toast("Parents chat sirf online version mein chalti hai"); return; }
+  window._baClass = "";
+  openModal(`
+    <h3>⚡ Bulk parent access — class / shift</h3>
+    <p class="sub" style="margin-bottom:8px">Chuni hui class / shift ke tamam <b>Active</b> students ke parents ko aik saath PIN. Number: Father → Mother → (chahein to) Student.</p>
+    <div class="toolbar">
+      <div class="field"><label>Shift</label><select id="ba_shift" onchange="window._baClass='';bulkPreview()"><option value="">Dono</option><option>Morning</option><option>Evening</option></select></div>
+      <div class="field" id="ba_classWrap"></div>
+    </div>
+    <label class="chk"><input type="checkbox" id="ba_stu" checked onchange="bulkPreview()"> Father / Mother number na ho to student ka apna number</label>
+    <label class="chk"><input type="checkbox" id="ba_redo" onchange="bulkPreview()"> Jin ke paas PIN pehle se hai un ka bhi naya banayein (purana band ho jayega)</label>
+    <div id="ba_preview"></div>
+    <div class="modal-foot"><button class="btn-line" onclick="closeModal()">Cancel</button><button class="btn-red" id="ba_go" onclick="runBulkAccess()">PIN dein</button></div>`, true);
+  bulkPreview();
+}
+async function runBulkAccess(){
+  if(!window.crypto || !crypto.subtle){ toast("Ye browser PIN nahi bana sakta — Chrome / Edge use karein"); return; }
+  const pl = bulkPlan(), label = [$("ba_shift").value||"Dono shifts", window._baClass||"sab classes"].join(" · ");
+  $("ba_go").disabled = true;
+  DB.parentAccess = DB.parentAccess || [];
+  BULK_RESULT = [];
+  for(let i = 0; i < pl.todo.length; i++){
+    const f = pl.todo[i];
+    $("ba_go").textContent = `PIN ban rahe hain… ${i+1} / ${pl.todo.length}`;
+    const pin = String(crypto.getRandomValues(new Uint32Array(1))[0] % 1000000).padStart(6, "0");
+    const h = await pinHash(pin), a = accessOf(f.key);
+    if(a) Object.assign(a, h, {active:true, pinSetOn:todayStr()});
+    else DB.parentAccess.push({id:uid(), phone:f.key, ...h, active:true, pinSetOn:todayStr()});
+    BULK_RESULT.push({key:f.key, pin, kids:f.kids});
+  }
+  save(); renderParents();
+  showBulkResult(label);
+}
+function showBulkResult(label){
+  openModal(`
+    <h3>🔑 ${BULK_RESULT.length} families ko PIN mil gaya — ${esc(label)}</h3>
+    <div class="note" style="border-left-color:var(--danger)"><b>Ye PIN sirf abhi dikh rahe hain.</b> Pehle <b>CSV download</b> ya <b>print</b> kar lein, phir har family ko WhatsApp par bhejein.</div>
+    <div class="tbl-wrap" style="max-height:52vh;overflow:auto"><table><thead><tr><th>#</th><th>Phone</th><th>Bache</th><th>PIN</th><th></th></tr></thead><tbody>
+      ${BULK_RESULT.map((r,i)=>`<tr id="bar${i}"><td>${i+1}</td><td><b>${esc(pDisplay(r.key))}</b></td>
+        <td>${r.kids.map(k=>`${esc(k.name)} <span class="sub">${esc(k.course)}</span>`).join("<br>")}</td>
+        <td style="font-family:monospace;font-size:1.05rem;letter-spacing:.12em"><b>${r.pin}</b></td>
+        <td><a class="btn-red btn-sm" target="_blank" rel="noopener" onclick="this.textContent='✓ Bheja';this.closest('tr').style.opacity=.55"
+          href="${waLink(pDisplay(r.key))}?text=${encodeURIComponent(pinMessage(r.key, r.pin, r.kids.map(k=>k.name).join(", ")))}">WhatsApp</a></td></tr>`).join("")}
+    </tbody></table></div>
+    <div class="modal-foot">
+      <button class="btn-black" onclick="bulkPinsCSV()">⬇ CSV download</button>
+      <button class="btn-line" onclick="bulkPinsPrint()">🖨 Print slips</button>
+      <button class="btn-red" onclick="closeModal()">Band karein</button>
+    </div>`, true);
+}
+function bulkPinsCSV(){
+  downloadCSV(`parent-pins-${todayStr()}.csv`, [["Phone","Bache","Class","PIN","Link"],
+    ...BULK_RESULT.map(r=>[pDisplay(r.key), r.kids.map(k=>k.name).join(", "), [...new Set(r.kids.map(k=>k.course))].join(", "), r.pin, parentLink()])]);
+}
+function bulkPinsPrint(){
+  const w = window.open("", "_blank"); if(!w){ toast("Popup band hai — browser mein allow karein"); return; }
+  const school = esc(DB.settings.name||"Cambridge Grads Academy");
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Parent PINs</title><style>
+    body{font-family:Arial,sans-serif;margin:16px}.g{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .s{border:1px dashed #555;border-radius:8px;padding:10px 12px;break-inside:avoid;font-size:13px}
+    .s b.p{font-size:20px;letter-spacing:.2em;font-family:monospace}</style></head><body><div class="g">${BULK_RESULT.map(r=>`<div class="s">
+    <div><b>${school}</b> — Parents Chat</div><div>${esc(parentLink())}</div>
+    <div style="margin:6px 0">${r.kids.map(k=>esc(k.name)+" ("+esc(k.course)+")").join(", ")}</div>
+    <div>Phone: <b>${esc(pDisplay(r.key))}</b> &nbsp; PIN: <b class="p">${r.pin}</b></div></div>`).join("")}</div>
+    <script>window.onload=()=>window.print()<\/script></body></html>`);
+  w.document.close();
+}
+
 function openManualAccess(){
   openModal(`
     <h3>Kisi number ko access dein</h3>
