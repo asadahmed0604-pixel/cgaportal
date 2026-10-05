@@ -321,9 +321,10 @@ function appPage(role, tid) {
   const boot = `<script>window.__EMS__={version:${state.version},role:${JSON.stringify(role)},tid:${JSON.stringify(tid || "")},data:${jsonForScript(dataFor(role, tid))}};</script>`;
   return APP_HTML.replace("<!--EMS_SERVER_BOOT-->", () => boot);
 }
-function loginPage(msg) {
+/* v38: Staff (/login) aur Teachers (/teacher) ke alag login pages — dono /login par post karte hain */
+function loginPage(msg, teacher) {
   return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1"><title>CGA EMS — Login</title>
+<meta name="viewport" content="width=device-width, initial-scale=1"><title>CGA EMS — ${teacher ? "Teacher Login" : "Login"}</title>
 <link href="https://fonts.googleapis.com/css2?family=League+Spartan:wght@400;600;800&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0}
@@ -337,17 +338,19 @@ input{width:100%;font:inherit;padding:11px 12px;border:1px solid #cfcfcf;border-
 input:focus{outline:2px solid #159670;border-color:#159670}
 button{width:100%;margin-top:14px;padding:12px;border:none;border-radius:8px;background:#159670;color:#fff;font:inherit;font-weight:700;cursor:pointer}
 button:hover{background:#0F7657}
+.alt{display:block;text-align:center;margin-top:14px;font-size:.85rem;color:#159670;text-decoration:none;font-weight:600}
 .err{background:#fdecea;color:#C0392B;border-radius:8px;padding:9px 11px;font-size:.88rem;margin-bottom:12px}
 </style></head><body>
 <form method="post" action="/login">
   <div class="mark">CGA</div>
-  <h1>CGA EMS</h1><p>Cambridge Grads Academy · Staff & Teachers login</p>
+  ${teacher ? `<h1>Teacher Login</h1><p>Cambridge Grads Academy · Tests, marks aur class attendance</p>` : `<h1>CGA EMS</h1><p>Cambridge Grads Academy · Staff login</p>`}
   ${msg ? `<div class="err">${msg}</div>` : ""}
-  <label for="user">Teacher Login ID <span style="font-weight:400;color:#6d6d6d">(sirf teachers — baaki khali chhorein)</span></label>
-  <input id="user" name="user" autocomplete="username" autocapitalize="none" style="margin-bottom:12px">
-  <label for="pw">Password</label>
-  <input id="pw" type="password" name="password" autocomplete="current-password" required autofocus>
+  ${teacher ? `<label for="user">Login ID</label>
+  <input id="user" name="user" autocomplete="username" autocapitalize="none" required autofocus style="margin-bottom:12px">` : ""}
+  <label for="pw">Password${teacher ? "" : " (Executive / Fee Admin / Admin)"}</label>
+  <input id="pw" type="password" name="password" autocomplete="current-password" required ${teacher ? "" : "autofocus"}>
   <button type="submit">Login</button>
+  ${teacher ? `<a class="alt" href="/login">Staff login →</a>` : `<a class="alt" href="/teacher">Teacher hain? Teacher login →</a>`}
 </form></body></html>`;
 }
 
@@ -460,6 +463,10 @@ const server = http.createServer(async (req, res) => {
       return send(res, 404, "Not found");
     }
 
+    if (p === "/teacher" && req.method === "GET") {
+      if (authed(req)) return redirect(res, "/");
+      return send(res, 200, loginPage("", true), "text/html; charset=utf-8");
+    }
     if (p === "/login" && req.method === "GET") {
       if (authed(req)) return redirect(res, "/");
       return send(res, 200, loginPage(""), "text/html; charset=utf-8");
@@ -467,12 +474,12 @@ const server = http.createServer(async (req, res) => {
     if (p === "/login" && req.method === "POST") {
       if (!sameOrigin(req)) return send(res, 403, "Forbidden");
       const ip = clientIp(req);
-      if (blocked(ip)) return send(res, 429, loginPage("Bohat ghalat koshishen — 15 minute baad dobara try karein."), "text/html; charset=utf-8");
       const form = new URLSearchParams(await readBody(req));
       const pw = form.get("password") || "", user = String(form.get("user") || "").trim();
+      if (blocked(ip)) return send(res, 429, loginPage("Bohat ghalat koshishen — 15 minute baad dobara try karein.", !!user), "text/html; charset=utf-8");
       if (user) {
         const t = teacherPwOk(user, pw);
-        if (!t) { failed(ip); return send(res, 401, loginPage("Login ID ya password ghalat hai."), "text/html; charset=utf-8"); }
+        if (!t) { failed(ip); return send(res, 401, loginPage("Login ID ya password ghalat hai.", true), "text/html; charset=utf-8"); }
         fails.delete(ip);
         setSession(req, res, teacherToken(t), SESSION_DAYS * 86400);
         return redirect(res, "/");
@@ -488,8 +495,9 @@ const server = http.createServer(async (req, res) => {
       return redirect(res, "/");
     }
     if (p === "/logout") {
+      const wasTeacher = (authed(req) || {}).role === "teacher";
       setSession(req, res, "", 0);
-      return redirect(res, "/login");
+      return redirect(res, wasTeacher ? "/teacher" : "/login");
     }
 
     const auth = authed(req);

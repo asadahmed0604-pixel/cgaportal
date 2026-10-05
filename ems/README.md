@@ -32,7 +32,7 @@ Cambridge Grads Academy ka Education Management System.
 - Ye sirf screen par chhupana nahi: server admin ko income/expense entries, salaries aur teacher pay bhejta hi nahi,
   aur admin ke save mein ye hisse server wale hi rehte hain. Receipts (`/files`) bhi sirf Executive.
 - **Teacher** (v36): har teacher ka apna **Login ID + password** (Settings → 🔐 Logins → Teacher logins).
-  Login page par "Teacher Login ID" bhi likhta hai. Teacher ko sirf **Tests & Marks** aur **Class Attendance** —
+  Teachers ka alag link: `<aap ka Render link>/teacher` (Login ID + password). Teacher ko sirf **Tests & Marks** aur **Class Attendance** —
   sirf apni classes (Employees → Edit → Assign) ke students (naam, reg no, class, subjects). Fees, phone numbers,
   main attendance, hisaab kuch nahi jata. Teacher ke save se server sirf us ke tests / marks / class attendance leta hai.
   - Morning ke tests sirf admin banata hai; teacher marks + **zaroori remark** likhta hai (ya CSV sheet se bharta hai).
