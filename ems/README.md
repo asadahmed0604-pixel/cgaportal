@@ -31,6 +31,14 @@ Cambridge Grads Academy ka Education Management System.
   (PBKDF2 hash DB mein). Password badalte hi purane admin logins khatam.
 - Ye sirf screen par chhupana nahi: server admin ko income/expense entries, salaries aur teacher pay bhejta hi nahi,
   aur admin ke save mein ye hisse server wale hi rehte hain. Receipts (`/files`) bhi sirf Executive.
+- **Teacher** (v36): har teacher ka apna **Login ID + password** (Settings → 🔐 Logins → Teacher logins).
+  Login page par "Teacher Login ID" bhi likhta hai. Teacher ko sirf **Tests & Marks** aur **Class Attendance** —
+  sirf apni classes (Employees → Edit → Assign) ke students (naam, reg no, class, subjects). Fees, phone numbers,
+  main attendance, hisaab kuch nahi jata. Teacher ke save se server sirf us ke tests / marks / class attendance leta hai.
+  - Morning ke tests sirf admin banata hai; teacher marks + **zaroori remark** likhta hai (ya CSV sheet se bharta hai).
+  - Evening teacher apni class ka basic test khud bana sakta hai aur class attendance lagata hai.
+  - Main attendance mein Present / Late magar class mein Absent = **class bunk** → parents chat ke
+    "Attendance" aur "Teacher Remarks" mein khud dikhta hai.
 
 ## Parents chat (`/parent`)
 

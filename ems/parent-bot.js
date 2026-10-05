@@ -32,6 +32,19 @@ const feeOutstanding = (f) => f.carriedTo ? 0
 
 const ATT = { P: "Present", L: "Late", A: "Absent", E: "Leave" };
 
+/* v36: Class bunk — main (gate) attendance mein Present / Late, magar teacher ki class attendance mein Absent.
+   Class attendance Evening teachers apne login se lagate hain (db.classAtt). Naya se purana. */
+function bunksOf(db, sid) {
+  const att = db.attendance || {}, out = [];
+  (db.classAtt || []).forEach((c) => {
+    if (!c || !c.marks || c.marks[sid] !== "A") return;
+    const m = att[c.date] && att[c.date][sid];
+    if (m && (m.s === "P" || m.s === "L")) out.push({ date: c.date, subject: c.subject || "", course: c.course, teacherId: c.teacherId || "", online: !!c.online });
+  });
+  return out.sort((a, b) => String(b.date).localeCompare(String(a.date)));
+}
+const bunkLine = (b) => `${fmtD(b.date)} · ${b.subject || b.course} class — academy aaya (gate par Present) magar class mein Absent`;
+
 /* ---------- parent ne kya likha? ---------- */
 const INTENTS = [
   ["attendance", /\b(att\w*|hazri|haziri|hazir|absent|ghair|present|chutti|leave)\b/i],
@@ -86,6 +99,8 @@ function attendance(db, s, today) {
   ]));
   const off = l30.filter((d) => ["A", "L", "E"].includes(att[d][s.id].s)).reverse().slice(0, 6);
   if (off.length) out.push(LI(off.map((d) => `${fmtD(d)} — ${ATT[att[d][s.id].s]}${att[d][s.id].t && att[d][s.id].s === "L" ? ` (${att[d][s.id].t})` : ""}`)));
+  const bk = bunksOf(db, s.id).filter((b) => b.date >= since).slice(0, 5);
+  if (bk.length) out.push(P(`⚠ Class bunk (pichle 30 din): ${bk.length}`), LI(bk.map(bunkLine)));
   return out;
 }
 
@@ -137,8 +152,10 @@ function remarks(db, s, key) {
     .sort((a, b) => String(b.date).localeCompare(String(a.date))).slice(0, 3);
   const msgs = (db.parentMsgs || []).filter((m) => m.studentId === s.id && m.phone === key)
     .sort((a, b) => String(b.d).localeCompare(String(a.d))).slice(0, 3);
+  const bk = bunksOf(db, s.id).slice(0, 5);
   const out = [H(`💬 ${s.name} — Teacher remarks`)];
-  if (!rm.length && !comments.length) out.push(P("Abhi koi remark nahi."));
+  if (!rm.length && !comments.length && !bk.length) out.push(P("Abhi koi remark nahi."));
+  if (bk.length) out.push(P("⚠ Class bunk:"), LI(bk.map(bunkLine)));
   if (rm.length) out.push(LI(rm.map((r) => `${fmtD(r.d)} · ${r.type || "Remark"}${r.by ? ` (${r.by})` : ""}: ${r.note}`)));
   if (comments.length) out.push(P("Test par comments:"), LI(comments.map((e) => `${fmtD(e.date)} · ${e.exam}${e.subject ? ` (${e.subject})` : ""}: "${e.comment}"`)));
   if (msgs.length) {
@@ -168,4 +185,4 @@ function reply(db, s, text, key, todayStr) {
   }
 }
 
-module.exports = { phoneKey, childrenOf, intentOf, reply, MENU, feeOutstanding };
+module.exports = { phoneKey, childrenOf, intentOf, reply, MENU, feeOutstanding, bunksOf };
