@@ -60,17 +60,39 @@ function cookies(req) {
   });
   return out;
 }
+/* v36: Teacher — har teacher ka apna Login ID + password (Executive Settings → Logins se rakhta hai;
+   PBKDF2 hash employee.login mein). Token mein teacher ki id; password badla ya login band → token khatam. */
+function teacherToken(e) {
+  const exp = Date.now() + SESSION_DAYS * 864e5, tag = e.login.hash.slice(0, 12);
+  return `teacher.${e.id}.${exp}.${tag}.${sign(`ems|teacher|${e.id}|${exp}|${tag}`)}`;
+}
+const teacherById = (id) => ((dbNow() || {}).employees || []).find((e) => e.id === id && e.category === "Teacher" && e.login && e.login.hash);
+function teacherPwOk(user, pw) {
+  const u = String(user || "").trim().toLowerCase();
+  const e = u && ((dbNow() || {}).employees || []).find((x) => x.category === "Teacher" && x.login && x.login.hash && x.login.user === u);
+  if (!e || String(pw).length < 8) return null;
+  const a = e.login;
+  const h = crypto.pbkdf2Sync(String(pw), Buffer.from(a.salt, "hex"), +a.iter || 100000, 32, "sha256").toString("hex");
+  return safeEq(h, a.hash) ? e : null;
+}
+/* → {role, tid} ya null */
 function authed(req) {
   const parts = String(cookies(req).ems_s || "").split(".");
   if (parts.length === 2) {                                   // Executive (purana format bhi yahi)
     const [exp, sig] = parts;
-    return !!exp && !!sig && +exp > Date.now() && safeEq(sig, sign("ems|" + exp)) ? "exec" : null;
+    return !!exp && !!sig && +exp > Date.now() && safeEq(sig, sign("ems|" + exp)) ? { role: "exec" } : null;
   }
   if (parts.length === 4 && ROLE_AUTH[parts[0]]) {
     const [role, exp, tag, sig] = parts;
     if (!(+exp > Date.now()) || !safeEq(sig, sign(`ems|${role}|${exp}|${tag}`))) return null;
     const a = roleAuth(role);
-    return a && a.hash.startsWith(tag) ? role : null;
+    return a && a.hash.startsWith(tag) ? { role } : null;
+  }
+  if (parts.length === 5 && parts[0] === "teacher") {
+    const [, tid, exp, tag, sig] = parts;
+    if (!(+exp > Date.now()) || !safeEq(sig, sign(`ems|teacher|${tid}|${exp}|${tag}`))) return null;
+    const e = teacherById(tid);
+    return e && e.login.hash.startsWith(tag) ? { role: "teacher", tid } : null;
   }
   return null;
 }
@@ -89,20 +111,80 @@ function rolePwOk(role, pw) {
    Aam Admin ko fees bhi nahi: challans, students ki monthly fee, one-time charges, subject fees. */
 const redactCache = {};
 const keyOf = (x) => String(x || "").toLowerCase().replace(/[^a-z0-9]/g, "");
-function dataFor(role) {
+function dataFor(role, tid) {
   if (role === "exec") return state.dataText;
-  const c = redactCache[role];
+  const ck = role === "teacher" ? "teacher:" + tid : role;
+  const c = redactCache[ck];
   if (c && c.v === state.version) return c.text;
+  if (role === "teacher") {
+    redactCache[ck] = { v: state.version, text: JSON.stringify(teacherView(JSON.parse(state.dataText) || {}, tid)) };
+    return redactCache[ck].text;
+  }
   const d = JSON.parse(state.dataText) || {};
   d.txns = []; d.classCosts = {};
   if (d.settings) { delete d.settings.adminAuth; delete d.settings.feeAdminAuth; }
-  (d.employees || []).forEach((e) => { delete e.salary; });
+  (d.employees || []).forEach((e) => { delete e.salary; delete e.login; });
   if (role === "admin") {
     d.fees = [];
     (d.students || []).forEach((st) => { delete st.monthlyFee; delete st.charges; (st.subjects || []).forEach((x) => { delete x.fee; }); });
   }
-  redactCache[role] = { v: state.version, text: JSON.stringify(d) };
-  return redactCache[role].text;
+  redactCache[ck] = { v: state.version, text: JSON.stringify(d) };
+  return redactCache[ck].text;
+}
+
+/* ---------- v36: teacher ko sirf apni classes — tests, marks aur Evening class attendance ----------
+   Teacher ki classes = Employees mein assign ki gayi (shift + class) + jin students ke subject par wo teacher laga hai. */
+function teacherClasses(d, tid) {
+  const me = (d.employees || []).find((e) => e.id === tid) || {};
+  const cls = new Set((me.assignments || []).map((a) => a.shift + "|" + a.course));
+  (d.students || []).forEach((st) => (st.subjects || []).forEach((x) => { if (x.teacherId === tid) cls.add(st.shift + "|" + st.course); }));
+  return cls;
+}
+const testSeen = (t, tid, cls) => !!t && cls.has(t.shift + "|" + t.course) && (!t.teacherId || t.teacherId === tid);
+const testOwn = (t, tid, cls) => !!t && t.by === "teacher" && t.teacherId === tid && t.shift === "Evening" && cls.has("Evening|" + t.course);
+const catOwn = (c, tid, cls) => !!c && c.teacherId === tid && c.shift === "Evening" && cls.has("Evening|" + c.course);
+function teacherView(d, tid) {
+  const cls = teacherClasses(d, tid);
+  const tests = (d.tests || []).filter((t) => testSeen(t, tid, cls));
+  const ids = new Set(tests.map((t) => t.id));
+  const s = d.settings || {};
+  return {
+    students: (d.students || []).filter((st) => cls.has(st.shift + "|" + st.course)).map((st) => ({
+      id: st.id, name: st.name, regNo: st.regNo, course: st.course, shift: st.shift, status: st.status,
+      statusSince: st.statusSince, doj: st.doj, joinMonth: st.joinMonth, roster: st.roster, group: st.group,
+      subjects: (st.subjects || []).map((x) => ({ name: x.name, teacherId: x.teacherId || "" })) })),
+    employees: (d.employees || []).map((e) => e.id === tid
+      ? { id: e.id, name: e.name, category: e.category, shift: e.shift, assignments: e.assignments || [], online: !!e.online }
+      : { id: e.id, name: e.name, category: e.category, shift: e.shift, online: !!e.online }),
+    tests, exams: (d.exams || []).filter((e) => ids.has(e.testId)),
+    classAtt: (d.classAtt || []).filter((c) => catOwn(c, tid, cls)),
+    subjects: d.subjects || [],
+    inquiries: [], fees: [], txns: [], homework: [], inventory: [], issues: [], attendance: {}, empAttendance: {},
+    classCosts: {}, parentAccess: [], parentMsgs: [], audits: [], counters: d.counters || {},
+    settings: { name: s.name, addr: s.addr, phone: s.phone, logo: s.logo },
+  };
+}
+/* Teacher ke save se sirf us ke apne hisse badalte hain — baaki sab server wala hi rehta hai */
+function teacherMerge(data, tid) {
+  const cur = JSON.parse(state.dataText) || {};
+  const cls = teacherClasses(cur, tid);
+  const arr = (x) => (Array.isArray(x) ? x.filter((y) => y && typeof y === "object" && y.id) : []);
+  const curTests = arr(cur.tests), curById = new Map(curTests.map((t) => [t.id, t]));
+  const tests = curTests.filter((t) => !testOwn(t, tid, cls))
+    .concat(arr(data.tests).filter((t) => testOwn(t, tid, cls) && (!curById.has(t.id) || testOwn(curById.get(t.id), tid, cls))));
+  const outIds = new Set(tests.map((t) => t.id));
+  const gone = new Set(curTests.filter((t) => !outIds.has(t.id)).map((t) => t.id));        // teacher ne apna test hataya
+  const testOf = new Map(tests.map((t) => [t.id, t]));
+  const stu = new Map((cur.students || []).map((st) => [st.id, st]));
+  const vis = (e) => { const t = e && testOf.get(e.testId); return !!t && testSeen(t, tid, cls); };
+  const fits = (e) => { const t = testOf.get(e.testId), st = stu.get(e.studentId); return !!st && st.shift === t.shift && st.course === t.course; };
+  const curEx = arr(cur.exams), curExById = new Map(curEx.map((e) => [e.id, e]));
+  const exams = curEx.filter((e) => !gone.has(e.testId) && !vis(e))
+    .concat(arr(data.exams).filter((e) => vis(e) && fits(e) && (!curExById.has(e.id) || vis(curExById.get(e.id)))));
+  const curCa = arr(cur.classAtt), curCaById = new Map(curCa.map((c) => [c.id, c]));
+  const classAtt = curCa.filter((c) => !catOwn(c, tid, cls))
+    .concat(arr(data.classAtt).filter((c) => catOwn(c, tid, cls) && (!curCaById.has(c.id) || catOwn(curCaById.get(c.id), tid, cls))));
+  return Object.assign(cur, { tests, exams, classAtt });
 }
 /* Admin ke save mein chhupaye hue hisse server wale hi rehte hain */
 function keepProtected(data, role) {
@@ -113,7 +195,11 @@ function keepProtected(data, role) {
   const cs = cur.settings || {};
   ["adminAuth", "feeAdminAuth", "salaryAuto"].forEach((k) => { if (cs[k] !== undefined) data.settings[k] = cs[k]; else delete data.settings[k]; });
   const sal = new Map((cur.employees || []).map((e) => [e.id, e.salary]));
-  (data.employees || []).forEach((e) => { if (sal.has(e.id)) e.salary = sal.get(e.id); });
+  const login = new Map((cur.employees || []).map((e) => [e.id, e.login]));
+  (data.employees || []).forEach((e) => {
+    if (sal.has(e.id)) e.salary = sal.get(e.id);
+    if (login.get(e.id)) e.login = login.get(e.id); else delete e.login;          // teacher passwords sirf Executive
+  });
   if (role === "admin") {
     const ids = new Set((data.students || []).map((st) => st.id));
     data.fees = (cur.fees || []).filter((f) => ids.has(f.studentId));       // admin ne student hataya to us ke challan bhi
@@ -231,8 +317,8 @@ const escHtml = (x) => String(x).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<"
 const APP_HTML = fs.readFileSync(path.join(__dirname, "index.html"), "utf8");
 if (!APP_HTML.includes("<!--EMS_SERVER_BOOT-->")) throw new Error("index.html mein <!--EMS_SERVER_BOOT--> nahi mila");
 const jsonForScript = (text) => text.replace(/</g, "\\u003c").replace(/\u2028/g, "\\u2028").replace(/\u2029/g, "\\u2029");
-function appPage(role) {
-  const boot = `<script>window.__EMS__={version:${state.version},role:${JSON.stringify(role)},data:${jsonForScript(dataFor(role))}};</script>`;
+function appPage(role, tid) {
+  const boot = `<script>window.__EMS__={version:${state.version},role:${JSON.stringify(role)},tid:${JSON.stringify(tid || "")},data:${jsonForScript(dataFor(role, tid))}};</script>`;
   return APP_HTML.replace("<!--EMS_SERVER_BOOT-->", () => boot);
 }
 function loginPage(msg) {
@@ -255,9 +341,11 @@ button:hover{background:#0F7657}
 </style></head><body>
 <form method="post" action="/login">
   <div class="mark">CGA</div>
-  <h1>CGA EMS</h1><p>Cambridge Grads Academy · Staff login</p>
+  <h1>CGA EMS</h1><p>Cambridge Grads Academy · Staff & Teachers login</p>
   ${msg ? `<div class="err">${msg}</div>` : ""}
-  <label for="pw">Password (Executive / Fee Admin / Admin)</label>
+  <label for="user">Teacher Login ID <span style="font-weight:400;color:#6d6d6d">(sirf teachers — baaki khali chhorein)</span></label>
+  <input id="user" name="user" autocomplete="username" autocapitalize="none" style="margin-bottom:12px">
+  <label for="pw">Password</label>
   <input id="pw" type="password" name="password" autocomplete="current-password" required autofocus>
   <button type="submit">Login</button>
 </form></body></html>`;
@@ -380,7 +468,15 @@ const server = http.createServer(async (req, res) => {
       if (!sameOrigin(req)) return send(res, 403, "Forbidden");
       const ip = clientIp(req);
       if (blocked(ip)) return send(res, 429, loginPage("Bohat ghalat koshishen — 15 minute baad dobara try karein."), "text/html; charset=utf-8");
-      const pw = new URLSearchParams(await readBody(req)).get("password") || "";
+      const form = new URLSearchParams(await readBody(req));
+      const pw = form.get("password") || "", user = String(form.get("user") || "").trim();
+      if (user) {
+        const t = teacherPwOk(user, pw);
+        if (!t) { failed(ip); return send(res, 401, loginPage("Login ID ya password ghalat hai."), "text/html; charset=utf-8"); }
+        fails.delete(ip);
+        setSession(req, res, teacherToken(t), SESSION_DAYS * 86400);
+        return redirect(res, "/");
+      }
       const isExec = safeEq(crypto.createHash("sha256").update(pw).digest("hex"), crypto.createHash("sha256").update(PASSWORD).digest("hex"));
       const who = isExec ? "exec" : rolePwOk("feeadmin", pw) ? "feeadmin" : rolePwOk("admin", pw) ? "admin" : null;
       if (!who) {
@@ -396,23 +492,24 @@ const server = http.createServer(async (req, res) => {
       return redirect(res, "/login");
     }
 
-    const role = authed(req);
+    const auth = authed(req);
+    const role = auth && auth.role, tid = auth && auth.tid;
     if (!role) {
       if (p.startsWith("/api/")) return sendJson(res, 401, { error: "login" });
       return redirect(res, "/login");
     }
 
     if ((p === "/" || p === "/index.html") && req.method === "GET")
-      return send(res, 200, appPage(role), "text/html; charset=utf-8");
+      return send(res, 200, appPage(role, tid), "text/html; charset=utf-8");
 
     if (p === "/api/parent-logins" && req.method === "GET")
-      return sendJson(res, 200, parentLogins);
+      return role === "teacher" ? sendJson(res, 403, { error: "Teacher" }) : sendJson(res, 200, parentLogins);
 
     if (p === "/api/version" && req.method === "GET")
       return sendJson(res, 200, { version: state.version, updatedAt: state.updatedAt, role });
 
     if (p === "/api/db" && req.method === "GET")
-      return sendJson(res, 200, `{"version":${state.version},"data":${dataFor(role)}}`);
+      return sendJson(res, 200, `{"version":${state.version},"data":${dataFor(role, tid)}}`);
 
     if (p === "/api/db" && req.method === "PUT") {
       if (!sameOrigin(req)) return sendJson(res, 403, { error: "origin" });
@@ -423,9 +520,9 @@ const server = http.createServer(async (req, res) => {
       /* Kisi aur ne beech mein save kiya — client pehle merge kare, phir dobara bheje */
       if (role !== "exec" && body.force) return sendJson(res, 403, { error: "Backup import sirf Executive kar sakta hai." });
       if (!body.force && body.baseVersion !== state.version)
-        return sendJson(res, 409, `{"version":${state.version},"data":${dataFor(role)}}`);
-      if (role !== "exec") keepProtected(data, role);
-      persist({ version: state.version + 1, updatedAt: new Date().toISOString(), dataText: JSON.stringify(data) },
+        return sendJson(res, 409, `{"version":${state.version},"data":${dataFor(role, tid)}}`);
+      const out = role === "teacher" ? teacherMerge(data, tid) : role !== "exec" ? keepProtected(data, role) : data;
+      persist({ version: state.version + 1, updatedAt: new Date().toISOString(), dataText: JSON.stringify(out) },
               body.force ? "import" : "");
       return sendJson(res, 200, { version: state.version, updatedAt: state.updatedAt });
     }
