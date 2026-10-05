@@ -1027,7 +1027,7 @@ const attPresent = c => c === "P" || c === "L";
 
 /* ---------- Class → level (subject list isi se filter hoti hai) ---------- */
 const CLASS_LEVEL = {
-  "FT1":"O Level", "FT2":"O Level", "O1":"O Level", "O2":"O Level", "O3 (Appearing Batch)":"O Level",
+  "FT1":"Foundation", "FT2":"Foundation", "O1":"O Level", "O2":"O Level", "O3 (Appearing Batch)":"O Level",
   "A Levels":"A Level", "AS":"A Level", "A2":"A Level", "AS & A2 (Composite)":"A Level", "SAT":"A Level",
   "Pre O Levels":"Junior", "Grade 5":"Junior", "Grade 6":"Junior", "Grade 7":"Junior", "Grade 8":"Junior"
 };
@@ -1038,6 +1038,10 @@ const levelOfClass = c => CLASS_LEVEL[c] || "O Level";
 const DEFAULT_SUBJECTS = [
   ["English","Junior","C"],["Urdu","Junior","C"],["Mathematics","Junior","C"],["Science","Junior","C"],
   ["Islamiat","Junior","C"],["Social Studies","Junior","C"],["Computer","Junior","E"],
+
+  /* v37: Foundation (FT1, FT2) — sab 8 compulsory */
+  ["Mathematics","Foundation","C"],["English","Foundation","C"],["Arabic","Foundation","C"],["Islamic Ethics","Foundation","C"],
+  ["Urdu","Foundation","C"],["History","Foundation","C"],["Geography","Foundation","C"],["Science","Foundation","C"],
 
   /* O Level — 5 compulsory */
   ["English Language","O Level","C"],["Mathematics (D)","O Level","C"],["Islamiyat","O Level","C"],
@@ -1065,7 +1069,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v36 · 5 Oct 2026";
+const BUILD = "v37 · 5 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -1106,7 +1110,7 @@ function guessCat(desc){
 }
 
 /* Morning (school) ka rule — kitne electives allowed hain. 0 = koi limit nahi */
-const ELECTIVE_LIMIT = {"O Level":3, "A Level":4, "Junior":0};
+const ELECTIVE_LIMIT = {"O Level":3, "A Level":4, "Junior":0, "Foundation":0};
 
 /* Sirf us class/grade ke subjects. classes[] khali ho to us poore level ke subjects. */
 function subjectsForClass(cls){
@@ -1159,7 +1163,7 @@ function detectGroup(subjects, course){
   return hit ? hit.name : (list.length ? "Custom / General" : "—");
 }
 /* Group sirf Morning (school) shift ka concept hai — override ho to wohi, warna auto */
-const hasGroups = (shift, course) => shift==="Morning" && levelOfClass(course)!=="Junior";
+const hasGroups = (shift, course) => shift==="Morning" && !["Junior","Foundation"].includes(levelOfClass(course));
 const groupOf = s => !s || !hasGroups(s.shift, s.course) ? "—" : (s.groupOverride || detectGroup(s.subjects, s.course));
 /* Subjects par lagi hui fees ka total (0 bhi ho sakta hai) */
 const subjectsTotal = s => (s && s.subjects || []).reduce((a,x)=>a+(+x.fee||0),0);
@@ -1931,7 +1935,7 @@ function subjModeSync(initial){
   const lim = electiveLimitFor(cls);
   $("subjNote").innerHTML = evening
     ? "<b>Evening (Academy):</b> har subject ki fee alag likhein aur us subject ka teacher chunein. Total monthly fee khud ban jayegi aur challan par subject-wise show hogi."
-    : `<b>Morning (School) — ${esc(cls)}:</b> <b>${comp.length} compulsory subjects</b> khud lag jate hain${lim?`, aur <b>${lim} electives</b> tak chun sakte hain`:""}. Group subjects se khud detect hota hai.`;
+    : `<b>Morning (School) — ${esc(cls)}:</b> <b>${comp.length} compulsory subjects</b> khud lag jate hain${lim?`, aur <b>${lim} electives</b> tak chun sakte hain`:""}.${hasGroups(shift, cls) ? " Group subjects se khud detect hota hai." : ""}`;
   drawSubjs();   // fee label aur readOnly subjTotalSync() set karta hai
 }
 function addSubj(){
@@ -7058,7 +7062,7 @@ function pickLogo(inp){
 function removeLogo(){ if(!DB.settings.logo) return; DB.settings.logo=""; save(); drawLogo(); toast("Logo hata diya"); }
 
 /* ---------- Subjects offered (catalogue) ---------- */
-const LEVELS = ["Junior","O Level","A Level"];
+const LEVELS = ["Junior","Foundation","O Level","A Level"];
 function renderSubjectsAdmin(){
   const box = $("subjAdmin"); if(!box) return;
   const list = [...DB.subjects].sort((a,b)=>(LEVELS.indexOf(a.level)-LEVELS.indexOf(b.level))||a.name.localeCompare(b.name));
@@ -8081,6 +8085,26 @@ if(IS_ADMIN){
   document.querySelector(`#nav button[data-page="${IS_TEACHER ? "tests" : "students"}"]`).click();
 }
 renderDashboard();
+/* v37: FT1 / FT2 (Morning) — sab ke 8 compulsory subjects. Catalogue mein Foundation subjects, aur aik dafa
+   har FT1 / FT2 student ki subject list yahi 8 (pehle se laga teacher wahi rehta hai). */
+const FT_SUBJECTS = ["Mathematics","English","Arabic","Islamic Ethics","Urdu","History","Geography","Science"];
+if(ROLE !== "teacher"){
+  let changed = false;
+  FT_SUBJECTS.forEach(n=>{
+    if(!DB.subjects.some(x=>x.name===n && x.level==="Foundation")){
+      DB.subjects.push({id:"sub_ft_"+keyify(n), name:n, level:"Foundation", kind:"Compulsory", classes:[], defaultFee:0}); changed = true;
+    }
+  });
+  if(!DB.settings.ftSubjectsV37){
+    DB.students.filter(st=>st.shift==="Morning" && ["FT1","FT2"].includes(st.course)).forEach(st=>{
+      const old = st.subjects || [];
+      st.subjects = FT_SUBJECTS.map(n=>{ const o = old.find(x=>keyify(x.name)===keyify(n)); return {name:n, fee:0, teacherId:(o&&o.teacherId)||""}; });
+      st.group = ""; st.groupOverride = "";
+    });
+    DB.settings.ftSubjectsV37 = todayStr(); changed = true;
+  }
+  if(changed) save();
+}
 if(SERVER){ setSyncState(); if(syncDirty()) queuePush(); }
 </script>
 </body>
