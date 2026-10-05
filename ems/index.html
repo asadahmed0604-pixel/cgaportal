@@ -1069,7 +1069,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v37 · 5 Oct 2026";
+const BUILD = "v38 · 5 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -6944,6 +6944,8 @@ function renderLogins(){
     ${f ? `<button class="btn-line" onclick="disableFeeAdmin()">Fee Admin login band karein</button>` : ""}
     <h3 style="margin:22px 0 6px">🧑‍🏫 Teacher logins</h3>
     <p class="sub" style="margin-bottom:10px">Har teacher ka apna <b>Login ID + password</b>. Teacher sirf <b>Tests & Marks</b> (apni classes, remarks zaroori) aur <b>Evening class attendance</b> dekhta hai — fees, phone numbers, hisaab kuch nahi. Classes Employees → Edit → Assign se aati hain.</p>
+    <div class="note" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">Teachers ka login link: <b><code>${esc(location.origin)}/teacher</code></b>
+      <button class="btn-black btn-sm" onclick="copyTeacherLink()">📋 Link copy</button></div>
     <div class="tbl-wrap"><table><thead><tr><th>Teacher</th><th>Classes</th><th>Login ID</th><th>Status</th><th></th></tr></thead><tbody>
       ${DB.employees.filter(e=>e.category==="Teacher").sort((a,b)=>a.name.localeCompare(b.name)).map(e=>`<tr>
         <td><b>${esc(e.name)}</b>${e.online?` <span class="online-dot" title="Online"></span>`:""}</td>
@@ -6951,8 +6953,14 @@ function renderLogins(){
         <td>${e.login ? `<code>${esc(e.login.user)}</code>` : "—"}</td>
         <td>${e.login ? `<span class="badge b-paid">Chalu</span> <span class="sub">${fmtD(e.login.setOn)}</span>` : `<span class="sub">Band</span>`}</td>
         <td style="white-space:nowrap"><button class="btn-black btn-sm" onclick="openTeacherLogin('${e.id}')">${e.login?"Password badlein":"Login banayein"}</button>
-          ${e.login?`<button class="btn-line btn-sm" onclick="disableTeacherLogin('${e.id}')">Band</button>`:""}</td></tr>`).join("") || `<tr><td colspan="5" class="empty">Koi teacher nahi — Employees mein category "Teacher" rakhein</td></tr>`}
+          ${e.login?`<button class="btn-line btn-sm" onclick="copyTeacherLink('${e.id}')" title="Link + Login ID copy">📋</button> <button class="btn-line btn-sm" onclick="disableTeacherLogin('${e.id}')">Band</button>`:""}</td></tr>`).join("") || `<tr><td colspan="5" class="empty">Koi teacher nahi — Employees mein category "Teacher" rakhein</td></tr>`}
     </tbody></table></div>`;
+}
+function copyTeacherLink(id){
+  const e = id && empById(id);
+  const txt = e && e.login ? `Assalam o Alaikum ${e.name}! ${DB.settings.name||"Cambridge Grads Academy"} — Teacher login:\n${location.origin}/teacher\n\nLogin ID: ${e.login.user}\nPassword: jo aap ko diya gaya hai` : location.origin + "/teacher";
+  (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject()).then(()=>toast(e ? `${e.name} ka login message copy — WhatsApp par bhej dein` : "Teacher login link copy ho gaya"))
+    .catch(()=>showCopyFallback("teacher-login.txt", txt, ""));
 }
 function suggestLoginId(e){
   const base = (String(e.name||"").toLowerCase().replace(/^(sir|miss|mr|mrs|ms|madam|mam)\s+/,"").split(/\s+/)[0] || "teacher").replace(/[^a-z0-9]/g,"") || "teacher";
