@@ -11,63 +11,129 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=League+Spartan:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
-:root{--green:#159670;--green-dark:#0F7657;--tint:#E6F5F0;--navy:#174B60;--ink:#12313D;--muted:#6d6d6d;--line:#e3e8e8;--bg:#F3F6F6;--danger:#C0392B;--accent:#FFCC68}
+:root{--green:#159670;--green-dark:#0F7657;--tint:#E6F5F0;--navy:#174B60;--navy-2:#1E5E77;--ink:#12313D;--muted:#6B7C85;--line:#E1EAEE;--bg:#EEF3F2;--danger:#C0392B;--accent:#FFCC68;--warn:#FFF6E0}
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%}
-body{font-family:"League Spartan","Segoe UI",Arial,sans-serif;background:var(--bg);color:var(--ink);font-size:16px}
-button,input,textarea{font:inherit}
+body{font-family:"League Spartan","Segoe UI",Arial,sans-serif;background:#DCE6E4;color:var(--ink);font-size:16px;-webkit-tap-highlight-color:transparent}
+button,input,textarea,select{font:inherit;color:inherit}
+button{cursor:pointer}
+
 /* ---------- login ---------- */
-.login{min-height:100%;display:flex;align-items:center;justify-content:center;padding:16px;background:var(--navy)}
-.login form{background:#fff;border-radius:16px;padding:28px 22px;width:100%;max-width:380px;box-shadow:0 10px 40px rgba(0,0,0,.25)}
-.mark{width:48px;height:48px;border-radius:12px;background:var(--green);color:#fff;font-weight:800;display:flex;align-items:center;justify-content:center;margin-bottom:14px}
-.login h1{font-size:1.4rem;font-weight:800}
-.login p{color:var(--muted);font-size:.92rem;margin:4px 0 18px;line-height:1.35}
-.login label{display:block;font-size:.82rem;font-weight:600;margin:12px 0 6px}
-.login input{width:100%;padding:12px;border:1px solid #cfd6d6;border-radius:10px;font-size:1.05rem}
-.login input:focus{outline:2px solid var(--green);border-color:var(--green)}
-.login button{width:100%;margin-top:18px;padding:13px;border:none;border-radius:10px;background:var(--green);color:#fff;font-weight:700;font-size:1rem;cursor:pointer}
+.login{min-height:100%;display:flex;align-items:center;justify-content:center;padding:16px;background:linear-gradient(160deg,var(--navy) 0%,#0F3A4B 100%)}
+.login form{background:#fff;border-radius:20px;padding:28px 22px 24px;width:100%;max-width:380px;box-shadow:0 18px 50px rgba(0,0,0,.3)}
+.login .logo{width:76px;height:76px;border-radius:18px;background:#fff;box-shadow:0 4px 14px rgba(23,75,96,.18);display:block;margin:-62px auto 14px;border:4px solid #fff}
+.login h1{font-size:1.45rem;font-weight:800;text-align:center}
+.login p{color:var(--muted);font-size:.92rem;margin:6px 0 16px;line-height:1.4;text-align:center}
+.login label{display:block;font-size:.82rem;font-weight:700;margin:12px 0 6px}
+.login input{width:100%;padding:13px 14px;border:1.5px solid #D3DEDE;border-radius:12px;font-size:1.05rem;background:#FAFCFC}
+.login input:focus{outline:none;border-color:var(--green);background:#fff;box-shadow:0 0 0 4px rgba(21,150,112,.12)}
+.login button{width:100%;margin-top:20px;padding:14px;border:none;border-radius:12px;background:var(--green);color:#fff;font-weight:800;font-size:1.02rem}
 .login button:disabled{opacity:.6}
-.err{background:#fdecea;color:var(--danger);border-radius:8px;padding:9px 11px;font-size:.9rem;margin-top:12px;display:none}
-.help{font-size:.82rem;color:var(--muted);margin-top:14px;line-height:1.4}
-/* ---------- chat ---------- */
-.app{display:none;flex-direction:column;height:100%;max-width:720px;margin:0 auto;background:#fff}
-.top{background:var(--navy);color:#fff;padding:12px 14px calc(10px);display:flex;align-items:center;gap:10px}
-.top .mark{width:36px;height:36px;margin:0;border-radius:9px;font-size:.85rem;flex-shrink:0}
-.top b{display:block;font-size:1rem;line-height:1.15}
-.top small{color:#9CBCC9;font-size:.75rem}
-.top a{margin-left:auto;color:#cfe3ea;font-size:.85rem;text-decoration:none;border:1px solid #3b6b80;border-radius:8px;padding:6px 10px}
-.kids{display:flex;gap:6px;padding:8px 12px;overflow-x:auto;border-bottom:1px solid var(--line);background:#fff}
-.kids button{border:1px solid var(--line);background:#fff;border-radius:999px;padding:7px 13px;font-size:.88rem;font-weight:600;white-space:nowrap;cursor:pointer;color:var(--ink)}
-.kids button.on{background:var(--green);border-color:var(--green);color:#fff}
-.msgs{flex:1;overflow-y:auto;padding:14px 12px;background:var(--bg);display:flex;flex-direction:column;gap:10px}
-.b{max-width:88%;padding:10px 13px;border-radius:14px;line-height:1.38;font-size:.95rem;overflow-wrap:anywhere}
-.b.bot{background:#fff;border:1px solid var(--line);align-self:flex-start;border-top-left-radius:4px}
-.b.me{background:var(--green);color:#fff;align-self:flex-end;border-top-right-radius:4px}
-.b h4{font-size:.98rem;margin-bottom:6px}
+.err{background:#fdecea;color:var(--danger);border-radius:10px;padding:10px 12px;font-size:.9rem;margin-top:12px;display:none}
+.help{font-size:.82rem;color:var(--muted);margin-top:14px;line-height:1.4;text-align:center}
+
+/* ---------- app shell ---------- */
+.app{display:none;flex-direction:column;height:100%;max-width:760px;margin:0 auto;background:var(--bg);box-shadow:0 0 40px rgba(0,0,0,.08)}
+.top{background:linear-gradient(135deg,var(--navy) 0%,var(--navy-2) 100%);color:#fff;padding:calc(10px + env(safe-area-inset-top)) 14px 10px;display:flex;align-items:center;gap:11px}
+.top img{width:42px;height:42px;border-radius:12px;background:#fff;flex-shrink:0}
+.top .t{min-width:0}
+.top b{display:block;font-size:1.02rem;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.top small{color:#A9CAD6;font-size:.76rem;display:flex;align-items:center;gap:5px}
+.top small i{width:7px;height:7px;border-radius:50%;background:#4ADE80;display:inline-block}
+.top a{margin-left:auto;color:#fff;font-size:.8rem;text-decoration:none;background:rgba(255,255,255,.12);border-radius:10px;padding:8px 11px;white-space:nowrap}
+.kids{display:flex;gap:8px;padding:10px 12px;overflow-x:auto;background:#fff;border-bottom:1px solid var(--line);scrollbar-width:none}
+.kids::-webkit-scrollbar{display:none}
+.kid{display:flex;align-items:center;gap:8px;border:1.5px solid var(--line);background:#fff;border-radius:999px;padding:5px 13px 5px 5px;white-space:nowrap;font-size:.88rem;font-weight:600}
+.kid .av{width:28px;height:28px;border-radius:50%;background:var(--tint);color:var(--green-dark);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.8rem}
+.kid small{color:var(--muted);font-weight:500}
+.kid.on{border-color:var(--green);background:var(--tint)}
+.kid.on .av{background:var(--green);color:#fff}
+
+/* ---------- messages ---------- */
+.msgs{flex:1;overflow-y:auto;padding:16px 12px 10px;display:flex;flex-direction:column;gap:8px;
+  background-color:var(--bg);background-image:radial-gradient(rgba(23,75,96,.06) 1px,transparent 1px);background-size:18px 18px}
+.row{display:flex;gap:8px;align-items:flex-end;max-width:100%}
+.row.me{justify-content:flex-end}
+.row .ava{width:28px;height:28px;border-radius:50%;background:#fff;flex-shrink:0;box-shadow:0 1px 3px rgba(0,0,0,.1)}
+.b{max-width:84%;padding:10px 13px 6px;border-radius:16px;line-height:1.42;font-size:.95rem;overflow-wrap:anywhere;box-shadow:0 1px 2px rgba(18,49,61,.08);position:relative}
+.b.bot{background:#fff;border-bottom-left-radius:5px}
+.b.me{background:var(--green);color:#fff;border-bottom-right-radius:5px}
+.b.note{background:#E8F7F0;border:1px solid #BFE3D6}
+.b.warn{background:var(--warn);border:1px solid #F0D9A0}
+.b .tm{display:block;text-align:right;font-size:.68rem;opacity:.6;margin-top:4px}
+.b h4{font-size:1rem;margin-bottom:6px;color:var(--navy);font-weight:800}
+.b.me h4{color:#fff}
 .b p{margin:4px 0}
-.b ul{margin:6px 0 2px 18px}
-.b li{margin:3px 0}
-.b .kv{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;margin:6px 0;font-size:.92rem}
-.b .kv span:nth-child(odd){color:var(--muted);font-weight:600}
-.b.note{background:var(--tint);border-color:#bfe3d6}
-.typing{color:var(--muted);font-size:.85rem;align-self:flex-start}
-.quick{display:flex;gap:6px;flex-wrap:wrap;padding:8px 12px;border-top:1px solid var(--line);background:#fff}
-.quick button{border:1px solid #cfe3dc;background:var(--tint);color:var(--ink);border-radius:999px;padding:8px 12px;font-size:.86rem;font-weight:600;cursor:pointer}
-.compose{display:flex;gap:8px;padding:10px 12px calc(10px + env(safe-area-inset-bottom));border-top:1px solid var(--line);background:#fff;align-items:flex-end}
-.compose textarea{flex:1;resize:none;border:1px solid #cfd6d6;border-radius:12px;padding:10px 12px;max-height:120px;min-height:44px;font-size:1rem}
-.compose textarea:focus{outline:2px solid var(--green);border-color:var(--green)}
-.compose button{border:none;background:var(--green);color:#fff;border-radius:12px;padding:0 16px;height:44px;font-weight:700;cursor:pointer}
-.mode{display:none;align-items:center;gap:8px;padding:8px 12px;background:#FFF6E0;border-top:1px solid #f0d9a0;font-size:.86rem;color:#6b4a00}
-.mode button{margin-left:auto;border:1px solid #e0c27a;background:#fff;border-radius:8px;padding:4px 10px;cursor:pointer}
+.b ul{list-style:none;margin:6px 0 2px}
+.b li{position:relative;padding:5px 0 5px 16px;border-top:1px dashed var(--line);font-size:.92rem}
+.b li:first-child{border-top:none}
+.b li::before{content:"";position:absolute;left:2px;top:12px;width:6px;height:6px;border-radius:50%;background:var(--green)}
+.b .kv{display:grid;grid-template-columns:auto 1fr;gap:0;margin:6px 0;font-size:.92rem;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.b .kv span{padding:6px 9px;border-top:1px solid var(--line)}
+.b .kv span:nth-child(-n+2){border-top:none}
+.b .kv span:nth-child(odd){color:var(--muted);font-weight:700;background:#F6FAF9}
+.b img.thumb{display:block;max-width:220px;max-height:220px;border-radius:10px;margin:2px 0 6px}
+.tiles{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:8px 0 4px}
+.tiles button{border:1px solid var(--line);background:#F7FBFA;border-radius:12px;padding:10px 8px;text-align:left;font-size:.88rem;font-weight:700;display:flex;align-items:center;gap:8px}
+.tiles button span{font-size:1.25rem}
+.tiles button:active{background:var(--tint)}
+.day{align-self:center;background:rgba(255,255,255,.85);color:var(--muted);font-size:.74rem;padding:4px 10px;border-radius:999px;margin:4px 0}
+.typing{display:flex;gap:4px;padding:12px 14px;background:#fff;border-radius:16px;border-bottom-left-radius:5px;width:max-content;box-shadow:0 1px 2px rgba(18,49,61,.08)}
+.typing i{width:7px;height:7px;border-radius:50%;background:#9FB3BA;animation:bl 1.2s infinite}
+.typing i:nth-child(2){animation-delay:.2s}.typing i:nth-child(3){animation-delay:.4s}
+@keyframes bl{0%,80%,100%{opacity:.3;transform:translateY(0)}40%{opacity:1;transform:translateY(-3px)}}
+
+/* ---------- bottom bar ---------- */
+.quick{display:flex;gap:7px;padding:8px 12px;overflow-x:auto;background:#fff;border-top:1px solid var(--line);scrollbar-width:none}
+.quick::-webkit-scrollbar{display:none}
+.quick button{border:1.5px solid #CFE3DC;background:var(--tint);color:var(--ink);border-radius:999px;padding:8px 13px;font-size:.85rem;font-weight:700;white-space:nowrap}
+.quick button.hl{background:var(--green);border-color:var(--green);color:#fff}
+.compose{display:flex;gap:8px;padding:8px 10px calc(10px + env(safe-area-inset-bottom));background:#fff;align-items:flex-end}
+.compose .box{flex:1;display:flex;align-items:flex-end;background:#F1F5F5;border:1.5px solid transparent;border-radius:24px;padding:3px 4px 3px 6px}
+.compose .box:focus-within{border-color:var(--green);background:#fff}
+.compose textarea{flex:1;resize:none;border:none;background:transparent;padding:9px 6px;max-height:120px;min-height:40px;font-size:1rem;outline:none}
+.icon{border:none;background:transparent;width:40px;height:40px;border-radius:50%;font-size:1.25rem;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.send{border:none;background:var(--green);color:#fff;width:46px;height:46px;border-radius:50%;font-size:1.15rem;flex-shrink:0;box-shadow:0 3px 10px rgba(21,150,112,.35)}
+.mode{display:none;align-items:center;gap:8px;padding:8px 12px;background:var(--warn);border-top:1px solid #F0D9A0;font-size:.86rem;color:#6b4a00}
+.mode button{margin-left:auto;border:1px solid #e0c27a;background:#fff;border-radius:8px;padding:4px 10px}
+
+/* ---------- receipt sheet ---------- */
+.sheetBg{position:fixed;inset:0;background:rgba(10,30,38,.5);display:none;align-items:flex-end;justify-content:center;z-index:20}
+.sheetBg.show{display:flex}
+.sheet{background:#fff;width:100%;max-width:760px;max-height:92%;overflow-y:auto;border-radius:22px 22px 0 0;padding:10px 18px calc(18px + env(safe-area-inset-bottom));animation:up .2s ease}
+@keyframes up{from{transform:translateY(40px);opacity:.4}to{transform:none;opacity:1}}
+.sheet .handle{width:44px;height:5px;border-radius:3px;background:#D5DFDF;margin:0 auto 12px}
+.sheet h3{font-size:1.15rem;font-weight:800}
+.sheet .sub{color:var(--muted);font-size:.86rem;margin:3px 0 12px}
+.sheet label.l{display:block;font-size:.8rem;font-weight:700;margin:12px 0 6px}
+.sheet input,.sheet select{width:100%;padding:11px 12px;border:1.5px solid #D3DEDE;border-radius:12px;background:#FAFCFC;font-size:1rem}
+.sheet input:focus,.sheet select:focus{outline:none;border-color:var(--green);background:#fff}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.ch{display:flex;align-items:center;gap:10px;border:1.5px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:8px}
+.ch input{width:auto;accent-color:var(--green)}
+.ch b{display:block;font-size:.95rem}
+.ch small{color:var(--muted);font-size:.8rem}
+.ch .amt{margin-left:auto;font-weight:800;color:var(--danger);white-space:nowrap}
+.ch.on{border-color:var(--green);background:var(--tint)}
+.drop{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;border:2px dashed #BFD6D0;border-radius:14px;padding:18px;background:#F7FBFA;text-align:center;color:var(--muted);font-size:.9rem}
+.drop b{color:var(--ink);font-size:1rem}
+.drop img{max-width:100%;max-height:220px;border-radius:10px}
+.sheet .go{width:100%;margin-top:16px;padding:14px;border:none;border-radius:14px;background:var(--green);color:#fff;font-weight:800;font-size:1.02rem}
+.sheet .go:disabled{opacity:.55}
+.sheet .x{float:right;border:none;background:#F1F5F5;border-radius:50%;width:34px;height:34px;font-size:1rem}
+.sheet .msg{margin-top:10px;font-size:.88rem;color:var(--danger)}
+.past{margin-top:16px;border-top:1px solid var(--line);padding-top:10px;font-size:.86rem}
+.past div{display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px dashed var(--line)}
+.st-p{color:#8a6100;font-weight:700}.st-a{color:var(--green-dark);font-weight:700}.st-r{color:var(--danger);font-weight:700}
 </style>
 </head>
 <body>
 
 <div class="login" id="login">
   <form id="loginForm" autocomplete="on">
-    <div class="mark">CGA</div>
-    <h1>Parents Chat</h1>
-    <p>{{SCHOOL}} — apne bache ki attendance, test results, homework aur fee yahan dekhein.</p>
+    <img class="logo" src="/icons/cga-192.png" alt="">
+    <h1>Parents App</h1>
+    <p>{{SCHOOL}} — bache ki attendance, test results, homework, fee aur receipts aik jagah.</p>
     <label for="phone">Phone number (jo school mein likha hai)</label>
     <input id="phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="03XX XXXXXXX" required>
     <label for="pin">6 digit PIN (school ne diya)</label>
@@ -80,23 +146,51 @@ button,input,textarea{font:inherit}
 
 <div class="app" id="app">
   <div class="top">
-    <div class="mark">CGA</div>
-    <div><b>{{SCHOOL}}</b><small>Parents chat</small></div>
+    <img src="/icons/cga-192.png" alt="">
+    <div class="t"><b>{{SCHOOL}}</b><small><i></i><span id="topKid">Parents</span></small></div>
     <a href="/parent/logout">Logout</a>
   </div>
   <div class="kids" id="kids"></div>
   <div class="msgs" id="msgs" aria-live="polite"></div>
+  <div class="mode" id="mode"><span>✉️ Ye message school ko jayega — <b id="modeKid"></b> ke baare mein</span><button type="button" id="modeCancel">Cancel</button></div>
   <div class="quick" id="quick"></div>
-  <div class="mode" id="mode"><span>✉️ Ye message school admin ko jayega — <b id="modeKid"></b> ke baare mein</span><button type="button" id="modeCancel">Cancel</button></div>
   <form class="compose" id="compose">
-    <textarea id="text" rows="1" placeholder="Likhein: attendance, test, homework, fee…" aria-label="Message"></textarea>
-    <button type="submit">Bhejein</button>
+    <div class="box">
+      <button type="button" class="icon" id="attach" title="Fee receipt bhejein" aria-label="Fee receipt bhejein">📎</button>
+      <textarea id="text" rows="1" placeholder="Likhein: attendance, test, fee…" aria-label="Message"></textarea>
+    </div>
+    <button type="submit" class="send" aria-label="Bhejein">➤</button>
   </form>
+</div>
+
+<div class="sheetBg" id="sheetBg">
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="rcTitle">
+    <div class="handle"></div>
+    <button type="button" class="x" id="rcClose" aria-label="Band karein">✕</button>
+    <h3 id="rcTitle">🧾 Fee receipt bhejein</h3>
+    <p class="sub" id="rcSub"></p>
+    <div id="rcFees"></div>
+    <div class="g2">
+      <div><label class="l" for="rcAmt">Kitni raqam jama ki (Rs)</label><input id="rcAmt" type="number" inputmode="numeric" min="1"></div>
+      <div><label class="l" for="rcDate">Kis din</label><input id="rcDate" type="date"></div>
+    </div>
+    <div class="g2">
+      <div><label class="l" for="rcMethod">Kaise</label><select id="rcMethod"><option>Bank transfer</option><option>JazzCash</option><option>EasyPaisa</option><option>Cash (school)</option><option>Other</option></select></div>
+      <div><label class="l" for="rcRef">Transaction ID (agar ho)</label><input id="rcRef" maxlength="60" placeholder="optional"></div>
+    </div>
+    <label class="l">Receipt ki tasveer / screenshot</label>
+    <label class="drop" id="rcDrop" for="rcFile"><span style="font-size:1.8rem">📷</span><b>Tasveer lein ya file chunein</b><span>JPG, PNG ya PDF</span></label>
+    <input type="file" id="rcFile" accept="image/*,application/pdf" style="display:none">
+    <div class="msg" id="rcMsg"></div>
+    <button type="button" class="go" id="rcGo">Receipt bhejein</button>
+    <div class="past" id="rcPast"></div>
+  </div>
 </div>
 
 <script>
 const $ = (id) => document.getElementById(id);
-let ME = null, KID = null, MODE = "chat";
+let ME = null, KID = null, MODE = "chat", RC = null;
+const ICON = {attendance:"📅", tests:"📝", homework:"📚", fee:"💳", receipt:"🧾", remarks:"💬", issue:"✉️"};
 
 async function api(path, body){
   const r = await fetch(path, body ? {method:"POST", headers:{"Content-Type":"application/json"}, credentials:"same-origin", body:JSON.stringify(body)}
@@ -106,12 +200,24 @@ async function api(path, body){
   if(!r.ok) throw new Error(j.error || ("Masla aa gaya (" + r.status + ")"));
   return j;
 }
+const money = n => "Rs " + Math.round(+n || 0).toLocaleString("en-US");
+const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const fmtM = m => { if(!m) return ""; const [y, mo] = String(m).split("-"); return `${MONTHS[+mo-1]} ${y}`; };
+const fmtD = d => { if(!d) return ""; const [y, m, dd] = String(d).slice(0,10).split("-"); return `${+dd} ${MONTHS[+m-1]} ${y}`; };
+const now = () => new Date().toLocaleTimeString("en-GB", {hour:"2-digit", minute:"2-digit"});
+const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; };
 
-/* ---------- chat bubbles (sirf text — koi HTML server se nahi) ---------- */
+/* ---------- bubbles (sirf text — server se koi HTML nahi) ---------- */
 function el(tag, cls, text){ const e = document.createElement(tag); if(cls) e.className = cls; if(text !== undefined) e.textContent = text; return e; }
-function scrollDown(){ const m = $("msgs"); m.scrollTop = m.scrollHeight; }
-function say(text){ const b = el("div", "b me", text); $("msgs").appendChild(b); scrollDown(); }
-function bot(blocks, cls){
+function scrollDown(){ const m = $("msgs"); requestAnimationFrame(()=>{ m.scrollTop = m.scrollHeight; }); }
+function stamp(b){ b.appendChild(el("span", "tm", now())); }
+function say(text, img){
+  const row = el("div", "row me"), b = el("div", "b me");
+  if(img){ const i = el("img", "thumb"); i.src = img; i.alt = ""; b.appendChild(i); }
+  b.appendChild(el("p", "", text)); stamp(b); row.appendChild(b); $("msgs").appendChild(row); scrollDown();
+}
+function bot(blocks, cls, extra){
+  const row = el("div", "row"), av = el("img", "ava"); av.src = "/icons/cga-192.png"; av.alt = "";
   const b = el("div", "b bot" + (cls ? " " + cls : ""));
   (blocks || []).forEach(x=>{
     if(x.t === "h") b.appendChild(el("h4", "", x.text));
@@ -119,12 +225,21 @@ function bot(blocks, cls){
     else if(x.t === "li"){ const ul = el("ul"); x.items.forEach(i=>ul.appendChild(el("li", "", i))); b.appendChild(ul); }
     else if(x.t === "kv"){ const d = el("div", "kv"); x.rows.forEach(([k,v])=>{ d.appendChild(el("span", "", k)); d.appendChild(el("span", "", v)); }); b.appendChild(d); }
   });
-  $("msgs").appendChild(b); scrollDown();
+  if(extra) b.appendChild(extra);
+  stamp(b); row.appendChild(av); row.appendChild(b); $("msgs").appendChild(row); scrollDown();
 }
 function typing(on){
-  let t = document.querySelector(".typing");
-  if(on && !t){ t = el("div", "typing", "…"); $("msgs").appendChild(t); scrollDown(); }
+  let t = $("typing");
+  if(on && !t){ t = el("div", "row"); t.id = "typing"; const d = el("div", "typing"); d.append(el("i"), el("i"), el("i")); t.appendChild(d); $("msgs").appendChild(t); scrollDown(); }
   if(!on && t) t.remove();
+}
+function tiles(){
+  const g = el("div", "tiles");
+  ME.menu.forEach(m=>{ const b = el("button"); b.type = "button";
+    const parts = m.label.split(" "), ic = parts[0];
+    b.append(el("span", "", ic), document.createTextNode(parts.slice(1).join(" ")));
+    b.onclick = ()=>pick(m); g.appendChild(b); });
+  return g;
 }
 
 /* ---------- login ---------- */
@@ -142,25 +257,27 @@ function drawKids(){
   const box = $("kids"); box.innerHTML = "";
   box.style.display = ME.children.length > 1 ? "flex" : "none";
   ME.children.forEach(k=>{
-    const b = el("button", k.id === KID.id ? "on" : "", `${k.name} · ${k.course}`);
-    b.type = "button";
-    b.onclick = ()=>{ KID = k; drawKids(); setMode("chat"); ask("menu", true); };
+    const b = el("button", "kid" + (k.id === KID.id ? " on" : "")); b.type = "button";
+    b.append(el("span", "av", (k.name || "?").trim().charAt(0).toUpperCase()), document.createTextNode(k.name + " "), el("small", "", k.course));
+    b.onclick = ()=>{ KID = k; drawKids(); setMode("chat"); $("msgs").appendChild(el("div", "day", `${k.name} · ${k.course}`)); ask("menu", true); };
     box.appendChild(b);
   });
+  $("topKid").textContent = `${KID.name} · ${KID.course} · ${KID.shift}`;
+}
+function pick(m){
+  if(m.id === "issue"){ setMode("message"); bot([{t:"p", text:`${KID.name} ke baare mein apna masla ya message neeche likh kar ➤ dabayein.`}]); $("text").focus(); return; }
+  if(m.id === "receipt"){ openReceipt(); return; }
+  setMode("chat"); ask(m.id);
 }
 function drawQuick(){
   const box = $("quick"); box.innerHTML = "";
-  ME.menu.forEach(m=>{
-    const b = el("button", "", m.label); b.type = "button";
-    b.onclick = ()=>{ if(m.id === "issue"){ setMode("message"); bot([{t:"p", text:`${KID.name} ke baare mein apna masla ya message neeche likh kar "Bhejein" dabayein.`}]); $("text").focus(); } else { setMode("chat"); ask(m.id); } };
-    box.appendChild(b);
-  });
+  ME.menu.forEach(m=>{ const b = el("button", m.id === "receipt" ? "hl" : "", m.label); b.type = "button"; b.onclick = ()=>pick(m); box.appendChild(b); });
 }
 function setMode(m){
   MODE = m;
   $("mode").style.display = m === "message" ? "flex" : "none";
   $("modeKid").textContent = KID ? KID.name : "";
-  $("text").placeholder = m === "message" ? "Apna message likhein…" : "Likhein: attendance, test, homework, fee…";
+  $("text").placeholder = m === "message" ? "Apna message likhein…" : "Likhein: attendance, test, fee…";
 }
 $("modeCancel").onclick = ()=> setMode("chat");
 
@@ -168,9 +285,17 @@ async function ask(text, silent){
   const label = (ME.menu.find(m=>m.id === text) || {}).label;
   if(!silent) say(label || text);
   typing(true);
-  try{ const r = await api("/parent/api/chat", {studentId:KID.id, text}); typing(false); bot(r.blocks); }
-  catch(err){ typing(false); if(err.message !== "login") bot([{t:"p", text:err.message}]); }
+  try{
+    const r = await api("/parent/api/chat", {studentId:KID.id, text});
+    typing(false);
+    if(r.intent === "receipt"){ bot(r.blocks); openReceipt(); return; }
+    bot(r.blocks, "", r.intent === "menu" ? tiles() : r.intent === "fee" ? rcButton() : null);
+  }
+  catch(err){ typing(false); if(err.message !== "login") bot([{t:"p", text:err.message}], "warn"); }
 }
+function rcButton(){ const b = el("button", "", "🧾 Fee jama kar di? Receipt bhejein"); b.type = "button";
+  b.style.cssText = "margin-top:8px;width:100%;border:none;border-radius:10px;padding:9px;background:var(--green);color:#fff;font-weight:700";
+  b.onclick = openReceipt; return b; }
 $("compose").addEventListener("submit", async (e)=>{
   e.preventDefault();
   const text = $("text").value.trim(); if(!text) return;
@@ -180,7 +305,7 @@ $("compose").addEventListener("submit", async (e)=>{
     typing(true);
     try{ await api("/parent/api/message", {studentId:KID.id, text}); typing(false);
          bot([{t:"p", text:"✓ Aap ka message school ko mil gaya. Jawab \"Teacher Remarks\" mein nazar aayega."}], "note"); setMode("chat"); }
-    catch(err){ typing(false); if(err.message !== "login") bot([{t:"p", text:err.message}]); }
+    catch(err){ typing(false); if(err.message !== "login") bot([{t:"p", text:err.message}], "warn"); }
     return;
   }
   ask(text, true);
@@ -188,21 +313,98 @@ $("compose").addEventListener("submit", async (e)=>{
 function autoGrow(){ const t = $("text"); t.style.height = "auto"; t.style.height = Math.min(120, t.scrollHeight) + "px"; }
 $("text").addEventListener("input", autoGrow);
 $("text").addEventListener("keydown", (e)=>{ if(e.key === "Enter" && !e.shiftKey){ e.preventDefault(); $("compose").requestSubmit(); } });
+$("attach").onclick = ()=>openReceipt();
+
+/* ---------- fee receipt ---------- */
+async function openReceipt(){
+  if(!KID) return;
+  RC = {file:"", preview:"", fees:[]};
+  $("rcSub").textContent = `${KID.name} · ${KID.course} — jo fee jama karwai us ki receipt / bank ya JazzCash ka screenshot bhejein. Office check kar ke challan Paid kar dega.`;
+  $("rcFees").innerHTML = "<p class='sub'>Challans aa rahe hain…</p>";
+  $("rcAmt").value = ""; $("rcDate").value = today(); $("rcRef").value = ""; $("rcMsg").textContent = ""; $("rcFile").value = "";
+  resetDrop(); $("rcGo").disabled = false; $("rcPast").innerHTML = "";
+  $("sheetBg").classList.add("show");
+  try{
+    const r = await api("/parent/api/challans?studentId=" + encodeURIComponent(KID.id));
+    RC.fees = r.fees;
+    const box = $("rcFees"); box.innerHTML = "";
+    box.appendChild(el("label", "l", "Kis challan ki fee"));
+    const opts = [...r.fees.map(f=>({id:f.id, t:`${f.chNo} · ${fmtM(f.month)}`, s:f.dueDate ? `Due ${fmtD(f.dueDate)}` : "", amt:f.due})), {id:"", t:"Advance / koi aur", s:"Challan abhi nahi bana ya pata nahi", amt:null}];
+    opts.forEach((o, i)=>{
+      const lab = el("label", "ch" + (i === 0 ? " on" : "")), rd = el("input"); rd.type = "radio"; rd.name = "rcFee"; rd.value = o.id; rd.checked = i === 0;
+      const t = el("div"); t.append(el("b", "", o.t), el("small", "", o.s));
+      lab.append(rd, t); if(o.amt !== null) lab.appendChild(el("span", "amt", money(o.amt)));
+      rd.onchange = ()=>{ box.querySelectorAll(".ch").forEach(x=>x.classList.toggle("on", x.contains(rd))); if(o.amt) $("rcAmt").value = o.amt; };
+      box.appendChild(lab);
+    });
+    if(opts[0].amt) $("rcAmt").value = opts[0].amt;
+    if(r.receipts.length){
+      const p = $("rcPast"); p.appendChild(el("b", "", "Pehle bheji receipts"));
+      r.receipts.forEach(x=>{ const d = el("div"); d.append(el("span", "", `${fmtD(x.d)} · ${money(x.amount)}${x.chNo ? " · " + x.chNo : ""}`),
+        el("span", x.status === "Approved" ? "st-a" : x.status === "Rejected" ? "st-r" : "st-p", x.status === "Approved" ? "✓ Darj" : x.status === "Rejected" ? "✗ Wapas" + (x.note ? ": " + x.note : "") : "⏳ Check ho rahi")); p.appendChild(d); });
+    }
+  }catch(err){ if(err.message !== "login") $("rcFees").innerHTML = ""; }
+}
+function closeReceipt(){ $("sheetBg").classList.remove("show"); }
+$("rcClose").onclick = closeReceipt;
+$("sheetBg").addEventListener("click", e=>{ if(e.target === $("sheetBg")) closeReceipt(); });
+function resetDrop(){ const d = $("rcDrop"); d.innerHTML = ""; d.append(el("span", "", "📷"), el("b", "", "Tasveer lein ya file chunein"), el("span", "", "JPG, PNG ya PDF")); d.firstChild.style.fontSize = "1.8rem"; }
+/* Tasveer chhoti kar ke bhejein (phone ki 4MB photo → ~300KB) */
+function shrink(file){
+  return new Promise((res, rej)=>{
+    const url = URL.createObjectURL(file), img = new Image();
+    img.onload = ()=>{ const k = Math.min(1, 1600 / Math.max(img.width, img.height)), c = document.createElement("canvas");
+      c.width = Math.round(img.width*k); c.height = Math.round(img.height*k);
+      const x = c.getContext("2d"); x.fillStyle = "#fff"; x.fillRect(0, 0, c.width, c.height); x.drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url); res(c.toDataURL("image/jpeg", .82)); };
+    img.onerror = ()=>{ URL.revokeObjectURL(url); rej(new Error("Ye tasveer khul nahi saki — doosri chunein")); };
+    img.src = url;
+  });
+}
+$("rcFile").addEventListener("change", async ()=>{
+  const f = $("rcFile").files[0]; if(!f) return;
+  $("rcMsg").textContent = "";
+  try{
+    if(f.type === "application/pdf"){
+      if(f.size > 5*1024*1024) throw new Error("PDF 5 MB se chhoti honi chahiye");
+      RC.file = await new Promise((res, rej)=>{ const r = new FileReader(); r.onload = ()=>res(r.result); r.onerror = rej; r.readAsDataURL(f); });
+      RC.preview = ""; const d = $("rcDrop"); d.innerHTML = ""; d.append(el("span", "", "📄"), el("b", "", f.name), el("span", "", "Badalne ke liye dobara dabayein"));
+    } else {
+      RC.file = await shrink(f); RC.preview = RC.file;
+      const d = $("rcDrop"); d.innerHTML = ""; const i = el("img"); i.src = RC.file; i.alt = ""; d.append(i, el("span", "", "Badalne ke liye dobara dabayein"));
+    }
+  }catch(err){ RC.file = ""; resetDrop(); $("rcMsg").textContent = err.message; }
+});
+$("rcGo").onclick = async ()=>{
+  const sel = document.querySelector("input[name=rcFee]:checked"), feeId = sel ? sel.value : "";
+  const amount = +$("rcAmt").value;
+  if(!(amount > 0)){ $("rcMsg").textContent = "Raqam likhein"; return; }
+  if(!RC.file){ $("rcMsg").textContent = "Receipt ki tasveer ya PDF lagayein"; return; }
+  $("rcGo").disabled = true; $("rcGo").textContent = "Bhej rahe hain…";
+  try{
+    await api("/parent/api/receipt", {studentId:KID.id, feeId, amount, paidOn:$("rcDate").value, method:$("rcMethod").value, ref:$("rcRef").value, file:RC.file});
+    const f = RC.fees.find(x=>x.id === feeId);
+    closeReceipt();
+    say(`🧾 Fee receipt · ${money(amount)}${f ? ` · ${f.chNo} (${fmtM(f.month)})` : ""} · ${$("rcMethod").value}`, RC.preview);
+    bot([{t:"h", text:"✓ Receipt mil gayi"}, {t:"p", text:"School office check kar ke challan Paid kar dega. Status \"💳 Fee\" mein nazar aayega."}], "note");
+  }catch(err){ if(err.message !== "login") $("rcMsg").textContent = err.message; }
+  finally{ $("rcGo").disabled = false; $("rcGo").textContent = "Receipt bhejein"; }
+};
 
 async function start(){
   ME = await api("/parent/api/me");
   $("login").style.display = "none"; $("app").style.display = "flex";
   $("msgs").innerHTML = "";
   if(!ME.children.length){
-    bot([{t:"p", text:"Is phone number par abhi koi student nahi mila. School office se rabta karein."}]);
+    bot([{t:"p", text:"Is phone number par abhi koi student nahi mila. School office se rabta karein."}], "warn");
     $("quick").innerHTML = ""; $("compose").style.display = "none"; return;
   }
   KID = ME.children[0];
   drawKids(); drawQuick(); setMode("chat");
+  $("msgs").appendChild(el("div", "day", "Aaj"));
   bot([{t:"h", text:"Assalam o Alaikum! 👋"},
-       {t:"p", text: ME.children.length > 1 ? `Aap ke ${ME.children.length} bache: ${ME.children.map(k=>k.name).join(", ")}. Upar se bacha chunein.` : `${KID.name} (${KID.course}, ${KID.shift}) ke baare mein poochein.`},
-       ...(ME.replies ? [{t:"p", text:`School ne aap ke ${ME.replies} message${ME.replies>1?"s":""} ka jawab diya hai — "Teacher Remarks" dabayein.`}] : [])]);
-  ask("menu", true);
+       {t:"p", text: ME.children.length > 1 ? `Aap ke ${ME.children.length} bache: ${ME.children.map(k=>k.name).join(", ")}. Upar se bacha chunein.` : `${KID.name} (${KID.course}, ${KID.shift}) ke baare mein kya dekhna hai?`},
+       ...(ME.replies ? [{t:"p", text:`School ne aap ke ${ME.replies} message${ME.replies>1?"s":""} ka jawab diya hai — "Teacher Remarks" dabayein.`}] : [])], "", tiles());
 }
 start().catch(()=> showLogin());
 </script>

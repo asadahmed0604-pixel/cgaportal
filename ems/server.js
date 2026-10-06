@@ -18,6 +18,7 @@ const PASSWORD = process.env.EMS_PASSWORD || "";
 const DB_FILE = path.join(DATA_DIR, "db.json");
 const BACKUP_DIR = path.join(DATA_DIR, "backups");
 const FILES_DIR = path.join(DATA_DIR, "files");     // v27: expense receipts (tasveer / PDF)
+const FEE_RCPT_DIR = path.join(DATA_DIR, "fee-receipts");   // v43: parents ki app se bheji fee receipts
 const MAX_FILE = 8 * 1024 * 1024;
 const FILE_TYPES = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "application/pdf": "pdf" };
 const EXT_TYPES = { jpg: "image/jpeg", png: "image/png", webp: "image/webp", pdf: "application/pdf" };
@@ -31,6 +32,7 @@ if (PASSWORD.length < 8) {
 }
 fs.mkdirSync(BACKUP_DIR, { recursive: true });
 fs.mkdirSync(FILES_DIR, { recursive: true });
+fs.mkdirSync(FEE_RCPT_DIR, { recursive: true });
 
 /* ---------- session cookie: password badalte hi purane login khud khatam ---------- */
 const SECRET_FILE = path.join(DATA_DIR, ".secret");
@@ -125,7 +127,7 @@ function dataFor(role, tid) {
   if (d.settings) { delete d.settings.adminAuth; delete d.settings.feeAdminAuth; }
   (d.employees || []).forEach((e) => { delete e.salary; delete e.login; });
   if (role === "admin") {
-    d.fees = [];
+    d.fees = []; d.feeReceipts = [];
     (d.students || []).forEach((st) => { delete st.monthlyFee; delete st.charges; (st.subjects || []).forEach((x) => { delete x.fee; }); });
   }
   redactCache[ck] = { v: state.version, text: JSON.stringify(d) };
@@ -203,6 +205,7 @@ function keepProtected(data, role) {
     if (login.get(e.id)) e.login = login.get(e.id); else delete e.login;          // teacher passwords sirf Executive
   });
   if (role === "admin") {
+    data.feeReceipts = cur.feeReceipts || [];                                 // v43: fee receipts sirf fee wale dekhte hain
     const ids = new Set((data.students || []).map((st) => st.id));
     data.fees = (cur.fees || []).filter((f) => ids.has(f.studentId));       // admin ne student hataya to us ke challan bhi
     const old = new Map((cur.students || []).map((st) => [st.id, st]));
@@ -468,6 +471,18 @@ const server = http.createServer(async (req, res) => {
       const who = parentOf(req);
       if (!who) return sendJson(res, 401, { error: "login" });
       const kids = bot.childrenOf(who.db, who.key);
+      /* v43: is bache ke baqi challans + bheji hui receipts (receipt form ke liye) */
+      if (p === "/parent/api/challans" && req.method === "GET") {
+        const child = kids.find((k) => k.id === url.searchParams.get("studentId"));
+        if (!child) return sendJson(res, 400, { error: "Pehle bacha chunein." });
+        const fees = (who.db.fees || []).filter((f) => f.studentId === child.id && bot.feeOutstanding(f) > 0)
+          .sort((a, b) => String(b.month).localeCompare(String(a.month)))
+          .map((f) => ({ id: f.id, chNo: f.chNo || "", month: f.month, amount: +f.amount || 0, due: bot.feeOutstanding(f), dueDate: f.dueDate || "" }));
+        const receipts = (who.db.feeReceipts || []).filter((r) => r.studentId === child.id && r.phone === who.key)
+          .sort((a, b) => String(b.d).localeCompare(String(a.d))).slice(0, 5)
+          .map((r) => ({ d: r.d, chNo: r.chNo, amount: r.amount, status: r.status, note: r.note || "" }));
+        return sendJson(res, 200, { fees, receipts });
+      }
       if (p === "/parent/api/me" && req.method === "GET") {
         const replies = (who.db.parentMsgs || []).filter((m) => m.phone === who.key && m.reply).length;
         return sendJson(res, 200, { school: schoolName(who.db), children: kids.map(childView), menu: bot.MENU, replies });
@@ -481,6 +496,31 @@ const server = http.createServer(async (req, res) => {
         if (tooMany("chat:" + who.key, 40, 60e3)) return sendJson(res, 429, { error: "Thora ruk kar dobara poochein." });
         const r = bot.reply(who.db, child, String(body.text || "").slice(0, 300), who.key, pktToday());
         return sendJson(res, 200, { ...r, child: childView(child) });
+      }
+      if (p === "/parent/api/receipt") {
+        const m = String(body.file || "").match(/^data:(image\/jpeg|image\/png|image\/webp|application\/pdf);base64,([A-Za-z0-9+/=]+)$/);
+        if (!m) return sendJson(res, 400, { error: "Receipt ki tasveer (JPG / PNG) ya PDF lagayein." });
+        const buf = Buffer.from(m[2], "base64"), ext = FILE_TYPES[m[1]];
+        const magic = { jpg: [0xff, 0xd8], png: [0x89, 0x50, 0x4e, 0x47], webp: [0x52, 0x49, 0x46, 0x46], pdf: [0x25, 0x50, 0x44, 0x46] }[ext];
+        if (!buf.length || buf.length > 6 * 1024 * 1024 || !magic.every((b, i) => buf[i] === b))
+          return sendJson(res, 400, { error: "Ye file theek nahi — 6 MB tak ki tasveer ya PDF bhejein." });
+        const amount = Math.round(+body.amount || 0);
+        if (!(amount > 0 && amount < 10000000)) return sendJson(res, 400, { error: "Kitni raqam jama ki — likhein." });
+        const paidOn = /^\d{4}-\d{2}-\d{2}$/.test(String(body.paidOn || "")) ? String(body.paidOn) : pktToday();
+        const fee = body.feeId ? (who.db.fees || []).find((f) => f.id === body.feeId && f.studentId === child.id) : null;
+        if (body.feeId && !fee) return sendJson(res, 400, { error: "Ye challan is bache ka nahi." });
+        if (tooMany("rcpt:" + who.key, 8, 864e5)) return sendJson(res, 429, { error: "Aaj ki receipts ki had poori — kal bhejein ya school aa kar dikhayein." });
+        const METHODS = ["Bank transfer", "JazzCash", "EasyPaisa", "Cash (school)", "Other"];
+        const name = `${crypto.randomBytes(12).toString("hex")}.${ext}`;
+        writeAtomic(path.join(FEE_RCPT_DIR, name), buf);
+        mutateDb((d) => {
+          d.feeReceipts = d.feeReceipts || [];
+          d.feeReceipts.push({ id: crypto.randomBytes(8).toString("hex"), studentId: child.id, studentName: child.name, phone: who.key,
+            feeId: fee ? fee.id : "", chNo: fee ? fee.chNo || "" : "", month: fee ? fee.month : "", amount, paidOn,
+            method: METHODS.includes(body.method) ? body.method : "Other", ref: String(body.ref || "").trim().slice(0, 60),
+            file: `/fee-receipts/${name}`, fileType: ext, d: new Date().toISOString(), status: "Pending", note: "" });
+        });
+        return sendJson(res, 200, { ok: true });
       }
       if (p === "/parent/api/message") {
         const text = String(body.text || "").trim().slice(0, 1000);
@@ -580,6 +620,15 @@ const server = http.createServer(async (req, res) => {
       const name = `${crypto.randomBytes(12).toString("hex")}.${ext}`;
       writeAtomic(path.join(FILES_DIR, name), buf);
       return sendJson(res, 200, { url: `/files/${name}`, size: buf.length });
+    }
+    /* v43: parents ki fee receipts — sirf Executive aur Fee Admin */
+    const frm = p.match(/^\/fee-receipts\/([a-f0-9]{24})\.(jpg|png|webp|pdf)$/);
+    if (frm && req.method === "GET") {
+      if (role !== "exec" && role !== "feeadmin") return send(res, 403, "Sirf Executive / Fee Admin");
+      const file = path.join(FEE_RCPT_DIR, `${frm[1]}.${frm[2]}`);
+      if (!fs.existsSync(file)) return send(res, 404, "Not found");
+      return send(res, 200, fs.readFileSync(file), EXT_TYPES[frm[2]],
+        { "Cache-Control": "private, max-age=31536000, immutable", "Content-Disposition": "inline", "X-Frame-Options": "SAMEORIGIN" });
     }
     const fm = p.match(/^\/files\/([a-f0-9]{24})\.(jpg|png|webp|pdf)$/);
     if (fm && req.method === "GET") {

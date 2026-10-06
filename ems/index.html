@@ -366,6 +366,7 @@ label.chk input{width:auto}
     <div class="card"><div class="k">👥 Total Staff</div><div class="v" id="dStaff">0</div><div class="hint" id="dStaffHint"></div></div>
     <div class="card click" onclick="openFeeStatus('paid')" title="Paid students ki list"><div class="k">✅ Paid (<span class="dm">This Month</span>)</div><div class="v green" id="dPaidN">0</div><div class="hint" id="dPaidAmt"></div></div>
     <div class="card click" onclick="openFeeStatus('unpaid')" title="Unpaid students ki list"><div class="k">⏳ Unpaid (<span class="dm">This Month</span>)</div><div class="v red" id="dUnpaid">0</div><div class="hint" id="dUnpaidAmt"></div></div>
+    <div class="card click" onclick="document.querySelector('#nav button[data-page=fees]').click()" title="Parents ki app se aayi fee receipts"><div class="k">📎 Fee receipts (app)</div><div class="v red" id="dFr">0</div><div class="hint" id="dFrHint"></div></div>
     <div class="card click" onclick="openLeftList()" title="Jo students chhor gaye"><div class="k">🚪 Left (<span class="dm">This Month</span>)</div><div class="v red" id="dLeft">0</div><div class="hint" id="dLeftHint"></div></div>
     <div class="card click" onclick="document.querySelector('#nav button[data-page=inquiries]').click()" title="Inquiries page"><div class="k">📞 Inquiries (<span class="dm">This Month</span>)</div><div class="v" id="dInq">0</div><div class="hint" id="dInqHint"></div></div>
     <div class="card click" onclick="document.querySelector('#nav button[data-page=parents]').click()" title="Parents page"><div class="k">✉️ Parent Messages</div><div class="v red" id="dPMsg">0</div><div class="hint" id="dPMsgHint"></div></div>
@@ -528,6 +529,7 @@ label.chk input{width:auto}
       <button class="btn-red" onclick="openChallanForm()">+ New Fee Challan</button>
     </div>
   </div>
+  <div class="panel" id="frPanel" style="margin-bottom:16px;display:none"></div>
   <div class="cards">
     <div class="card click" onclick="openDefaulters()" title="Defaulter list dekhne ke liye click karein"><div class="k">⚠ Defaulters</div><div class="v red" id="feeDefN">0</div><div class="hint" id="feeDefAmt"></div></div>
     <div class="card"><div class="k">Billed (This Month)</div><div class="v" id="feeBilledM">0</div><div class="hint" id="feeBilledHint"></div></div>
@@ -1103,7 +1105,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v42 · 6 Oct 2026";
+const BUILD = "v43 · 6 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -1219,6 +1221,7 @@ const DEFAULT_DB = {
   empAttendance:{},        // { "2026-07-07": { empId: {s:"P|A|L", t:"09:00"} } }
   classCosts:{},           // { "Morning|O1": [{id, teacherId, subject, amount}] } — teacher pay per class
   parentAccess:[],         // v28: [{id, phone(10 digit key), salt, hash, iter, active, pinSetOn}] — parents chat login
+  feeReceipts:[],          // v43: parents ki app se fee receipts — [{id,studentId,feeId,chNo,amount,paidOn,method,ref,file,d,status:"Pending|Approved|Rejected",note}]
   parentMsgs:[],           // v28: [{id, studentId, studentName, phone, d, text, status, reply, repliedOn, repliedBy}]
   tests:[],                // v36: [{id,name,shift,course,subject,teacherId,date,total,by:"admin|teacher",createdOn,createdBy}]
   classAtt:[],             // v36: [{id,date,shift:"Evening",course,subject,teacherId,online,t,marks:{sid:"P|A|L|E"},savedAt}]
@@ -1269,7 +1272,8 @@ DB.subjects.forEach(x=>{                       // purane catalogue ko naye field
 });
 DB.students.forEach(s=>{ if(!s.subjects) s.subjects=[]; });
 if(!Array.isArray(DB.inventory)) DB.inventory = [];
-if(!Array.isArray(DB.tests))     DB.tests = [];        // v36: admin / teacher ke banaye tests
+if(!Array.isArray(DB.tests))     DB.tests = [];
+if(!Array.isArray(DB.feeReceipts)) DB.feeReceipts = [];        // v36: admin / teacher ke banaye tests
 if(!Array.isArray(DB.classAtt))  DB.classAtt = [];     // v36: teacher ki class attendance (Evening)
 if(!Array.isArray(DB.issues))    DB.issues = [];
 /* Pehle "issued" ek sada ginti thi. Ab har issuance ka record banta hai, is liye
@@ -1677,6 +1681,9 @@ function renderDashboard(){
   $("dPaidAmt").textContent = `${money(fs.paid.reduce((a,f)=>a+feeReceived(f),0))} wasool${fs.carried.length ? ` · ${fs.carried.length} ka baqaya agle challan mein` : ""}`;
   $("dUnpaid").textContent = fs.unpaid.length;
   $("dUnpaidAmt").textContent = `${money(dueM)} baqi${fs.unpaid.filter(f=>feeReceived(f)>0).length ? ` · ${fs.unpaid.filter(f=>feeReceived(f)>0).length} ne adhi di` : ""} · sab mahine: ${money(unpaid.reduce((a,f)=>a + feeOutstanding(f), 0))}`;
+  const frP = (DB.feeReceipts||[]).filter(r=>r.status==="Pending");
+  $("dFr").textContent = frP.length;
+  $("dFrHint").textContent = frP.length ? `Check karni hain · ${money(frP.reduce((a,r)=>a+(+r.amount||0),0))} · sab se purani ${fmtD(frP.map(r=>r.d).sort()[0].slice(0,10))}` : "Koi receipt check ke liye baqi nahi";
   const lf = leftIn(m), allLeft = DB.students.filter(s=>s.status==="Left").length;
   $("dLeft").textContent = lf.length;
   $("dLeftHint").textContent = (lf.length ? `🌅 ${lf.filter(s=>s.shift==="Morning").length} · 🌆 ${lf.filter(s=>s.shift==="Evening").length} — ` + lf.slice(0,2).map(s=>s.name).join(", ") + (lf.length>2 ? ` +${lf.length-2}` : "") + " · " : "") + `kul Left: ${allLeft}`;
@@ -2620,6 +2627,7 @@ function delHw(id){
 
 /* ================= FEES ================= */
 function renderFees(){
+  drawFeeReceipts();
   const fs=$("feeFStatus").value, fm=$("feeFMonth").value, q=($("feeSearch").value||"").toLowerCase();
   const rows = DB.fees.filter(f=>{
     if(fs && f.status!==fs) return false;
@@ -4511,6 +4519,125 @@ function marksCSV(inp){
     $("mkMsg").innerHTML = `<div class="note">✓ Sheet se ${ok} bachon ke marks bhar diye — check kar ke <b>Save marks</b> dabayein.${miss.length ? `<br>Nahi mile (${miss.length}): ${miss.slice(0,10).map(esc).join(", ")}${miss.length>10?" …":""}` : ""}</div>`;
   };
   rd.readAsText(f);
+}
+
+/* ================= v43: APP SE FEE RECEIPTS =================
+   Parent chat app se receipt bhejta hai → yahan "Pending". Executive / Fee Admin tasveer dekh kar Approve karta hai
+   (challan khud Paid / adhi payment) ya wajah likh kar wapas karta hai — parent ko chat ke "Fee" mein status dikhta hai. */
+let FR_FILTER = "Pending";
+const frPending = () => (DB.feeReceipts||[]).filter(r=>r.status==="Pending");
+function frBadge(){
+  const b = document.querySelector('#nav button[data-page="fees"]'); if(!b) return;
+  let x = b.querySelector(".nbadge"); const n = CAN_FEES ? frPending().length : 0;
+  if(!n){ if(x) x.remove(); return; }
+  if(!x){ x = document.createElement("span"); x.className = "nbadge"; x.style.cssText = "margin-left:auto;background:#C0392B;color:#fff;border-radius:999px;font-size:.72rem;font-weight:800;padding:1px 7px"; b.appendChild(x); }
+  x.textContent = n;
+}
+/* Nayi receipt aaye to batao (har computer apni dekhi hui yaad rakhta hai) */
+function frNotify(first){
+  frBadge();
+  if(!CAN_FEES || !SERVER) return;
+  let seen = []; try{ seen = JSON.parse(localStorage.getItem("emsFrSeen")||"[]"); }catch(e){}
+  const P = frPending(), fresh = P.filter(r=>!seen.includes(r.id));
+  if(fresh.length){
+    const r = fresh[fresh.length-1];
+    toast(first ? `📎 ${P.length} fee receipt${P.length>1?"s":""} app se aayi hain — Fee / Billing mein check karein`
+                : `📎 Nayi fee receipt app se — ${r.studentName || "student"} (${money(r.amount)})${fresh.length>1 ? ` +${fresh.length-1}` : ""}`);
+    try{ if(!first && window.Notification && Notification.permission==="granted") new Notification("Fee receipt added from app", {body:`${r.studentName || ""} — ${money(r.amount)}`, icon:"/icons/cga-192.png"}); }catch(e){}
+  }
+  try{ localStorage.setItem("emsFrSeen", JSON.stringify(P.map(r=>r.id))); }catch(e){}
+}
+function drawFeeReceipts(){
+  const box = $("frPanel"); if(!box) return;
+  const all = (DB.feeReceipts||[]).slice().sort((a,b)=>String(b.d).localeCompare(String(a.d)));
+  if(!SERVER && !all.length){ box.style.display = "none"; return; }
+  box.style.display = "";
+  const L = all.filter(r=>!FR_FILTER || r.status===FR_FILTER), P = all.filter(r=>r.status==="Pending");
+  const stB = r => r.status==="Approved" ? `<span class="badge b-paid">Approved</span>` : r.status==="Rejected" ? `<span class="badge b-left">Rejected</span>` : `<span class="badge b-unpaid">Pending</span>`;
+  box.innerHTML = `<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <h3>📎 App se aayi fee receipts ${P.length ? `<span class="badge b-unpaid">${P.length} check karni hain</span>` : ""}</h3>
+      <div class="mchips" style="margin:0 0 0 auto">${[["Pending","Pending"],["Approved","Approved"],["Rejected","Rejected"],["","Sab"]].map(([v,l])=>`<button class="${FR_FILTER===v?"on":""}" onclick="FR_FILTER='${v}';drawFeeReceipts()">${l}</button>`).join("")}</div>
+      ${window.Notification && Notification.permission==="default" ? `<button class="btn-line btn-sm" onclick="Notification.requestPermission().then(()=>drawFeeReceipts())">🔔 Notification chalu</button>` : ""}</div>
+    <p class="sub" style="margin:4px 0 10px">Parents chat app (📎) se receipt / screenshot bhejte hain. Tasveer dekh kar <b>Approve</b> karein to challan khud Paid ho jata hai; ghalat ho to wajah likh kar wapas karein — parent ko chat mein dikhega.</p>
+    <div class="tbl-wrap"><table><thead><tr><th>Aayi</th><th>Student</th><th>Challan</th><th style="text-align:right">Raqam</th><th>Kaise / kab</th><th>Receipt</th><th>Status</th><th></th></tr></thead><tbody>
+    ${L.length ? L.map(r=>{ const st = stuById(r.studentId) || {}; return `<tr>
+      <td>${fmtD(String(r.d).slice(0,10))}<br><span class="sub">${String(r.d).slice(11,16)}</span></td>
+      <td><b>${esc(r.studentName || st.name || "—")}</b><br><span class="sub">${esc(st.course||"")} · ${esc(st.shift||"")}</span></td>
+      <td>${esc(r.chNo || "—")}${r.month ? `<br><span class="sub">${fmtM(r.month)}</span>` : ""}</td>
+      <td style="text-align:right"><b>${money(r.amount)}</b></td>
+      <td>${esc(r.method||"")}${r.ref ? `<br><span class="sub">TID ${esc(r.ref)}</span>` : ""}<br><span class="sub">${fmtD(r.paidOn)}</span></td>
+      <td>${r.fileType==="pdf" ? `<a href="${esc(r.file)}" target="_blank" rel="noopener">📄 PDF</a>` : `<img class="rcpt-thumb" src="${esc(r.file)}" onclick="openFeeReceipt('${r.id}')" alt="">`}</td>
+      <td>${stB(r)}${r.note ? `<br><span class="sub">${esc(r.note)}</span>` : ""}</td>
+      <td><button class="${r.status==="Pending" ? "btn-red" : "btn-line"} btn-sm" onclick="openFeeReceipt('${r.id}')">${r.status==="Pending" ? "Check karein" : "Dekhein"}</button></td></tr>`; }).join("")
+      : `<tr><td colspan="8" class="empty">${FR_FILTER==="Pending" ? "Koi receipt check ke liye baqi nahi ✓" : "Koi receipt nahi"}</td></tr>`}
+    </tbody></table></div>`;
+}
+function openFeeReceipt(id){
+  const r = (DB.feeReceipts||[]).find(x=>x.id===id); if(!r) return;
+  const st = stuById(r.studentId) || {};
+  const open = DB.fees.filter(f=>f.studentId===r.studentId && feeOutstanding(f) > 0).sort((a,b)=>String(b.month).localeCompare(String(a.month)));
+  const pre = open.find(f=>f.id===r.feeId) ? r.feeId : (open[0]||{}).id || "";
+  const done = r.status !== "Pending";
+  openModal(`
+    <h3>📎 Fee receipt — ${esc(r.studentName || st.name || "")}</h3>
+    <p class="sub" style="margin-bottom:10px">${esc(st.course||"")} · ${esc(st.shift||"")} · Reg ${esc(st.regNo||"")} · app se ${fmtD(String(r.d).slice(0,10))} ${String(r.d).slice(11,16)} · parent phone ${esc(r.phone ? "0"+r.phone : "")}</p>
+    <div class="grid2">
+      <div>${r.fileType==="pdf" ? `<iframe src="${esc(r.file)}" style="width:100%;height:420px;border:1px solid var(--line);border-radius:10px"></iframe>`
+          : `<a href="${esc(r.file)}" target="_blank" rel="noopener"><img src="${esc(r.file)}" style="width:100%;max-height:460px;object-fit:contain;border:1px solid var(--line);border-radius:10px;background:#f6f6f6" alt="receipt"></a>`}
+        <p class="sub" style="margin-top:4px">Tasveer par click — poori size mein</p></div>
+      <div>
+        <div class="kv" style="margin-bottom:12px">
+          <span class="k">Parent ne likha</span><span><b>${money(r.amount)}</b> · ${esc(r.method||"")}${r.ref ? " · TID " + esc(r.ref) : ""}</span>
+          <span class="k">Jama ki</span><span>${fmtD(r.paidOn)}</span>
+          <span class="k">Challan</span><span>${esc(r.chNo || "Advance / koi aur")}${r.month ? " · " + fmtM(r.month) : ""}</span>
+          <span class="k">Status</span><span>${esc(r.status)}${r.reviewedBy ? ` — ${esc(r.reviewedBy)} (${fmtD(r.reviewedOn)})` : ""}${r.note ? `<br>${esc(r.note)}` : ""}</span>
+        </div>
+        ${done ? "" : `
+        <div class="field"><label>Kis challan mein darj karein</label><select id="fr_fee" onchange="frSync()">${open.map(f=>`<option value="${f.id}" ${f.id===pre?"selected":""}>${esc(f.chNo)} · ${fmtM(f.month)} · baqi ${money(feeOutstanding(f))}</option>`).join("") || `<option value="">— is student ka koi baqi challan nahi —</option>`}</select></div>
+        <div class="grid2">
+          <div class="field"><label>Wasool raqam (Rs)</label><input type="number" id="fr_amt" value="${+r.amount||0}" oninput="frSync()"></div>
+          <div class="field"><label>Payment date</label><input type="date" id="fr_date" value="${esc(r.paidOn||wmDate())}"></div>
+        </div>
+        <div id="fr_hint" class="note"></div>
+        <div class="field"><label>Wapas karne ki wajah (sirf Reject par — parent ko dikhegi)</label><input id="fr_note" placeholder="e.g. Tasveer saaf nahi / raqam account mein nahi aayi"></div>`}
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-line" onclick="closeModal()">Band karein</button>
+      ${done ? "" : `<button class="btn-danger" onclick="rejectFeeReceipt('${id}')">✗ Reject</button>
+      <button class="btn-red" id="fr_ok" onclick="approveFeeReceipt('${id}')">✓ Approve — challan mein darj</button>`}
+    </div>`, true);
+  if(!done) frSync();
+}
+function frSync(){
+  const f = DB.fees.find(x=>x.id===$("fr_fee").value), a = +$("fr_amt").value || 0;
+  if(!f){ $("fr_hint").innerHTML = "Is student ka koi baqi challan nahi — pehle challan banayein, phir approve karein."; $("fr_ok").disabled = true; return; }
+  $("fr_ok").disabled = !(a > 0);
+  const o = feeOutstanding(f);
+  $("fr_hint").innerHTML = a >= o ? `✓ <b>${esc(f.chNo)}</b> poora <b>Paid</b> ho jayega${a > o ? ` (raqam baqi se ${money(a-o)} zyada — sirf ${money(o)} darj hoga)` : ""}.`
+    : `Adhi payment: ${money(a)} darj hoga, <b>${money(o-a)}</b> baqi rahega.`;
+}
+function approveFeeReceipt(id){
+  const r = DB.feeReceipts.find(x=>x.id===id), f = DB.fees.find(x=>x.id===$("fr_fee").value);
+  const a = +$("fr_amt").value || 0, date = $("fr_date").value || wmDate();
+  if(!r || !f || !(a > 0)) return;
+  const o = feeOutstanding(f);
+  if(a >= o){
+    f.status = "Paid"; f.paidDate = date;
+    if(hasVal(f.balance) || hasVal(f.paidAmount)){ f.paidAmount = +f.amount||0; f.balance = 0; }
+  } else {
+    f.paidAmount = feeReceived(f) + a; f.balance = o - a; f.paidDate = date; f.status = "Unpaid";
+  }
+  Object.assign(r, {status:"Approved", feeId:f.id, chNo:f.chNo, month:f.month, approvedAmount:Math.min(a, o), reviewedBy:ROLE_LABEL, reviewedOn:todayStr(), note: a >= o ? "" : `Adhi payment — ${money(o-a)} baqi`});
+  save(); closeModal(); renderFees(); renderDashboard();
+  toast(`✓ ${f.chNo}: ${a >= o ? "Paid" : money(a) + " darj, " + money(o-a) + " baqi"} — parent ko app mein dikhega`);
+}
+function rejectFeeReceipt(id){
+  const r = DB.feeReceipts.find(x=>x.id===id); if(!r) return;
+  const note = $("fr_note").value.trim();
+  if(!note){ toast("Wajah likhein — parent ko dikhegi"); $("fr_note").focus(); return; }
+  Object.assign(r, {status:"Rejected", note, reviewedBy:ROLE_LABEL, reviewedOn:todayStr()});
+  save(); closeModal(); renderFees(); renderDashboard(); toast("Receipt wapas — parent ko wajah dikhegi");
 }
 
 /* ================= v41: APP INSTALL =================
@@ -8446,6 +8573,7 @@ const typing = () => { const a = document.activeElement; return !!a && /^(INPUT|
 
 /* Server ka naya data screen par lagao (jo page khula hai wahi dobara banao) */
 function adoptRemote(remote){
+  setTimeout(()=>frNotify(), 0);
   const local = DB, base = SYNC.base ? JSON.parse(SYNC.base) : null;
   DB = syncDirty() ? mergeDB(base, local, remote.data) : remote.data;
   for(const k in DEFAULT_DB) if(DB[k]===undefined) DB[k] = structuredClone(DEFAULT_DB[k]);
@@ -8580,6 +8708,7 @@ if(ROLE !== "teacher"){
   if(changed) save();
 }
 if(SERVER){ setSyncState(); if(syncDirty()) queuePush(); }
+frNotify(true);
 /* v41: phone / desktop par app ki tarah */
 if(SERVER && "serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(()=>{});
 if(window.matchMedia && matchMedia("(display-mode: standalone)").matches) $("installBtn").style.display = "none";

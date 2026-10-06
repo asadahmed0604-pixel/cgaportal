@@ -50,6 +50,7 @@ const INTENTS = [
   ["attendance", /\b(att\w*|hazri|haziri|hazir|absent|ghair|present|chutti|leave)\b/i],
   ["tests", /\b(tests?|exams?|results?|marks?|numbers?|imtihan|paper)\b/i],
   ["homework", /\b(hw|home\s*work|homework|kaam|assignments?|diary)\b/i],
+  ["receipt", /\b(receipts?|raseed|rasid|slip|proof|screenshot)\b/i],
   ["fee", /\b(fees?|challan|dues?|baqaya|payment|paise)\b/i],
   ["remarks", /\b(remarks?|teacher|comments?|feedback|report|reply|jawab)\b/i],
   ["issue", /\b(masla|masail|issue|complain\w*|shikayat|problem|message)\b/i],
@@ -58,8 +59,8 @@ const INTENTS = [
 function intentOf(text) {
   const t = String(text || "").trim();
   if (!t) return "menu";
-  const num = t.match(/^\s*([0-6])\s*$/);      // menu number: 1 = attendance ... 6 = masla, 0 = menu
-  if (num) return ["menu", "attendance", "tests", "homework", "fee", "remarks", "issue"][+num[1]];
+  const num = t.match(/^\s*([0-7])\s*$/);      // menu number: 1 = attendance ... 6 = masla, 7 = receipt, 0 = menu
+  if (num) return ["menu", "attendance", "tests", "homework", "fee", "remarks", "issue", "receipt"][+num[1]];
   for (const [k, re] of INTENTS) if (re.test(t)) return k;
   return "unknown";
 }
@@ -69,6 +70,7 @@ const MENU = [
   { id: "tests", label: "📝 Test Results" },
   { id: "homework", label: "📚 Homework" },
   { id: "fee", label: "💳 Fee" },
+  { id: "receipt", label: "🧾 Fee receipt bhejein" },
   { id: "remarks", label: "💬 Teacher Remarks" },
   { id: "issue", label: "✉️ Masla / Message bhejein" },
 ];
@@ -142,6 +144,11 @@ function fee(db, s) {
     const st = f.carriedTo ? `agle challan (${f.carriedChNo || ""}) mein shamil` : o ? `baqi ${money(o)}${f.dueDate ? ` · due ${fmtD(f.dueDate)}` : ""}` : `paid${f.paidDate ? ` ${fmtD(f.paidDate)}` : ""} ✓`;
     return `${fmtM(f.month)} · ${f.chNo || ""} · ${money(f.amount)}${+f.arrears ? ` (incl. ${money(f.arrears)} arrears)` : ""} — ${st}`;
   })));
+  const rc = (db.feeReceipts || []).filter((r) => r.studentId === s.id).sort((a, b) => String(b.d).localeCompare(String(a.d))).slice(0, 3);
+  if (rc.length) {
+    out.push(P("Aap ki bheji receipts:"));
+    out.push(LI(rc.map((r) => `${fmtD(r.d)} · ${money(r.amount)}${r.chNo ? ` (${r.chNo})` : ""} — ${r.status === "Approved" ? "✓ check ho gayi, fee darj" : r.status === "Rejected" ? `✗ wapas${r.note ? `: ${r.note}` : ""}` : "⏳ office check kar raha hai"}`)));
+  }
   return out;
 }
 
@@ -178,6 +185,7 @@ function reply(db, s, text, key, todayStr) {
     case "tests": return { intent, blocks: tests(db, s) };
     case "homework": return { intent, blocks: homework(db, s, today) };
     case "fee": return { intent, blocks: fee(db, s) };
+    case "receipt": return { intent, blocks: [P(`Fee jama karwa di? Receipt / screenshot ki tasveer bhejein — "🧾 Fee receipt bhejein" button (ya 📎) dabayein. Office check kar ke challan Paid kar dega.`)] };
     case "remarks": return { intent, blocks: remarks(db, s, key) };
     case "issue": return { intent, blocks: [P(`${s.name} ke baare mein apna masla ya message likh kar bhejein — school admin parh kar jawab dega. Jawab "Teacher Remarks" mein nazar aayega.`)] };
     case "menu": return { intent, blocks: menuBlocks(s) };
