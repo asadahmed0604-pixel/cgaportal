@@ -586,6 +586,7 @@ label.chk input{width:auto}
       <button class="btn-black" onclick="openClassResult()">📊 Class Result</button>
       <button class="btn-black" onclick="openReportCard()">🎓 Report Card / Transcript</button>
       <button class="btn-black" onclick="openBulkReportCards()">🗂 Bulk report cards (class-wise)</button>
+      <button class="btn-black" onclick="document.querySelector('#nav button[data-page=tests]').click();openExamForm()">📋 Create Exam (classes assign)</button>
       <button class="btn-black" onclick="document.querySelector('#nav button[data-page=tests]').click()">🧪 Tests & marks entry</button>
       <button class="btn-red" onclick="openExamForm()">+ Add Exam Marks</button>
     </div>
@@ -606,10 +607,15 @@ label.chk input{width:auto}
 <section class="page" id="page-tests">
   <div class="page-head">
     <div><h2>Tests & Marks Entry</h2><div class="sub" id="testsSub">Admin test banata hai (Morning ke tests sirf admin) — teacher apni class ke marks aur har bache ka remark likhta hai. Evening teacher khud bhi test bana sakta hai ya CSV se marks daal sakta hai.</div></div>
-    <button class="btn-red" onclick="openTestForm()">+ Create Test</button>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn-red staff-only" onclick="openExamForm()">📋 Create Exam (classes assign)</button>
+      <button class="btn-black" onclick="openTestForm()">+ Single Test</button>
+    </div>
   </div>
+  <div id="examGroups"></div>
   <div class="toolbar">
     <div class="field"><label>Month</label><input type="month" id="testFMonth" onchange="renderTests()"></div>
+    <div class="field"><label>Exam</label><select id="testFExam" onchange="renderTests()"><option value="">Sab</option></select></div>
     <div class="field"><label>Shift</label><select id="testFShift" onchange="renderTests()"><option value="">Dono</option><option>Morning</option><option>Evening</option></select></div>
     <div class="field"><label>Class</label><select id="testFCourse" onchange="renderTests()"><option value="">Sab classes</option></select></div>
     <div class="field"><label>Marks</label><select id="testFState" onchange="renderTests()"><option value="">Sab</option><option value="due">Marks baqi</option><option value="done">Mukammal</option></select></div>
@@ -1069,7 +1075,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v38 · 5 Oct 2026";
+const BUILD = "v39 · 6 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -4050,8 +4056,12 @@ function renderTests(){
   const courses = [...new Set(keys.map(k=>k.split("|")[1]))];
   cSel.innerHTML = `<option value="">Sab classes</option>` + courses.map(c=>`<option ${c===keep?"selected":""}>${esc(c)}</option>`).join("");
   const fc = cSel.value;
+  const exAll = examGroups(fm, fs, keys), eSel = $("testFExam"), keepE = eSel.value;
+  eSel.innerHTML = `<option value="">Sab</option>` + exAll.map(g=>`<option value="${g.id}" ${g.id===keepE?"selected":""}>${esc(g.name)}</option>`).join("");
+  const fe = eSel.value;
+  drawExamGroups(exAll);
   const rows = DB.tests.filter(t=>(!fm || String(t.date).startsWith(fm)) && (!fs || t.shift===fs) && (!fc || t.course===fc)
-      && (!IS_TEACHER || keys.includes(t.shift+"|"+t.course)))
+      && (!fe || t.examId===fe) && (!IS_TEACHER || keys.includes(t.shift+"|"+t.course)))
     .map(t=>({t, n:testStudents(t).length, d:testMarks(t).length}))
     .filter(r=>!fst || (fst==="due" ? r.d < r.n : r.n && r.d >= r.n))
     .sort((a,b)=>String(b.t.date).localeCompare(String(a.t.date)) || a.t.course.localeCompare(b.t.course));
@@ -4061,7 +4071,7 @@ function renderTests(){
   $("testRows").innerHTML = rows.length ? rows.map(({t,n,d})=>{ const av = testAvg(t), te = empById(t.teacherId);
     return `<tr>
       <td>${fmtD(t.date)}</td>
-      <td><b>${esc(t.name)}</b></td>
+      <td><b>${esc(t.name)}</b>${t.examId ? ` <span class="chip" title="Exam ka paper">📋</span>` : ""}</td>
       <td>${esc(t.course)} <span class="sub">· ${t.shift}</span></td>
       <td>${esc(t.subject||"—")}</td>
       <td>${te ? (te.online?`<span class="online-dot" title="Online"></span>`:"") + esc(te.name) : "—"}</td>
@@ -4145,6 +4155,146 @@ function delTest(id){
     DB.tests = DB.tests.filter(x=>x.id!==id); DB.exams = DB.exams.filter(e=>e.testId!==id);
     save(); renderTests(); toast("Test delete ho gaya");
   });
+}
+
+/* ================= v39: EXAM — aik exam, kai classes (khaas taur par Morning) =================
+   Admin exam banata hai (e.g. "Mid Term"), classes chunta hai, har class ke har subject ka paper aur us ka teacher.
+   Har paper aik test (examId ke saath) — teacher apne login mein apne papers dekhta hai, marks + remarks likhta hai. */
+const subjTeacherKey = (sh, c, subj) => `${sh}|${c}|${keyify(subj)}`;
+function classSubjects(sh, c){
+  const set = new Set(), RM = rosterMonths(), m = wm();
+  DB.students.filter(st=>st.shift===sh && st.course===c && st.status!=="Left" && inMonth(st, m, RM)).forEach(st=>(st.subjects||[]).forEach(x=>set.add(x.name)));
+  if(!set.size) subjectsForClass(c).forEach(x=>set.add(x.name));
+  const comp = new Set(compulsoryForClass(c).map(x=>x.name));
+  return [...set].sort((a,b)=>(comp.has(b)-comp.has(a)) || a.localeCompare(b));
+}
+function guessTeacher(sh, c, subj){
+  const mem = (DB.settings.subjTeacher||{})[subjTeacherKey(sh, c, subj)];
+  if(mem && empById(mem)) return mem;
+  const st = DB.students.find(x=>x.shift===sh && x.course===c && (x.subjects||[]).some(y=>y.name===subj && y.teacherId));
+  return st ? st.subjects.find(y=>y.name===subj && y.teacherId).teacherId : "";
+}
+function examGroups(fm, fs, keys){
+  const by = {};
+  DB.tests.filter(t=>t.examId && (!fm || String(t.date).startsWith(fm)) && (!fs || t.shift===fs) && (!IS_TEACHER || keys.includes(t.shift+"|"+t.course))).forEach(t=>{
+    const g = by[t.examId] = by[t.examId] || {id:t.examId, name:t.examName || t.name, shift:t.shift, tests:[], from:t.date, to:t.date};
+    g.tests.push(t); if(t.date < g.from) g.from = t.date; if(t.date > g.to) g.to = t.date;
+  });
+  return Object.values(by).sort((a,b)=>String(b.from).localeCompare(String(a.from)));
+}
+function drawExamGroups(list){
+  const box = $("examGroups"); if(!box) return;
+  if(!list.length){ box.innerHTML = ""; return; }
+  box.innerHTML = `<div class="panel" style="margin-bottom:14px"><h3>📋 Exams</h3><div class="tbl-wrap" style="margin-top:8px"><table>
+    <thead><tr><th>Exam</th><th>Shift</th><th>Dates</th><th>Classes</th><th>Papers</th><th>Marks entered</th><th></th></tr></thead><tbody>
+    ${list.map(g=>{ let n = 0, d = 0, done = 0;
+      g.tests.forEach(t=>{ const a = testStudents(t).length, b = testMarks(t).length; n += a; d += b; if(a && b >= a) done++; });
+      const cls = [...new Set(g.tests.map(t=>t.course))];
+      return `<tr><td><b>${esc(g.name)}</b></td><td>${esc(g.shift)}</td><td>${fmtD(g.from)}${g.to!==g.from ? " – "+fmtD(g.to) : ""}</td>
+        <td class="sub">${cls.map(esc).join(", ")}</td><td>${done} / ${g.tests.length} mukammal</td>
+        <td><span class="badge ${n && d>=n ? "b-paid" : d ? "b-freeze" : "b-unpaid"}">${d} / ${n}</span></td>
+        <td style="white-space:nowrap"><button class="btn-black btn-sm" onclick="$('testFExam').value='${g.id}';renderTests()">Papers</button>
+          ${IS_TEACHER ? "" : `<button class="btn-line btn-sm" onclick="openExamForm('${g.id}')">+ Classes / papers</button>
+          <button class="btn-line btn-sm" onclick="examMarksCSV('${g.id}')">⬇ Result CSV</button>
+          <button class="btn-danger btn-sm" onclick="delExamGroup('${g.id}')">Delete</button>`}</td></tr>`; }).join("")}
+    </tbody></table></div></div>`;
+}
+let EXF = null;
+function openExamForm(examId){
+  if(IS_TEACHER) return;
+  const old = examId ? DB.tests.filter(t=>t.examId===examId) : [];
+  if(examId && !old.length) return;
+  const o = old[0] || {};
+  EXF = {examId: examId || "", draft:{}, have:new Set(old.map(t=>t.course+"|"+keyify(t.subject)))};
+  const sh = o.shift || "Morning";
+  openModal(`
+    <h3>📋 ${examId ? "Exam mein classes / papers barhayein" : "Create Exam — classes assign karein"}</h3>
+    <p class="sub" style="margin-bottom:10px">Exam ka naam, classes aur har subject ka paper + teacher. Har teacher apne login (Tests & Marks) mein apne papers dekhega aur har bache ke marks aur <b>remark</b> likhega.</p>
+    <div class="grid2">
+      <div class="field"><label>Exam ka naam *</label><input id="ex_name" value="${esc(o.examName || o.name || "")}" placeholder="e.g. Mid Term Exam / October Monthly Test" ${examId?"disabled":""}></div>
+      <div class="field"><label>Shift</label><select id="ex_shift" onchange="exClasses()" ${examId?"disabled":""}>${["Morning","Evening"].map(x=>`<option ${x===sh?"selected":""}>${x}</option>`).join("")}</select></div>
+      <div class="field"><label>Pehle paper ki date</label><input type="date" id="ex_date" value="${o.date || wmDate()}" onchange="exGrid(true)"></div>
+      <div class="field"><label>Total marks (har paper — baad mein alag bhi)</label><input type="number" id="ex_total" value="${o.total || 50}" min="1" onchange="exGrid(true)"></div>
+    </div>
+    <div class="field"><label>Classes</label><div id="ex_cls" class="chips"></div></div>
+    <div id="ex_grid"></div>
+    <div id="ex_msg"></div>
+    <div class="modal-foot">
+      <button class="btn-line" onclick="closeModal()">Cancel</button>
+      <button class="btn-red" id="ex_go" onclick="saveExamGroup()">Exam banayein</button>
+    </div>`, true);
+  exClasses(old.map(t=>t.course));
+}
+function exClasses(pre){
+  const sh = $("ex_shift").value, RM = rosterMonths(), m = wm();
+  const keep = new Set(pre || [...document.querySelectorAll("#ex_cls input:checked")].map(x=>x.value));
+  $("ex_cls").innerHTML = (CLASSES_BY_SHIFT[sh]||[]).map(c=>{ const n = DB.students.filter(st=>st.shift===sh && st.course===c && activeIn(st, m, RM)).length;
+    return `<label class="chk" style="margin:0 12px 6px 0"><input type="checkbox" value="${esc(c)}" ${keep.has(c)?"checked":""} onchange="exGrid()"> ${esc(c)} <span class="sub">(${n})</span></label>`; }).join("");
+  exGrid();
+}
+function exReadGrid(){
+  document.querySelectorAll("#ex_grid tr[data-k]").forEach(tr=>{
+    if(tr.dataset.have) return;
+    EXF.draft[tr.dataset.k] = {on: tr.querySelector(".ex-on").checked, tid: tr.querySelector(".ex-t").value, date: tr.querySelector(".ex-d").value, total: tr.querySelector(".ex-m").value};
+  });
+}
+function exGrid(resetDefaults){
+  exReadGrid();
+  if(resetDefaults) Object.values(EXF.draft).forEach(d=>{ d.date = ""; d.total = ""; });
+  const sh = $("ex_shift").value, cls = [...document.querySelectorAll("#ex_cls input:checked")].map(x=>x.value);
+  const dDate = $("ex_date").value, dTot = $("ex_total").value;
+  const tOpts = sel => `<option value="">— class ka koi bhi teacher —</option>` + DB.employees.filter(e=>e.category==="Teacher").sort((a,b)=>a.name.localeCompare(b.name))
+    .map(e=>`<option value="${e.id}" ${e.id===sel?"selected":""}>${esc(e.name)}${(e.assignments||[]).some(a=>a.shift===sh) ? "" : " (is shift mein assign nahi)"}</option>`).join("");
+  $("ex_grid").innerHTML = cls.length ? cls.map(c=>{ const subs = classSubjects(sh, c);
+    return `<div class="panel" style="margin:8px 0;padding:10px 12px"><b>${esc(c)}</b> <span class="sub">· ${subs.length} subjects</span>
+      <div class="tbl-wrap" style="margin-top:6px"><table><thead><tr><th></th><th>Subject</th><th>Teacher (marks yehi likhega)</th><th>Date</th><th>Total</th></tr></thead><tbody>
+      ${subs.map(x=>{ const k = c+"|"+keyify(x), have = EXF.have.has(k), d = EXF.draft[k] || {on:true, tid:guessTeacher(sh, c, x)};
+        return `<tr data-k="${esc(k)}" data-c="${esc(c)}" data-s="${esc(x)}" ${have?'data-have="1"':""}>
+          <td><input type="checkbox" class="ex-on" style="width:auto" ${have||d.on?"checked":""} ${have?"disabled":""}></td>
+          <td><b>${esc(x)}</b>${have ? ` <span class="badge b-paid">bana hua</span>` : ""}</td>
+          <td>${have ? "" : `<select class="ex-t">${tOpts(d.tid)}</select>`}</td>
+          <td>${have ? "" : `<input type="date" class="ex-d" value="${d.date || dDate}">`}</td>
+          <td style="max-width:90px">${have ? "" : `<input type="number" class="ex-m" min="1" value="${d.total || dTot}">`}</td></tr>`; }).join("")}
+      </tbody></table></div></div>`; }).join("")
+    : `<div class="note">Upar se classes chunein — har class ke subjects (papers) neeche aa jayenge.</div>`;
+}
+function saveExamGroup(){
+  exReadGrid();
+  const name = EXF.examId ? (DB.tests.find(t=>t.examId===EXF.examId)||{}).examName || $("ex_name").value.trim() : $("ex_name").value.trim();
+  const sh = $("ex_shift").value;
+  if(!name){ toast("Exam ka naam likhein"); return; }
+  const papers = [...document.querySelectorAll("#ex_grid tr[data-k]")].filter(tr=>!tr.dataset.have && tr.querySelector(".ex-on").checked).map(tr=>({
+    c:tr.dataset.c, subj:tr.dataset.s, tid:tr.querySelector(".ex-t").value, date:tr.querySelector(".ex-d").value, total:+tr.querySelector(".ex-m").value}));
+  if(!papers.length){ toast("Kam az kam aik class aur subject chunein"); return; }
+  const bad = papers.filter(x=>!x.date || !(x.total > 0));
+  if(bad.length){ $("ex_msg").innerHTML = `<div class="note">${bad.length} papers ki date ya total marks khali — bhar dein.</div>`; return; }
+  const examId = EXF.examId || uid(), mem = DB.settings.subjTeacher = DB.settings.subjTeacher || {};
+  papers.forEach(x=>{
+    DB.tests.push({id:uid(), examId, examName:name, name, date:x.date, shift:sh, course:x.c, subject:x.subj, teacherId:x.tid, total:x.total,
+      by:"admin", createdOn:todayStr(), createdBy:ROLE_LABEL});
+    if(x.tid) mem[subjTeacherKey(sh, x.c, x.subj)] = x.tid;
+  });
+  const noT = papers.filter(x=>!x.tid).length;
+  save(); closeModal();
+  $("testFMonth").value = String(papers[0].date).slice(0,7); $("testFExam").value = "";
+  renderTests(); $("testFExam").value = examId; renderTests();
+  toast(`✓ "${name}" — ${papers.length} papers, ${new Set(papers.map(x=>x.c)).size} classes${noT ? ` · ${noT} papers bina teacher (class ka koi bhi teacher marks likh sakta hai)` : ""}`);
+}
+function delExamGroup(id){
+  const ts = DB.tests.filter(t=>t.examId===id); if(!ts.length) return;
+  const ids = new Set(ts.map(t=>t.id)), nm = DB.exams.filter(e=>ids.has(e.testId)).length;
+  askConfirm("Poora exam delete karein?", `<b>${esc(ts[0].examName||ts[0].name)}</b> — ${ts.length} papers${nm ? `, aur un ke <b>${nm}</b> marks` : ""}. Ye wapas nahi aayega.`, ()=>{
+    DB.tests = DB.tests.filter(t=>!ids.has(t.id)); DB.exams = DB.exams.filter(e=>!ids.has(e.testId));
+    save(); $("testFExam").value = ""; renderTests(); toast("Exam delete ho gaya");
+  });
+}
+function examMarksCSV(id){
+  const ts = DB.tests.filter(t=>t.examId===id).sort((a,b)=>a.course.localeCompare(b.course) || a.subject.localeCompare(b.subject)); if(!ts.length) return;
+  const rows = [["Class","Reg No","Student","Subject","Teacher","Date","Total","Obtained","%","Grade","Remark"]];
+  ts.forEach(t=>testStudents(t).forEach(st=>{ const e = DB.exams.find(x=>x.testId===t.id && x.studentId===st.id);
+    const pc = e && +t.total ? Math.round(e.obtained/t.total*100) : "";
+    rows.push([t.course, st.regNo||"", st.name, t.subject, teacherName(t.teacherId), t.date, t.total, e ? (e.absent ? "Absent" : e.obtained) : "", pc, pc==="" ? "" : gradeOf(pc), e ? e.comment||"" : ""]); }));
+  downloadCSV(`${fileSafe(ts[0].examName||ts[0].name)}-result.csv`.replace(/\s+/g,"-"), rows);
 }
 const MK_REMARKS = ["Excellent — keep it up","Very good","Good effort","Satisfactory","Needs improvement","Revision ki zaroorat hai",
   "Careless mistakes — paper dhyan se karein","Concepts weak — extra practice","Absent in test","Did not attempt properly"];
