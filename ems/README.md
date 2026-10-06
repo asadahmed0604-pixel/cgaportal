@@ -71,3 +71,10 @@ Apna domain (jaise `ems.cga.com.pk`): Render → service → **Settings → Cust
 cd ems
 EMS_PASSWORD=koi-password-123 node server.js   # http://localhost:3000
 ```
+
+## App ki tarah install (v41)
+
+Staff (`/`), Teachers (`/teacher`) aur Parents (`/parent`) — teeno links phone / computer par app ban sakte hain
+(manifest + service worker; data kabhi cache nahi hota). Android Chrome: ⋮ → "Install app" · iPhone Safari:
+Share → "Add to Home Screen" · Computer Chrome/Edge: address bar ka install icon. EMS ke sidebar mein
+"📲 App install karein" button bhi hai. App ka icon academy ke logo se khud banta hai.
