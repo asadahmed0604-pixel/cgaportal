@@ -8,6 +8,7 @@
      PORT          default 3000
 */
 const http = require("http");
+const zlib = require("zlib");
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
@@ -159,7 +160,9 @@ function teacherView(d, tid) {
     tests, exams: (d.exams || []).filter((e) => ids.has(e.testId)),
     classAtt: (d.classAtt || []).filter((c) => catOwn(c, tid, cls)),
     subjects: d.subjects || [],
-    inquiries: [], fees: [], txns: [], homework: [], inventory: [], issues: [], attendance: {}, empAttendance: {},
+    inquiries: [], fees: [], txns: [], homework: [], inventory: [], issues: [], attendance: {},
+    /* v41: sirf apni staff attendance — dekhne ke liye; teacherMerge ise kabhi nahi leta */
+    empAttendance: Object.fromEntries(Object.entries(d.empAttendance || {}).filter(([, day]) => day && day[tid]).map(([dt, day]) => [dt, { [tid]: day[tid] }])),
     classCosts: {}, parentAccess: [], parentMsgs: [], audits: [], counters: d.counters || {},
     settings: { name: s.name, addr: s.addr, phone: s.phone, logo: s.logo },
   };
@@ -325,6 +328,7 @@ function appPage(role, tid) {
 function loginPage(msg, teacher) {
   return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1"><title>CGA EMS — ${teacher ? "Teacher Login" : "Login"}</title>
+${APP_HEAD(teacher ? "teacher" : "staff")}
 <link href="https://fonts.googleapis.com/css2?family=League+Spartan:wght@400;600;800&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0}
@@ -351,8 +355,53 @@ button:hover{background:#0F7657}
   <input id="pw" type="password" name="password" autocomplete="current-password" required ${teacher ? "" : "autofocus"}>
   <button type="submit">Login</button>
   ${teacher ? `<a class="alt" href="/login">Staff login →</a>` : `<a class="alt" href="/teacher">Teacher hain? Teacher login →</a>`}
-</form></body></html>`;
+</form>
+<script>if("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(()=>{});</script></body></html>`;
 }
+
+/* ================= v41: APP (phone / desktop par install) =================
+   Manifest + service worker + icons — login ke baghair milte hain (browser inhein cookie ke baghair mangta hai).
+   Icons: Executive ke browser ne logo se jo PNG banaye (settings.appIcons), warna saada rangeen icon. */
+function pngSolid(n) {
+  const crcT = []; for (let k = 0; k < 256; k++) { let c = k; for (let j = 0; j < 8; j++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; crcT[k] = c >>> 0; }
+  const crc = (b) => { let c = 0xFFFFFFFF; for (const x of b) c = crcT[(c ^ x) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; };
+  const chunk = (type, data) => { const len = Buffer.alloc(4); len.writeUInt32BE(data.length);
+    const td = Buffer.concat([Buffer.from(type), data]); const c = Buffer.alloc(4); c.writeUInt32BE(crc(td)); return Buffer.concat([len, td, c]); };
+  const raw = Buffer.alloc((n * 3 + 1) * n), r0 = n * 0.2, r1 = n * 0.26;
+  for (let y = 0; y < n; y++) {
+    raw[y * (n * 3 + 1)] = 0;
+    for (let x = 0; x < n; x++) {
+      const d = Math.min(x, y, n - 1 - x, n - 1 - y), ring = d >= r0 && d < r1, inner = d >= r1;
+      const [R, G, B] = ring ? [255, 255, 255] : inner ? [21, 150, 112] : [23, 75, 96];
+      const o = y * (n * 3 + 1) + 1 + x * 3; raw[o] = R; raw[o + 1] = G; raw[o + 2] = B;
+    }
+  }
+  const ihdr = Buffer.alloc(13); ihdr.writeUInt32BE(n, 0); ihdr.writeUInt32BE(n, 4); ihdr[8] = 8; ihdr[9] = 2;
+  return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk("IHDR", ihdr), chunk("IDAT", zlib.deflateSync(raw)), chunk("IEND", Buffer.alloc(0))]);
+}
+const FALLBACK_ICON = { 192: pngSolid(192), 512: pngSolid(512) };
+function appIcon(size) {
+  const ic = ((dbNow() || {}).settings || {}).appIcons || {};
+  const m = String(ic["i" + size] || "").match(/^data:image\/png;base64,(.+)$/);
+  return m ? Buffer.from(m[1], "base64") : FALLBACK_ICON[size];
+}
+function manifest(kind) {
+  const name = schoolName(dbNow());
+  const k = { staff: { id: "/", start: "/", n: `${name} — EMS`, s: "CGA EMS" },
+              teacher: { id: "/teacher", start: "/teacher", n: `${name} — Teachers`, s: "CGA Teacher" },
+              parent: { id: "/parent", start: "/parent", n: `${name} — Parents`, s: "CGA Parents" } }[kind];
+  return JSON.stringify({ id: k.id, name: k.n, short_name: k.s, start_url: k.start, scope: kind === "parent" ? "/parent" : "/",
+    display: "standalone", background_color: "#174B60", theme_color: "#174B60", lang: "en",
+    icons: [192, 512].map((n) => ({ src: `/app-icon-${n}.png`, sizes: `${n}x${n}`, type: "image/png", purpose: "any" })) });
+}
+/* Sirf page ka request — data kabhi cache nahi hota; internet na ho to saada paigham */
+const SW_JS = `self.addEventListener("install", () => self.skipWaiting());
+self.addEventListener("activate", (e) => e.waitUntil(self.clients.claim()));
+self.addEventListener("fetch", (e) => {
+  if (e.request.mode !== "navigate") return;
+  e.respondWith(fetch(e.request).catch(() => new Response('<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><body style="font-family:sans-serif;background:#174B60;color:#fff;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;text-align:center;padding:20px"><div><h2>Internet nahi hai</h2><p>Connection wapas aate hi dobara kholein.</p></div>', { headers: { "Content-Type": "text/html; charset=utf-8" } })));
+});`;
+const APP_HEAD = (kind) => `<link rel="manifest" href="/${kind === "teacher" ? "teacher" : "app"}.webmanifest"><meta name="theme-color" content="#174B60"><link rel="apple-touch-icon" href="/app-icon-192.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="${kind === "teacher" ? "CGA Teacher" : "CGA EMS"}">`;
 
 /* ---------- http ---------- */
 const SEC_HEADERS = {
@@ -405,6 +454,12 @@ const server = http.createServer(async (req, res) => {
     const p = url.pathname;
 
     if (p === "/healthz") return send(res, 200, "ok");
+    if (p === "/app.webmanifest" || p === "/manifest.webmanifest") return send(res, 200, manifest("staff"), "application/manifest+json");
+    if (p === "/teacher.webmanifest") return send(res, 200, manifest("teacher"), "application/manifest+json");
+    if (p === "/parent/app.webmanifest") return send(res, 200, manifest("parent"), "application/manifest+json");
+    if (p === "/sw.js") return send(res, 200, SW_JS, "text/javascript; charset=utf-8", { "Cache-Control": "no-cache" });
+    const im = p.match(/^\/app-icon-(192|512)\.png$/);
+    if (im) return send(res, 200, appIcon(+im[1]), "image/png", { "Cache-Control": "public, max-age=3600" });
 
     /* ---------- parents (staff login se alag) ---------- */
     if (p === "/parent" && req.method === "GET")
