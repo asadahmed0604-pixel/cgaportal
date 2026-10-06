@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CGA EMS — Cambridge Grads Academy</title>
-<link rel="manifest" href="/app.webmanifest"><meta name="theme-color" content="#174B60"><link rel="apple-touch-icon" href="/app-icon-192.png">
+<link rel="manifest" href="/app.webmanifest"><meta name="theme-color" content="#174B60"><link rel="apple-touch-icon" href="/icons/cga-180.png"><link rel="icon" type="image/png" href="/icons/cga-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="CGA EMS">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1103,7 +1103,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v41 · 6 Oct 2026";
+const BUILD = "v42 · 6 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -4533,21 +4533,6 @@ function installApp(){
     ${SERVER ? "" : `<div class="note" style="margin-top:10px">Ye file browser mein seedhi khuli hai — app install sirf online (Render) link par hoti hai.</div>`}
     <div class="modal-foot"><button class="btn-red" onclick="closeModal()">Theek hai</button></div>`);
 }
-/* App icon: logo se 192 / 512 PNG (aik dafa, logo badle to dobara) — server inhein /app-icon-*.png par deta hai */
-async function ensureAppIcons(){
-  const logo = DB.settings.logo; if(!logo) return;
-  const sig = logo.length + ":" + logo.slice(-32);
-  if(DB.settings.appIcons && DB.settings.appIcons.src === sig) return;
-  const lj = await logoJpeg(); if(!lj) return;
-  const img = await new Promise(r=>{ const i = new Image(); i.onload = ()=>r(i); i.onerror = ()=>r(null); i.src = lj.url; }); if(!img) return;
-  const make = n => { const c = document.createElement("canvas"); c.width = c.height = n; const x = c.getContext("2d");
-    x.fillStyle = "#ffffff"; x.fillRect(0, 0, n, n);
-    const pad = n*0.1, k = Math.min((n-2*pad)/img.width, (n-2*pad)/img.height), w = img.width*k, h = img.height*k;
-    x.drawImage(img, (n-w)/2, (n-h)/2, w, h); return c.toDataURL("image/png"); };
-  DB.settings.appIcons = {src:sig, i192:make(192), i512:make(512)};
-  save();
-}
-
 /* ================= v41: TEACHER DASHBOARD =================
    Teacher ke login mein: aaj ki classes, poora timetable (Employees → assignment ka waqt), us ke students,
    us ki apni staff attendance (sirf dekhne ke liye — server teacher ki taraf se attendance kabhi nahi leta)
@@ -8598,7 +8583,6 @@ if(SERVER){ setSyncState(); if(syncDirty()) queuePush(); }
 /* v41: phone / desktop par app ki tarah */
 if(SERVER && "serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(()=>{});
 if(window.matchMedia && matchMedia("(display-mode: standalone)").matches) $("installBtn").style.display = "none";
-if(SERVER && !IS_TEACHER) setTimeout(ensureAppIcons, 1500);
 </script>
 </body>
 </html>
