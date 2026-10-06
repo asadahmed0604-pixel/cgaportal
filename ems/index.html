@@ -1075,7 +1075,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v39 · 6 Oct 2026";
+const BUILD = "v40 · 6 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -8260,6 +8260,31 @@ if(ROLE !== "teacher"){
       st.group = ""; st.groupOverride = "";
     });
     DB.settings.ftSubjectsV37 = todayStr(); changed = true;
+  }
+  /* v40: O1 (Morning) — Pakistan Studies do papers: P1 aur P2 (alag subject, alag marks entry) */
+  const PAK = ["Pakistan Studies P1","Pakistan Studies P2"];
+  PAK.forEach(n=>{
+    if(!DB.subjects.some(x=>x.name===n)){ DB.subjects.push({id:"sub_o1_"+keyify(n), name:n, level:"O Level", kind:"Compulsory", classes:["O1"], defaultFee:0}); changed = true; }
+  });
+  if(!DB.settings.pakSplitV40){
+    /* aam "Pakistan Studies" ab O1 ke ilawa baaki O Level classes ke liye */
+    DB.subjects.filter(x=>x.name==="Pakistan Studies" && x.level==="O Level" && !(x.classes||[]).length).forEach(x=>{
+      x.classes = COURSES.filter(c=>levelOfClass(c)==="O Level" && c!=="O1");
+    });
+    DB.students.filter(st=>st.shift==="Morning" && st.course==="O1").forEach(st=>{
+      const i = (st.subjects||[]).findIndex(x=>keyify(x.name)==="pakistanstudies");
+      if(i < 0) return;
+      const o = st.subjects[i];
+      st.subjects.splice(i, 1, ...PAK.map(n=>({name:n, fee:+o.fee||0, teacherId:o.teacherId||""})));
+    });
+    /* jo O1 Pakistan Studies papers abhi bane hain magar marks nahi lage — P1 + P2 bana dein */
+    DB.tests.filter(t=>t.shift==="Morning" && t.course==="O1" && keyify(t.subject)==="pakistanstudies" && !DB.exams.some(e=>e.testId===t.id)).forEach(t=>{
+      t.subject = PAK[0];
+      DB.tests.push({...t, id:uid(), subject:PAK[1]});
+    });
+    const mem = DB.settings.subjTeacher || {}, mk = subjTeacherKey("Morning","O1","Pakistan Studies");
+    if(mem[mk]) PAK.forEach(n=>{ mem[subjTeacherKey("Morning","O1",n)] = mem[mk]; });
+    DB.settings.pakSplitV40 = todayStr(); changed = true;
   }
   if(changed) save();
 }
