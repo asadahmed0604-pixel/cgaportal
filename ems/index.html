@@ -729,7 +729,12 @@ label.chk input{width:auto}
 <section class="page" id="page-audit">
   <div class="page-head">
     <div><h2>Class Audit & KPIs</h2><div class="sub">Roz / hafta-war class visit — subject aur teacher ke hisaab se score, aur jo baat theek karni hai uska follow-up</div></div>
-    <button class="btn-red" onclick="openAuditForm()">+ New Audit</button>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn-black" onclick="$('kpiFile').click()">⬆ KPI sheet import (CSV)</button>
+      <input type="file" id="kpiFile" accept=".csv,text/csv" style="display:none" onchange="importKpiCSV(this)">
+      <button class="btn-black" onclick="openKpiForm()">📋 Monthly KPI checklist</button>
+      <button class="btn-red" onclick="openAuditForm()">+ New Audit</button>
+    </div>
   </div>
   <div class="toolbar">
     <div class="field"><label>Month</label><input type="month" id="audFMonth" onchange="renderAudit()"></div>
@@ -744,7 +749,12 @@ label.chk input{width:auto}
     <div class="card"><div class="k">Pending Action Items</div><div class="v red" id="auAct">0</div><div class="hint" id="auActHint"></div></div>
     <div class="card"><div class="k">Subject Coverage</div><div class="v" id="auCov">—</div><div class="hint" id="auCovHint"></div></div>
   </div>
-  <div class="panel"><h3>👩‍🏫 Teacher KPIs</h3>
+  <div class="panel"><h3>📋 Monthly Teacher Performance Checklist</h3>
+    <p class="sub" style="margin:4px 0 12px">Har teacher ka mahine mein aik checklist — 8 categories, 26 KPIs, har KPI 1–5 (Not done = 0, N/A ginti se bahar). Score = mile hue / applicable. 90%+ Excellent · 80%+ Very Good · 70%+ Good · 60%+ Satisfactory.</p>
+    <div id="kpiCards" class="cards" style="margin-bottom:12px"></div>
+    <div class="tbl-wrap"><table><thead><tr><th>Teacher</th><th>Subject / Classes</th><th style="text-align:right">Score</th><th style="text-align:right">%</th><th>Rating</th><th style="text-align:right">vs pichla mahina</th><th>Kamzor category</th><th>Coordinator</th><th>Actions</th></tr></thead><tbody id="kpiRows"></tbody></table></div>
+    <div id="kpiMissing" style="margin-top:10px"></div></div>
+  <div class="panel"><h3>👩‍🏫 Teacher KPIs (class audits se)</h3>
     <p class="sub" style="margin:4px 0 12px">Har criteria 1–5. Score = sab criteria ka ausat (100 mein se). Pichle mahine se farq bhi.</p>
     <div class="tbl-wrap"><table><thead><tr><th>Teacher</th><th style="text-align:right">Audits</th><th style="text-align:right">Score</th><th style="text-align:right">vs pichla mahina</th>
       <th style="text-align:right" title="Punctuality">Waqt</th><th style="text-align:right" title="Lesson preparation">Tayari</th><th style="text-align:right" title="Teaching delivery">Parhana</th>
@@ -1110,7 +1120,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v44 · 7 Oct 2026";
+const BUILD = "v45 · 7 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -1230,6 +1240,7 @@ const DEFAULT_DB = {
   parentMsgs:[],           // v28: [{id, studentId, studentName, phone, d, text, status, reply, repliedOn, repliedBy}]
   tests:[],                // v36: [{id,name,shift,course,subject,teacherId,date,total,by:"admin|teacher",createdOn,createdBy}]
   classAtt:[],             // v36: [{id,date,shift:"Evening",course,subject,teacherId,online,t,marks:{sid:"P|A|L|E"},savedAt}]
+  kpis:[],                 // v45: monthly teacher KPI checklist — [{id,month,teacherId,subject,classes,coordinator,reviewed,items:{key:{s:0-5|"na",note}},signOff}]
   audits:[],               // v27: class audit — [{id,date,shift,course,subject,teacherId,auditor,topic,plan,strength,present,scores{},homework,remarks,action,actionDone}]
   counters:{reg:1, ch:1},
   settings:{name:"Cambridge Grads Academy", addr:"", phone:"", logo:""}
@@ -1282,7 +1293,8 @@ DB.subjects.forEach(x=>{                       // purane catalogue ko naye field
 DB.students.forEach(s=>{ if(!s.subjects) s.subjects=[]; });
 if(!Array.isArray(DB.inventory)) DB.inventory = [];
 if(!Array.isArray(DB.tests))     DB.tests = [];
-if(!Array.isArray(DB.feeReceipts)) DB.feeReceipts = [];        // v36: admin / teacher ke banaye tests
+if(!Array.isArray(DB.feeReceipts)) DB.feeReceipts = [];
+if(!Array.isArray(DB.kpis))      DB.kpis = [];        // v36: admin / teacher ke banaye tests
 if(!Array.isArray(DB.classAtt))  DB.classAtt = [];     // v36: teacher ki class attendance (Evening)
 if(!Array.isArray(DB.issues))    DB.issues = [];
 /* Pehle "issued" ek sada ginti thi. Ab har issuance ka record banta hai, is liye
@@ -3946,6 +3958,7 @@ function audList(m, wk, sh, tid){
 
 function renderAudit(){
   if(!DB.audits) DB.audits = [];
+  setTimeout(renderKpis, 0);
   if(!$("audFMonth").value) $("audFMonth").value = wm();
   const m = $("audFMonth").value, wk = $("audFWeek").value, sh = $("audFShift").value, ft = $("audFTeacher").value;
   const teachers = DB.employees.filter(e=>e.category==="Teacher" || DB.audits.some(a=>a.teacherId===e.id)).sort((a,b)=>a.name.localeCompare(b.name));
@@ -4612,6 +4625,202 @@ function removeFeeCode(){
   askConfirm("Fee Admin ka code hatayein?", "Phir Fee Admin bina code ke Fee / Billing aur Income / Expense khol sakega.", ()=>{
     delete DB.settings.feeAdminCode; save(); renderLogins(); toast("Code hata diya");
   }, "Haan, hatayein");
+}
+
+/* ================= v45: MONTHLY TEACHER KPI CHECKLIST =================
+   Coordinator har mahine har teacher ki 26-point checklist bharta hai (8 categories). Har KPI 1–5,
+   Not done = 0, N/A = ginti se bahar. Score = mile hue / (applicable × 5). Excel wali sheet CSV se import bhi. */
+const KPI_CATS = [
+  ["Lesson Planning & Curriculum", [
+    ["lp_ontime","Monthly lesson plans submitted on time","Submitted per school template by the appointed deadline"],
+    ["lp_scheme","Lesson plans aligned to scheme of work","Content and pacing match the approved curriculum map"],
+    ["lp_obj","Learning objectives stated each lesson","Objectives/success criteria visible and communicated to students"]]],
+  ["Subject Knowledge & Pedagogy", [
+    ["sk_command","Command over subject/content area","Observed depth and accuracy of subject-matter knowledge"],
+    ["sk_pedagogy","Effective pedagogy for content delivery","Teaching methods suit the objective and the learners"]]],
+  ["Classroom Delivery & Engagement", [
+    ["cd_obs","Monthly classroom observation completed","At least one formal observation conducted and logged"],
+    ["cd_varied","Varied, activity-based teaching methods used","Evidence of differentiated/interactive methods and resources"],
+    ["cd_engage","Student engagement rated satisfactory+","Observed participation and critical thinking meet or exceed benchmark"]]],
+  ["Assessment, Homework & Records", [
+    ["as_ontime","Scheduled assessment administered on time","Test/quiz/assignment given as per assessment calendar"],
+    ["as_grade","Gradebook updated within 3 working days","Marks entered into the system promptly after assessment"],
+    ["as_feedback","Constructive feedback given on graded work","Written or verbal feedback provided, not just a score"],
+    ["as_hw","Homework assigned & notebooks checked","Balanced homework set and copies checked/marked regularly"]]],
+  ["Student Performance & Support", [
+    ["sp_track","Struggling students' progress tracked","Watchlist/progress log maintained for underperforming students"],
+    ["sp_remedial","Remedial support sessions conducted","Extra help offered where data shows it is needed"],
+    ["sp_parents","Parents of low performers contacted","Documented outreach to parents of at-risk students"]]],
+  ["Punctuality, Attendance & Compliance", [
+    ["pc_own","Teacher's own punctuality & attendance","Adherence to time/attendance policy (biometric or sign-in record)"],
+    ["pc_register","Daily attendance register maintained","Student attendance marked accurately and on time each day"],
+    ["pc_syllabus","Syllabus coverage report submitted","Monthly curriculum-coverage report filed with coordinator"],
+    ["pc_meetings","Staff/department meetings attended","Attendance at scheduled meetings this month"]]],
+  ["Professional Development & EdTech", [
+    ["pd_session","Attended at least one PD session","Workshop, training, or webinar attended this month"],
+    ["pd_cpd","CPD log / self-reflection updated","Personal development log updated with this month's learning"],
+    ["pd_digital","Digital tools/teaching aids used effectively","Technology integrated into lessons where appropriate"]]],
+  ["Communication & School Participation", [
+    ["cm_skills","Verbal & written communication skills observed","Clarity and professionalism in classroom and written communication"],
+    ["cm_parents","Parent queries answered within 48 hrs","Response-time standard met for parent communication"],
+    ["cm_behaviour","Behaviour incidents logged per policy","Incidents recorded and escalated per school policy"],
+    ["cm_activities","Active participation in school activities","Involvement in school events and parent meetings this month"]]]
+];
+const KPI_ITEMS = KPI_CATS.flatMap(([c, items])=>items.map(([k, t, d])=>({k, t, d, c})));
+const kpiRating = p => p === null ? "—" : p >= 90 ? "Excellent" : p >= 80 ? "Very Good" : p >= 70 ? "Good" : p >= 60 ? "Satisfactory" : "Needs Improvement";
+const kpiBadge = p => `<span class="badge ${p === null ? "b-freeze" : p >= 80 ? "b-paid" : p >= 60 ? "b-freeze" : "b-unpaid"}">${kpiRating(p)}</span>`;
+function kpiCalc(rec){
+  const items = rec.items || {}, cats = {};
+  let got = 0, max = 0, blank = 0;
+  KPI_ITEMS.forEach(it=>{
+    const c = cats[it.c] = cats[it.c] || {got:0, max:0};
+    const v = (items[it.k] || {}).s;
+    if(v === "na") return;
+    if(v === undefined || v === "" || v === null){ blank++; return; }
+    c.got += +v; c.max += 5; got += +v; max += 5;
+  });
+  Object.values(cats).forEach(c=>c.pct = c.max ? Math.round(c.got*100/c.max) : null);
+  return {got, max, blank, pct: max ? Math.round(got*1000/max)/10 : null, cats};
+}
+function renderKpis(){
+  if(!$("kpiRows")) return;
+  const m = $("audFMonth").value || wm(), ft = $("audFTeacher").value, prevM = addMonths(m, -1);
+  const L = DB.kpis.filter(k=>k.month===m && (!ft || k.teacherId===ft)).map(k=>({k, c:kpiCalc(k)})).sort((a,b)=>(b.c.pct??-1) - (a.c.pct??-1));
+  const pcts = L.map(x=>x.c.pct).filter(x=>x !== null);
+  $("kpiCards").innerHTML = `
+    <div class="card"><div class="k">Checklists (${fmtM(m)})</div><div class="v">${L.length}</div><div class="hint">${L.filter(x=>x.c.blank).length} adhoori</div></div>
+    <div class="card"><div class="k">Ausat score</div><div class="v" style="${scoreColor(avgOf(pcts))}">${pcts.length ? Math.round(avgOf(pcts)) + "%" : "—"}</div><div class="hint">${pcts.length ? kpiRating(avgOf(pcts)) : ""}</div></div>
+    <div class="card"><div class="k">Excellent (90%+)</div><div class="v green">${pcts.filter(p=>p>=90).length}</div><div class="hint">${pcts.filter(p=>p<60).length} needs improvement</div></div>`;
+  $("kpiRows").innerHTML = L.length ? L.map(({k, c})=>{
+    const prev = DB.kpis.find(x=>x.month===prevM && x.teacherId===k.teacherId), pc = prev ? kpiCalc(prev).pct : null;
+    const weak = Object.entries(c.cats).filter(([,v])=>v.pct !== null).sort((a,b)=>a[1].pct - b[1].pct)[0];
+    return `<tr><td><b>${esc(teacherName(k.teacherId) !== "—" ? teacherName(k.teacherId) : k.teacherName || "—")}</b>${c.blank ? `<br><span class="sub">${c.blank} KPI baqi</span>` : ""}</td>
+      <td>${esc(k.subject||"—")}<br><span class="sub">${esc(k.classes||"")}</span></td>
+      <td style="text-align:right">${c.got} / ${c.max}</td><td style="text-align:right"><b style="${scoreColor(c.pct)}">${c.pct === null ? "—" : c.pct + "%"}</b></td><td>${kpiBadge(c.pct)}</td>
+      <td style="text-align:right">${pc === null || c.pct === null ? "—" : `${c.pct - pc >= 0 ? "▲" : "▼"} ${Math.abs(Math.round((c.pct - pc)*10)/10)}`}</td>
+      <td>${weak && weak[1].pct < 100 ? `${esc(weak[0])} <span class="sub">(${weak[1].pct}%)</span>` : "—"}</td>
+      <td>${esc(k.coordinator||"")}<br><span class="sub">${fmtD(k.reviewed)}</span></td>
+      <td style="white-space:nowrap"><button class="btn-line btn-sm" onclick="openKpiForm('${k.id}')">Edit</button>
+        <button class="btn-line btn-sm" onclick="printKpi('${k.id}')">🖨</button>
+        <button class="btn-danger btn-sm" onclick="delKpi('${k.id}')">Delete</button></td></tr>`; }).join("")
+    : `<tr><td colspan="9" class="empty">${fmtM(m)} ki koi KPI checklist nahi — "📋 Monthly KPI checklist" se bharein ya Excel sheet import karein</td></tr>`;
+  const done = new Set(DB.kpis.filter(k=>k.month===m).map(k=>k.teacherId));
+  const left = DB.employees.filter(e=>e.category==="Teacher" && !done.has(e.id) && (!ft || e.id===ft)).sort((a,b)=>a.name.localeCompare(b.name));
+  $("kpiMissing").innerHTML = left.length ? `<span class="sub">Abhi checklist baqi (${left.length}):</span> ` + left.map(e=>`<button class="chip" style="cursor:pointer;border:none" onclick="openKpiForm('', '${e.id}')">+ ${esc(e.name)}</button>`).join(" ") : "";
+}
+let KPI_DRAFT = null;
+function openKpiForm(id, tid, pre){
+  const k = id ? DB.kpis.find(x=>x.id===id) : (pre || {});
+  if(id && !k) return;
+  const m = k.month || $("audFMonth").value || wm();
+  const t = k.teacherId || tid || "";
+  if(!id && t){ const ex = DB.kpis.find(x=>x.month===m && x.teacherId===t); if(ex && !pre) return openKpiForm(ex.id); }
+  const e = empById(t) || {};
+  KPI_DRAFT = {id: id || "", items: JSON.parse(JSON.stringify(k.items || {}))};
+  const opt = (v, cur) => `<option value="${v}" ${String(cur ?? "")===String(v)?"selected":""}>${{"":"—", na:"N/A", 0:"0 · Not done", 1:"1", 2:"2", 3:"3", 4:"4", 5:"5"}[v]}</option>`;
+  openModal(`
+    <h3>📋 Monthly Teacher Performance Checklist</h3>
+    <div class="grid2">
+      <div class="field"><label>Teacher *</label><select id="kp_t">${`<option value="">— chunein —</option>` + DB.employees.filter(x=>x.category==="Teacher").sort((a,b)=>a.name.localeCompare(b.name)).map(x=>`<option value="${x.id}" ${x.id===t?"selected":""}>${esc(x.name)}</option>`).join("")}</select>${pre && pre.teacherName && !t ? `<span class="sub">Sheet mein: "${esc(pre.teacherName)}" — teacher chunein</span>` : ""}</div>
+      <div class="field"><label>Month / Year *</label><input type="month" id="kp_m" value="${m}"></div>
+      <div class="field"><label>Subject</label><input id="kp_s" value="${esc(k.subject || (e.assignments||[]).map(a=>a.subject).filter(Boolean)[0] || "")}"></div>
+      <div class="field"><label>Class / Grade</label><input id="kp_c" value="${esc(k.classes || [...new Set((e.assignments||[]).map(a=>a.course))].join(", "))}"></div>
+      <div class="field"><label>Coordinator</label><input id="kp_co" value="${esc(k.coordinator || staffName())}"></div>
+      <div class="field"><label>Date reviewed</label><input type="date" id="kp_d" value="${k.reviewed || todayStr()}"></div>
+    </div>
+    <div id="kp_sum" class="note" style="position:sticky;top:-18px;z-index:2"></div>
+    ${KPI_CATS.map(([cat, items], ci)=>`
+      <div class="panel" style="margin:10px 0;padding:10px 12px">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><b>${esc(cat)}</b><span class="sub" id="kp_cat${ci}"></span>
+          <span style="margin-left:auto" class="sub">Sab ko:</span>${["5","na"].map(v=>`<button class="btn-line btn-sm" onclick="kpiAll(${ci},'${v}')">${v==="na"?"N/A":v}</button>`).join("")}</div>
+        <div class="tbl-wrap" style="margin-top:6px"><table><tbody>
+        ${items.map(([key, title, desc])=>{ const it = KPI_DRAFT.items[key] || {}; return `<tr>
+          <td style="min-width:220px"><b>${esc(title)}</b><br><span class="sub">${esc(desc)}</span></td>
+          <td style="width:130px"><select id="kp_${key}" onchange="kpiSet('${key}')">${["","na",0,1,2,3,4,5].map(v=>opt(v, it.s)).join("")}</select></td>
+          <td style="min-width:180px"><input id="kpn_${key}" value="${esc(it.note||"")}" placeholder="Evidence / comment" onchange="kpiSet('${key}')"></td></tr>`; }).join("")}
+        </tbody></table></div></div>`).join("")}
+    <div class="field"><label>Coordinator sign-off / overall remarks</label><input id="kp_so" value="${esc(k.signOff||"")}"></div>
+    <div class="modal-foot"><button class="btn-line" onclick="closeModal()">Cancel</button><button class="btn-red" onclick="saveKpi()">Save checklist</button></div>`, true);
+  kpiSum();
+}
+function kpiSet(key){
+  const v = $("kp_"+key).value, note = $("kpn_"+key).value.trim();
+  KPI_DRAFT.items[key] = {s: v === "" ? "" : v === "na" ? "na" : +v, note};
+  kpiSum();
+}
+function kpiAll(ci, v){ KPI_CATS[ci][1].forEach(([key])=>{ $("kp_"+key).value = v; kpiSet(key); }); }
+function kpiSum(){
+  const c = kpiCalc(KPI_DRAFT);
+  KPI_CATS.forEach(([cat], ci)=>{ const x = c.cats[cat]; $("kp_cat"+ci).textContent = x && x.max ? `${x.got}/${x.max} · ${x.pct}%` : "—"; });
+  $("kp_sum").innerHTML = `<b>Total: ${c.got} / ${c.max}</b> · <b>${c.pct === null ? "—" : c.pct + "%"}</b> · ${kpiBadge(c.pct)}${c.blank ? ` · <span class="sub">${c.blank} KPI abhi baqi</span>` : " · sab KPI bhar diye ✓"}`;
+}
+function saveKpi(){
+  const t = $("kp_t").value, m = $("kp_m").value;
+  if(!t || !m){ toast("Teacher aur mahina chunein"); return; }
+  const dup = DB.kpis.find(x=>x.month===m && x.teacherId===t && x.id!==KPI_DRAFT.id);
+  if(dup){ toast(`${teacherName(t)} ki ${fmtM(m)} ki checklist pehle se hai — usay Edit karein`); return; }
+  const rec = {month:m, teacherId:t, teacherName:teacherName(t), subject:$("kp_s").value.trim(), classes:$("kp_c").value.trim(),
+    coordinator:$("kp_co").value.trim(), reviewed:$("kp_d").value, items:KPI_DRAFT.items, signOff:$("kp_so").value.trim(), savedAt:new Date().toISOString(), by:ROLE_LABEL};
+  if(rec.coordinator) setStaffName(rec.coordinator);
+  if(KPI_DRAFT.id) Object.assign(DB.kpis.find(x=>x.id===KPI_DRAFT.id), rec); else DB.kpis.push({id:uid(), ...rec});
+  const c = kpiCalc(rec);
+  save(); closeModal(); $("audFMonth").value = m; renderAudit();
+  toast(`✓ ${teacherName(t)} — ${fmtM(m)}: ${c.pct === null ? "—" : c.pct + "%"} (${kpiRating(c.pct)})`);
+}
+function delKpi(id){
+  const k = DB.kpis.find(x=>x.id===id); if(!k) return;
+  askConfirm("Checklist delete karein?", `${esc(teacherName(k.teacherId))} — ${fmtM(k.month)}`, ()=>{ DB.kpis = DB.kpis.filter(x=>x.id!==id); save(); renderAudit(); toast("Delete ho gaya"); });
+}
+/* Excel wali "MONTHLY TEACHER PERFORMANCE CHECKLIST" sheet (CSV) → form bhar kar kholta hai, user check kar ke Save */
+function importKpiCSV(inp){
+  const f = inp.files && inp.files[0]; if(!f) return;
+  const rd = new FileReader();
+  rd.onload = ()=>{
+    inp.value = "";
+    const rows = parseCSV(rd.result), cell = (r, i) => String((r||[])[i] ?? "").trim();
+    const find = re => { for(const r of rows) for(let i = 0; i < r.length; i++) if(re.test(cell(r, i))) return cell(r, i+1) || cell(r, i+2); return ""; };
+    const tName = find(/^teacher name:?$/i), subj = find(/^subject:?$/i), cls = find(/^class\s*\/\s*grade:?$/i), mon = find(/^month\s*\/\s*year:?$/i), coord = find(/^coordinator:?$/i), rev = find(/^date reviewed:?$/i);
+    const hi = rows.findIndex(r=>r.some(c=>/kpi\s*\/\s*task/i.test(c)));
+    if(hi < 0){ toast("Ye KPI checklist sheet nahi lagti — 'KPI / Task' wali heading nahi mili"); return; }
+    const H = rows[hi].map(c=>String(c).trim().toLowerCase());
+    const cK = H.findIndex(h=>/kpi/.test(h)), cS = H.findIndex(h=>h==="status"), cSc = H.findIndex(h=>h==="score"), cE = H.findIndex(h=>/evidence|comment/.test(h));
+    const items = {}; let n = 0; const miss = [];
+    rows.slice(hi+1).forEach(r=>{
+      const t = cell(r, cK); if(!t || /^totals?$|overall|rating/i.test(t)) return;
+      const it = KPI_ITEMS.find(x=>keyify(x.t)===keyify(t)) || KPI_ITEMS.find(x=>keyify(t).includes(keyify(x.t).slice(0, 18)));
+      if(!it){ miss.push(t); return; }
+      const st = cell(r, cS).toLowerCase(), sc = cell(r, cSc);
+      const s = /^n\/?a$/.test(st) ? "na" : /^[0-5]$/.test(st) ? +st : /not/.test(st) ? 0 : /done|yes/.test(st) ? (sc !== "" && !isNaN(+sc) ? Math.max(0, Math.min(5, Math.round(+sc))) : 5) : "";
+      items[it.k] = {s, note: cE >= 0 ? cell(r, cE) : ""}; n++;
+    });
+    let month = ""; const mm = String(mon).match(/([a-z]+)\s+(\d{4})/i);
+    if(mm){ const i = ["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"].indexOf(mm[1].slice(0,3).toLowerCase()); if(i >= 0) month = `${mm[2]}-${String(i+1).padStart(2,"0")}`; }
+    const best = DB.employees.filter(e=>e.category==="Teacher").map(e=>({e, sc:nameScore(tName, e.name)})).sort((a,b)=>b.sc-a.sc)[0];
+    const tid = best && best.sc >= 0.5 ? best.e.id : "";
+    const ex = tid && DB.kpis.find(x=>x.month===(month||wm()) && x.teacherId===tid);
+    const pre = {teacherName:tName, teacherId:tid, month: month || wm(), subject:subj, classes:cls, coordinator:coord, reviewed: cleanDate(rev) || rev || todayStr(), items};
+    if(ex){ openKpiForm(ex.id); Object.entries(items).forEach(([k, v])=>{ if($("kp_"+k)){ $("kp_"+k).value = v.s; $("kpn_"+k).value = v.note; kpiSet(k); } }); }
+    else openKpiForm("", "", pre);
+    toast(`Sheet se ${n} KPIs bhar diye${tid ? ` — ${teacherName(tid)}` : " — teacher chunein"}${miss.length ? ` · ${miss.length} nahi mile` : ""}. Check kar ke Save karein`);
+  };
+  rd.readAsText(f);
+}
+function printKpi(id){
+  const k = DB.kpis.find(x=>x.id===id); if(!k) return;
+  const c = kpiCalc(k), A = DB.settings, cell = "border:1px solid #c9d6dc;padding:4px 6px";
+  const label = v => v === "na" ? "N/A" : v === 0 ? "Not done (0)" : v === undefined || v === "" ? "—" : v;
+  $("challanPrint").innerHTML = `<div class="rc" style="font-size:.72rem">
+    <div class="rc-head"><div class="cx-brand">${A.logo ? `<div class="cx-logo"><img src="${logoSrc()}"></div>` : ""}<div><div class="cx-name">${esc(A.name||"Cambridge Grads Academy")}</div><div class="cx-addr">${esc(A.addr||"")}</div></div></div>
+      <div><div class="rc-title">MONTHLY TEACHER PERFORMANCE CHECKLIST</div><div class="cx-copy">${fmtM(k.month)}</div></div></div>
+    <div class="rc-grid" style="margin:10px 0"><div><small>Teacher</small><b>${esc(teacherName(k.teacherId))}</b></div><div><small>Subject</small><b>${esc(k.subject||"—")}</b></div><div><small>Class / Grade</small><b>${esc(k.classes||"—")}</b></div>
+      <div><small>Coordinator</small><b>${esc(k.coordinator||"—")}</b></div><div><small>Date reviewed</small><b>${fmtD(k.reviewed)}</b></div><div><small>Overall</small><b>${c.got} / ${c.max} · ${c.pct ?? "—"}% · ${kpiRating(c.pct)}</b></div></div>
+    <table style="width:100%;border-collapse:collapse"><thead><tr>${["Category","KPI / Task","Score (1–5)","Evidence / Comments"].map(h=>`<th style="${cell};background:#174B60;color:#fff;text-align:left">${h}</th>`).join("")}</tr></thead><tbody>
+    ${KPI_CATS.map(([cat, items])=>items.map(([key, t], i)=>{ const it = (k.items||{})[key] || {};
+      return `<tr>${i ? "" : `<td rowspan="${items.length}" style="${cell};background:#EEF5F7;font-weight:700">${esc(cat)}<br><span style="font-weight:400">${c.cats[cat] && c.cats[cat].max ? c.cats[cat].pct + "%" : "—"}</span></td>`}<td style="${cell}">${esc(t)}</td><td style="${cell};text-align:center"><b>${label(it.s)}</b></td><td style="${cell}">${esc(it.note||"")}</td></tr>`; }).join("")).join("")}
+    </tbody></table>
+    ${k.signOff ? `<div class="rc-rem"><b>Remarks:</b> ${esc(k.signOff)}</div>` : ""}
+    <div class="rc-sign"><span>Coordinator sign-off</span><span>Teacher</span><span>Principal</span></div></div>`;
+  window.print();
 }
 
 /* ================= v43: APP SE FEE RECEIPTS =================
