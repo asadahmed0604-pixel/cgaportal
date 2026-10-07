@@ -60,6 +60,11 @@ h3{font-size:1.02rem;font-weight:700}
 .mchips button.all.on{background:var(--red);border-color:var(--red)}
 body.role-admin .exec-only{display:none!important}
 body.no-fees .fee-only{display:none!important}
+.page.locked > *:not(.lockbox){display:none!important}
+.lockbox{display:none;max-width:380px;margin:60px auto;background:#fff;border:1px solid var(--line);border-radius:16px;padding:28px 24px;text-align:center;box-shadow:0 8px 30px rgba(0,0,0,.06)}
+.page.locked > .lockbox{display:block}
+.lockbox .code{display:flex;gap:10px;justify-content:center;margin:16px 0 6px}
+.lockbox .code input{width:54px;height:60px;text-align:center;font-size:1.6rem;font-weight:800;padding:0;border-radius:12px}
 body.role-teacher .staff-only{display:none!important}
 .seg{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden;background:#fff}
 .seg button{background:#fff;color:var(--ink);padding:9px 14px;border-radius:0;font-weight:600;border-right:1px solid var(--line)}
@@ -867,7 +872,7 @@ label.chk input{width:auto}
     <div class="card"><div class="k">Fee Income</div><div class="v" id="finFee">0</div><div class="hint">Paid challans</div></div>
     <div class="card"><div class="k">Other Income</div><div class="v" id="finOther">0</div><div class="hint">Manual entries</div></div>
     <div class="card"><div class="k">Total Expense</div><div class="v red" id="finExp">0</div><div class="hint" id="finExpHint"></div></div>
-    <div class="card"><div class="k">Net (Profit / Loss)</div><div class="v" id="finNet">0</div><div class="hint" id="finNetHint"></div></div>
+    <div class="card exec-only"><div class="k">Net (Profit / Loss)</div><div class="v" id="finNet">0</div><div class="hint" id="finNetHint"></div></div>
   </div>
   <div class="toolbar">
     <div class="field"><label>Type</label><select id="txnFType" onchange="renderFinance()"><option value="">All</option><option value="Income">Income</option><option value="Expense">Expense</option></select></div>
@@ -900,7 +905,7 @@ label.chk input{width:auto}
     <div id="catBreak"></div>
   </div>
 
-  <div class="panel" style="margin-top:16px">
+  <div class="panel exec-only" style="margin-top:16px">
     <h3>📊 Profit & Loss Report Export</h3>
     <p class="sub" style="margin:4px 0 12px">Selected month ki mukammal Profit & Loss sheet — tamam income (fees + other) aur expenses ki detail ke sath — Excel (CSV) ya PDF mein download karein.</p>
     <div class="toolbar">
@@ -1105,7 +1110,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v43 · 6 Oct 2026";
+const BUILD = "v44 · 7 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -1246,7 +1251,11 @@ const TEACHER_PAGES = ["mydash","tests","classatt"];
 const ALL_PAGES = ["dashboard","mydash","students","gallery","attendance","fees","homework","parents","inquiries","exams","tests","classatt",
                    "audit","employees","inventory","issuance","finance","reports","biz","settings"];
 const ADMIN_HIDDEN = IS_TEACHER ? ALL_PAGES.filter(p=>!TEACHER_PAGES.includes(p))
-  : ["dashboard","finance","reports","biz"].concat(CAN_FEES ? [] : ["fees"]);
+  : ["dashboard","reports","biz"].concat(ROLE === "feeadmin" ? [] : ["finance"]).concat(CAN_FEES ? [] : ["fees"]);
+/* v44: Fee Admin — Fee / Billing aur Income / Expense 4 digit code ke baad (server bhi code ke baghair ye data nahi deta) */
+const GATED_PAGES = ["fees","finance"];
+const UNLOCK = {gated: !!(SERVER && SERVER.unlock && SERVER.unlock.gated), on: !SERVER || !SERVER.unlock || SERVER.unlock.on !== false, exp: (SERVER && SERVER.unlock && SERVER.unlock.exp) || 0};
+const feeOpen = () => ROLE !== "feeadmin" || !UNLOCK.gated || (UNLOCK.on && Date.now() < UNLOCK.exp);
 let ROLE_LABEL = {exec:"Executive", feeadmin:"Fee Admin", admin:"Admin", teacher:"Teacher"}[ROLE] || ROLE;
 if(SERVER) DB = SERVER.data || structuredClone(DEFAULT_DB);
 else try{
@@ -1462,6 +1471,8 @@ document.querySelectorAll("#nav button").forEach(b=>{
 });
 function renderPage(p){
   if(IS_ADMIN && ADMIN_HIDDEN.includes(p)) p = IS_TEACHER ? "mydash" : "students";
+  if(ROLE === "feeadmin") document.querySelectorAll(".page").forEach(x=>x.classList.remove("locked"));
+  if(GATED_PAGES.includes(p) && !feeOpen()){ drawLock(p); return; }
   if(!IS_TEACHER && p === "mydash") p = "dashboard";
   ({dashboard:renderDashboard, students:renderStudents, gallery:renderGallery, attendance:loadAttendance,
     fees:renderFees, homework:renderHomework, inquiries:renderInquiries, exams:renderExams,
@@ -4521,6 +4532,88 @@ function marksCSV(inp){
   rd.readAsText(f);
 }
 
+/* ================= v44: FEE ADMIN CODE (4 digit) =================
+   Fee / Billing ya Income / Expense kholte waqt code. Server tasdeeq karta hai aur 30 minute ke liye kholta hai —
+   tab tak server Fee Admin ko fees / receipts / income-expense bhejta hi nahi. */
+function drawLock(p){
+  const sec = $("page-"+p); if(!sec) return;
+  let box = sec.querySelector(".lockbox");
+  if(!box){ box = document.createElement("div"); box.className = "lockbox"; sec.prepend(box); }
+  box.innerHTML = `<div style="font-size:2.4rem">🔒</div>
+    <h3 style="margin-top:6px">${p==="fees" ? "Fee / Billing" : "Income / Expense"}</h3>
+    <p class="sub">Double verification — apna <b>4 digit code</b> likhein</p>
+    <div class="code">${[0,1,2,3].map(i=>`<input type="password" inputmode="numeric" maxlength="1" autocomplete="off" data-i="${i}" oninput="codeStep(this)" onkeydown="codeBack(event,this)">`).join("")}</div>
+    <div class="sub" id="lockMsg" style="min-height:20px;color:var(--danger)"></div>
+    <button class="btn-red" style="width:100%;margin-top:8px" onclick="unlockFees('${p}')">Kholein</button>
+    <p class="sub" style="margin-top:12px">Code Executive se milta hai · khulne ke baad ${30} minute khula rehta hai</p>`;
+  sec.classList.add("locked");
+  setTimeout(()=>{ const f = box.querySelector("input"); if(f) f.focus(); }, 50);
+}
+function codeStep(inp){
+  inp.value = inp.value.replace(/\D/g, "").slice(-1);
+  const all = [...inp.parentNode.querySelectorAll("input")];
+  if(inp.value && +inp.dataset.i < 3) all[+inp.dataset.i + 1].focus();
+  if(all.every(x=>x.value)) unlockFees(document.querySelector(".page.show").id.replace("page-",""));
+}
+function codeBack(e, inp){
+  if(e.key === "Backspace" && !inp.value && +inp.dataset.i > 0){ const prev = inp.parentNode.querySelectorAll("input")[+inp.dataset.i - 1]; prev.value = ""; prev.focus(); }
+  if(e.key === "Enter") unlockFees(document.querySelector(".page.show").id.replace("page-",""));
+}
+async function unlockFees(p){
+  const sec = $("page-"+p), ins = [...sec.querySelectorAll(".lockbox input")], code = ins.map(x=>x.value).join("");
+  if(!/^\d{4}$/.test(code)){ $("lockMsg").textContent = "4 digit likhein"; return; }
+  try{
+    const r = await fetch("/api/unlock", {method:"POST", credentials:"same-origin", headers:{"Content-Type":"application/json"}, body:JSON.stringify({code})});
+    const j = await r.json().catch(()=>({}));
+    if(!r.ok){ $("lockMsg").textContent = j.error || "Code ghalat hai"; ins.forEach(x=>x.value=""); ins[0].focus(); return; }
+    UNLOCK.on = true; UNLOCK.exp = j.exp || (Date.now() + 30*60e3);
+    await refetchAll();
+    document.body.classList.remove("no-fees");
+    sec.classList.remove("locked");
+    renderPage(p); drawLockBtn();
+    toast("🔓 Khul gaya — 30 minute");
+  }catch(e){ $("lockMsg").textContent = "Internet / server masla — dobara koshish karein"; }
+}
+/* Server se poora (ab khula / band) data dobara — apni bina bheji tabdeeli pehle chali jaye */
+async function refetchAll(){
+  if(syncDirty()) await pushNow();
+  const d = await (await fetch("/api/db", {credentials:"same-origin", cache:"no-store"})).json();
+  if(d.unlock && d.unlock.gated !== undefined){ UNLOCK.on = !!d.unlock.on; UNLOCK.exp = d.unlock.exp || 0; }
+  adoptRemote(d);
+}
+async function lockFees(auto){
+  try{ await fetch("/api/lock", {method:"POST", credentials:"same-origin"}); }catch(e){}
+  UNLOCK.on = false; UNLOCK.exp = 0;
+  document.body.classList.add("no-fees");
+  try{ await refetchAll(); }catch(e){}
+  drawLockBtn();
+  const cur = document.querySelector("#nav button.active"); renderPage(cur ? cur.dataset.page : "students");
+  toast(auto ? "🔒 30 minute guzar gaye — fees / expense dobara code se khulenge" : "🔒 Fee / Billing aur Expense band");
+}
+function drawLockBtn(){
+  if(ROLE !== "feeadmin" || !UNLOCK.gated) return;
+  let b = $("lockBtn");
+  if(!b){ b = document.createElement("button"); b.id = "lockBtn"; b.style.cssText = "width:100%;margin-bottom:8px;padding:7px 10px;background:#1E5E77;color:#fff;font-weight:700;font-size:.8rem"; b.onclick = ()=>lockFees(); $("installBtn").before(b); }
+  b.style.display = feeOpen() ? "" : "none";
+  b.textContent = `🔒 Fee / Expense band karein (${Math.max(0, Math.ceil((UNLOCK.exp - Date.now())/60e3))} min)`;
+}
+if(ROLE === "feeadmin" && UNLOCK.gated){
+  setInterval(()=>{ if(UNLOCK.on && Date.now() >= UNLOCK.exp) lockFees(true); else drawLockBtn(); }, 20000);
+}
+async function setFeeCode(){
+  const c = $("fcCode").value.trim();
+  if(!/^\d{4}$/.test(c)){ toast("Code 4 digit ka hona chahiye"); return; }
+  if(c !== $("fcCode2").value.trim()){ toast("Dono code aik jaise nahi"); return; }
+  if(/^(\d)\1{3}$/.test(c) || ["1234","4321","0123","9876"].includes(c)){ toast("Itna aasan code na rakhein (1111, 1234…)"); return; }
+  DB.settings.feeAdminCode = {...(await pinHash(c)), setOn:todayStr()};
+  save(); renderLogins(); toast("Fee Admin ka 4 digit code set ✓ — purana khula hua bhi band");
+}
+function removeFeeCode(){
+  askConfirm("Fee Admin ka code hatayein?", "Phir Fee Admin bina code ke Fee / Billing aur Income / Expense khol sakega.", ()=>{
+    delete DB.settings.feeAdminCode; save(); renderLogins(); toast("Code hata diya");
+  }, "Haan, hatayein");
+}
+
 /* ================= v43: APP SE FEE RECEIPTS =================
    Parent chat app se receipt bhejta hai → yahan "Pending". Executive / Fee Admin tasveer dekh kar Approve karta hai
    (challan khud Paid / adhi payment) ya wajah likh kar wapas karta hai — parent ko chat ke "Fee" mein status dikhta hai. */
@@ -7450,6 +7543,15 @@ function renderLogins(){
     <p class="sub" style="margin-bottom:10px">Ye password Admin aur Executive dono se alag rakhein. Badalte hi purana Fee Admin login band.</p>
     <button class="btn-red" onclick="setFeeAdminPassword()">${f?"Password badlein":"Fee Admin login chalu karein"}</button>
     ${f ? `<button class="btn-line" onclick="disableFeeAdmin()">Fee Admin login band karein</button>` : ""}
+    <h4 style="margin:18px 0 6px">🔢 Fee Admin ka 4 digit code (double verification)</h4>
+    <p class="sub" style="margin-bottom:8px">Fee Admin jab <b>Fee / Billing</b> ya <b>Income / Expense</b> kholega to ye code mangega (server par check hota hai, 30 minute ke liye khulta hai). Fee Admin ko Income / Expense milta hai — <b>salaries ke baghair</b>.</p>
+    <div class="note">${DB.settings.feeAdminCode ? `Code <b>laga hua</b> hai — ${fmtD(DB.settings.feeAdminCode.setOn)} ko rakha gaya.` : `Abhi koi code nahi — Fee Admin bina code ke khol sakta hai.`}</div>
+    <div class="grid2">
+      <div class="field"><label>${DB.settings.feeAdminCode ? "Naya code" : "Code"} (4 digit)</label><input type="password" id="fcCode" inputmode="numeric" maxlength="4" autocomplete="new-password"></div>
+      <div class="field"><label>Dobara likhein</label><input type="password" id="fcCode2" inputmode="numeric" maxlength="4" autocomplete="new-password"></div>
+    </div>
+    <button class="btn-red" onclick="setFeeCode()">${DB.settings.feeAdminCode ? "Code badlein" : "Code set karein"}</button>
+    ${DB.settings.feeAdminCode ? `<button class="btn-line" onclick="removeFeeCode()">Code hatayein</button>` : ""}
     <h3 style="margin:22px 0 6px">🧑‍🏫 Teacher logins</h3>
     <p class="sub" style="margin-bottom:10px">Har teacher ka apna <b>Login ID + password</b>. Teacher sirf <b>Tests & Marks</b> (apni classes, remarks zaroori) aur <b>Evening class attendance</b> dekhta hai — fees, phone numbers, hisaab kuch nahi. Classes Employees → Edit → Assign se aati hain.</p>
     <div class="note" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">Teachers ka login link: <b><code>${esc(location.origin)}/teacher</code></b>
@@ -8462,6 +8564,7 @@ function saveSalCfg(){
 }
 function renderSalPanel(){
   const box = $("salPanel"); if(!box) return;
+  if(IS_ADMIN){ box.style.display = "none"; return; }          // v44: Fee Admin ko salaries nahi
   const cfg = salCfg(), m = thisMonth();
   const LBL = {posted:["✓ Posted","b-paid"], due:["Post hogi","b-freeze"], zero:["Salary 0 — skip","b-freeze"], manual:["Manual entry pehle se hai","b-freeze"],
                deleted:["Aap ne delete ki — skip","b-freeze"], notJoined:["Abhi join nahi kiya","b-freeze"]};
@@ -8633,6 +8736,7 @@ async function pullRemote(){
     if(v.version === SYNC.version) return;
     const d = await (await fetch("/api/db", {credentials:"same-origin", cache:"no-store"})).json();
     if(SYNC.busy || syncDirty() || modalOpen() || typing()) return;   // beech mein kaam shuru ho gaya — agli dafa
+    if(d.unlock && d.unlock.gated && UNLOCK.on && !d.unlock.on){ UNLOCK.on = false; UNLOCK.exp = 0; document.body.classList.add("no-fees"); drawLockBtn(); }
     adoptRemote(d);
   }catch(e){ SYNC.failed = true; setSyncState(); }
 }
@@ -8655,7 +8759,8 @@ syncWMFilters();
 if(!storageOK) toast("⚠ Preview mode: data save nahi hoga. File download kar ke laptop par kholein.");
 if(IS_ADMIN){
   document.body.classList.add("role-admin");
-  if(!CAN_FEES) document.body.classList.add("no-fees");
+  if(!CAN_FEES || !feeOpen()) document.body.classList.add("no-fees");
+  drawLockBtn();
   ADMIN_HIDDEN.forEach(pg=>{ const b = document.querySelector(`#nav button[data-page="${pg}"]`); if(b) b.style.display = "none"; });
   if(IS_TEACHER){ document.body.classList.add("role-teacher"); const me = empById(MY_TID); if(me) ROLE_LABEL = "Teacher · " + me.name;
     document.querySelector('#nav button[data-page="mydash"]').style.display = ""; }
