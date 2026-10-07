@@ -133,14 +133,14 @@ button{cursor:pointer}
   <form id="loginForm" autocomplete="on">
     <img class="logo" src="/icons/cga-192.png" alt="">
     <h1>Parents App</h1>
-    <p>{{SCHOOL}} — bache ki attendance, test results, homework, fee aur receipts aik jagah.</p>
-    <label for="phone">Phone number (jo school mein likha hai)</label>
+    <p>{{SCHOOL}} — your child's attendance, test results, homework, fees and receipts in one place.</p>
+    <label for="phone">Phone number (as registered with the school)</label>
     <input id="phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="03XX XXXXXXX" required>
-    <label for="pin">6 digit PIN (school ne diya)</label>
+    <label for="pin">6-digit PIN (given by the school)</label>
     <input id="pin" name="pin" type="password" inputmode="numeric" autocomplete="current-password" pattern="\d{6}" maxlength="6" placeholder="••••••" required>
     <button type="submit" id="loginBtn">Login</button>
     <div class="err" id="loginErr"></div>
-    <p class="help">PIN nahi mila ya bhool gaye? School office se rabta karein — wo naya PIN de denge.</p>
+    <p class="help">Didn't get a PIN or forgot it? Contact the school office — they will give you a new PIN.</p>
   </form>
 </div>
 
@@ -152,37 +152,37 @@ button{cursor:pointer}
   </div>
   <div class="kids" id="kids"></div>
   <div class="msgs" id="msgs" aria-live="polite"></div>
-  <div class="mode" id="mode"><span>✉️ Ye message school ko jayega — <b id="modeKid"></b> ke baare mein</span><button type="button" id="modeCancel">Cancel</button></div>
+  <div class="mode" id="mode"><span>✉️ This message will go to the school — about <b id="modeKid"></b></span><button type="button" id="modeCancel">Cancel</button></div>
   <div class="quick" id="quick"></div>
   <form class="compose" id="compose">
     <div class="box">
-      <button type="button" class="icon" id="attach" title="Fee receipt bhejein" aria-label="Fee receipt bhejein">📎</button>
-      <textarea id="text" rows="1" placeholder="Likhein: attendance, test, fee…" aria-label="Message"></textarea>
+      <button type="button" class="icon" id="attach" title="Send fee receipt" aria-label="Send fee receipt">📎</button>
+      <textarea id="text" rows="1" placeholder="Type: attendance, test, fee…" aria-label="Message"></textarea>
     </div>
-    <button type="submit" class="send" aria-label="Bhejein">➤</button>
+    <button type="submit" class="send" aria-label="Send">➤</button>
   </form>
 </div>
 
 <div class="sheetBg" id="sheetBg">
   <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="rcTitle">
     <div class="handle"></div>
-    <button type="button" class="x" id="rcClose" aria-label="Band karein">✕</button>
-    <h3 id="rcTitle">🧾 Fee receipt bhejein</h3>
+    <button type="button" class="x" id="rcClose" aria-label="Close">✕</button>
+    <h3 id="rcTitle">🧾 Send fee receipt</h3>
     <p class="sub" id="rcSub"></p>
     <div id="rcFees"></div>
     <div class="g2">
-      <div><label class="l" for="rcAmt">Kitni raqam jama ki (Rs)</label><input id="rcAmt" type="number" inputmode="numeric" min="1"></div>
-      <div><label class="l" for="rcDate">Kis din</label><input id="rcDate" type="date"></div>
+      <div><label class="l" for="rcAmt">Amount paid (Rs)</label><input id="rcAmt" type="number" inputmode="numeric" min="1"></div>
+      <div><label class="l" for="rcDate">Date paid</label><input id="rcDate" type="date"></div>
     </div>
     <div class="g2">
-      <div><label class="l" for="rcMethod">Kaise</label><select id="rcMethod"><option>Bank transfer</option><option>JazzCash</option><option>EasyPaisa</option><option>Cash (school)</option><option>Other</option></select></div>
+      <div><label class="l" for="rcMethod">Method</label><select id="rcMethod"><option>Bank transfer</option><option>JazzCash</option><option>EasyPaisa</option><option>Cash (school)</option><option>Other</option></select></div>
       <div><label class="l" for="rcRef">Transaction ID (agar ho)</label><input id="rcRef" maxlength="60" placeholder="optional"></div>
     </div>
-    <label class="l">Receipt ki tasveer / screenshot</label>
-    <label class="drop" id="rcDrop" for="rcFile"><span style="font-size:1.8rem">📷</span><b>Tasveer lein ya file chunein</b><span>JPG, PNG ya PDF</span></label>
+    <label class="l">Receipt photo / screenshot</label>
+    <label class="drop" id="rcDrop" for="rcFile"><span style="font-size:1.8rem">📷</span><b>Take a photo or choose a file</b><span>JPG, PNG or PDF</span></label>
     <input type="file" id="rcFile" accept="image/*,application/pdf" style="display:none">
     <div class="msg" id="rcMsg"></div>
-    <button type="button" class="go" id="rcGo">Receipt bhejein</button>
+    <button type="button" class="go" id="rcGo">Send receipt</button>
     <div class="past" id="rcPast"></div>
   </div>
 </div>
@@ -197,7 +197,7 @@ async function api(path, body){
                                   : {credentials:"same-origin", cache:"no-store"});
   const j = await r.json().catch(()=>({}));
   if(r.status === 401 && path !== "/parent/login"){ showLogin(); throw new Error("login"); }
-  if(!r.ok) throw new Error(j.error || ("Masla aa gaya (" + r.status + ")"));
+  if(!r.ok) throw new Error(j.error || ("Something went wrong (" + r.status + ")"));
   return j;
 }
 const money = n => "Rs " + Math.round(+n || 0).toLocaleString("en-US");
@@ -265,7 +265,7 @@ function drawKids(){
   $("topKid").textContent = `${KID.name} · ${KID.course} · ${KID.shift}`;
 }
 function pick(m){
-  if(m.id === "issue"){ setMode("message"); bot([{t:"p", text:`${KID.name} ke baare mein apna masla ya message neeche likh kar ➤ dabayein.`}]); $("text").focus(); return; }
+  if(m.id === "issue"){ setMode("message"); bot([{t:"p", text:`Write your concern or message about ${KID.name} below and press ➤.`}]); $("text").focus(); return; }
   if(m.id === "receipt"){ openReceipt(); return; }
   setMode("chat"); ask(m.id);
 }
@@ -277,7 +277,7 @@ function setMode(m){
   MODE = m;
   $("mode").style.display = m === "message" ? "flex" : "none";
   $("modeKid").textContent = KID ? KID.name : "";
-  $("text").placeholder = m === "message" ? "Apna message likhein…" : "Likhein: attendance, test, fee…";
+  $("text").placeholder = m === "message" ? "Write your message…" : "Type: attendance, test, fee…";
 }
 $("modeCancel").onclick = ()=> setMode("chat");
 
@@ -293,7 +293,7 @@ async function ask(text, silent){
   }
   catch(err){ typing(false); if(err.message !== "login") bot([{t:"p", text:err.message}], "warn"); }
 }
-function rcButton(){ const b = el("button", "", "🧾 Fee jama kar di? Receipt bhejein"); b.type = "button";
+function rcButton(){ const b = el("button", "", "🧾 Paid the fee? Send the receipt"); b.type = "button";
   b.style.cssText = "margin-top:8px;width:100%;border:none;border-radius:10px;padding:9px;background:var(--green);color:#fff;font-weight:700";
   b.onclick = openReceipt; return b; }
 $("compose").addEventListener("submit", async (e)=>{
@@ -304,7 +304,7 @@ $("compose").addEventListener("submit", async (e)=>{
   if(MODE === "message"){
     typing(true);
     try{ await api("/parent/api/message", {studentId:KID.id, text}); typing(false);
-         bot([{t:"p", text:"✓ Aap ka message school ko mil gaya. Jawab \"Teacher Remarks\" mein nazar aayega."}], "note"); setMode("chat"); }
+         bot([{t:"p", text:"✓ The school has received your message. The reply will appear under \"Teacher Remarks\"."}], "note"); setMode("chat"); }
     catch(err){ typing(false); if(err.message !== "login") bot([{t:"p", text:err.message}], "warn"); }
     return;
   }
@@ -319,8 +319,8 @@ $("attach").onclick = ()=>openReceipt();
 async function openReceipt(){
   if(!KID) return;
   RC = {file:"", preview:"", fees:[]};
-  $("rcSub").textContent = `${KID.name} · ${KID.course} — jo fee jama karwai us ki receipt / bank ya JazzCash ka screenshot bhejein. Office check kar ke challan Paid kar dega.`;
-  $("rcFees").innerHTML = "<p class='sub'>Challans aa rahe hain…</p>";
+  $("rcSub").textContent = `${KID.name} · ${KID.course} — send the receipt or bank / JazzCash screenshot of the fee you paid. The office will check it and mark the challan Paid.`;
+  $("rcFees").innerHTML = "<p class='sub'>Loading challans…</p>";
   $("rcAmt").value = ""; $("rcDate").value = today(); $("rcRef").value = ""; $("rcMsg").textContent = ""; $("rcFile").value = "";
   resetDrop(); $("rcGo").disabled = false; $("rcPast").innerHTML = "";
   $("sheetBg").classList.add("show");
@@ -328,8 +328,8 @@ async function openReceipt(){
     const r = await api("/parent/api/challans?studentId=" + encodeURIComponent(KID.id));
     RC.fees = r.fees;
     const box = $("rcFees"); box.innerHTML = "";
-    box.appendChild(el("label", "l", "Kis challan ki fee"));
-    const opts = [...r.fees.map(f=>({id:f.id, t:`${f.chNo} · ${fmtM(f.month)}`, s:f.dueDate ? `Due ${fmtD(f.dueDate)}` : "", amt:f.due})), {id:"", t:"Advance / koi aur", s:"Challan abhi nahi bana ya pata nahi", amt:null}];
+    box.appendChild(el("label", "l", "Fee for challan"));
+    const opts = [...r.fees.map(f=>({id:f.id, t:`${f.chNo} · ${fmtM(f.month)}`, s:f.dueDate ? `Due ${fmtD(f.dueDate)}` : "", amt:f.due})), {id:"", t:"Advance / other", s:"Challan not issued yet or not sure", amt:null}];
     opts.forEach((o, i)=>{
       const lab = el("label", "ch" + (i === 0 ? " on" : "")), rd = el("input"); rd.type = "radio"; rd.name = "rcFee"; rd.value = o.id; rd.checked = i === 0;
       const t = el("div"); t.append(el("b", "", o.t), el("small", "", o.s));
@@ -339,16 +339,16 @@ async function openReceipt(){
     });
     if(opts[0].amt) $("rcAmt").value = opts[0].amt;
     if(r.receipts.length){
-      const p = $("rcPast"); p.appendChild(el("b", "", "Pehle bheji receipts"));
+      const p = $("rcPast"); p.appendChild(el("b", "", "Previously sent receipts"));
       r.receipts.forEach(x=>{ const d = el("div"); d.append(el("span", "", `${fmtD(x.d)} · ${money(x.amount)}${x.chNo ? " · " + x.chNo : ""}`),
-        el("span", x.status === "Approved" ? "st-a" : x.status === "Rejected" ? "st-r" : "st-p", x.status === "Approved" ? "✓ Darj" : x.status === "Rejected" ? "✗ Wapas" + (x.note ? ": " + x.note : "") : "⏳ Check ho rahi")); p.appendChild(d); });
+        el("span", x.status === "Approved" ? "st-a" : x.status === "Rejected" ? "st-r" : "st-p", x.status === "Approved" ? "✓ Recorded" : x.status === "Rejected" ? "✗ Returned" + (x.note ? ": " + x.note : "") : "⏳ Under review")); p.appendChild(d); });
     }
   }catch(err){ if(err.message !== "login") $("rcFees").innerHTML = ""; }
 }
 function closeReceipt(){ $("sheetBg").classList.remove("show"); }
 $("rcClose").onclick = closeReceipt;
 $("sheetBg").addEventListener("click", e=>{ if(e.target === $("sheetBg")) closeReceipt(); });
-function resetDrop(){ const d = $("rcDrop"); d.innerHTML = ""; d.append(el("span", "", "📷"), el("b", "", "Tasveer lein ya file chunein"), el("span", "", "JPG, PNG ya PDF")); d.firstChild.style.fontSize = "1.8rem"; }
+function resetDrop(){ const d = $("rcDrop"); d.innerHTML = ""; d.append(el("span", "", "📷"), el("b", "", "Take a photo or choose a file"), el("span", "", "JPG, PNG or PDF")); d.firstChild.style.fontSize = "1.8rem"; }
 /* Tasveer chhoti kar ke bhejein (phone ki 4MB photo → ~300KB) */
 function shrink(file){
   return new Promise((res, rej)=>{
@@ -357,7 +357,7 @@ function shrink(file){
       c.width = Math.round(img.width*k); c.height = Math.round(img.height*k);
       const x = c.getContext("2d"); x.fillStyle = "#fff"; x.fillRect(0, 0, c.width, c.height); x.drawImage(img, 0, 0, c.width, c.height);
       URL.revokeObjectURL(url); res(c.toDataURL("image/jpeg", .82)); };
-    img.onerror = ()=>{ URL.revokeObjectURL(url); rej(new Error("Ye tasveer khul nahi saki — doosri chunein")); };
+    img.onerror = ()=>{ URL.revokeObjectURL(url); rej(new Error("This image could not be opened — choose another")); };
     img.src = url;
   });
 }
@@ -366,29 +366,29 @@ $("rcFile").addEventListener("change", async ()=>{
   $("rcMsg").textContent = "";
   try{
     if(f.type === "application/pdf"){
-      if(f.size > 5*1024*1024) throw new Error("PDF 5 MB se chhoti honi chahiye");
+      if(f.size > 5*1024*1024) throw new Error("PDF must be smaller than 5 MB");
       RC.file = await new Promise((res, rej)=>{ const r = new FileReader(); r.onload = ()=>res(r.result); r.onerror = rej; r.readAsDataURL(f); });
-      RC.preview = ""; const d = $("rcDrop"); d.innerHTML = ""; d.append(el("span", "", "📄"), el("b", "", f.name), el("span", "", "Badalne ke liye dobara dabayein"));
+      RC.preview = ""; const d = $("rcDrop"); d.innerHTML = ""; d.append(el("span", "", "📄"), el("b", "", f.name), el("span", "", "Tap again to change"));
     } else {
       RC.file = await shrink(f); RC.preview = RC.file;
-      const d = $("rcDrop"); d.innerHTML = ""; const i = el("img"); i.src = RC.file; i.alt = ""; d.append(i, el("span", "", "Badalne ke liye dobara dabayein"));
+      const d = $("rcDrop"); d.innerHTML = ""; const i = el("img"); i.src = RC.file; i.alt = ""; d.append(i, el("span", "", "Tap again to change"));
     }
   }catch(err){ RC.file = ""; resetDrop(); $("rcMsg").textContent = err.message; }
 });
 $("rcGo").onclick = async ()=>{
   const sel = document.querySelector("input[name=rcFee]:checked"), feeId = sel ? sel.value : "";
   const amount = +$("rcAmt").value;
-  if(!(amount > 0)){ $("rcMsg").textContent = "Raqam likhein"; return; }
-  if(!RC.file){ $("rcMsg").textContent = "Receipt ki tasveer ya PDF lagayein"; return; }
-  $("rcGo").disabled = true; $("rcGo").textContent = "Bhej rahe hain…";
+  if(!(amount > 0)){ $("rcMsg").textContent = "Enter the amount"; return; }
+  if(!RC.file){ $("rcMsg").textContent = "Attach a receipt photo or PDF"; return; }
+  $("rcGo").disabled = true; $("rcGo").textContent = "Sending…";
   try{
     await api("/parent/api/receipt", {studentId:KID.id, feeId, amount, paidOn:$("rcDate").value, method:$("rcMethod").value, ref:$("rcRef").value, file:RC.file});
     const f = RC.fees.find(x=>x.id === feeId);
     closeReceipt();
     say(`🧾 Fee receipt · ${money(amount)}${f ? ` · ${f.chNo} (${fmtM(f.month)})` : ""} · ${$("rcMethod").value}`, RC.preview);
-    bot([{t:"h", text:"✓ Receipt mil gayi"}, {t:"p", text:"School office check kar ke challan Paid kar dega. Status \"💳 Fee\" mein nazar aayega."}], "note");
+    bot([{t:"h", text:"✓ Receipt received"}, {t:"p", text:"The school office will check it and mark the challan Paid. The status will appear under \"💳 Fee\"."}], "note");
   }catch(err){ if(err.message !== "login") $("rcMsg").textContent = err.message; }
-  finally{ $("rcGo").disabled = false; $("rcGo").textContent = "Receipt bhejein"; }
+  finally{ $("rcGo").disabled = false; $("rcGo").textContent = "Send receipt"; }
 };
 
 async function start(){
@@ -396,15 +396,15 @@ async function start(){
   $("login").style.display = "none"; $("app").style.display = "flex";
   $("msgs").innerHTML = "";
   if(!ME.children.length){
-    bot([{t:"p", text:"Is phone number par abhi koi student nahi mila. School office se rabta karein."}], "warn");
+    bot([{t:"p", text:"No student found for this phone number. Please contact the school office."}], "warn");
     $("quick").innerHTML = ""; $("compose").style.display = "none"; return;
   }
   KID = ME.children[0];
   drawKids(); drawQuick(); setMode("chat");
-  $("msgs").appendChild(el("div", "day", "Aaj"));
-  bot([{t:"h", text:"Assalam o Alaikum! 👋"},
-       {t:"p", text: ME.children.length > 1 ? `Aap ke ${ME.children.length} bache: ${ME.children.map(k=>k.name).join(", ")}. Upar se bacha chunein.` : `${KID.name} (${KID.course}, ${KID.shift}) ke baare mein kya dekhna hai?`},
-       ...(ME.replies ? [{t:"p", text:`School ne aap ke ${ME.replies} message${ME.replies>1?"s":""} ka jawab diya hai — "Teacher Remarks" dabayein.`}] : [])], "", tiles());
+  $("msgs").appendChild(el("div", "day", "Today"));
+  bot([{t:"h", text:"Welcome! 👋"},
+       {t:"p", text: ME.children.length > 1 ? `Your ${ME.children.length} children: ${ME.children.map(k=>k.name).join(", ")}. Choose a child above.` : `What would you like to see about ${KID.name} (${KID.course}, ${KID.shift})?`},
+       ...(ME.replies ? [{t:"p", text:`The school has replied to ${ME.replies} of your message${ME.replies>1?"s":""} — tap "Teacher Remarks".`}] : [])], "", tiles());
 }
 start().catch(()=> showLogin());
 </script>
