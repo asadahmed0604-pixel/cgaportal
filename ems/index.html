@@ -358,6 +358,10 @@ label.chk input{width:auto}
   <input type="month" id="wm" onchange="setWM(this.value)">
   <button class="btn-line btn-sm" onclick="setWM(thisMonth())">Is mahina</button>
   <span class="wmh" id="wmHint"></span>
+  <span class="staff-only" style="margin-left:auto;display:flex;gap:6px;align-items:center">
+    <button class="btn-line btn-sm" id="meBtn" onclick="openMe()" title="Is computer par kaun kaam kar raha hai">👤 <span id="meName">Aap kaun?</span></button>
+    <button class="btn-line btn-sm" id="inqBell" onclick="openInqBell()" title="Aap ke zimme inquiries" style="position:relative">🔔 Inquiries <span id="inqBellN" class="badge b-unpaid" style="display:none"></span></button>
+  </span>
 </div>
 
 <!-- ================= DASHBOARD ================= -->
@@ -573,6 +577,7 @@ label.chk input{width:auto}
     <div class="field"><label>Month (khali = sab)</label><input type="month" id="inqFMonth" onchange="renderInquiries()"></div>
     <div class="field"><label>Stage</label><select id="inqFStage" onchange="renderInquiries()"><option value="">All stages</option></select></div>
     <div class="field"><label>Source</label><select id="inqFSource" onchange="renderInquiries()"><option value="">All sources</option></select></div>
+    <div class="field"><label>Zimmedar</label><select id="inqFWho" onchange="renderInquiries()"><option value="">Sab</option></select></div>
     <div class="field"><label>Search</label><input id="inqSearch" placeholder="Naam / phone" oninput="renderInquiries()"></div>
     <label class="chk" style="margin-bottom:10px"><input type="checkbox" id="inqFDue" onchange="renderInquiries()"> Sirf aaj / pichle follow-ups</label>
   </div>
@@ -580,6 +585,10 @@ label.chk input{width:auto}
     <thead><tr><th>Date</th><th>Name / Phone</th><th>Class</th><th>Source</th><th>Stage</th><th>Next Follow-up</th><th>Aakhri baat</th><th>Actions</th></tr></thead>
     <tbody id="inqRows"></tbody>
   </table></div>
+  <div class="panel" style="margin-top:16px"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><h3>👥 Staff KPI — converted vs non-converted (<span class="wmL"></span>)</h3>
+      <button class="btn-line btn-sm" style="margin-left:auto" onclick="inqKpiCSV()">⬇ CSV</button></div>
+    <p class="sub" style="margin:4px 0 12px">Har zimmedar ki is mahine ki inquiries: kitni admission bani (converted), kitni nahi bani (lost + abhi khuli), conversion %, aur kitne follow-ups waqt par nahi hue.</p>
+    <div class="tbl-wrap"><table><thead><tr><th>Zimmedar</th><th style="text-align:right">Inquiries</th><th style="text-align:right">Converted</th><th style="text-align:right">Non-converted</th><th style="text-align:right">↳ Lost</th><th style="text-align:right">↳ Abhi khuli</th><th style="width:22%">Converted vs non</th><th style="text-align:right">Conversion</th><th style="text-align:right">Follow-ups late</th><th style="text-align:right">Ausat follow-ups</th><th style="text-align:right">Din (admission tak)</th></tr></thead><tbody id="iqStaff"></tbody></table></div></div>
   <div class="grid2" style="margin-top:16px">
     <div class="panel"><h3>📅 Roz ka hisaab (<span class="wmL"></span>)</h3>
       <p class="sub" style="margin:4px 0 12px">Har din kitni nayi inquiries aayin, kitne follow-ups hue, kitne admission bane.</p>
@@ -1068,6 +1077,10 @@ const CLASS_LEVEL = {
   "Pre O Levels":"Junior", "Grade 5":"Junior", "Grade 6":"Junior", "Grade 7":"Junior", "Grade 8":"Junior"
 };
 const levelOfClass = c => CLASS_LEVEL[c] || "O Level";
+/* v48: Evening mein bacha 2 classes mein ho sakta hai (e.g. AS + A2) — course + course2 */
+const classesOf = s => !s ? [] : [s.course, s.shift === "Evening" ? s.course2 : ""].filter(Boolean);
+const inClass = (s, c) => classesOf(s).includes(c);
+const classLabelOf = s => classesOf(s).join(" + ");
 
 /* ---------- Subjects offered (Settings se edit ho sakti hain) ----------
    C = Compulsory (Morning mein khud add ho jate hain) · E = Elective (student chunta hai) */
@@ -1105,7 +1118,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v46 · 7 Oct 2026";
+const BUILD = "v48 · 8 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -1734,7 +1747,7 @@ function renderDashboard(){
   $("dMornIncHint").textContent += ` · kharch ${money(Math.round(sc.Morning.total))} (${money(Math.round(sc.Morning.per))}/bacha)`;
   $("dEveIncHint").textContent += ` · kharch ${money(Math.round(sc.Evening.total))} (${money(Math.round(sc.Evening.per))}/bacha)`;
   $("dCourseRows").innerHTML = COURSES.map(c=>{
-    const all = DB.students.filter(s=>s.course===c);
+    const all = DB.students.filter(s=>inClass(s, c));
     const actS = all.filter(s=>s.status==="Active");
     const mo = actS.filter(s=>s.shift==="Morning").length;
     const ev = actS.filter(s=>s.shift==="Evening").length;
@@ -1895,7 +1908,7 @@ function renderStudents(){
   const RM = rosterMonths();
   const rows = DB.students.filter(s=>{
     if(fm && !inMonth(s, fm, RM)) return false;
-    if(fc && s.course!==fc) return false;
+    if(fc && !inClass(s, fc)) return false;
     if(fs && s.shift!==fs) return false;
     if(fst && s.status!==fst) return false;
     if(q && !((s.name+" "+s.regNo+" "+s.phone+" "+(s.cnic||"")+" "+(s.fatherCnic||"")).toLowerCase().includes(q))) return false;
@@ -1925,7 +1938,7 @@ function renderStudents(){
       <td><b>${esc(s.regNo)}</b></td>
       <td>${esc(s.name)}${s.mode==="Online" ? ` <span class="badge b-paid">Online</span>` : ""}</td>
       <td>${esc(s.fatherName)}</td>
-      <td>${esc(s.course)}</td>
+      <td>${esc(classLabelOf(s))}</td>
       <td>${esc(s.shift)}</td>
       <td style="max-width:230px">${(s.subjects||[]).length
         ? `<b>${s.subjects.length}</b> subjects<br><span class="sub">${esc(s.shift==="Morning"? groupOf(s) : s.subjects.map(x=>x.name).join(", "))}</span>`
@@ -1962,10 +1975,11 @@ function openStudentForm(id, prefill){
       <div class="field"><label>Education / Qualification</label><input id="f_edu" value="${esc(s.education||"")}" placeholder="e.g. Matric / Inter / BA / BSc"></div>
       <div class="field"><label>Previous School / College / University</label><input id="f_prev" value="${esc(s.prevInst||"")}" placeholder="e.g. Govt. High School Lahore"></div>
       <div class="field"><label>Date of Join *</label><input type="date" id="f_doj" value="${s.id ? (s.doj||"") : wmDate()}"></div>
-      <div class="field"><label>Shift *</label><select id="f_shift" onchange="syncClassSel('f_shift','f_course');subjModeSync()">
+      <div class="field"><label>Shift *</label><select id="f_shift" onchange="syncClassSel('f_shift','f_course');course2Sync();subjModeSync()">
         <option value="Morning" ${s.shift==="Morning"?"selected":""}>Morning — School System</option>
         <option value="Evening" ${s.shift==="Evening"?"selected":""}>Evening — Academy</option></select></div>
-      <div class="field"><label>Class *</label><select id="f_course" onchange="subjModeSync()">${courseOptions(s.course, s.shift||"Morning")}</select></div>
+      <div class="field"><label>Class *</label><select id="f_course" onchange="course2Sync();subjModeSync()">${courseOptions(s.course, s.shift||"Morning")}</select></div>
+      <div class="field" id="f_c2Wrap" style="display:${(s.shift||"Morning")==="Evening"?"block":"none"}"><label>2nd class (Evening — optional)</label><select id="f_course2" onchange="subjModeSync()" data-cur="${esc(s.course2||"")}"></select></div>
       ${s.id ? "" : `<div class="field fee-only"><label>Registration fee (Rs) — sirf ${fmtM(wm())} ke challan mein</label><input type="number" id="f_reg" placeholder="e.g. 5000"></div>`}
       <div class="field"><label>Mode of education</label><select id="f_mode">${["Onsite","Online"].map(x=>`<option ${(s.mode||"Onsite")===x?"selected":""}>${x}</option>`).join("")}</select></div>
       <div class="field fee-only" id="f_feeWrap"><label id="f_feeLbl">Monthly Fee (Rs)</label><input type="number" id="f_fee" value="${s.monthlyFee||""}" placeholder="e.g. 3000"></div>
@@ -1996,6 +2010,7 @@ function openStudentForm(id, prefill){
     </div>`, true);
   subjDraft = (s.subjects||[]).map(x=>({...x}));
   grpOverride = s.groupOverride||"";
+  course2Sync();
   subjModeSync(true);
 }
 
@@ -2014,12 +2029,20 @@ function seedInto(list, cls){
   return list;
 }
 function seedCompulsory(cls){ seedInto(subjDraft, cls); }
+function course2Sync(){
+  const sel = $("f_course2"); if(!sel) return;
+  const ev = $("f_shift").value === "Evening", c1 = $("f_course").value, keep = sel.value || sel.dataset.cur || "";
+  $("f_c2Wrap").style.display = ev ? "block" : "none";
+  sel.innerHTML = `<option value="">— sirf aik class —</option>` + (CLASSES_BY_SHIFT.Evening || []).filter(c=>c!==c1).map(c=>`<option ${c===keep?"selected":""}>${esc(c)}</option>`).join("");
+  sel.dataset.cur = "";
+}
 /* initial=true sirf form khulte waqt — us waqt student ka mojooda record chhera nahi jata */
 function subjModeSync(initial){
   if(!$("f_subj")) return;
   const shift = $("f_shift").value, cls = $("f_course").value, lvl = levelOfClass(cls);
   const evening = shift==="Evening";
-  const offered = subjectsForClass(cls);
+  const c2 = evening && $("f_course2") ? $("f_course2").value : "";
+  const offered = c2 ? [...subjectsForClass(cls), ...subjectsForClass(c2).filter(x=>!subjectsForClass(cls).some(y=>y.name===x.name))] : subjectsForClass(cls);
 
   if(!initial){
     const before = subjDraft.length;
@@ -2138,6 +2161,7 @@ function saveStudent(id){
     address:$("f_addr").value.trim(), dob:$("f_dob").value||"", doj:$("f_doj").value||(id? "" : wmDate()),
     education:$("f_edu").value.trim(), prevInst:$("f_prev").value.trim(),
     course:$("f_course").value, shift:$("f_shift").value,
+    course2: $("f_shift").value === "Evening" && $("f_course2") && $("f_course2").value !== $("f_course").value ? $("f_course2").value : "",
     monthlyFee:$("f_fee").value||0, teacherId:$("f_teacher").value,
     subjects: subjDraft.map(x=>({...x})), groupOverride: grpOverride, mode:$("f_mode").value,
     status:$("f_status").value, photo:photoTemp
@@ -2191,7 +2215,7 @@ function renderGallery(){
   const fst=$("galFStatus").value, fc=$("galFCourse").value, fs=$("galFShift").value, q=($("galSearch").value||"").toLowerCase();
   const rows = DB.students.filter(s=>{
     if(fst && s.status!==fst) return false;
-    if(fc && s.course!==fc) return false;
+    if(fc && !inClass(s, fc)) return false;
     if(fs && s.shift!==fs) return false;
     if(q && !((s.name+" "+s.regNo).toLowerCase().includes(q))) return false;
     return true;
@@ -2229,7 +2253,7 @@ function openProfile(id){
   const a = attSummary(id, s.doj);
   const fees = DB.fees.filter(f=>f.studentId===id).sort((x,y)=>y.month.localeCompare(x.month));
   const exams = DB.exams.filter(e=>e.studentId===id).sort((x,y)=>y.date.localeCompare(x.date));
-  const hws = DB.homework.filter(h=>h.course===s.course && h.shift===s.shift).sort((x,y)=>y.dateGiven.localeCompare(x.dateGiven));
+  const hws = DB.homework.filter(h=>inClass(s, h.course) && h.shift===s.shift).sort((x,y)=>y.dateGiven.localeCompare(x.dateGiven));
   /* Siblings — same Father/Guardian CNIC */
   const cnicKey = v => String(v||"").replace(/\D/g,"");
   const fKey = cnicKey(s.fatherCnic);
@@ -2458,12 +2482,12 @@ function loadAttendance(){
   /* v36: us mahine ki (ya aakhri) student list se — jo us mahine active hain */
   const RM = rosterMonths(), am = date.slice(0,7);
   const pool = DB.students.filter(s=>s.shift===shift && activeIn(s, am, RM));
-  const cls = $("attClass"), have = [...new Set(pool.map(s=>s.course))];
+  const cls = $("attClass"), have = [...new Set(pool.flatMap(classesOf))];
   const order = CLASSES_BY_SHIFT[shift] || COURSES, keep = cls.value;
   cls.innerHTML = `<option value="">Sab classes (${pool.length})</option>` + order.filter(c=>have.includes(c)).concat(have.filter(c=>!order.includes(c)))
     .map(c=>`<option ${c===keep?"selected":""}>${esc(c)}</option>`).join("");
   const fc = cls.value;
-  const stus = pool.filter(s=>!fc || s.course===fc).sort((a,b)=>(a.course||"").localeCompare(b.course||"") || a.name.localeCompare(b.name));
+  const stus = pool.filter(s=>!fc || inClass(s, fc)).sort((a,b)=>(a.course||"").localeCompare(b.course||"") || a.name.localeCompare(b.name));
   warn.innerHTML = `<div class="sub" style="margin-bottom:8px">${fmtM(am)} ki ${RM.includes(am) ? "student list" : "aakhri student list (+ is mahine ke naye admissions)"} — ${stus.length} students · ${shift}</div>`;
   const saved = (DB.attendance[date]||{});
   attDraft = {};
@@ -2591,7 +2615,7 @@ function renderHomework(){
   const fc=$("hwFCourse").value, fs=$("hwFShift").value, fm=$("hwFMonth").value;
   const rows = DB.homework.filter(h=>(!fc||h.course===fc)&&(!fs||h.shift===fs)&&(!fm||String(h.dateGiven||"").startsWith(fm))).sort((a,b)=>b.dateGiven.localeCompare(a.dateGiven));
   $("hwRows").innerHTML = rows.length? rows.map(h=>{
-    const total = DB.students.filter(s=>s.status==="Active"&&s.course===h.course&&s.shift===h.shift).length;
+    const total = DB.students.filter(s=>s.status==="Active"&&inClass(s, h.course)&&s.shift===h.shift).length;
     const sub = h.done? Object.keys(h.done).length : 0;
     return `<tr>
       <td>${fmtD(h.dateGiven)}</td>
@@ -2635,7 +2659,7 @@ function saveHw(id){
   if(id) Object.assign(DB.homework.find(x=>x.id===id), data);
   else { data.id=uid(); data.done={}; DB.homework.push(data); }
   save(); closeModal(); renderHomework();
-  const n = DB.students.filter(s=>s.status==="Active"&&s.course===data.course&&s.shift===data.shift).length;
+  const n = DB.students.filter(s=>s.status==="Active"&&inClass(s, data.course)&&s.shift===data.shift).length;
   toast(`Homework assigned — ${data.course} (${data.shift}) ke ${n} students ke profile par show hoga`);
 }
 function delHw(id){
@@ -3216,7 +3240,7 @@ function challanLines(f){
   }
   if(disc) lines.push({label:`Discount (${pct}%)`, amt:-disc, red:true});
   (f.items||[]).forEach(it=>lines.push({label:it.desc, amt:+it.amt||0, arrears:!!it.arrears}));
-  const course = f.course || st.course || "", shift = st.shift || f.shift || "";
+  const course = (f.course && f.course !== st.course) ? f.course : (classLabelOf(st) || f.course || ""), shift = st.shift || f.shift || "";
   return {st, lines, course, shift, total:+f.amount||0, paid:+f.paidAmount||0, balance:+f.balance||0, out:feeOutstanding(f)};
 }
 function challanCopyHTML(f, L, label){
@@ -3590,7 +3614,10 @@ function renderInquiries(){
 
   /* --- list --- */
   const fst = $("inqFStage").value, fsrc = $("inqFSource").value, q = ($("inqSearch").value||"").toLowerCase(), onlyDue = $("inqFDue").checked;
-  const rows = DB.inquiries.filter(i=>
+  const whoSel = $("inqFWho"), fw = whoSel.value, who = [...new Set(DB.inquiries.map(i=>(i.assignedTo||"").trim()).filter(Boolean))].sort();
+  whoSel.innerHTML = `<option value="">Sab</option>${myName() ? `<option value="__me" ${fw==="__me"?"selected":""}>👤 Meri (${esc(myName())})</option>` : ""}<option value="__none" ${fw==="__none"?"selected":""}>— Bina zimmedar —</option>` + who.map(n=>`<option ${n===fw?"selected":""}>${esc(n)}</option>`).join("");
+  const whoOk = i => !fw || (fw==="__me" ? isMine(i) : fw==="__none" ? !(i.assignedTo||"").trim() : (i.assignedTo||"").trim()===fw);
+  const rows = DB.inquiries.filter(i=>whoOk(i) &&
       (!m || String(i.date||"").startsWith(m)) && (!fst || i.stage===fst) && (!fsrc || i.source===fsrc) &&
       (!q || (i.name+" "+i.phone).toLowerCase().includes(q)) &&
       (!onlyDue || (INQ_OPEN(i.stage) && i.nextFollow && i.nextFollow <= t)))
@@ -3601,7 +3628,7 @@ function renderInquiries(){
       <td>${fmtD(i.date)}</td>
       <td><b>${esc(i.name)}</b><br><span class="sub">${esc(i.phone)}${i.city||i.area?` · ${esc(i.city||"")}${i.area?", "+esc(i.area):""}`:""}</span></td>
       <td>${esc(i.course||"—")}${i.shift?`<br><span class="sub">${esc(i.shift)}</span>`:""}${i.fee?`<br><span class="sub">Fee ${money(i.fee)}</span>`:""}</td>
-      <td>${esc(i.source||"—")}</td>
+      <td>${esc(i.source||"—")}${i.assignedTo ? `<br><span class="sub">👤 ${esc(i.assignedTo)}</span>` : ""}</td>
       <td>${inqStageBadge(i.stage)}${i.stage==="Converted"&&i.studentId&&stuById(i.studentId)?`<br><span class="sub">${esc(stuById(i.studentId).regNo)}</span>`:""}${i.stage==="Lost"&&i.lostReason?`<br><span class="sub">${esc(i.lostReason)}</span>`:""}</td>
       <td>${INQ_OPEN(i.stage) && i.nextFollow ? `<span style="${i.nextFollow<t?"color:var(--danger);font-weight:700":i.nextFollow===t?"font-weight:700":""}">${i.nextFollow<t?"⚠ ":""}${fmtD(i.nextFollow)}</span>` : "—"}</td>
       <td class="sub" style="max-width:240px">${last ? `${fmtD(last.d)}${last.by?` · ${esc(last.by)}`:""}: ${esc(last.note||last.stage)}` : esc(i.detail||"—")}<br>${i.log.length?`<a href="#" onclick="openInqLog('${i.id}');return false">${i.log.length} entries</a>`:""}</td>
@@ -3626,6 +3653,8 @@ function renderInquiries(){
     + `<tr style="background:var(--soft)"><td><b>Total</b></td>${["n","f","c","l"].map(k=>`<td style="text-align:right"><b>${dk.reduce((a,d)=>a+byDay[d][k],0)}</b></td>`).join("")}</tr>`
     : `<tr><td colspan="5" class="empty">${fmtM(mm)} mein koi activity nahi</td></tr>`;
 
+  drawInqStaffKpi(inM, mm);
+  inqBell();
   /* --- source & stage --- */
   const src = {};
   inM.forEach(i=>{ const k = i.source || "Nahi likha"; const r = src[k] = src[k] || {n:0,c:0}; r.n++; if(i.stage==="Converted") r.c++; });
@@ -3683,8 +3712,11 @@ function saveInq(id){
   if(id){
     const i = inqNorm(DB.inquiries.find(x=>x.id===id));
     if(i.stage !== data.stage) i.log.push({id:uid(), d:wmDate(), stage:data.stage, note:"Stage badli: " + i.stage + " → " + data.stage, by:staffName()});
+    if((i.assignedTo||"").trim() !== data.assignedTo){ data.assignedOn = new Date().toISOString(); data.assignedBy = myName() || ROLE_LABEL;
+      if(data.assignedTo) i.log.push({id:uid(), d:wmDate(), stage:data.stage, note:`Zimmedari: ${data.assignedTo}`, by:myName() || staffName()}); }
     Object.assign(i, data);
   } else {
+    if(data.assignedTo){ data.assignedOn = new Date().toISOString(); data.assignedBy = myName() || ROLE_LABEL; }
     data.id = uid(); data.log = [{id:uid(), kind:"new", d:data.date, stage:data.stage, note:"Inquiry aayi" + (data.source?` (${data.source})`:""), by:data.assignedTo}];
     DB.inquiries.push(data);
   }
@@ -3872,7 +3904,7 @@ const pinMessage = (key, pin, kids) => `Assalam o Alaikum! ${DB.settings.name||"
 let BULK_RESULT = [];
 function bulkPlan(){
   const sh = $("ba_shift").value, cl = window._baClass || "", useStu = $("ba_stu").checked, redo = $("ba_redo").checked;
-  const stus = DB.students.filter(st=>st.status === "Active" && (!sh || st.shift === sh) && (!cl || st.course === cl));
+  const stus = DB.students.filter(st=>st.status === "Active" && (!sh || st.shift === sh) && (!cl || inClass(st, cl)));
   const fams = new Map(families().map(f=>[f.key, f]));
   const byKey = new Map(), noPhone = [];
   stus.forEach(st=>{
@@ -4269,7 +4301,7 @@ const subjLike = (a, b) => { const x = keyify(a), y = keyify(b); return !!x && !
 function myClassKeys(){                       // teacher ki classes: "Shift|Class"
   const me = empById(MY_TID) || {};
   const set = new Set((me.assignments||[]).map(a=>a.shift+"|"+a.course));
-  DB.students.forEach(st=>(st.subjects||[]).forEach(x=>{ if(x.teacherId===MY_TID) set.add(st.shift+"|"+st.course); }));
+  DB.students.forEach(st=>(st.subjects||[]).forEach(x=>{ if(x.teacherId===MY_TID) classesOf(st).forEach(c=>set.add(st.shift+"|"+c)); }));
   return set;
 }
 function classKeysFor(shift){
@@ -4281,7 +4313,7 @@ const testMarks = t => DB.exams.filter(e=>e.testId===t.id);
 function testStudents(t){
   const m = String(t.date||wm()).slice(0,7), RM = rosterMonths();
   const has = new Set(testMarks(t).map(e=>e.studentId));
-  return DB.students.filter(st=>has.has(st.id) || (st.shift===t.shift && st.course===t.course && st.status!=="Left" && inMonth(st, m, RM)
+  return DB.students.filter(st=>has.has(st.id) || (st.shift===t.shift && inClass(st, t.course) && st.status!=="Left" && inMonth(st, m, RM)
       && (!t.subject || !(st.subjects||[]).length || st.subjects.some(x=>subjLike(x.name, t.subject)))))
     .sort((a,b)=>a.name.localeCompare(b.name));
 }
@@ -4354,7 +4386,7 @@ function testFormSync(){
   const courses = classKeysFor(sh).map(k=>k.split("|")[1]);
   $("t_course").innerHTML = courses.map(c=>`<option ${c===keep?"selected":""}>${esc(c)}</option>`).join("");
   const c = $("t_course").value, subs = new Set(), tBy = {};
-  DB.students.filter(st=>st.shift===sh && st.course===c).forEach(st=>(st.subjects||[]).forEach(x=>{
+  DB.students.filter(st=>st.shift===sh && inClass(st, c)).forEach(st=>(st.subjects||[]).forEach(x=>{
     if(IS_TEACHER && x.teacherId && x.teacherId!==MY_TID) return;
     subs.add(x.name); if(x.teacherId) tBy[keyify(x.name)] = x.teacherId; }));
   if(!subs.size) subjectsForClass(c).forEach(x=>subs.add(x.name));
@@ -4402,7 +4434,7 @@ function delTest(id){
 const subjTeacherKey = (sh, c, subj) => `${sh}|${c}|${keyify(subj)}`;
 function classSubjects(sh, c){
   const set = new Set(), RM = rosterMonths(), m = wm();
-  DB.students.filter(st=>st.shift===sh && st.course===c && st.status!=="Left" && inMonth(st, m, RM)).forEach(st=>(st.subjects||[]).forEach(x=>set.add(x.name)));
+  DB.students.filter(st=>st.shift===sh && inClass(st, c) && st.status!=="Left" && inMonth(st, m, RM)).forEach(st=>(st.subjects||[]).forEach(x=>set.add(x.name)));
   if(!set.size) subjectsForClass(c).forEach(x=>set.add(x.name));
   const comp = new Set(compulsoryForClass(c).map(x=>x.name));
   return [...set].sort((a,b)=>(comp.has(b)-comp.has(a)) || a.localeCompare(b));
@@ -4410,7 +4442,7 @@ function classSubjects(sh, c){
 function guessTeacher(sh, c, subj){
   const mem = (DB.settings.subjTeacher||{})[subjTeacherKey(sh, c, subj)];
   if(mem && empById(mem)) return mem;
-  const st = DB.students.find(x=>x.shift===sh && x.course===c && (x.subjects||[]).some(y=>y.name===subj && y.teacherId));
+  const st = DB.students.find(x=>x.shift===sh && inClass(x, c) && (x.subjects||[]).some(y=>y.name===subj && y.teacherId));
   return st ? st.subjects.find(y=>y.name===subj && y.teacherId).teacherId : "";
 }
 function examGroups(fm, fs, keys){
@@ -4467,7 +4499,7 @@ function openExamForm(examId){
 function exClasses(pre){
   const sh = $("ex_shift").value, RM = rosterMonths(), m = wm();
   const keep = new Set(pre || [...document.querySelectorAll("#ex_cls input:checked")].map(x=>x.value));
-  $("ex_cls").innerHTML = (CLASSES_BY_SHIFT[sh]||[]).map(c=>{ const n = DB.students.filter(st=>st.shift===sh && st.course===c && activeIn(st, m, RM)).length;
+  $("ex_cls").innerHTML = (CLASSES_BY_SHIFT[sh]||[]).map(c=>{ const n = DB.students.filter(st=>st.shift===sh && inClass(st, c) && activeIn(st, m, RM)).length;
     return `<label class="chk" style="margin:0 12px 6px 0"><input type="checkbox" value="${esc(c)}" ${keep.has(c)?"checked":""} onchange="exGrid()"> ${esc(c)} <span class="sub">(${n})</span></label>`; }).join("");
   exGrid();
 }
@@ -4722,6 +4754,103 @@ function removeFeeCode(){
   askConfirm("Fee Admin ka code hatayein?", "Phir Fee Admin bina code ke Fee / Billing aur Income / Expense khol sakega.", ()=>{
     delete DB.settings.feeAdminCode; save(); renderLogins(); toast("Code hata diya");
   }, "Haan, hatayein");
+}
+
+/* ================= v47: INQUIRY NOTIFICATIONS + STAFF KPI =================
+   Login role ka hota hai (Admin / Executive), banda ka nahi — is liye har computer par "👤 Aap kaun?" aik dafa chun lein.
+   Jis inquiry ka "Zimmedar" aap hain: nayi / naye sir se di gayi ho to toast + 🔔 ginti (+ browser notification),
+   aur jis ka follow-up aaj ya pichla ho wo bhi 🔔 mein. */
+const myName = () => { try{ return localStorage.getItem("emsMe") || ""; }catch(e){ return ""; } };
+const isMine = i => { const me = myName(), a = String(i.assignedTo||"").trim(); return !!me && !!a && (keyify(a) === keyify(me) || nameScore(a, me) >= 0.8); };
+const inqSeenKey = i => `${i.id}|${keyify(i.assignedTo||"")}`;
+const inqSeen = () => { try{ return JSON.parse(localStorage.getItem("emsInqSeen")||"[]"); }catch(e){ return []; } };
+function openMe(){
+  const names = [...new Set(DB.employees.filter(e=>e.category!=="Teacher").map(e=>e.name).concat(DB.inquiries.map(i=>(i.assignedTo||"").trim()).filter(Boolean)))].sort();
+  openModal(`<h3>👤 Is computer par kaun kaam kar raha hai?</h3>
+    <p class="sub" style="margin-bottom:10px">Jo naam inquiries mein "Zimmedar" likha jata hai wohi chunein — phir aap ke zimme wali inquiries ki notification yahan aayegi.</p>
+    <div class="field"><label>Naam</label><input id="meIn" list="meList" value="${esc(myName())}" placeholder="e.g. Maryam Alvi"><datalist id="meList">${names.map(n=>`<option value="${esc(n)}">`).join("")}</datalist></div>
+    ${window.Notification && Notification.permission==="default" ? `<label class="chk"><input type="checkbox" id="meNotif" checked> Browser notification bhi (naye assignment par)</label>` : ""}
+    <div class="modal-foot"><button class="btn-line" onclick="closeModal()">Cancel</button><button class="btn-red" onclick="saveMe()">Save</button></div>`);
+}
+function saveMe(){
+  const n = $("meIn").value.trim(); if(!n){ toast("Naam likhein"); return; }
+  try{ localStorage.setItem("emsMe", n); }catch(e){}
+  if($("meNotif") && $("meNotif").checked && window.Notification) Notification.requestPermission().catch(()=>{});
+  closeModal(); inqBell(); toast(`👤 ${n} — aap ki inquiries ki notification yahan aayegi`);
+  if(document.querySelector("#nav button.active")?.dataset.page === "inquiries") renderInquiries();
+}
+function inqMineLists(){
+  const t = todayStr(), seen = new Set(inqSeen());
+  const mine = DB.inquiries.filter(i=>INQ_OPEN(inqNorm(i).stage) && isMine(i));
+  return {mine, fresh: mine.filter(i=>!seen.has(inqSeenKey(i))), due: mine.filter(i=>i.nextFollow && i.nextFollow <= t)};
+}
+function inqBell(){
+  if(IS_TEACHER || !$("inqBellN")) return;
+  $("meName").textContent = myName() || "Aap kaun?";
+  const L = inqMineLists(), n = new Set([...L.fresh, ...L.due].map(i=>i.id)).size;
+  $("inqBellN").style.display = n ? "" : "none"; $("inqBellN").textContent = n;
+  const b = document.querySelector('#nav button[data-page="inquiries"]');
+  if(b){ let x = b.querySelector(".nbadge"); if(!n){ if(x) x.remove(); } else { if(!x){ x = document.createElement("span"); x.className = "nbadge"; x.style.cssText = "margin-left:auto;background:#C0392B;color:#fff;border-radius:999px;font-size:.72rem;font-weight:800;padding:1px 7px"; b.appendChild(x); } x.textContent = n; } }
+}
+/* Sync ke baad / login par: naye assignment ka toast */
+function inqNotify(first){
+  if(IS_TEACHER) return;
+  inqBell();
+  const L = inqMineLists(); if(!myName()) return;
+  let told = []; try{ told = JSON.parse(sessionStorage.getItem("emsInqTold")||"[]"); }catch(e){}
+  const news = L.fresh.filter(i=>!told.includes(inqSeenKey(i)));
+  if(first && (L.fresh.length || L.due.length)) toast(`🔔 ${myName()}: ${L.fresh.length ? `${L.fresh.length} nayi inquiry aap ke zimme` : ""}${L.fresh.length && L.due.length ? " · " : ""}${L.due.length ? `${L.due.length} follow-up aaj / pichle` : ""}`);
+  else if(news.length){
+    const i = news[news.length-1];
+    toast(`🔔 Nayi inquiry aap ke zimme — ${i.name} (${i.course||""})${news.length>1 ? ` +${news.length-1}` : ""}`);
+    try{ if(window.Notification && Notification.permission==="granted") new Notification("Nayi inquiry aap ke zimme", {body:`${i.name} · ${i.course||""} · ${i.phone||""}`, icon:"/icons/cga-192.png"}); }catch(e){}
+  }
+  try{ sessionStorage.setItem("emsInqTold", JSON.stringify([...new Set([...told, ...L.fresh.map(inqSeenKey)])])); }catch(e){}
+}
+function openInqBell(){
+  if(!myName()){ openMe(); return; }
+  const L = inqMineLists(), t = todayStr();
+  const row = i => `<tr><td><b>${esc(i.name)}</b><br><span class="sub">${esc(i.phone||"")}</span></td><td>${esc(i.course||"")}${i.shift ? `<br><span class="sub">${esc(i.shift)}</span>` : ""}</td>
+    <td>${inqStageBadge(i.stage)}</td><td style="${i.nextFollow && i.nextFollow < t ? "color:var(--danger);font-weight:700" : ""}">${i.nextFollow ? fmtD(i.nextFollow) : "—"}</td>
+    <td class="sub">${i.assignedBy ? `${esc(i.assignedBy)} ne · ` : ""}${i.assignedOn ? fmtD(String(i.assignedOn).slice(0,10)) : fmtD(i.date)}</td>
+    <td style="white-space:nowrap"><a class="btn-line btn-sm" href="${telLink(i.phone)}">📞</a> <a class="btn-line btn-sm" target="_blank" rel="noopener" href="${waLink(i.phone)}">WA</a>
+      <button class="btn-black btn-sm" onclick="closeModal();openInqLog('${i.id}')">Log</button></td></tr>`;
+  const tbl = (title, list, empty) => `<h3 style="margin:12px 0 6px;font-size:.95rem">${title} (${list.length})</h3><div class="tbl-wrap"><table><tbody>${list.length ? list.map(row).join("") : `<tr><td class="empty">${empty}</td></tr>`}</tbody></table></div>`;
+  openModal(`<h3>🔔 ${esc(myName())} — aap ki inquiries</h3>
+    ${tbl("🆕 Nayi / naye sir se aap ke zimme", L.fresh, "Koi nayi nahi")}
+    ${tbl("📞 Follow-up aaj ya pichla", L.due.sort((a,b)=>a.nextFollow.localeCompare(b.nextFollow)), "Aaj koi follow-up nahi ✓")}
+    ${tbl("Aap ki tamam khuli inquiries", L.mine.sort((a,b)=>String(b.date).localeCompare(String(a.date))), "Koi khuli inquiry nahi")}
+    <div class="modal-foot"><button class="btn-line" onclick="openMe()">👤 Naam badlein</button><button class="btn-red" onclick="closeModal()">Theek hai</button></div>`, true);
+  try{ localStorage.setItem("emsInqSeen", JSON.stringify([...new Set([...inqSeen(), ...L.mine.map(inqSeenKey)])].slice(-2000))); }catch(e){}
+  inqBell();
+}
+function inqStaffRows(inM){
+  const t = todayStr(), by = {};
+  inM.forEach(i=>{ const k = (i.assignedTo||"").trim() || "— Bina zimmedar —";
+    const r = by[k] = by[k] || {n:0, c:0, l:0, o:0, late:0, fu:0, days:[]};
+    r.n++; if(i.stage==="Converted"){ r.c++; if(i.convertedOn) r.days.push((new Date(i.convertedOn) - new Date(i.date))/864e5); }
+    else if(i.stage==="Lost") r.l++; else { r.o++; if(i.nextFollow && i.nextFollow < t) r.late++; }
+    r.fu += (i.log||[]).filter(l=>l.kind!=="new").length; });
+  return Object.entries(by).map(([k,r])=>({k, ...r, non:r.l + r.o, rate: r.n ? Math.round(r.c*100/r.n) : 0,
+    avgFu: r.n ? Math.round(r.fu*10/r.n)/10 : 0, avgDays: r.days.length ? Math.round(r.days.reduce((a,x)=>a+x,0)/r.days.length) : null}))
+    .sort((a,b)=>b.rate - a.rate || b.n - a.n);
+}
+function drawInqStaffKpi(inM, mm){
+  const R = inqStaffRows(inM);
+  $("iqStaff").innerHTML = R.length ? R.map(r=>`<tr${myName() && keyify(r.k)===keyify(myName()) ? ' style="background:#E8F7F0"' : ""}><td><b>${esc(r.k)}</b></td>
+    <td style="text-align:right">${r.n}</td><td style="text-align:right"><b style="color:var(--ok)">${r.c}</b></td><td style="text-align:right"><b style="color:var(--danger)">${r.non}</b></td>
+    <td style="text-align:right">${r.l}</td><td style="text-align:right">${r.o}</td>
+    <td><div style="display:flex;height:12px;border-radius:6px;overflow:hidden;background:#E8EEF0"><span style="width:${r.c*100/r.n}%;background:var(--ok)"></span><span style="width:${r.l*100/r.n}%;background:var(--danger)"></span><span style="width:${r.o*100/r.n}%;background:#E0A800"></span></div></td>
+    <td style="text-align:right"><b style="${scoreColor(r.rate || 0.01)}">${r.rate}%</b></td><td style="text-align:right">${r.late ? `<b style="color:var(--danger)">${r.late}</b>` : "0"}</td>
+    <td style="text-align:right">${r.avgFu}</td><td style="text-align:right">${r.avgDays ?? "—"}</td></tr>`).join("")
+    + (R.length > 1 ? `<tr style="background:var(--soft)"><td><b>Total</b></td>${["n","c","non","l","o"].map(k=>`<td style="text-align:right"><b>${R.reduce((a,r)=>a+r[k],0)}</b></td>`).join("")}<td><span class="sub">🟩 converted · 🟥 lost · 🟨 khuli</span></td>
+      <td style="text-align:right"><b>${Math.round(R.reduce((a,r)=>a+r.c,0)*100/Math.max(1,R.reduce((a,r)=>a+r.n,0)))}%</b></td><td style="text-align:right"><b>${R.reduce((a,r)=>a+r.late,0)}</b></td><td></td><td></td></tr>` : "")
+    : `<tr><td colspan="11" class="empty">${fmtM(mm)} mein koi inquiry nahi</td></tr>`;
+}
+function inqKpiCSV(){
+  const mm = $("inqFMonth").value || wm(), inM = DB.inquiries.filter(i=>String(i.date||"").startsWith(mm));
+  downloadCSV(`inquiry-staff-kpi-${mm}.csv`, [["Zimmedar","Inquiries","Converted","Non-converted","Lost","Open","Conversion %","Late follow-ups","Avg follow-ups","Avg days to admission"],
+    ...inqStaffRows(inM).map(r=>[r.k, r.n, r.c, r.non, r.l, r.o, r.rate, r.late, r.avgFu, r.avgDays ?? ""])]);
 }
 
 /* ================= v46: A LEVELS → AS / A2 =================
@@ -5154,7 +5283,7 @@ function renderMyDash(){
   const stus = DB.students.filter(st=>keys.includes(st.shift+"|"+st.course) && activeIn(st, m, RM));
   const asg = (me.assignments||[]).slice().sort((a,b)=>(a.from||"99").localeCompare(b.from||"99") || a.course.localeCompare(b.course));
   const today = new Date().getDay(), nowT = new Date().toTimeString().slice(0,5);
-  const forAsg = a => stus.filter(st=>st.shift===a.shift && st.course===a.course && (!a.subject || !(st.subjects||[]).length || st.subjects.some(x=>subjLike(x.name, a.subject))));
+  const forAsg = a => stus.filter(st=>st.shift===a.shift && inClass(st, a.course) && (!a.subject || !(st.subjects||[]).length || st.subjects.some(x=>subjLike(x.name, a.subject))));
   const todays = asg.filter(a=>a.from && (DAY_SET[a.days] || DAY_SET["Mon–Fri"]).includes(today));
   /* attendance (sirf parhne ke liye) */
   const att = DB.empAttendance || {}, days = Object.keys(att).filter(d=>d.startsWith(m) && att[d][MY_TID]).sort();
@@ -5189,7 +5318,7 @@ function renderMyDash(){
   cs.innerHTML = `<option value="">Sab classes</option>` + keys.map(k=>`<option value="${esc(k)}" ${k===keep?"selected":""}>${esc(k.split("|").reverse().join(" · "))}</option>`).join("");
   const fc = cs.value, q = ($("mdQ").value||"").toLowerCase();
   const myS = new Set(asg.filter(a=>a.subject).map(a=>keyify(a.subject)));
-  const L = stus.filter(st=>(!fc || st.shift+"|"+st.course===fc) && (!q || (st.name+" "+(st.regNo||"")).toLowerCase().includes(q)))
+  const L = stus.filter(st=>(!fc || classesOf(st).some(c=>st.shift+"|"+c===fc)) && (!q || (st.name+" "+(st.regNo||"")).toLowerCase().includes(q)))
     .sort((a,b)=>a.course.localeCompare(b.course) || a.name.localeCompare(b.name));
   $("mdStu").innerHTML = L.length ? L.map((st,i)=>`<tr><td>${i+1}</td><td>${esc(st.regNo||"")}</td><td><b>${esc(st.name)}</b></td><td>${esc(st.course)}</td><td>${esc(st.shift)}</td>
     <td class="sub">${(st.subjects||[]).map(x=>myS.has(keyify(x.name)) || x.teacherId===MY_TID ? `<b style="color:var(--ink)">${esc(x.name)}</b>` : esc(x.name)).join(", ") || "—"}</td></tr>`).join("")
@@ -5202,12 +5331,12 @@ function renderMyDash(){
 let caDraft = null;
 function caSubjects(c, tid){
   const set = new Set();
-  DB.students.filter(st=>st.shift==="Evening" && st.course===c).forEach(st=>(st.subjects||[]).forEach(x=>{ if(!tid || !x.teacherId || x.teacherId===tid) set.add(x.name); }));
+  DB.students.filter(st=>st.shift==="Evening" && inClass(st, c)).forEach(st=>(st.subjects||[]).forEach(x=>{ if(!tid || !x.teacherId || x.teacherId===tid) set.add(x.name); }));
   return [...set].sort();
 }
 function caStudents(c, subj, date){
   const m = String(date).slice(0,7), RM = rosterMonths();
-  return DB.students.filter(st=>st.shift==="Evening" && st.course===c && activeIn(st, m, RM)
+  return DB.students.filter(st=>st.shift==="Evening" && inClass(st, c) && activeIn(st, m, RM)
     && (!subj || subj==="General" || !(st.subjects||[]).length || st.subjects.some(x=>subjLike(x.name, subj))))
     .sort((a,b)=>a.name.localeCompare(b.name));
 }
@@ -5229,7 +5358,7 @@ function loadClassAtt(){
   if(!IS_TEACHER){
     if(rec) tsel.value = rec.teacherId || "";
     else if(!tsel.value){
-      const st = DB.students.find(x=>x.shift==="Evening" && x.course===c && (x.subjects||[]).some(y=>y.name===subj && y.teacherId));
+      const st = DB.students.find(x=>x.shift==="Evening" && inClass(x, c) && (x.subjects||[]).some(y=>y.name===subj && y.teacherId));
       if(st) tsel.value = st.subjects.find(y=>y.name===subj && y.teacherId).teacherId;
     }
   }
@@ -5335,7 +5464,7 @@ function openClassResult(){
 }
 function classResultData(){
   const c=$("cr_course").value, sh=$("cr_shift").value, m=$("cr_month").value;
-  const stus = DB.students.filter(s=>s.course===c && s.shift===sh);
+  const stus = DB.students.filter(s=>inClass(s, c) && s.shift===sh);
   const rows = stus.map(s=>{
     const ex = DB.exams.filter(e=>e.studentId===s.id && (!m||e.date.startsWith(m)));
     const obt = ex.reduce((a,e)=>a+ +e.obtained,0), tot = ex.reduce((a,e)=>a+ +e.total,0);
@@ -5506,7 +5635,7 @@ function reportCardFor(sid, from, to){
 function bulkRcList(){
   const m = $("brc_month").value, sh = $("brc_shift").value, cl = window._brcClass || "", onlyEx = $("brc_onlyex").checked;
   const RM = rosterMonths();
-  const stus = DB.students.filter(st=>st.status!=="Left" && inMonth(st, m, RM) && (!sh || st.shift===sh) && (!cl || st.course===cl));
+  const stus = DB.students.filter(st=>st.status!=="Left" && inMonth(st, m, RM) && (!sh || st.shift===sh) && (!cl || inClass(st, cl)));
   const cards = stus.map(st=>reportCardFor(st.id, m, m)).filter(d=>!onlyEx || d.ex.length);
   /* position aur average — class + shift ke andar, sirf jin ke tests hain */
   const groups = {};
@@ -6059,7 +6188,7 @@ function issueSync(){
   if(type === "Class"){
     const sh = $("s_shift") ? $("s_shift").value : "Morning";
     const cs = $("s_course") ? $("s_course").value : "";
-    n = DB.students.filter(s=>s.status==="Active" && s.shift===sh && s.course===cs).length;
+    n = DB.students.filter(s=>s.status==="Active" && s.shift===sh && inClass(s, cs)).length;
     who = `${cs} · ${sh} ke ${n} students`;
   }
   const need = per * n;
@@ -6082,7 +6211,7 @@ function saveIssue(){
   let targets = [];
   if(type === "Class"){
     const sh = $("s_shift").value, cs = $("s_course").value;
-    targets = DB.students.filter(s=>s.status==="Active" && s.shift===sh && s.course===cs)
+    targets = DB.students.filter(s=>s.status==="Active" && s.shift===sh && inClass(s, cs))
                          .map(s=>({toId:s.id, toName:s.name, course:s.course}));
     if(!targets.length){ toast(`${cs} (${sh}) mein koi active student nahi`); return; }
   }else if(type === "Student"){
@@ -6723,7 +6852,7 @@ const NAME_ALIAS = {omer:"umer", umar:"umer", omar:"umer", rehman:"rahman", rahm
   abdur:"abdul", abd:"abdul", shehzeen:"shazeen", shahzeen:"shazeen", fatimah:"fatima", hussain:"husain", hassan:"hasan"};
 const normName = n => nameTokens(n).map(t=>NAME_ALIAS[t] || t).join(" ");
 function attMatch(name, shift, course, used){
-  const pool = DB.students.filter(st=>st.shift === shift && (!course || st.course === course) && st.status !== "Left" && !used.has(st.id));
+  const pool = DB.students.filter(st=>st.shift === shift && (!course || inClass(st, course)) && st.status !== "Left" && !used.has(st.id));
   const k = keyify(name), nn = normName(name);
   let hit = pool.filter(st=>keyify(st.name) === k);
   if(hit.length === 1) return {st:hit[0], how:"exact"};
@@ -7086,7 +7215,7 @@ function attPendingHTML(){
     <p class="sub" style="margin:4px 0 10px">In ki attendance abhi nahi daali. Sahi student chunein (isi class ke pehle), ya "Naya student", ya chhor dein.</p>
     <div class="tbl-wrap"><table><thead><tr><th>Sheet mein naam</th><th>Class</th><th>Din</th><th>EMS student</th></tr></thead><tbody>
     ${ATT_PENDING.map((x,i)=>{
-      const same = DB.students.filter(st=>st.shift===x.shift && st.course===x.course && st.status!=="Left").sort((a,b)=>a.name.localeCompare(b.name));
+      const same = DB.students.filter(st=>st.shift===x.shift && inClass(st, x.course) && st.status!=="Left").sort((a,b)=>a.name.localeCompare(b.name));
       const other = DB.students.filter(st=>st.shift===x.shift && st.course!==x.course && st.status!=="Left").sort((a,b)=>(a.course+a.name).localeCompare(b.course+b.name));
       const pre = x.amb[0] || "";
       return `<tr><td><b>${esc(x.name)}</b> <span class="sub">line ${x.line}</span></td><td>${esc(x.course)}</td><td>${x.marks.length}</td>
@@ -9065,7 +9194,7 @@ const typing = () => { const a = document.activeElement; return !!a && /^(INPUT|
 
 /* Server ka naya data screen par lagao (jo page khula hai wahi dobara banao) */
 function adoptRemote(remote){
-  setTimeout(()=>frNotify(), 0);
+  setTimeout(()=>{ frNotify(); inqNotify(); }, 0);
   const local = DB, base = SYNC.base ? JSON.parse(SYNC.base) : null;
   DB = syncDirty() ? mergeDB(base, local, remote.data) : remote.data;
   for(const k in DEFAULT_DB) if(DB[k]===undefined) DB[k] = structuredClone(DEFAULT_DB[k]);
@@ -9219,6 +9348,8 @@ if(ROLE !== "teacher" && !DB.settings.classMigV46){
 }
 if(SERVER){ setSyncState(); if(syncDirty()) queuePush(); }
 frNotify(true);
+if(SERVER && !IS_TEACHER) setTimeout(()=>{ inqNotify(true); if(!myName() && DB.inquiries.some(i=>INQ_OPEN(inqNorm(i).stage) && (i.assignedTo||"").trim())) toast("👤 Upar 'Aap kaun?' se apna naam chunein — aap ke zimme inquiries ki notification aayegi"); }, 2500);
+else inqBell();
 /* v41: phone / desktop par app ki tarah */
 if(SERVER && "serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(()=>{});
 if(window.matchMedia && matchMedia("(display-mode: standalone)").matches) $("installBtn").style.display = "none";

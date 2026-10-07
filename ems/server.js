@@ -157,10 +157,13 @@ function dataFor(role, tid) {
 
 /* ---------- v36: teacher ko sirf apni classes — tests, marks aur Evening class attendance ----------
    Teacher ki classes = Employees mein assign ki gayi (shift + class) + jin students ke subject par wo teacher laga hai. */
+/* v48: Evening bacha 2 classes mein (course + course2) */
+const stuClasses = (st) => [st.course, st.shift === "Evening" ? st.course2 : ""].filter(Boolean);
+const stuIn = (st, sh, c) => st.shift === sh && stuClasses(st).includes(c);
 function teacherClasses(d, tid) {
   const me = (d.employees || []).find((e) => e.id === tid) || {};
   const cls = new Set((me.assignments || []).map((a) => a.shift + "|" + a.course));
-  (d.students || []).forEach((st) => (st.subjects || []).forEach((x) => { if (x.teacherId === tid) cls.add(st.shift + "|" + st.course); }));
+  (d.students || []).forEach((st) => (st.subjects || []).forEach((x) => { if (x.teacherId === tid) stuClasses(st).forEach((c) => cls.add(st.shift + "|" + c)); }));
   return cls;
 }
 /* v46: teacher ke subjects har class mein — assignment ka subject, student ke subject par laga teacher,
@@ -170,7 +173,7 @@ function teacherSubjects(d, tid, cls) {
   const map = new Map(), all = new Set();
   const add = (k, subj) => { if (!subj) return; if (!map.has(k)) map.set(k, new Set()); map.get(k).add(keyOf(subj)); };
   (me.assignments || []).forEach((a) => { const k = a.shift + "|" + a.course; if (a.subject) add(k, a.subject); else all.add(k); });
-  (d.students || []).forEach((st) => (st.subjects || []).forEach((x) => { if (x.teacherId === tid) add(st.shift + "|" + st.course, x.name); }));
+  (d.students || []).forEach((st) => (st.subjects || []).forEach((x) => { if (x.teacherId === tid) stuClasses(st).forEach((c) => add(st.shift + "|" + c, x.name)); }));
   Object.entries((d.settings || {}).subjTeacher || {}).forEach(([key, t]) => { if (t !== tid) return; const [sh, c, sk] = key.split("|"); add(sh + "|" + c, sk); });
   (d.tests || []).forEach((t) => { if (t.teacherId === tid) add(t.shift + "|" + t.course, t.subject); });
   return (k) => (all.has(k) || !map.has(k) ? null : map.get(k));      // null = poori class
@@ -186,10 +189,13 @@ function teacherView(d, tid) {
   const s = d.settings || {}, subjOf = teacherSubjects(d, tid, cls);
   const marked = new Set((d.exams || []).filter((e) => ids.has(e.testId)).map((e) => e.studentId));
   /* sirf apne subjects ke students — aur un ke subjects mein se sirf apne */
-  const mine = (st) => { const set = subjOf(st.shift + "|" + st.course); return !set ? st.subjects || [] : (st.subjects || []).filter((x) => subjHit(set, x.name)); };
+  /* jin classes mein teacher hai un mein se kisi mein bhi — aur un ke subjects mein se sirf apne */
+  const keys = (st) => stuClasses(st).map((c) => st.shift + "|" + c).filter((k) => cls.has(k));
+  const mine = (st) => { const sets = keys(st).map(subjOf); if (!sets.length || sets.some((x) => !x)) return st.subjects || [];
+    return (st.subjects || []).filter((x) => sets.some((set) => subjHit(set, x.name))); };
   return {
-    students: (d.students || []).filter((st) => cls.has(st.shift + "|" + st.course) && (marked.has(st.id) || !subjOf(st.shift + "|" + st.course) || mine(st).length)).map((st) => ({
-      id: st.id, name: st.name, regNo: st.regNo, course: st.course, shift: st.shift, status: st.status, mode: st.mode,
+    students: (d.students || []).filter((st) => keys(st).length && (marked.has(st.id) || keys(st).some((k) => !subjOf(k)) || mine(st).length)).map((st) => ({
+      id: st.id, name: st.name, regNo: st.regNo, course: st.course, course2: st.course2, shift: st.shift, status: st.status, mode: st.mode,
       statusSince: st.statusSince, doj: st.doj, joinMonth: st.joinMonth, roster: st.roster, group: st.group,
       subjects: mine(st).map((x) => ({ name: x.name, teacherId: x.teacherId || "" })) })),
     /* v46: apni KPI checklist aur class audits — live KPI ke liye (sirf parhne ko) */
@@ -220,7 +226,7 @@ function teacherMerge(data, tid) {
   const testOf = new Map(tests.map((t) => [t.id, t]));
   const stu = new Map((cur.students || []).map((st) => [st.id, st]));
   const vis = (e) => { const t = e && testOf.get(e.testId); return !!t && testSeen(t, tid, cls); };
-  const fits = (e) => { const t = testOf.get(e.testId), st = stu.get(e.studentId); return !!st && st.shift === t.shift && st.course === t.course; };
+  const fits = (e) => { const t = testOf.get(e.testId), st = stu.get(e.studentId); return !!st && stuIn(st, t.shift, t.course); };
   const curEx = arr(cur.exams), curExById = new Map(curEx.map((e) => [e.id, e]));
   const exams = curEx.filter((e) => !gone.has(e.testId) && !vis(e))
     .concat(arr(data.exams).filter((e) => vis(e) && fits(e) && (!curExById.has(e.id) || vis(curExById.get(e.id)))));

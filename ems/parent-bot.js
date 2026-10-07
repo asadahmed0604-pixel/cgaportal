@@ -120,7 +120,7 @@ function tests(db, s) {
 }
 
 function homework(db, s, today) {
-  const hw = (db.homework || []).filter((h) => h.course === s.course && h.shift === s.shift)
+  const hw = (db.homework || []).filter((h) => (h.course === s.course || (s.shift === "Evening" && h.course === s.course2)) && h.shift === s.shift)
     .sort((a, b) => String(b.dateGiven).localeCompare(String(a.dateGiven))).slice(0, 5);
   if (!hw.length) return [H(`📚 ${s.course} — Homework`), P("Abhi koi homework nahi diya gaya.")];
   return [
