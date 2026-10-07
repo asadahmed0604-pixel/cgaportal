@@ -1057,7 +1057,7 @@ label.chk input{width:auto}
 /* v46: "A Levels" ab AS aur A2 mein — aur Grade 5–8 sab "Pre O Levels" mein */
 const CLASSES_BY_SHIFT = {
   Morning: ["FT1", "FT2", "O1", "O2", "AS", "A2"],
-  Evening: ["Pre O Levels", "O1", "O2", "O3 (Appearing Batch)", "AS", "A2", "AS & A2 (Composite)", "SAT"]
+  Evening: ["Pre O Levels", "O1", "O2", "O3 (Appearing Batch)", "AS", "A2", "SAT"]
 };
 const LEGACY_CLASS = {"Grade 5":"Pre O Levels", "Grade 6":"Pre O Levels", "Grade 7":"Pre O Levels", "Grade 8":"Pre O Levels"};
 const COURSES = [...new Set([...CLASSES_BY_SHIFT.Morning, ...CLASSES_BY_SHIFT.Evening])];
@@ -1118,7 +1118,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v48 · 8 Oct 2026";
+const BUILD = "v49 · 8 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -9344,6 +9344,19 @@ if(ROLE !== "teacher" && !DB.settings.classMigV46){
     e.assignments = out;
   });
   DB.settings.classMigV46 = todayStr();
+  save();
+}
+/* v49: "AS & A2 (Composite)" class khatam — aise students AS + A2 (2 classes), teachers ki assignment AS + A2 */
+if(ROLE !== "teacher" && !DB.settings.classMigV49){
+  const COMP = "AS & A2 (Composite)";
+  DB.students.forEach(st=>{ if(st.course===COMP){ st.prevClass = COMP; st.course = "AS"; if(st.shift==="Evening") st.course2 = "A2"; } if(st.course2===COMP) st.course2 = st.course==="A2" ? "AS" : "A2"; });
+  DB.employees.forEach(e=>{
+    const out = [];
+    (e.assignments||[]).forEach(a=>{ (a.course===COMP ? ["AS","A2"] : [a.course]).forEach(c=>{
+      if(!out.some(o=>o.course===c && o.shift===a.shift && (o.subject||"")===(a.subject||""))) out.push({...a, course:c}); }); });
+    e.assignments = out;
+  });
+  DB.settings.classMigV49 = todayStr();
   save();
 }
 if(SERVER){ setSyncState(); if(syncDirty()) queuePush(); }
