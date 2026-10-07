@@ -497,6 +497,11 @@ label.chk input{width:auto}
       <tbody id="attRows"></tbody>
     </table></div>
   </div>
+  <div class="panel" style="margin-top:16px" id="attSumPanel">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><h3>📋 Attendance summary — <span id="asDate"></span></h3>
+      <div class="seg" id="asSeg" style="margin-left:auto"><button class="on" onclick="AS_SHIFT='Morning';drawAttSummary()">🌅 Morning</button><button onclick="AS_SHIFT='Evening';drawAttSummary()">🌆 Evening</button></div></div>
+    <div id="attSum"></div>
+  </div>
   <div class="panel" style="margin-top:16px">
     <h3>Attendance Report Export</h3>
     <p class="sub" style="margin:4px 0 12px">Poore month ka attendance register Excel (CSV) ya PDF mein download karein.</p>
@@ -1118,7 +1123,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v49 · 8 Oct 2026";
+const BUILD = "v50 · 8 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -2470,6 +2475,7 @@ function downloadProfile(id){
 /* ================= ATTENDANCE ================= */
 let attDraft = {};
 function loadAttendance(){
+  setTimeout(drawAttSummary, 0);
   if(!$("attDate").value) $("attDate").value = wmDate();
   const date = $("attDate").value, shift = $("attShift").value;
   const warn = $("attWarn");
@@ -2505,6 +2511,148 @@ function loadAttendance(){
     </tr>`;
   }).join("") : `<tr><td colspan="5" class="empty">Is shift mein koi active student nahi</td></tr>`;
 }
+/* ================= v50: ATTENDANCE SUMMARY (Morning / Evening alag) + absents ko WhatsApp ================= */
+let AS_SHIFT = "Morning";
+function drawAttSummary(){
+  const box = $("attSum"); if(!box) return;
+  const date = $("attDate").value || wmDate(), day = DB.attendance[date] || {};
+  [...$("asSeg").children].forEach(b=>b.classList.toggle("on", b.textContent.includes(AS_SHIFT)));
+  $("asDate").textContent = fmtD(date);
+  const RM = rosterMonths(), am = date.slice(0,7);
+  const pool = DB.students.filter(st=>st.shift===AS_SHIFT && activeIn(st, am, RM));
+  const rec = st => day[st.id] && (!day[st.id].shift || day[st.id].shift === AS_SHIFT) ? day[st.id] : null;
+  const by = {P:[], L:[], A:[], E:[], N:[]};
+  pool.forEach(st=>{ const r = rec(st); by[r ? r.s : "N"] && by[r ? r.s : "N"].push(st); });
+  const cls = {}; pool.forEach(st=>classesOf(st).slice(0,1).forEach(c=>{ const x = cls[c] = cls[c] || {P:0,L:0,A:0,E:0,N:0,n:0}; x.n++; const r = rec(st); x[r ? r.s : "N"]++; }));
+  const marked = pool.length - by.N.length, pct = marked ? Math.round((by.P.length + by.L.length)*100/marked) : 0;
+  const names = (list, tag) => list.length ? list.sort((a,b)=>a.course.localeCompare(b.course) || a.name.localeCompare(b.name)).map(st=>`<span class="chip">${esc(st.name)} <span class="sub">${esc(st.course)}</span></span>`).join(" ") : `<span class="sub">Koi nahi</span>`;
+  box.innerHTML = !marked ? `<p class="sub" style="margin-top:8px">${fmtD(date)} ki ${AS_SHIFT} attendance abhi save nahi hui.</p>` : `
+    <div class="cards" style="margin:10px 0">
+      <div class="card"><div class="k">Students</div><div class="v">${pool.length}</div><div class="hint">${by.N.length ? by.N.length + " ki attendance nahi lagi" : "Sab ki lag gayi"}</div></div>
+      <div class="card"><div class="k">Present</div><div class="v green">${by.P.length}</div><div class="hint">${pct}% hazri (late samet)</div></div>
+      <div class="card"><div class="k">Absent</div><div class="v" style="color:var(--danger)">${by.A.length}</div><div class="hint">${by.L.length} late · ${by.E.length} leave</div></div>
+    </div>
+    <div class="tbl-wrap"><table><thead><tr><th>Class</th><th style="text-align:right">Students</th><th style="text-align:right">Present</th><th style="text-align:right">Late</th><th style="text-align:right">Absent</th><th style="text-align:right">Leave</th><th style="text-align:right">Nahi lagi</th><th style="text-align:right">%</th></tr></thead><tbody>
+      ${Object.entries(cls).sort((a,b)=>(CLASSES_BY_SHIFT[AS_SHIFT]||[]).indexOf(a[0]) - (CLASSES_BY_SHIFT[AS_SHIFT]||[]).indexOf(b[0])).map(([c,x])=>{ const mk = x.n - x.N; return `<tr><td><b>${esc(c)}</b></td><td style="text-align:right">${x.n}</td><td style="text-align:right">${x.P}</td><td style="text-align:right">${x.L}</td>
+        <td style="text-align:right">${x.A ? `<b style="color:var(--danger)">${x.A}</b>` : 0}</td><td style="text-align:right">${x.E}</td><td style="text-align:right">${x.N || ""}</td><td style="text-align:right"><b>${mk ? Math.round((x.P+x.L)*100/mk) + "%" : "—"}</b></td></tr>`; }).join("")}
+    </tbody></table></div>
+    <div style="margin-top:12px"><b>❌ Absent (${by.A.length}):</b> ${names(by.A)}</div>
+    <div style="margin-top:8px"><b>⏰ Late (${by.L.length}):</b> ${names(by.L)}</div>
+    <div style="margin-top:8px"><b>📝 Leave (${by.E.length}):</b> ${names(by.E)}</div>
+    <div class="toolbar" style="margin-top:12px">
+      <button class="btn-red" onclick="waAbsents(false)" ${by.A.length ? "" : "disabled"}>📲 Absent bachon ke parents ko WhatsApp (${by.A.length})</button>
+      <button class="btn-line" onclick="waAbsents(true)" ${by.A.length + by.L.length ? "" : "disabled"}>📲 Absent + Late (${by.A.length + by.L.length})</button>
+    </div>`;
+}
+function waAbsents(withLate){
+  const date = $("attDate").value || wmDate(), day = DB.attendance[date] || {}, A = DB.settings.name || "Cambridge Grads Academy";
+  const RM = rosterMonths();
+  const list = DB.students.filter(st=>st.shift===AS_SHIFT && activeIn(st, date.slice(0,7), RM) && day[st.id] && (day[st.id].s==="A" || (withLate && day[st.id].s==="L")))
+    .sort((a,b)=>a.course.localeCompare(b.course) || a.name.localeCompare(b.name));
+  const dn = new Date(date+"T00:00").toLocaleDateString("en-GB",{weekday:"long", day:"numeric", month:"long"});
+  waSender(`📲 ${AS_SHIFT} — ${fmtD(date)} ${withLate ? "absent + late" : "absent"} (${list.length})`, list.map(st=>{
+    const r = day[st.id], late = r.s === "L";
+    return {id:st.id, who:st.name, sub:`${classLabelOf(st)} · ${late ? "Late " + (r.t ? fmtT(r.t) : "") : "Absent"}`, phone:parentPhone(st),
+      text: late
+        ? `Assalam o Alaikum! ${A}:\n${st.name} (${classLabelOf(st)}) aaj ${dn} ko ${AS_SHIFT} shift mein der se aaye${r.t ? ` (${fmtT(r.t)})` : ""}.\nBarah-e-karam waqt ki pabandi ka khayal rakhein. Shukriya.`
+        : `Assalam o Alaikum! ${A}:\n${st.name} (${classLabelOf(st)}) aaj ${dn} ko ${AS_SHIFT} shift mein ghair-hazir (absent) hai.\nAgar koi wajah ho to school ko zaroor batayein. Shukriya.`};
+  }), "absent");
+}
+
+/* ================= v50: WHATSAPP BULK SENDER =================
+   API ke baghair: har parent ka WhatsApp chat tayyar message ke saath khulta hai (wa.me), "Bhej dein" aap dabate hain.
+   "Agla ▶" aik ke baad aik kholta hai. PDF (challan / report card) phone par seedha WhatsApp mein share hoti hai,
+   computer par download ho kar chat mein 📎 se lagti hai. */
+const parentPhone = st => [st.fatherPhone, st.motherPhone, st.phone].find(x=>String(x||"").replace(/\D/g,"").length >= 10) || "";
+let WAS = null;
+function waSender(title, rows, kind){
+  WAS = {rows, kind, sent:new Set()};
+  const ok = rows.filter(r=>r.phone).length;
+  openModal(`
+    <h3>${esc(title)}</h3>
+    <p class="sub" style="margin-bottom:8px">Har line par <b>WhatsApp</b> dabayein — chat tayyar message ke saath khulegi, wahan <b>Send</b> dabayein. Ya upar <b>"Agla ▶"</b> se aik ke baad aik.${rows.some(r=>r.pdf) ? ` <b>📎 PDF</b>: phone par seedha WhatsApp mein share; computer par download ho kar chat mein 📎 se lagayein.` : ""}</p>
+    <div class="toolbar" style="align-items:center"><button class="btn-red" onclick="waNext()" ${ok ? "" : "disabled"}>Agla ▶ WhatsApp</button><span class="sub" id="wasCount">0 / ${ok} bheje</span>
+      ${rows.length - ok ? `<span class="sub" style="color:var(--danger)">${rows.length - ok} ka phone number nahi</span>` : ""}</div>
+    <div class="tbl-wrap" style="max-height:52vh;overflow:auto"><table><thead><tr><th>#</th><th>Student</th><th>Phone</th><th>Message</th><th></th></tr></thead><tbody>
+      ${rows.map((r,i)=>`<tr id="was${i}"><td>${i+1}</td><td><b>${esc(r.who)}</b><br><span class="sub">${esc(r.sub||"")}</span></td><td>${r.phone ? esc(r.phone) : `<span class="sub" style="color:var(--danger)">— nahi —</span>`}</td>
+        <td class="sub" style="max-width:300px;white-space:pre-line">${esc(r.text.length > 160 ? r.text.slice(0,160) + "…" : r.text)}</td>
+        <td style="white-space:nowrap">${r.phone ? `<a class="btn-red btn-sm" target="_blank" rel="noopener" href="${waLink(r.phone)}?text=${encodeURIComponent(r.text)}" onclick="waMark(${i})">WhatsApp</a>` : ""}
+          ${r.pdf ? `<button class="btn-line btn-sm" onclick="waPdf(${i})">📎 PDF</button>` : ""}</td></tr>`).join("") || `<tr><td colspan="5" class="empty">Koi nahi</td></tr>`}
+    </tbody></table></div>
+    <div class="modal-foot"><button class="btn-black" onclick="waCSV()">⬇ CSV (phone + message)</button><button class="btn-line" onclick="closeModal()">Band karein</button></div>`, true);
+}
+function waMark(i){ WAS.sent.add(i); const tr = $("was"+i); if(tr) tr.style.opacity = .5; const ok = WAS.rows.filter(r=>r.phone).length; if($("wasCount")) $("wasCount").textContent = `${WAS.sent.size} / ${ok} bheje`; }
+function waNext(){
+  const i = WAS.rows.findIndex((r,j)=>r.phone && !WAS.sent.has(j));
+  if(i < 0){ toast("Sab ko bhej diya ✓"); return; }
+  window.open(`${waLink(WAS.rows[i].phone)}?text=${encodeURIComponent(WAS.rows[i].text)}`, "_blank", "noopener");
+  waMark(i); const tr = $("was"+i); if(tr) tr.scrollIntoView({block:"nearest"});
+}
+async function waPdf(i){
+  const r = WAS.rows[i]; if(!r || !r.pdf) return;
+  try{
+    const {name, bytes} = await r.pdf(), file = new File([bytes], name, {type:"application/pdf"});
+    if(navigator.canShare && navigator.canShare({files:[file]})){ await navigator.share({files:[file], title:name, text:r.text}); waMark(i); }
+    else { downloadFile(name, new Blob([bytes], {type:"application/pdf"})); toast("PDF download ho gayi — WhatsApp chat mein 📎 se lagayein"); }
+  }catch(e){ if(e && e.name !== "AbortError") toast("PDF share nahi hui — " + (e.message||e)); }
+}
+function waCSV(){ downloadCSV(`whatsapp-${WAS.kind||"messages"}-${todayStr()}.csv`, [["Student","Detail","Phone","Message"], ...WAS.rows.map(r=>[r.who, r.sub||"", r.phone||"", r.text])]); }
+
+/* Challans → WhatsApp (ZIP wale chunaav se) */
+function waChallans(){
+  const L = zipChallanList(), A = DB.settings.name || "Cambridge Grads Academy";
+  waSender(`📲 Fee challans — ${fmtM($("zc_month").value)} (${L.length})`, L.map(f=>{
+    const st = stuById(f.studentId) || {}, o = feeOutstanding(f);
+    const extra = (f.items||[]).map(i=>`${i.desc}: ${money(i.amt)}`).join(", ");
+    return {id:f.id, who:st.name||"", sub:`${f.chNo} · ${money(f.amount)}${o ? "" : " · Paid"}`, phone:parentPhone(st),
+      text:`Assalam o Alaikum! ${A} — Fee challan ${fmtM(f.month)}\nStudent: ${st.name} (${classLabelOf(st) || f.course || ""})\nChallan #: ${f.chNo}\nKul raqam: ${money(f.amount)}${extra ? `\n(${extra})` : ""}\n${o ? `Baqi: ${money(o)}${f.dueDate ? `\nAakhri tareekh: ${fmtD(f.dueDate)}` : ""}` : "Status: Paid ✓ — shukriya!"}\nChallan PDF saath hai. Fee jama karwa kar receipt parents app mein bhej dein: ${location.origin}/parent`,
+      pdf: async()=>({name:`${fileSafe(st.name||"Student")} - Challan ${fmtM(f.month)}.pdf`, bytes: await challanPDF([f])})};
+  }), "challans");
+}
+/* Report cards → WhatsApp (bulk report card wale chunaav se) */
+function waReportCards(){
+  const cards = bulkRcList(), m = $("brc_month").value, A = DB.settings.name || "Cambridge Grads Academy";
+  waSender(`📲 Report cards — ${fmtM(m)} (${cards.length})`, cards.map(d=>({id:d.s.id, who:d.s.name, sub:`${classLabelOf(d.s)} · ${d.ex.length ? d.pct + "%" : "test nahi"}`, phone:parentPhone(d.s),
+    text:`Assalam o Alaikum! ${A} — Report card ${fmtM(m)}\nStudent: ${d.s.name} (${classLabelOf(d.s)})\n` +
+      (d.ex.length ? d.ex.map(e=>`• ${e.subject || e.exam}: ${e.absent ? "Absent" : e.obtained}/${e.total}`).join("\n") + `\nKul: ${d.obt}/${d.tot} = ${d.pct}% (${gradeOf(d.pct)})${d.rank ? `\nClass mein position: ${d.rank}/${d.rankOf}` : ""}` : "Is mahine koi test darj nahi") +
+      `\nAttendance: ${d.att.pct}% (P ${d.att.P} · A ${d.att.A})${d.remarks && d.remarks.length ? `\nTeacher remarks: ${d.remarks.map(r=>r.note).join("; ")}` : ""}\nPoora report card PDF saath hai.`,
+    pdf: async()=>({name:`${fileSafe(d.s.name)} - Report Card ${fmtM(m)}.pdf`, bytes: await reportCardPDF(d)})})), "report-cards");
+}
+/* Report card PDF (challan wale PDF writer se) */
+async function reportCardPDF(d){
+  const doc = new PDFDoc(), lj = await logoJpeg(), logo = lj ? {name:doc.addJpeg(lj), w:lj.w, h:lj.h} : null;
+  const x0 = 30, W = PDF_W - 60, s = d.s;
+  doc.addPage();
+  pdfHeader(doc, logo, x0, 24, W, 70);
+  doc.rect(x0 + W - 134, 40, 120, 20, {fill:PC.teal});
+  doc.text("REPORT CARD", x0 + W - 74, 54, {size:10.5, bold:true, color:"#FFFFFF", align:"center"});
+  doc.text(d.from && d.from === d.to ? fmtM(d.from) : "", x0 + W - 74, 76, {size:8, bold:true, color:PC.pale, align:"center"});
+  let y = 104, cw = W/3;
+  doc.rect(x0, y, W, 56, {fill:PC.soft});
+  [["STUDENT", s.name], ["REG NO", s.regNo || "-"], ["CLASS · SHIFT", `${classLabelOf(s)} · ${s.shift}`], ["FATHER NAME", s.fatherName || "-"], ["ATTENDANCE", `${d.att.pct}%  (P ${d.att.P} · A ${d.att.A} · L ${d.att.L})`], ["RESULT", d.ex.length ? `${d.pct}% · ${gradeOf(d.pct)}${d.rank ? ` · Position ${d.rank}/${d.rankOf}` : ""}` : "-"]]
+    .forEach(([k,v],i)=>{ const cx = x0 + (i%3)*cw + 10, ry = y + 6 + Math.floor(i/3)*25; doc.text(k, cx, ry + 8, {size:6.5, bold:true, color:PC.muted}); doc.text(v, cx, ry + 20, {size:9.5, bold:true, color:PC.ink, maxW:cw - 16}); });
+  y += 70;
+  const cols = [["#",22],["Date",62],["Subject / Test",W-22-62-48-56-40-40-50],["Total",48],["Obtained",56],["%",40],["Grade",40],["Result",50]];
+  doc.rect(x0, y, W, 18, {fill:PC.navy});
+  let cx = x0; cols.forEach(([h,w])=>{ doc.text(h, cx + 5, y + 12, {size:7.5, bold:true, color:"#FFFFFF"}); cx += w; });
+  y += 18;
+  const rows = d.ex.slice(0, 30);
+  rows.forEach((e,i)=>{
+    const p = +e.total ? Math.round(e.obtained/e.total*100) : 0, h = e.comment ? 26 : 18;
+    if(i % 2) doc.rect(x0, y, W, h, {fill:"#F6FAFB"});
+    const vals = [String(i+1), fmtD(e.date), e.subject || e.exam, String(e.total), e.absent ? "Absent" : String(e.obtained), p + "%", gradeOf(p), p >= 50 ? "Pass" : "Fail"];
+    cx = x0; vals.forEach((v,j)=>{ doc.text(v, cx + 5, y + 12, {size:8.5, bold:j===2||j===4, color: j===7 ? (p>=50 ? PC.green : PC.red) : PC.ink, maxW:cols[j][1] - 8}); cx += cols[j][1]; });
+    if(e.comment) doc.text(`"${e.comment}"`, x0 + 22 + 62 + 5, y + 22, {size:7, color:PC.muted, maxW:cols[2][1] - 8});
+    y += h; doc.line(x0, y, x0 + W, y, {color:PC.line, lw:.5});
+  });
+  if(!rows.length){ doc.text("Is muddat mein koi test darj nahi", x0 + W/2, y + 16, {size:9, color:PC.muted, align:"center"}); y += 26; }
+  if(rows.length){ doc.rect(x0, y, W, 20, {fill:PC.head}); doc.text(`Overall (${d.ex.length} tests): ${d.obt} / ${d.tot} = ${d.pct}%  ·  Grade ${gradeOf(d.pct)}${d.classAvg ? `  ·  Class avg ${d.classAvg}%` : ""}`, x0 + 10, y + 13.5, {size:9, bold:true, color:PC.ink, maxW:W - 20}); y += 30; }
+  if(d.remarks && d.remarks.length){ doc.text("Teacher remarks: " + d.remarks.map(r=>r.note).join(" · "), x0, y + 6, {size:8.5, color:PC.ink, maxW:W}); }
+  const fy = PDF_H - 50;
+  [["Issued: " + fmtD(todayStr()), x0], ["Class Teacher", x0 + W/2 - 60], ["Principal / Admin", x0 + W - 120]].forEach(([t, x])=>{ doc.line(x, fy, x + 120, fy, {color:"#999999", lw:.6}); doc.text(t, x + 60, fy + 12, {size:8, color:PC.muted, align:"center"}); });
+  return doc.output();
+}
+
 function setAttShift(sh){
   $("attShift").value = sh;
   [...$("attShiftSeg").children].forEach(b=>b.classList.toggle("on", b.textContent.includes(sh)));
@@ -2531,6 +2679,7 @@ function saveAttendance(){
   let n=0;
   for(const sid in attDraft){ const r=attDraft[sid]; if(r.s){ DB.attendance[date][sid] = r; n++; } }
   save(); toast(`Attendance saved — ${n} students (${fmtD(date)})`);
+  AS_SHIFT = $("attShift").value; drawAttSummary();
 }
 
 /* ---------- Attendance report export (Excel / PDF) ---------- */
@@ -3522,6 +3671,7 @@ function openChallanZip(){
     <div class="modal-foot">
       <button class="btn-line" onclick="closeModal()">Band karein</button>
       <button class="btn-black" id="zc_one" onclick="runChallanZip(true)">⬇ Aik PDF (sab)</button>
+      <button class="btn-black" onclick="waChallans()">📲 WhatsApp</button>
       <button class="btn-red" id="zc_go" onclick="runChallanZip(false)">⬇ ZIP (har student ki PDF)</button>
     </div>`);
   zipChallanPreview();
@@ -5676,6 +5826,7 @@ function openBulkReportCards(){
     <div class="modal-foot">
       <button class="btn-line" onclick="closeModal()">Band karein</button>
       <button class="btn-black" id="brc_csv" onclick="bulkRcCSV()">⬇ Class result CSV</button>
+      <button class="btn-black" onclick="waReportCards()">📲 WhatsApp</button>
       <button class="btn-red" id="brc_print" onclick="bulkRcPrint()">🖨 Print / PDF</button>
     </div>`, true);
   bulkRcPreview();
