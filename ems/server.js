@@ -109,6 +109,25 @@ function rolePwOk(role, pw) {
   const h = crypto.pbkdf2Sync(String(pw), Buffer.from(a.salt, "hex"), +a.iter || 100000, 32, "sha256").toString("hex");
   return safeEq(h, a.hash);
 }
+/* ================= v44: FEE ADMIN — 4 digit code =================
+   Executive Settings se code rakhta hai (PBKDF2 hash settings.feeAdminCode). Jab tak Fee Admin code nahi
+   likhta, server use Admin jaisa data deta hai (fees, receipts, income/expense nahi). Code sahi → 30 minute
+   ke liye "ems_u" cookie, jo isi login aur isi code se bandhi hai. */
+const UNLOCK_MIN = 30;
+const feeCode = () => { const c = ((dbNow() || {}).settings || {}).feeAdminCode; return c && c.hash && c.salt ? c : null; };
+const sessSig = (req) => String(cookies(req).ems_s || "").split(".").pop();
+function feeUnlocked(req) {
+  const c = feeCode(); if (!c) return { on: true, exp: 0, gated: false };
+  const [exp, tag, sig] = String(cookies(req).ems_u || "").split(".");
+  const ok = !!exp && +exp > Date.now() && c.hash.startsWith(tag || "x") && !!sig && safeEq(sig, sign(`unlock|${exp}|${tag}|${sessSig(req)}`));
+  return { on: ok, exp: ok ? +exp : 0, gated: true };
+}
+function codeOk(code) {
+  const c = feeCode(); if (!c || !/^\d{4}$/.test(String(code))) return false;
+  const h = crypto.pbkdf2Sync(String(code), Buffer.from(c.salt, "hex"), +c.iter || 100000, 32, "sha256").toString("hex");
+  return safeEq(h, c.hash);
+}
+
 /* Admin / Fee Admin ko hisaab-kitaab nahi jata: income/expense, salaries, teacher pay, login hashes.
    Aam Admin ko fees bhi nahi: challans, students ki monthly fee, one-time charges, subject fees. */
 const redactCache = {};
@@ -123,8 +142,10 @@ function dataFor(role, tid) {
     return redactCache[ck].text;
   }
   const d = JSON.parse(state.dataText) || {};
-  d.txns = []; d.classCosts = {};
-  if (d.settings) { delete d.settings.adminAuth; delete d.settings.feeAdminAuth; }
+  /* v44: Fee Admin (code se khula) ko Income / Expense bhi — salaries ke baghair */
+  d.txns = role === "feeadmin" ? (d.txns || []).filter((t) => t.category !== SALARY_CAT) : [];
+  d.classCosts = {};
+  if (d.settings) { delete d.settings.adminAuth; delete d.settings.feeAdminAuth; delete d.settings.feeAdminCode; }
   (d.employees || []).forEach((e) => { delete e.salary; delete e.login; });
   if (role === "admin") {
     d.fees = []; d.feeReceipts = [];
@@ -191,13 +212,17 @@ function teacherMerge(data, tid) {
   return Object.assign(cur, { tests, exams, classAtt });
 }
 /* Admin ke save mein chhupaye hue hisse server wale hi rehte hain */
+const SALARY_CAT = "Salary & Wages";
 function keepProtected(data, role) {
   const cur = JSON.parse(state.dataText) || {};
-  data.txns = cur.txns || [];
+  /* Fee Admin (khula hua) apni income / expense entries badal sakta hai; salary entries server wali hi */
+  data.txns = role === "feeadmin"
+    ? (Array.isArray(data.txns) ? data.txns : []).filter((t) => t && t.category !== SALARY_CAT).concat((cur.txns || []).filter((t) => t.category === SALARY_CAT))
+    : cur.txns || [];
   data.classCosts = cur.classCosts || {};
   data.settings = Object.assign({}, data.settings || {});
   const cs = cur.settings || {};
-  ["adminAuth", "feeAdminAuth", "salaryAuto"].forEach((k) => { if (cs[k] !== undefined) data.settings[k] = cs[k]; else delete data.settings[k]; });
+  ["adminAuth", "feeAdminAuth", "feeAdminCode", "salaryAuto"].forEach((k) => { if (cs[k] !== undefined) data.settings[k] = cs[k]; else delete data.settings[k]; });
   const sal = new Map((cur.employees || []).map((e) => [e.id, e.salary]));
   const login = new Map((cur.employees || []).map((e) => [e.id, e.login]));
   (data.employees || []).forEach((e) => {
@@ -322,8 +347,8 @@ const escHtml = (x) => String(x).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<"
 const APP_HTML = fs.readFileSync(path.join(__dirname, "index.html"), "utf8");
 if (!APP_HTML.includes("<!--EMS_SERVER_BOOT-->")) throw new Error("index.html mein <!--EMS_SERVER_BOOT--> nahi mila");
 const jsonForScript = (text) => text.replace(/</g, "\\u003c").replace(/\u2028/g, "\\u2028").replace(/\u2029/g, "\\u2029");
-function appPage(role, tid) {
-  const boot = `<script>window.__EMS__={version:${state.version},role:${JSON.stringify(role)},tid:${JSON.stringify(tid || "")},data:${jsonForScript(dataFor(role, tid))}};</script>`;
+function appPage(role, tid, view, ul) {
+  const boot = `<script>window.__EMS__={version:${state.version},role:${JSON.stringify(role)},tid:${JSON.stringify(tid || "")},unlock:${JSON.stringify(ul || {})},data:${jsonForScript(dataFor(view || role, tid))}};</script>`;
   return APP_HTML.replace("<!--EMS_SERVER_BOOT-->", () => boot);
 }
 /* v38: Staff (/login) aur Teachers (/teacher) ke alag login pages — dono /login par post karte hain */
@@ -569,28 +594,50 @@ const server = http.createServer(async (req, res) => {
     }
     if (p === "/logout") {
       const wasTeacher = (authed(req) || {}).role === "teacher";
-      setSession(req, res, "", 0);
+      res.setHeader("Set-Cookie", [`ems_s=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${isHttps(req) ? "; Secure" : ""}`,
+                                   `ems_u=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${isHttps(req) ? "; Secure" : ""}`]);
       return redirect(res, wasTeacher ? "/teacher" : "/login");
     }
 
     const auth = authed(req);
     const role = auth && auth.role, tid = auth && auth.tid;
+    /* v44: band (code ke baghair) Fee Admin ko Admin jaisa data; khula ho to fees + income/expense */
+    const ul = role === "feeadmin" ? feeUnlocked(req) : null;
+    const view = ul && !ul.on ? "admin" : role;
     if (!role) {
       if (p.startsWith("/api/")) return sendJson(res, 401, { error: "login" });
       return redirect(res, "/login");
     }
 
     if ((p === "/" || p === "/index.html") && req.method === "GET")
-      return send(res, 200, appPage(role, tid), "text/html; charset=utf-8");
+      return send(res, 200, appPage(role, tid, view, ul), "text/html; charset=utf-8");
 
     if (p === "/api/parent-logins" && req.method === "GET")
       return role === "teacher" ? sendJson(res, 403, { error: "Teacher" }) : sendJson(res, 200, parentLogins);
 
+    if (p === "/api/unlock" && req.method === "POST") {
+      if (role !== "feeadmin") return sendJson(res, 403, { error: "Sirf Fee Admin" });
+      if (!sameOrigin(req)) return sendJson(res, 403, { error: "origin" });
+      const c = feeCode(); if (!c) return sendJson(res, 200, { ok: true, exp: 0 });
+      const ip = clientIp(req), k = "fc:" + ip;
+      const f = fails.get(k);
+      if (f && f.until > Date.now() && f.n >= 5) return sendJson(res, 429, { error: "5 dafa ghalat code — 15 minute baad dobara." });
+      const body = JSON.parse((await readBody(req)) || "{}");
+      if (!codeOk(body.code)) { failed(k); return sendJson(res, 401, { error: "Code ghalat hai." }); }
+      fails.delete(k);
+      const exp = Date.now() + UNLOCK_MIN * 60e3, tag = c.hash.slice(0, 12);
+      res.setHeader("Set-Cookie", `ems_u=${exp}.${tag}.${sign(`unlock|${exp}|${tag}|${sessSig(req)}`)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${UNLOCK_MIN * 60}${isHttps(req) ? "; Secure" : ""}`);
+      return sendJson(res, 200, { ok: true, exp });
+    }
+    if (p === "/api/lock" && req.method === "POST") {
+      res.setHeader("Set-Cookie", `ems_u=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${isHttps(req) ? "; Secure" : ""}`);
+      return sendJson(res, 200, { ok: true });
+    }
     if (p === "/api/version" && req.method === "GET")
       return sendJson(res, 200, { version: state.version, updatedAt: state.updatedAt, role });
 
     if (p === "/api/db" && req.method === "GET")
-      return sendJson(res, 200, `{"version":${state.version},"data":${dataFor(role, tid)}}`);
+      return sendJson(res, 200, `{"version":${state.version},"unlock":${JSON.stringify(ul || {})},"data":${dataFor(view, tid)}}`);
 
     if (p === "/api/db" && req.method === "PUT") {
       if (!sameOrigin(req)) return sendJson(res, 403, { error: "origin" });
@@ -601,8 +648,8 @@ const server = http.createServer(async (req, res) => {
       /* Kisi aur ne beech mein save kiya — client pehle merge kare, phir dobara bheje */
       if (role !== "exec" && body.force) return sendJson(res, 403, { error: "Backup import sirf Executive kar sakta hai." });
       if (!body.force && body.baseVersion !== state.version)
-        return sendJson(res, 409, `{"version":${state.version},"data":${dataFor(role, tid)}}`);
-      const out = role === "teacher" ? teacherMerge(data, tid) : role !== "exec" ? keepProtected(data, role) : data;
+        return sendJson(res, 409, `{"version":${state.version},"unlock":${JSON.stringify(ul || {})},"data":${dataFor(view, tid)}}`);
+      const out = role === "teacher" ? teacherMerge(data, tid) : role !== "exec" ? keepProtected(data, view) : data;
       persist({ version: state.version + 1, updatedAt: new Date().toISOString(), dataText: JSON.stringify(out) },
               body.force ? "import" : "");
       return sendJson(res, 200, { version: state.version, updatedAt: state.updatedAt });
@@ -610,7 +657,7 @@ const server = http.createServer(async (req, res) => {
 
     /* v27: receipt upload — sirf tasveer / PDF, random naam, login ke peeche */
     if (p === "/api/files" && req.method === "POST") {
-      if (role !== "exec") return sendJson(res, 403, { error: "Sirf Executive" });
+      if (role !== "exec" && !(role === "feeadmin" && ul.on)) return sendJson(res, 403, { error: "Sirf Executive / Fee Admin" });
       if (!sameOrigin(req)) return sendJson(res, 403, { error: "origin" });
       const type = String(req.headers["content-type"] || "").split(";")[0].trim().toLowerCase();
       const ext = FILE_TYPES[type];
@@ -624,7 +671,7 @@ const server = http.createServer(async (req, res) => {
     /* v43: parents ki fee receipts — sirf Executive aur Fee Admin */
     const frm = p.match(/^\/fee-receipts\/([a-f0-9]{24})\.(jpg|png|webp|pdf)$/);
     if (frm && req.method === "GET") {
-      if (role !== "exec" && role !== "feeadmin") return send(res, 403, "Sirf Executive / Fee Admin");
+      if (role !== "exec" && !(role === "feeadmin" && ul.on)) return send(res, 403, "Sirf Executive / Fee Admin");
       const file = path.join(FEE_RCPT_DIR, `${frm[1]}.${frm[2]}`);
       if (!fs.existsSync(file)) return send(res, 404, "Not found");
       return send(res, 200, fs.readFileSync(file), EXT_TYPES[frm[2]],
@@ -632,7 +679,7 @@ const server = http.createServer(async (req, res) => {
     }
     const fm = p.match(/^\/files\/([a-f0-9]{24})\.(jpg|png|webp|pdf)$/);
     if (fm && req.method === "GET") {
-      if (role !== "exec") return send(res, 403, "Sirf Executive");
+      if (role !== "exec" && !(role === "feeadmin" && ul.on)) return send(res, 403, "Sirf Executive / Fee Admin");
       const file = path.join(FILES_DIR, `${fm[1]}.${fm[2]}`);
       if (!fs.existsSync(file)) return send(res, 404, "Not found");
       return send(res, 200, fs.readFileSync(file), EXT_TYPES[fm[2]],
