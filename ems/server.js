@@ -27,7 +27,7 @@ const MAX_BODY = 60 * 1024 * 1024;            // photos ke saath bhi kaafi
 const SESSION_DAYS = 30;
 
 if (PASSWORD.length < 8) {
-  console.error("EMS_PASSWORD set karein (kam az kam 8 characters). Render: service → Environment.");
+  console.error("Set EMS_PASSWORD (at least 8 characters). Render: service → Environment.");
   process.exit(1);
 }
 fs.mkdirSync(BACKUP_DIR, { recursive: true });
@@ -369,7 +369,7 @@ const escHtml = (x) => String(x).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<"
 
 /* ---------- pages ---------- */
 const APP_HTML = fs.readFileSync(path.join(__dirname, "index.html"), "utf8");
-if (!APP_HTML.includes("<!--EMS_SERVER_BOOT-->")) throw new Error("index.html mein <!--EMS_SERVER_BOOT--> nahi mila");
+if (!APP_HTML.includes("<!--EMS_SERVER_BOOT-->")) throw new Error("<!--EMS_SERVER_BOOT--> not found in index.html");
 const jsonForScript = (text) => text.replace(/</g, "\\u003c").replace(/\u2028/g, "\\u2028").replace(/\u2029/g, "\\u2029");
 function appPage(role, tid, view, ul) {
   const boot = `<script>window.__EMS__={version:${state.version},role:${JSON.stringify(role)},tid:${JSON.stringify(tid || "")},unlock:${JSON.stringify(ul || {})},data:${jsonForScript(dataFor(view || role, tid))}};</script>`;
@@ -398,14 +398,14 @@ button:hover{background:#0F7657}
 </style></head><body>
 <form method="post" action="/login">
   <div class="mark">CGA</div>
-  ${teacher ? `<h1>Teacher Login</h1><p>Cambridge Grads Academy · Tests, marks aur class attendance</p>` : `<h1>CGA EMS</h1><p>Cambridge Grads Academy · Staff login</p>`}
+  ${teacher ? `<h1>Teacher Login</h1><p>Cambridge Grads Academy · Tests, marks and class attendance</p>` : `<h1>CGA EMS</h1><p>Cambridge Grads Academy · Staff login</p>`}
   ${msg ? `<div class="err">${msg}</div>` : ""}
   ${teacher ? `<label for="user">Login ID</label>
   <input id="user" name="user" autocomplete="username" autocapitalize="none" required autofocus style="margin-bottom:12px">` : ""}
   <label for="pw">Password${teacher ? "" : " (Executive / Fee Admin / Admin)"}</label>
   <input id="pw" type="password" name="password" autocomplete="current-password" required ${teacher ? "" : "autofocus"}>
   <button type="submit">Login</button>
-  ${teacher ? `<a class="alt" href="/login">Staff login →</a>` : `<a class="alt" href="/teacher">Teacher hain? Teacher login →</a>`}
+  ${teacher ? `<a class="alt" href="/login">Staff login →</a>` : `<a class="alt" href="/teacher">Teacher? Teacher login →</a>`}
 </form>
 <script>if("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(()=>{});</script></body></html>`;
 }
@@ -429,7 +429,7 @@ const SW_JS = `self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (e) => e.waitUntil(self.clients.claim()));
 self.addEventListener("fetch", (e) => {
   if (e.request.mode !== "navigate") return;
-  e.respondWith(fetch(e.request).catch(() => new Response('<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><body style="font-family:sans-serif;background:#174B60;color:#fff;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;text-align:center;padding:20px"><div><h2>Internet nahi hai</h2><p>Connection wapas aate hi dobara kholein.</p></div>', { headers: { "Content-Type": "text/html; charset=utf-8" } })));
+  e.respondWith(fetch(e.request).catch(() => new Response('<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><body style="font-family:sans-serif;background:#174B60;color:#fff;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;text-align:center;padding:20px"><div><h2>No internet connection</h2><p>Open the app again once you are back online.</p></div>', { headers: { "Content-Type": "text/html; charset=utf-8" } })));
 });`;
 const APP_HEAD = (kind) => `<link rel="manifest" href="/${kind === "teacher" ? "teacher" : "app"}.webmanifest"><meta name="theme-color" content="#174B60"><link rel="apple-touch-icon" href="/icons/cga-180.png"><link rel="icon" type="image/png" href="/icons/cga-192.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="${kind === "teacher" ? "CGA Teacher" : "CGA EMS"}">`;
 
@@ -500,11 +500,11 @@ const server = http.createServer(async (req, res) => {
       const body = JSON.parse((await readBody(req)) || "{}");
       const key = bot.phoneKey(body.phone);
       if (blocked("p:" + ip) || (key && blocked("pp:" + key)))
-        return sendJson(res, 429, { error: "Bohat ghalat koshishen — 15 minute baad dobara try karein." });
+        return sendJson(res, 429, { error: "Too many wrong attempts — try again in 15 minutes." });
       const acc = key && accessFor(dbNow(), key);
       if (!acc || !pinOk(acc, String(body.pin || "").trim())) {
         failed("p:" + ip); if (key) failed("pp:" + key);
-        return sendJson(res, 401, { error: "Phone number ya PIN ghalat hai." });
+        return sendJson(res, 401, { error: "Wrong phone number or PIN." });
       }
       fails.delete("p:" + ip); fails.delete("pp:" + key);
       parentLogins[key] = new Date().toISOString();
@@ -523,7 +523,7 @@ const server = http.createServer(async (req, res) => {
       /* v43: is bache ke baqi challans + bheji hui receipts (receipt form ke liye) */
       if (p === "/parent/api/challans" && req.method === "GET") {
         const child = kids.find((k) => k.id === url.searchParams.get("studentId"));
-        if (!child) return sendJson(res, 400, { error: "Pehle bacha chunein." });
+        if (!child) return sendJson(res, 400, { error: "Choose a child first." });
         const fees = (who.db.fees || []).filter((f) => f.studentId === child.id && bot.feeOutstanding(f) > 0)
           .sort((a, b) => String(b.month).localeCompare(String(a.month)))
           .map((f) => ({ id: f.id, chNo: f.chNo || "", month: f.month, amount: +f.amount || 0, due: bot.feeOutstanding(f), dueDate: f.dueDate || "" }));
@@ -540,25 +540,25 @@ const server = http.createServer(async (req, res) => {
       if (!sameOrigin(req)) return sendJson(res, 403, { error: "origin" });
       const body = JSON.parse((await readBody(req)) || "{}");
       const child = kids.find((k) => k.id === body.studentId) || (kids.length === 1 ? kids[0] : null);
-      if (!child) return sendJson(res, 400, { error: "Pehle bacha chunein." });
+      if (!child) return sendJson(res, 400, { error: "Choose a child first." });
       if (p === "/parent/api/chat") {
-        if (tooMany("chat:" + who.key, 40, 60e3)) return sendJson(res, 429, { error: "Thora ruk kar dobara poochein." });
+        if (tooMany("chat:" + who.key, 40, 60e3)) return sendJson(res, 429, { error: "Please wait a moment and ask again." });
         const r = bot.reply(who.db, child, String(body.text || "").slice(0, 300), who.key, pktToday());
         return sendJson(res, 200, { ...r, child: childView(child) });
       }
       if (p === "/parent/api/receipt") {
         const m = String(body.file || "").match(/^data:(image\/jpeg|image\/png|image\/webp|application\/pdf);base64,([A-Za-z0-9+/=]+)$/);
-        if (!m) return sendJson(res, 400, { error: "Receipt ki tasveer (JPG / PNG) ya PDF lagayein." });
+        if (!m) return sendJson(res, 400, { error: "Attach a receipt photo (JPG / PNG) or PDF." });
         const buf = Buffer.from(m[2], "base64"), ext = FILE_TYPES[m[1]];
         const magic = { jpg: [0xff, 0xd8], png: [0x89, 0x50, 0x4e, 0x47], webp: [0x52, 0x49, 0x46, 0x46], pdf: [0x25, 0x50, 0x44, 0x46] }[ext];
         if (!buf.length || buf.length > 6 * 1024 * 1024 || !magic.every((b, i) => buf[i] === b))
-          return sendJson(res, 400, { error: "Ye file theek nahi — 6 MB tak ki tasveer ya PDF bhejein." });
+          return sendJson(res, 400, { error: "This file is not valid — send a photo or PDF up to 6 MB." });
         const amount = Math.round(+body.amount || 0);
-        if (!(amount > 0 && amount < 10000000)) return sendJson(res, 400, { error: "Kitni raqam jama ki — likhein." });
+        if (!(amount > 0 && amount < 10000000)) return sendJson(res, 400, { error: "Enter the amount paid." });
         const paidOn = /^\d{4}-\d{2}-\d{2}$/.test(String(body.paidOn || "")) ? String(body.paidOn) : pktToday();
         const fee = body.feeId ? (who.db.fees || []).find((f) => f.id === body.feeId && f.studentId === child.id) : null;
-        if (body.feeId && !fee) return sendJson(res, 400, { error: "Ye challan is bache ka nahi." });
-        if (tooMany("rcpt:" + who.key, 8, 864e5)) return sendJson(res, 429, { error: "Aaj ki receipts ki had poori — kal bhejein ya school aa kar dikhayein." });
+        if (body.feeId && !fee) return sendJson(res, 400, { error: "This challan does not belong to this child." });
+        if (tooMany("rcpt:" + who.key, 8, 864e5)) return sendJson(res, 429, { error: "Today's receipt limit reached — send it tomorrow or show it at the school." });
         const METHODS = ["Bank transfer", "JazzCash", "EasyPaisa", "Cash (school)", "Other"];
         const name = `${crypto.randomBytes(12).toString("hex")}.${ext}`;
         writeAtomic(path.join(FEE_RCPT_DIR, name), buf);
@@ -573,8 +573,8 @@ const server = http.createServer(async (req, res) => {
       }
       if (p === "/parent/api/message") {
         const text = String(body.text || "").trim().slice(0, 1000);
-        if (text.length < 3) return sendJson(res, 400, { error: "Message likhein." });
-        if (tooMany("msg:" + who.key, 10, 864e5)) return sendJson(res, 429, { error: "Aaj ke messages ki had poori — kal dobara bhejein ya school call karein." });
+        if (text.length < 3) return sendJson(res, 400, { error: "Write a message." });
+        if (tooMany("msg:" + who.key, 10, 864e5)) return sendJson(res, 429, { error: "Today's message limit reached — send again tomorrow or call the school." });
         mutateDb((d) => {
           d.parentMsgs = d.parentMsgs || [];
           d.parentMsgs.push({ id: crypto.randomBytes(8).toString("hex"), studentId: child.id, studentName: child.name,
@@ -598,10 +598,10 @@ const server = http.createServer(async (req, res) => {
       const ip = clientIp(req);
       const form = new URLSearchParams(await readBody(req));
       const pw = form.get("password") || "", user = String(form.get("user") || "").trim();
-      if (blocked(ip)) return send(res, 429, loginPage("Bohat ghalat koshishen — 15 minute baad dobara try karein.", !!user), "text/html; charset=utf-8");
+      if (blocked(ip)) return send(res, 429, loginPage("Too many wrong attempts — try again in 15 minutes.", !!user), "text/html; charset=utf-8");
       if (user) {
         const t = teacherPwOk(user, pw);
-        if (!t) { failed(ip); return send(res, 401, loginPage("Login ID ya password ghalat hai.", true), "text/html; charset=utf-8"); }
+        if (!t) { failed(ip); return send(res, 401, loginPage("Wrong Login ID or password.", true), "text/html; charset=utf-8"); }
         fails.delete(ip);
         setSession(req, res, teacherToken(t), SESSION_DAYS * 86400);
         return redirect(res, "/");
@@ -610,7 +610,7 @@ const server = http.createServer(async (req, res) => {
       const who = isExec ? "exec" : rolePwOk("feeadmin", pw) ? "feeadmin" : rolePwOk("admin", pw) ? "admin" : null;
       if (!who) {
         failed(ip);
-        return send(res, 401, loginPage("Password ghalat hai."), "text/html; charset=utf-8");
+        return send(res, 401, loginPage("Wrong password."), "text/html; charset=utf-8");
       }
       fails.delete(ip);
       setSession(req, res, who === "exec" ? newToken("exec") : newToken(who, roleAuth(who).hash.slice(0, 12)), SESSION_DAYS * 86400);
@@ -640,14 +640,14 @@ const server = http.createServer(async (req, res) => {
       return role === "teacher" ? sendJson(res, 403, { error: "Teacher" }) : sendJson(res, 200, parentLogins);
 
     if (p === "/api/unlock" && req.method === "POST") {
-      if (role !== "feeadmin") return sendJson(res, 403, { error: "Sirf Fee Admin" });
+      if (role !== "feeadmin") return sendJson(res, 403, { error: "Fee Admin only" });
       if (!sameOrigin(req)) return sendJson(res, 403, { error: "origin" });
       const c = feeCode(); if (!c) return sendJson(res, 200, { ok: true, exp: 0 });
       const ip = clientIp(req), k = "fc:" + ip;
       const f = fails.get(k);
-      if (f && f.until > Date.now() && f.n >= 5) return sendJson(res, 429, { error: "5 dafa ghalat code — 15 minute baad dobara." });
+      if (f && f.until > Date.now() && f.n >= 5) return sendJson(res, 429, { error: "Wrong code 5 times — try again in 15 minutes." });
       const body = JSON.parse((await readBody(req)) || "{}");
-      if (!codeOk(body.code)) { failed(k); return sendJson(res, 401, { error: "Code ghalat hai." }); }
+      if (!codeOk(body.code)) { failed(k); return sendJson(res, 401, { error: "Wrong code." }); }
       fails.delete(k);
       const exp = Date.now() + UNLOCK_MIN * 60e3, tag = c.hash.slice(0, 12);
       res.setHeader("Set-Cookie", `ems_u=${exp}.${tag}.${sign(`unlock|${exp}|${tag}|${sessSig(req)}`)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${UNLOCK_MIN * 60}${isHttps(req) ? "; Secure" : ""}`);
@@ -668,9 +668,9 @@ const server = http.createServer(async (req, res) => {
       const body = JSON.parse(await readBody(req));
       const data = body && body.data;
       if (!data || typeof data !== "object" || !Array.isArray(data.students))
-        return sendJson(res, 400, { error: "Ye EMS ka data nahi lagta." });
+        return sendJson(res, 400, { error: "This does not look like EMS data." });
       /* Kisi aur ne beech mein save kiya — client pehle merge kare, phir dobara bheje */
-      if (role !== "exec" && body.force) return sendJson(res, 403, { error: "Backup import sirf Executive kar sakta hai." });
+      if (role !== "exec" && body.force) return sendJson(res, 403, { error: "Only the Executive can import a backup." });
       if (!body.force && body.baseVersion !== state.version)
         return sendJson(res, 409, `{"version":${state.version},"unlock":${JSON.stringify(ul || {})},"data":${dataFor(view, tid)}}`);
       const out = role === "teacher" ? teacherMerge(data, tid) : role !== "exec" ? keepProtected(data, view) : data;
@@ -681,13 +681,13 @@ const server = http.createServer(async (req, res) => {
 
     /* v27: receipt upload — sirf tasveer / PDF, random naam, login ke peeche */
     if (p === "/api/files" && req.method === "POST") {
-      if (role !== "exec" && !(role === "feeadmin" && ul.on)) return sendJson(res, 403, { error: "Sirf Executive / Fee Admin" });
+      if (role !== "exec" && !(role === "feeadmin" && ul.on)) return sendJson(res, 403, { error: "Executive / Fee Admin only" });
       if (!sameOrigin(req)) return sendJson(res, 403, { error: "origin" });
       const type = String(req.headers["content-type"] || "").split(";")[0].trim().toLowerCase();
       const ext = FILE_TYPES[type];
-      if (!ext) return sendJson(res, 415, { error: "Sirf JPG / PNG / WEBP / PDF" });
+      if (!ext) return sendJson(res, 415, { error: "JPG / PNG / WEBP / PDF only" });
       const buf = await readRaw(req, MAX_FILE);
-      if (!buf.length) return sendJson(res, 400, { error: "Khali file" });
+      if (!buf.length) return sendJson(res, 400, { error: "Empty file" });
       const name = `${crypto.randomBytes(12).toString("hex")}.${ext}`;
       writeAtomic(path.join(FILES_DIR, name), buf);
       return sendJson(res, 200, { url: `/files/${name}`, size: buf.length });
@@ -695,7 +695,7 @@ const server = http.createServer(async (req, res) => {
     /* v43: parents ki fee receipts — sirf Executive aur Fee Admin */
     const frm = p.match(/^\/fee-receipts\/([a-f0-9]{24})\.(jpg|png|webp|pdf)$/);
     if (frm && req.method === "GET") {
-      if (role !== "exec" && !(role === "feeadmin" && ul.on)) return send(res, 403, "Sirf Executive / Fee Admin");
+      if (role !== "exec" && !(role === "feeadmin" && ul.on)) return send(res, 403, "Executive / Fee Admin only");
       const file = path.join(FEE_RCPT_DIR, `${frm[1]}.${frm[2]}`);
       if (!fs.existsSync(file)) return send(res, 404, "Not found");
       return send(res, 200, fs.readFileSync(file), EXT_TYPES[frm[2]],
@@ -703,7 +703,7 @@ const server = http.createServer(async (req, res) => {
     }
     const fm = p.match(/^\/files\/([a-f0-9]{24})\.(jpg|png|webp|pdf)$/);
     if (fm && req.method === "GET") {
-      if (role !== "exec" && !(role === "feeadmin" && ul.on)) return send(res, 403, "Sirf Executive / Fee Admin");
+      if (role !== "exec" && !(role === "feeadmin" && ul.on)) return send(res, 403, "Executive / Fee Admin only");
       const file = path.join(FILES_DIR, `${fm[1]}.${fm[2]}`);
       if (!fs.existsSync(file)) return send(res, 404, "Not found");
       return send(res, 200, fs.readFileSync(file), EXT_TYPES[fm[2]],
@@ -712,8 +712,8 @@ const server = http.createServer(async (req, res) => {
 
     return send(res, 404, "Not found");
   } catch (e) {
-    if (e && e.code === 413) return sendJson(res, 413, { error: "Data bohat bara hai." });
-    if (e instanceof SyntaxError) return sendJson(res, 400, { error: "Ghalat JSON" });
+    if (e && e.code === 413) return sendJson(res, 413, { error: "Data is too large." });
+    if (e instanceof SyntaxError) return sendJson(res, 400, { error: "Invalid JSON" });
     console.error(e);
     return sendJson(res, 500, { error: "Server error" });
   }

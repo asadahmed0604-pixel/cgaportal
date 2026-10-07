@@ -1,84 +1,85 @@
 # CGA EMS
 
-Cambridge Grads Academy ka Education Management System.
+Education Management System for Cambridge Grads Academy.
 
-- `index.html` — poori app (aik file).
-- `parent.html`, `parent-bot.js` — parents ka chat (neeche dekhein).
-- `server.js` — online server: office password se login, aur sara data aik jagah taake
-  **har computer aur phone par wahi data** nazar aaye. Koi npm package nahi chahiye.
+- `index.html` — the whole app (a single file).
+- `parent.html`, `parent-bot.js` — the parents' chat (see below).
+- `server.js` — online server: login with the office password, and all data in one place so
+  **every computer and phone sees the same data**. No npm packages needed.
 
-## Kaise chalta hai
+## How it works
 
-- Data server par `DATA_DIR/db.json` mein save hota hai. Koi bhi tabdeeli ~1 second mein server par
-  chali jati hai, aur baqi computers par ~8 second mein khud nazar aa jati hai (page reload ki zaroorat nahi).
-- Do log aik waqt mein kaam karein to dono ki tabdeeliyan record-by-record mil jati hain —
-  aik ka kaam doosre ka kaam nahi mitata.
-- Server har din ka backup khud rakhta hai: `DATA_DIR/backups/db-YYYY-MM-DD.json` (pichle 45 din),
-  aur har "Import Backup" se pehle ka haal `before-import-*.json` mein.
-- Sidebar ke neeche haal likha hota hai: **☁ Online**, **⏳ Save ho raha hai…**, ya **⚠ Server se rabta nahi**.
-- `index.html` ko seedha computer par kholein to purane tareeqe (sirf is browser mein) se chalti hai.
+- Data is saved on the server in `DATA_DIR/db.json`. Any change reaches the server in ~1 second
+  and shows up on other computers automatically in ~8 seconds (no page reload needed).
+- If two people work at the same time, their changes are merged record by record —
+  one person's work never wipes out another's.
+- The server keeps a daily backup: `DATA_DIR/backups/db-YYYY-MM-DD.json` (last 45 days),
+  plus the state before every "Import Backup" in `before-import-*.json`.
+- The sidebar footer shows the sync state: **☁ Online**, **⏳ Saving…**, or **⚠ No connection to server**.
+- Opening `index.html` directly on a computer runs it the old way (data only in that browser).
 
 ## Logins — Executive & Admin
 
-- **Executive**: sab kuch. Password = Render par `EMS_PASSWORD`.
-- **Admin**: students, fees, attendance, homework, exams, inquiries, parents, class audit, staff, inventory,
-  issuance, settings — lekin **Dashboard, Income / Expense, Monthly Report, Business Reports (P&L) aur salaries nahi**,
-  aur backup import / download / students delete bhi nahi.
-- **Fee Admin** (sirf aik banda): Admin wali sab cheezein **plus Fee / Billing**. Aam Admin ko fees ka koi data
-  (challans, monthly fee, charges, subject fees) server se jata hi nahi — sirf Fee Admin aur Executive dekhte hain.
-  Fee Admin ka password bhi Settings → 🔐 Logins se (naam ke saath).
-  v44: Fee Admin ko **Income / Expense** bhi (salary entries ke baghair). Executive Settings → 🔐 Logins mein
-  Fee Admin ka **4 digit code** rakh sakta hai — phir Fee / Billing ya Income / Expense kholte waqt code mangta hai.
-  Code server par check hota hai (5 ghalat = 15 minute rok); sahi code 30 minute ke liye kholta hai, tab tak server
-  Fee Admin ko fees, receipts aur income/expense bhejta hi nahi.
-- Admin ka password Executive EMS mein **⚙ Settings → 🔐 Logins** se rakhta / badalta / band karta hai
-  (PBKDF2 hash DB mein). Password badalte hi purane admin logins khatam.
-- Ye sirf screen par chhupana nahi: server admin ko income/expense entries, salaries aur teacher pay bhejta hi nahi,
-  aur admin ke save mein ye hisse server wale hi rehte hain. Receipts (`/files`) bhi sirf Executive.
-- **Teacher** (v36): har teacher ka apna **Login ID + password** (Settings → 🔐 Logins → Teacher logins).
-  Teachers ka alag link: `<aap ka Render link>/teacher` (Login ID + password). Teacher ko sirf **Tests & Marks** aur **Class Attendance** —
-  sirf apni classes (Employees → Edit → Assign) ke students (naam, reg no, class, subjects). Fees, phone numbers,
-  main attendance, hisaab kuch nahi jata. Teacher ke save se server sirf us ke tests / marks / class attendance leta hai.
-  - Morning ke tests sirf admin banata hai; teacher marks + **zaroori remark** likhta hai (ya CSV sheet se bharta hai).
-  - Evening teacher apni class ka basic test khud bana sakta hai aur class attendance lagata hai.
-  - Main attendance mein Present / Late magar class mein Absent = **class bunk** → parents chat ke
-    "Attendance" aur "Teacher Remarks" mein khud dikhta hai.
+- **Executive**: everything. Password = `EMS_PASSWORD` on Render.
+- **Admin**: students, attendance, homework, exams, inquiries, parents, class audit, staff, inventory,
+  issuance, settings — but **not the Dashboard, Income / Expense, Monthly Report, Business Reports (P&L) or salaries**,
+  and no backup import / download / student delete.
+- **Fee Admin** (one person only): everything an Admin has **plus Fee / Billing**. Regular Admins never receive any
+  fee data from the server (challans, monthly fee, charges, subject fees) — only the Fee Admin and Executive see it.
+  The Fee Admin password is also set in Settings → 🔐 Logins (with a name).
+  v44: the Fee Admin also gets **Income / Expense** (without salary entries). In Settings → 🔐 Logins the Executive can
+  set a **4-digit code** for the Fee Admin — opening Fee / Billing or Income / Expense then asks for the code.
+  The code is checked on the server (5 wrong attempts = 15-minute lockout); a correct code unlocks for 30 minutes, and
+  until then the server does not send fees, receipts or income/expense to the Fee Admin at all.
+- The Executive sets / changes / disables the Admin password in EMS under **⚙ Settings → 🔐 Logins**
+  (PBKDF2 hash in the DB). Changing the password signs out existing admin logins.
+- This is not just hidden on screen: the server never sends income/expense entries, salaries or teacher pay to an
+  admin, and keeps its own copy of those parts when an admin saves. Receipts (`/files`) are Executive only too.
+- **Teacher** (v36): each teacher has their own **Login ID + password** (Settings → 🔐 Logins → Teacher logins).
+  Separate link for teachers: `<your Render link>/teacher` (Login ID + password). Teachers get only **Tests & Marks** and
+  **Class Attendance** — only students of their own classes (Employees → Edit → Assign): name, reg no, class, subjects.
+  No fees, phone numbers, main attendance or accounts. From a teacher's save the server only accepts their
+  tests / marks / class attendance.
+  - Morning tests are created by the admin only; the teacher enters marks + a **required remark** (or fills them from a CSV sheet).
+  - An Evening teacher can create a basic test for their own class and mark class attendance.
+  - Present / Late in main attendance but Absent in class = **class bunk** → shown automatically in the parents'
+    chat under "Attendance" and "Teacher Remarks".
 
 ## Parents chat (`/parent`)
 
-- Parents ka link: `https://<aap-ka-render-link>/parent` — staff login se bilkul alag.
-- Parent apna **phone number** (jo student profile mein Father / Mother / Student phone likha ho) aur
-  **6 digit PIN** se login karta hai. PIN EMS ke **👪 Parents** page se banta hai aur wahin se WhatsApp par bheja jata hai.
-- Chat mein menu / keywords: attendance, test results, homework, fee, teacher remarks — aur school ko message.
-  Jawab server par sirf us parent ke bachon ke data se banta hai (`parent-bot.js`); poora database kabhi parent ke browser tak nahi jata.
-- PIN ka sirf PBKDF2 hash save hota hai. Naya PIN banane ya "Band karein" se purana login foran khatam.
-- Parent ke messages EMS ke Parents page par aate hain; admin ka jawab parent ko "Teacher Remarks" mein dikhta hai.
-- Student profile → **Remarks** tab: teacher / admin ke remarks ("Parent ko dikhayein" off ho to sirf staff dekhta hai).
+- Parents' link: `https://<your-render-link>/parent` — completely separate from the staff login.
+- A parent logs in with their **phone number** (as saved in the student profile as Father / Mother / Student phone) and a
+  **6-digit PIN**. PINs are created on the EMS **👪 Parents** page and sent from there on WhatsApp.
+- Chat menu / keywords: attendance, test results, homework, fee, teacher remarks — and messages to the school.
+  Replies are built on the server only from that parent's children's data (`parent-bot.js`); the full database never reaches the parent's browser.
+- Only a PBKDF2 hash of the PIN is stored. Creating a new PIN or pressing "Block" ends the old login immediately.
+- Parents' messages arrive on the EMS Parents page; the admin's reply appears for the parent under "Teacher Remarks".
+- Student profile → **Remarks** tab: teacher / admin remarks (if "Show to parent" is off, only staff see it).
 
-## Render par live karna (aik dafa)
+## Going live on Render (one time)
 
-1. https://dashboard.render.com → **New → Blueprint** → `asadahmed0604-pixel/cgaportal` select karein.
-2. Render `render.yaml` parh kar **cga-ems-online** web service dikhayega (Starter plan + 1 GB disk).
-3. **EMS_PASSWORD** maange ga — office ka password likhein (kam az kam 8 characters) → **Apply**.
-4. Deploy hone ke baad link milega, jaise `https://cga-ems-online.onrender.com`.
-5. Login karein → **⚙ Settings → ⬆ Import Backup** se apna latest backup daalein. Bas — ab har
-   computer par yehi link kholein aur same password se login karein.
+1. https://dashboard.render.com → **New → Blueprint** → select `asadahmed0604-pixel/cgaportal`.
+2. Render reads `render.yaml` and shows the **cga-ems-online** web service (Starter plan + 1 GB disk).
+3. It asks for **EMS_PASSWORD** — enter the office password (at least 8 characters) → **Apply**.
+4. After deploying you get a link such as `https://cga-ems-online.onrender.com`.
+5. Log in → **⚙ Settings → ⬆ Import Backup** and load your latest backup. That's it — open this link on
+   every computer and log in with the same password.
 
-Password badalna ho: Render → service → **Environment** → `EMS_PASSWORD` badlein → Save.
-Sab purane login khud khatam ho jate hain.
+To change the password: Render → service → **Environment** → change `EMS_PASSWORD` → Save.
+All existing logins are signed out automatically.
 
-Apna domain (jaise `ems.cga.com.pk`): Render → service → **Settings → Custom Domains**.
+Custom domain (e.g. `ems.cga.com.pk`): Render → service → **Settings → Custom Domains**.
 
-## Local chalana
+## Running locally
 
 ```bash
 cd ems
-EMS_PASSWORD=koi-password-123 node server.js   # http://localhost:3000
+EMS_PASSWORD=some-password-123 node server.js   # http://localhost:3000
 ```
 
-## App ki tarah install (v41)
+## Install as an app (v41)
 
-Staff (`/`), Teachers (`/teacher`) aur Parents (`/parent`) — teeno links phone / computer par app ban sakte hain
-(manifest + service worker; data kabhi cache nahi hota). Android Chrome: ⋮ → "Install app" · iPhone Safari:
-Share → "Add to Home Screen" · Computer Chrome/Edge: address bar ka install icon. EMS ke sidebar mein
-"📲 App install karein" button bhi hai. App ka icon CGA logo hai (`ems/icons`).
+Staff (`/`), Teachers (`/teacher`) and Parents (`/parent`) — all three links can be installed as an app on a phone / computer
+(manifest + service worker; data is never cached). Android Chrome: ⋮ → "Install app" · iPhone Safari:
+Share → "Add to Home Screen" · Computer Chrome/Edge: the install icon in the address bar. The EMS sidebar also has an
+"📲 Install app" button. The app icon is the CGA logo (`ems/icons`).
