@@ -437,6 +437,7 @@ label.chk input{width:auto}
       <button class="btn-red" onclick="openStudentForm()">+ New Enrollment</button>
     </div>
   </div>
+  <div id="alSplit"></div>
   <div class="toolbar">
     <div class="field" style="flex:1;min-width:200px"><label>Search</label><input id="stuSearch" placeholder="Name / Reg No / Phone" oninput="renderStudents()"></div>
     <div class="field"><label>Class</label><select id="stuFCourse" onchange="renderStudents()"><option value="">All Classes</option></select></div>
@@ -619,7 +620,9 @@ label.chk input{width:auto}
 <!-- ================= v41: TEACHER KA DASHBOARD ================= -->
 <section class="page" id="page-mydash">
   <div class="page-head"><div><h2 id="mdTitle">My Dashboard</h2><div class="sub" id="mdSub"></div></div></div>
+  <div id="mdRemind"></div>
   <div class="cards" id="mdCards"></div>
+  <div class="panel" style="margin-bottom:16px"><h3>📈 Meri live KPI — <span id="mdKpiM"></span></h3><p class="sub" style="margin:4px 0 10px">Har cheez abhi ke data se — tests, marks, remarks, attendance, class audit aur coordinator ki monthly checklist.</p><div id="mdKpi"></div></div>
   <div class="panel"><h3>⏰ Meri classes aur timings</h3><p class="sub" style="margin:4px 0 10px" id="mdToday"></p><div id="mdTT"></div></div>
   <div class="grid2" style="margin-top:16px">
     <div class="panel"><h3>🗓 Meri attendance — <span id="mdAttM"></span></h3><p class="sub" style="margin:4px 0 10px">Office lagata hai — yahan sirf dekh sakte hain, badal nahi sakte.</p><div id="mdAtt"></div></div>
@@ -1042,30 +1045,12 @@ label.chk input{width:auto}
 <script>
 /* ================= DATA STORE ================= */
 /* Morning = Main School System · Evening = Academy */
+/* v46: "A Levels" ab AS aur A2 mein — aur Grade 5–8 sab "Pre O Levels" mein */
 const CLASSES_BY_SHIFT = {
-  Morning: [
-    "FT1",
-    "FT2",
-    "O1",
-    "O2",
-    "A Levels"
-  ],
-  Evening: [
-    "A Levels",
-    "SAT",
-    "Pre O Levels",
-    "Grade 5",
-    "Grade 6",
-    "Grade 7",
-    "Grade 8",
-    "O1",
-    "O2",
-    "O3 (Appearing Batch)",
-    "AS",
-    "A2",
-    "AS & A2 (Composite)"
-  ]
+  Morning: ["FT1", "FT2", "O1", "O2", "AS", "A2"],
+  Evening: ["Pre O Levels", "O1", "O2", "O3 (Appearing Batch)", "AS", "A2", "AS & A2 (Composite)", "SAT"]
 };
+const LEGACY_CLASS = {"Grade 5":"Pre O Levels", "Grade 6":"Pre O Levels", "Grade 7":"Pre O Levels", "Grade 8":"Pre O Levels"};
 const COURSES = [...new Set([...CLASSES_BY_SHIFT.Morning, ...CLASSES_BY_SHIFT.Evening])];
 const SHIFTS = {Morning:"School System", Evening:"Academy"};
 const SHIFT_START = {Morning:"08:00", Evening:"15:00"};
@@ -1120,7 +1105,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v45 · 7 Oct 2026";
+const BUILD = "v46 · 7 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -1335,7 +1320,7 @@ function avatarHTML(st, big){
 }
 function openPhoto(src){ $("lxImg").src = src; $("photoLightbox").classList.add("show"); }
 function closePhoto(){ $("photoLightbox").classList.remove("show"); $("lxImg").src=""; }
-function courseOptions(sel, shift){ const list = shift? (CLASSES_BY_SHIFT[shift]||COURSES) : COURSES; return list.map(c=>`<option ${c===sel?"selected":""}>${c}</option>`).join(""); }
+function courseOptions(sel, shift){ let list = shift? (CLASSES_BY_SHIFT[shift]||COURSES) : COURSES; if(sel && !list.includes(sel)) list = [sel, ...list]; return list.map(c=>`<option ${c===sel?"selected":""}>${c}</option>`).join(""); }
 /* Shift select change hone par class dropdown us shift ki classes dikhaye */
 function syncClassSel(shiftId, classId){
   const sh=$(shiftId).value, cur=$(classId).value;
@@ -1903,6 +1888,8 @@ function monthExpenseUnpaid(m){ return txnsOf(m,"Expense").filter(txnUnpaid).red
 /* ================= STUDENTS ================= */
 let photoTemp = null;
 function renderStudents(){
+  const al = DB.students.filter(x=>x.course==="A Levels" && x.status!=="Left");
+  if($("alSplit")) $("alSplit").innerHTML = al.length ? `<div class="note" style="margin-bottom:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">⚠ <b>${al.length} students</b> abhi purani "A Levels" class mein hain — inhein <b>AS</b> ya <b>A2</b> mein bantein.<button class="btn-red btn-sm" onclick="openAlSplit()">AS / A2 mein bantein</button></div>` : "";
   const q = ($("stuSearch").value||"").toLowerCase();
   const fc=$("stuFCourse").value, fs=$("stuFShift").value, fst=$("stuFStatus").value, fm=$("stuFMonth").value;
   const RM = rosterMonths();
@@ -1936,7 +1923,7 @@ function renderStudents(){
       <td><b>${i+1}</b></td>
       <td>${avatarHTML(s)}</td>
       <td><b>${esc(s.regNo)}</b></td>
-      <td>${esc(s.name)}</td>
+      <td>${esc(s.name)}${s.mode==="Online" ? ` <span class="badge b-paid">Online</span>` : ""}</td>
       <td>${esc(s.fatherName)}</td>
       <td>${esc(s.course)}</td>
       <td>${esc(s.shift)}</td>
@@ -1979,6 +1966,8 @@ function openStudentForm(id, prefill){
         <option value="Morning" ${s.shift==="Morning"?"selected":""}>Morning — School System</option>
         <option value="Evening" ${s.shift==="Evening"?"selected":""}>Evening — Academy</option></select></div>
       <div class="field"><label>Class *</label><select id="f_course" onchange="subjModeSync()">${courseOptions(s.course, s.shift||"Morning")}</select></div>
+      ${s.id ? "" : `<div class="field fee-only"><label>Registration fee (Rs) — sirf ${fmtM(wm())} ke challan mein</label><input type="number" id="f_reg" placeholder="e.g. 5000"></div>`}
+      <div class="field"><label>Mode of education</label><select id="f_mode">${["Onsite","Online"].map(x=>`<option ${(s.mode||"Onsite")===x?"selected":""}>${x}</option>`).join("")}</select></div>
       <div class="field fee-only" id="f_feeWrap"><label id="f_feeLbl">Monthly Fee (Rs)</label><input type="number" id="f_fee" value="${s.monthlyFee||""}" placeholder="e.g. 3000"></div>
       <div class="field"><label>Class Teacher (overall)</label><select id="f_teacher"><option value="">— No teacher —</option>${teachers.map(t=>`<option value="${t.id}" ${s.teacherId===t.id?"selected":""}>${esc(t.name)}</option>`).join("")}</select></div>
       <div class="field"><label>Status</label><select id="f_status">${["Active","Graduate","Left","Freeze"].map(x=>`<option ${s.status===x?"selected":""}>${x}</option>`).join("")}</select></div>
@@ -1991,6 +1980,7 @@ function openStudentForm(id, prefill){
       <div class="note" id="subjNote"></div>
       <div class="toolbar">
         <div class="field" style="flex:1;min-width:190px"><label>Subject</label><select id="f_subj"></select></div>
+        <div class="field"><label>Part / level</label><select id="f_subjPart" style="max-width:120px"><option value="">—</option>${["AS","A2","P1","P2","P3","P4"].map(x=>`<option>${x}</option>`).join("")}</select></div>
         <div class="field" id="f_subjFeeWrap"><label>Fee (Rs)</label><input type="number" id="f_subjFee" style="max-width:130px" placeholder="e.g. 2500"></div>
         <div class="field" style="flex:1;min-width:170px"><label>Teacher (is subject ka)</label><select id="f_subjTeacher"></select></div>
         <button class="btn-black" onclick="addSubj()">+ Add Subject</button>
@@ -2049,6 +2039,7 @@ function subjModeSync(initial){
     : `<option value="">— ${esc(cls)} ke liye koi subject set nahi · Settings → Subjects Offered —</option>`;
 
   $("f_subjTeacher").innerHTML = teacherOpts("");
+  if($("f_subjPart")) $("f_subjPart").value = ["AS","A2"].includes(cls) ? cls : "";
   $("f_subjFeeWrap").style.display = evening? "block":"none";
   $("subjHead").textContent = evening? "Subjects & Subject-wise Fee" : "Subjects & Group";
   const lim = electiveLimitFor(cls);
@@ -2058,9 +2049,11 @@ function subjModeSync(initial){
   drawSubjs();   // fee label aur readOnly subjTotalSync() set karta hai
 }
 function addSubj(){
-  const sel = $("f_subj"), name = sel.value;
-  if(!name){ toast("Subject select karein"); return; }
-  if(subjDraft.some(x=>x.name===name)){ toast("Ye subject pehle se add hai"); return; }
+  const sel = $("f_subj"), part = $("f_subjPart") ? $("f_subjPart").value : "";
+  if(!sel.value){ toast("Subject select karein"); return; }
+  /* v46: aik subject kai dafa — e.g. "Chemistry AS" aur "Chemistry A2" alag alag */
+  const name = part && !new RegExp("\\b" + part + "$", "i").test(sel.value) ? `${sel.value} ${part}` : sel.value;
+  if(subjDraft.some(x=>x.name===name)){ toast(`"${name}" pehle se add hai — doosra part (AS / A2 / P1…) chunein`); return; }
   const evening = $("f_shift").value==="Evening", cls = $("f_course").value;
   const lim = electiveLimitFor(cls);
   if(!evening && lim && subjKind(name, cls)!=="Compulsory"){
@@ -2070,7 +2063,7 @@ function addSubj(){
   const typed = +$("f_subjFee").value;
   const fee = evening? (typed || +sel.selectedOptions[0].dataset.fee || 0) : 0;
   subjDraft.push({name, fee, teacherId:$("f_subjTeacher").value||""});
-  $("f_subjFee").value = ""; $("f_subjTeacher").value = "";
+  $("f_subjFee").value = ""; $("f_subjTeacher").value = ""; if($("f_subjPart")) $("f_subjPart").value = "";
   drawSubjs();
 }
 function delSubj(i){ subjDraft.splice(i,1); drawSubjs(); }
@@ -2146,7 +2139,7 @@ function saveStudent(id){
     education:$("f_edu").value.trim(), prevInst:$("f_prev").value.trim(),
     course:$("f_course").value, shift:$("f_shift").value,
     monthlyFee:$("f_fee").value||0, teacherId:$("f_teacher").value,
-    subjects: subjDraft.map(x=>({...x})), groupOverride: grpOverride,
+    subjects: subjDraft.map(x=>({...x})), groupOverride: grpOverride, mode:$("f_mode").value,
     status:$("f_status").value, photo:photoTemp
   };
   if(data.shift==="Evening"){
@@ -2163,7 +2156,10 @@ function saveStudent(id){
     data.id = uid();
     data.regNo = "REG-" + new Date().getFullYear() + "-" + String(DB.counters.reg++).padStart(4,"0");
     data.joinMonth = wm();            // v36: sirf isi (working) mahine aur aage ki list mein — purane mahinon mein nahi
+    const reg = $("f_reg") ? +$("f_reg").value || 0 : 0;
+    if(reg > 0) data.regFee = {amt:reg, month:wm()};   // v46: sirf joining ke mahine ka challan
     DB.students.push(data);
+    const fx = DB.fees.find(x=>x.studentId===data.id && x.month===wm()); if(fx) addRegFee(fx, data);
     inqConverted(data);
     toast("Enrolled — Reg No: " + data.regNo);
   }
@@ -2671,6 +2667,7 @@ function renderFees(){
       <td>${fmtD(f.paidDate)}</td>
       <td style="white-space:nowrap">
         ${f.carriedTo? "" : f.status==="Unpaid"?`<button class="btn-black btn-sm" onclick="markPaid('${f.id}')">Mark Paid${+f.arrears ? " / Arrears" : ""}</button>`:`<button class="btn-line btn-sm" onclick="markUnpaid('${f.id}')">Undo Paid</button>`}
+        <button class="btn-line btn-sm" onclick="editChallan('${f.id}')">Edit</button>
         <button class="btn-line btn-sm" onclick="printChallan('${f.id}')">Print</button>
         <button class="btn-line btn-sm" onclick="downloadChallanPDF('${f.id}')">PDF</button>
         <button class="btn-danger btn-sm" onclick="delFee('${f.id}')">Delete</button>
@@ -2962,6 +2959,7 @@ function saveChallan(){
     paidDate: status==="Paid"? ($("c_paid").value||wmDate()) : ""
   };
   if(t.arr) carryArrears(f);
+  if(!chItems.some(i=>/registration/i.test(i.desc))) addRegFee(f, st);
   DB.fees.push(f); save(); closeModal(); renderFees(); renderDashboard();
   toast("Challan created: "+f.chNo+" — Total "+money(f.amount)+(t.disc?` (${money(t.disc)} discount, ${t.pct}%)`:""));
 }
@@ -3003,6 +3001,7 @@ function runBulkChallan(){
       dueDate:due, status:"Unpaid", shift:s.shift, paidDate:""
     };
     if(withArr){ const a = carryArrears(f); if(a){ arrN++; arrAmt += a; } }
+    addRegFee(f, s);
     DB.fees.push(f);
     created++;
   });
@@ -3018,7 +3017,8 @@ function runBulkChallan(){
 function feeOnlyPlan(m){
   return feesBilledIn(m).map(f=>{
     const st = stuById(f.studentId), fee = studentFee(st);
-    const extra = (+f.amount||0) !== fee || (f.items||[]).length || +f.arrears || +f.discount;
+    const reg = (f.items||[]).filter(i=>i.regFee).reduce((a,i)=>a+(+i.amt||0),0);
+    const extra = (+f.amount||0) !== fee + reg || (f.items||[]).some(i=>!i.regFee) || +f.arrears || +f.discount;
     return {f, st, fee, extra, paid: !!feeReceived(f) || f.status === "Paid"};
   }).filter(x=>x.extra);
 }
@@ -3041,7 +3041,8 @@ function applyFeeOnly(m){
   const fix = feeOnlyPlan(m).filter(x=>!x.paid && x.fee);
   fix.forEach(({f, fee})=>{
     DB.fees.forEach(x=>{ if(x.carriedTo === f.id){ delete x.carriedTo; delete x.carriedChNo; delete x.carriedAmt; } });   // arrears wapas
-    f.tuition = fee; f.amount = fee; f.items = []; f.discount = 0; f.discountPct = 0;
+    const keep = (f.items||[]).filter(i=>i.regFee);            // v46: registration fee rehti hai
+    f.tuition = fee; f.items = keep; f.amount = fee + keep.reduce((a,i)=>a+(+i.amt||0),0); f.discount = 0; f.discountPct = 0;
     delete f.arrears; delete f.paidAmount; delete f.balance;
     f.status = "Unpaid"; f.paidDate = "";
   });
@@ -3055,42 +3056,137 @@ function markPaid(id){
     <h3>Mark Paid — ${f.chNo}</h3>
     <p class="sub" style="margin-bottom:12px">${st?esc(st.name):""} · ${fmtM(f.month)} · <b>${money(f.amount)}</b></p>
     <div class="field"><label>Payment Date (student ne kis date ko fee pay ki)</label><input type="date" id="mp_date" value="${wmDate()}"></div>
-    ${arr.amt ? `<div class="note">Is challan mein <b>${money(arr.amt)}</b> pichla baqaya (${arr.list.map(x=>fmtM(x.month)).join(", ")}) shamil hai.
-      Agar student ne <b>sirf pichla baqaya</b> diya hai to neeche wala button dabayein — purane challan Paid ho jayenge aur ye challan sirf ${fmtM(f.month)} ki fee (<b>${money((+f.amount||0) - arr.amt)}</b>) ka rah jayega.</div>` : ""}
+    ${arr.amt ? `<div class="note">Is challan mein <b>${money(arr.amt)}</b> pichla baqaya${arr.list.length ? ` (${arr.list.map(x=>fmtM(x.month)).join(", ")})` : ""} shamil hai.
+      Agar student ne <b>sirf pichla baqaya</b> (ya us ka kuch hissa) diya hai to raqam likh kar neeche wala button dabayein — ye challan ${fmtM(f.month)} ki fee + jo arrears baqi rahe us ka rah jayega.</div>
+      <div class="field"><label>Kitna arrears wasool hua (Rs)</label><input type="number" id="mp_arr" value="${arr.amt}" max="${arr.amt}" oninput="mpArrHint(${arr.amt})"></div>
+      <div class="sub" id="mp_arrHint" style="margin:-4px 0 8px"></div>` : ""}
     <div class="modal-foot">
       <button class="btn-line" onclick="closeModal()">Cancel</button>
-      ${arr.amt ? `<button class="btn-black" onclick="payArrearsOnly('${id}')">Sirf pichla baqaya wasool (${money(arr.amt)})</button>` : ""}
+      ${arr.amt ? `<button class="btn-black" onclick="payArrearsOnly('${id}')">Sirf arrears wasool</button>` : ""}
       <button class="btn-red" onclick="confirmPaid('${id}')">Confirm Paid ✓</button>
     </div>`);
 }
 /* v41: Challan mein jo pichle mahinon ka baqaya jura hai */
+/* v46: Registration fee — sirf joining wale mahine ke challan mein, aik hi dafa */
+function addRegFee(f, s){
+  const r = s && s.regFee;
+  if(!r || !(+r.amt > 0) || r.month !== f.month || (r.chId && DB.fees.some(x=>x.id===r.chId))) return 0;
+  f.items = [...(f.items||[]), {desc:"Registration fee", amt:+r.amt, regFee:true}];
+  f.amount = (+f.amount||0) + (+r.amt);
+  if(hasVal(f.balance)) f.balance = (+f.balance||0) + (+r.amt);
+  if(f.status === "Paid" && !hasVal(f.paidAmount)){ f.status = "Unpaid"; f.paidAmount = (+f.amount||0) - (+r.amt); f.balance = +r.amt; }
+  r.chId = f.id; r.chNo = f.chNo;
+  return +r.amt;
+}
 function arrearsOf(f){
   const list = DB.fees.filter(x=>x.carriedTo===f.id);
   const item = (f.items||[]).filter(it=>it.arrears).reduce((a,it)=>a+(+it.amt||0),0);
   return {list, amt: item || list.reduce((a,x)=>a+(+x.carriedAmt||0),0)};
 }
-/* Student ne sirf pichle mahine(on) ka baqaya diya — purane challan Paid, naye challan se arrears nikal do */
+function mpArrHint(full){
+  const a = Math.min(full, Math.max(0, +$("mp_arr").value || 0));
+  $("mp_arrHint").textContent = a >= full ? "Poora arrears wasool — purane challan Paid" : `${money(a)} wasool · ${money(full - a)} arrears is challan mein baqi rahenge`;
+}
+/* v46: Student ne pichle mahinon ka baqaya diya — poora ya kuch hissa (e.g. 56,000 mein se 50,000).
+   Raqam purane challans par (pehle purana) lagti hai; jo baqi rahe wo isi challan mein arrears rehta hai. */
 function payArrearsOnly(id){
   const f = DB.fees.find(x=>x.id===id); if(!f) return;
-  if(feeReceived(f) > 0){ toast("Is challan par pehle se kuch payment darj hai — pehle 'Undo' karein"); return; }
   const arr = arrearsOf(f), date = $("mp_date").value || wmDate();
   if(!arr.amt){ toast("Is challan mein koi arrears nahi"); return; }
-  arr.list.forEach(x=>{
-    x.status = "Paid"; x.paidDate = date;
-    if(hasVal(x.balance) || hasVal(x.paidAmount)){ x.paidAmount = +x.amount||0; x.balance = 0; }
-    delete x.carriedTo; delete x.carriedChNo; delete x.carriedAmt;
-  });
-  f.items = (f.items||[]).filter(it=>!it.arrears);
-  f.amount = Math.max(0, (+f.amount||0) - arr.amt);
-  delete f.arrears;
+  const a = Math.min(arr.amt, Math.max(0, +($("mp_arr") ? $("mp_arr").value : arr.amt) || 0));
+  if(!a){ toast("Wasool raqam likhein"); return; }
+  if(arr.list.length){
+    if(feeReceived(f) > 0){ toast("Is challan par pehle se kuch payment darj hai — pehle 'Undo' karein"); return; }
+    let left = a;
+    arr.list.slice().sort((x,y)=>String(x.month).localeCompare(String(y.month))).forEach(x=>{
+      const due = +x.carriedAmt || 0; if(!left || !due) return;
+      const part = Math.min(due, left); left -= part;
+      x.paidDate = date;
+      if(part >= due){
+        x.status = "Paid";
+        if(hasVal(x.balance) || hasVal(x.paidAmount)){ x.paidAmount = +x.amount||0; x.balance = 0; }
+        delete x.carriedTo; delete x.carriedChNo; delete x.carriedAmt;
+      } else {
+        x.paidAmount = feeReceived(x) + part; x.balance = due - part; x.carriedAmt = due - part;   // baqi abhi bhi naye challan mein
+      }
+    });
+  } else {
+    /* Arrears haath se likha hua (purana challan jura nahi) — wasooli isi challan par darj */
+    f.paidAmount = feeReceived(f) + a; f.balance = Math.max(0, feeOutstanding(f) - a); f.paidDate = date;
+  }
+  const rest = arr.amt - a, desc = ((f.items||[]).find(it=>it.arrears) || {}).desc || "Arrears";
+  f.items = (f.items||[]).filter(it=>!it.arrears).concat(rest > 0 ? [{desc, amt:rest, arrears:true}] : []);
+  if(arr.list.length) f.amount = Math.max(0, (+f.amount||0) - a);
+  if(rest > 0) f.arrears = rest; else delete f.arrears;
+  if(!arr.list.length && hasVal(f.balance)) f.balance = Math.max(0, (+f.amount||0) - feeReceived(f));
   save(); closeModal(); renderFees(); renderDashboard();
-  toast(`✓ Pichla baqaya ${money(arr.amt)} wasool (${fmtD(date)}) — ${f.chNo} ab ${money(f.amount)} ka`);
+  toast(`✓ Arrears ${money(a)} wasool (${fmtD(date)})${rest > 0 ? ` · ${money(rest)} arrears baqi` : ""} — ${f.chNo} ab ${money(feeOutstanding(f))} baqi`);
 }
-function confirmPaid(id){
-  const f=DB.fees.find(x=>x.id===id);
-  f.status="Paid"; f.paidDate=$("mp_date").value||wmDate();
-  if(hasVal(f.balance) || hasVal(f.paidAmount)){ f.paidAmount = +f.amount||0; f.balance = 0; }   // v26: adhi payment wala bhi ab poora
-  save(); closeModal(); renderFees(); renderDashboard(); toast("Paid ✓ ("+f.chNo+" — "+fmtD(f.paidDate)+")");
+
+/* ================= v46: CHALLAN EDIT (banne ke baad bhi) =================
+   Due date, mahina, fee / subjects ki fee + discount, extra charges, arrears (haath se) aur remarks. */
+let ECH = null;
+function editChallan(id){
+  const f = DB.fees.find(x=>x.id===id); if(!f) return;
+  const st = stuById(f.studentId) || {};
+  const ev = (f.shift || st.shift) === "Evening" && (f.subjects||[]).some(x=>+x.fee);
+  const arrIt = (f.items||[]).filter(i=>i.arrears), arr = arrIt.reduce((a,i)=>a+(+i.amt||0),0);
+  ECH = {id, ev, subs:(f.subjects||[]).map(x=>({...x})), items:(f.items||[]).filter(i=>!i.arrears).map(x=>({...x})), arrDesc:(arrIt[0]||{}).desc || "Arrears (pichla baqaya)"};
+  openModal(`
+    <h3>✎ Challan edit — ${esc(f.chNo)}</h3>
+    <p class="sub" style="margin-bottom:10px">${esc(st.name||"")} · ${esc(f.course||st.course||"")} · ${esc(st.shift||f.shift||"")} · ${f.status==="Paid" ? "<b>Paid</b>" : feeReceived(f) ? `${money(feeReceived(f))} wasool ho chuka` : "Unpaid"}</p>
+    <div class="grid2">
+      <div class="field"><label>Fee month</label><input type="month" id="e_month" value="${f.month}"></div>
+      <div class="field"><label>Due date</label><input type="date" id="e_due" value="${f.dueDate||""}"></div>
+      ${ev ? "" : `<div class="field"><label>Monthly fee (Rs)</label><input type="number" id="e_amt" value="${+f.tuition||0}" oninput="echTotal()"></div>
+      <div class="field"><label>Discount (Rs)</label><input type="number" id="e_disc" value="${+f.discount||0}" oninput="echTotal()"></div>`}
+    </div>
+    ${ev ? `<div class="tbl-wrap"><table><thead><tr><th>Subject</th><th>Fee (Rs)</th><th>Discount (Rs)</th></tr></thead><tbody>
+      ${ECH.subs.map((x,i)=>`<tr><td><b>${esc(x.name)}</b></td><td><input type="number" value="${+x.fee||0}" oninput="ECH.subs[${i}].fee=+this.value||0;echTotal()"></td>
+        <td><input type="number" value="${+x.disc||0}" oninput="ECH.subs[${i}].disc=+this.value||0;echTotal()"></td></tr>`).join("")}</tbody></table></div>` : ""}
+    <div class="note" style="margin:10px 0"><b>Other charges</b> (registration, books, AC waghera)</div>
+    <div id="e_items"></div>
+    <button class="btn-line btn-sm" onclick="ECH.items.push({desc:'',amt:0});echItems()">+ Charge</button>
+    <div class="grid2" style="margin-top:10px">
+      <div class="field"><label>Arrears / pichla baqaya is challan mein (Rs)</label><input type="number" id="e_arr" value="${arr}" oninput="echTotal()"></div>
+      <div class="field"><label>Remarks</label><input id="e_rem" value="${esc(f.remarks||"")}"></div>
+    </div>
+    <div id="e_tot" class="note"></div>
+    <div class="modal-foot"><button class="btn-line" onclick="closeModal()">Cancel</button><button class="btn-red" onclick="saveEditChallan()">Save changes</button></div>`, true);
+  echItems();
+}
+function echItems(){
+  $("e_items").innerHTML = ECH.items.length ? ECH.items.map((it,i)=>`<div class="toolbar" style="margin-bottom:6px">
+    <div class="field" style="flex:1"><input value="${esc(it.desc||"")}" placeholder="Description" oninput="ECH.items[${i}].desc=this.value"></div>
+    <div class="field"><input type="number" value="${+it.amt||0}" style="max-width:130px" oninput="ECH.items[${i}].amt=+this.value||0;echTotal()"></div>
+    <button class="btn-danger btn-sm" onclick="ECH.items.splice(${i},1);echItems()">✕</button></div>`).join("") : `<div class="sub" style="margin-bottom:6px">Koi extra charge nahi</div>`;
+  echTotal();
+}
+function echCalc(){
+  const gross = ECH.ev ? ECH.subs.reduce((a,x)=>a+(+x.fee||0),0) : Math.max(0, +$("e_amt").value||0);
+  const disc = ECH.ev ? ECH.subs.reduce((a,x)=>a+Math.min(+x.fee||0, +x.disc||0),0) : Math.min(gross, Math.max(0, +$("e_disc").value||0));
+  const items = ECH.items.filter(i=>String(i.desc||"").trim() && +i.amt).reduce((a,i)=>a+(+i.amt||0),0);
+  const arr = Math.max(0, +$("e_arr").value||0);
+  return {gross, disc, items, arr, total: gross - disc + items + arr};
+}
+function echTotal(){ const c = echCalc(); $("e_tot").innerHTML = `Fee ${money(c.gross)}${c.disc ? ` − discount ${money(c.disc)}` : ""}${c.items ? ` + charges ${money(c.items)}` : ""}${c.arr ? ` + arrears ${money(c.arr)}` : ""} = <b style="font-size:1.05rem">${money(c.total)}</b>`; }
+function saveEditChallan(){
+  const f = DB.fees.find(x=>x.id===ECH.id); if(!f) return;
+  const c = echCalc();
+  if(!c.total){ toast("Challan ki raqam 0 nahi ho sakti"); return; }
+  if(ECH.ev){ f.subjects = ECH.subs.map(x=>({...x, disc:Math.min(+x.fee||0, +x.disc||0)})); }
+  f.tuition = c.gross; f.discount = c.disc; f.discountPct = c.gross ? Math.round(c.disc/c.gross*1000)/10 : 0;
+  f.items = ECH.items.filter(i=>String(i.desc||"").trim() && +i.amt).map(i=>({...i, desc:String(i.desc).trim(), amt:+i.amt}))
+    .concat(c.arr ? [{desc:ECH.arrDesc, amt:c.arr, arrears:true}] : []);
+  if(c.arr) f.arrears = c.arr; else delete f.arrears;
+  f.amount = c.total; f.month = $("e_month").value || f.month; f.dueDate = $("e_due").value; f.remarks = $("e_rem").value.trim();
+  /* pehle se aayi payment ke hisaab se status */
+  if(hasVal(f.paidAmount)){
+    const paid = +f.paidAmount || 0;
+    if(paid >= f.amount){ f.status = "Paid"; f.balance = 0; } else { f.status = "Unpaid"; f.balance = f.amount - paid; }
+  }
+  f.editedOn = todayStr(); f.editedBy = ROLE_LABEL;
+  save(); closeModal(); renderFees(); renderDashboard(); toast(`✓ ${f.chNo} update — ${money(f.amount)}`);
 }
 function markUnpaid(id){ const f=DB.fees.find(x=>x.id===id); f.status="Unpaid"; f.paidDate=""; delete f.paidAmount; delete f.balance; save(); renderFees(); renderDashboard(); }
 function delFee(id){
@@ -3555,6 +3651,7 @@ function openInqForm(id){
       <div class="field"><label>Phone Number *</label><input id="i_phone" value="${esc(i.phone||"")}"></div>
       <div class="field"><label>Interested Class</label><select id="i_course">${courseOptions(i.course)}</select></div>
       <div class="field"><label>Shift</label><select id="i_shift"><option value="">—</option>${["Morning","Evening"].map(x=>`<option ${i.shift===x?"selected":""}>${x}</option>`).join("")}</select></div>
+      <div class="field"><label>Mode of education</label><select id="i_mode">${["Onsite","Online"].map(x=>`<option ${(i.mode||"Onsite")===x?"selected":""}>${x}</option>`).join("")}</select></div>
       <div class="field"><label>Source (kahan se aaye?)</label><select id="i_source"><option value="">—</option>${INQ_SOURCES.map(x=>`<option ${i.source===x?"selected":""}>${x}</option>`).join("")}</select></div>
       <div class="field"><label>Agreed / Decided Fee (Rs)</label><input type="number" id="i_fee" value="${i.fee||""}" placeholder="jis fee par baat hui"></div>
       <div class="field"><label>Inquiry Date</label><input type="date" id="i_date" value="${i.date||wmDate()}"></div>
@@ -3573,7 +3670,7 @@ function openInqForm(id){
 function saveInq(id){
   const name=$("i_name").value.trim(), phone=$("i_phone").value.trim();
   if(!name||!phone){ toast("Name aur phone zaroori hain"); return; }
-  const data = {name, phone, course:$("i_course").value, shift:$("i_shift").value, source:$("i_source").value,
+  const data = {name, phone, course:$("i_course").value, shift:$("i_shift").value, mode:$("i_mode").value, source:$("i_source").value,
     fee:$("i_fee").value||"", date:$("i_date").value||wmDate(), nextFollow:$("i_next").value||"",
     assignedTo:$("i_assigned").value.trim(), stage:$("i_stage").value||"New",
     city:$("i_city").value.trim(), area:$("i_area").value.trim(), detail:$("i_detail").value.trim()};
@@ -3639,7 +3736,7 @@ function delInq(id){
 let pendingInq = null;      // jis inquiry se student form khula — save par "Converted"
 function inqToStudent(id){
   const i = DB.inquiries.find(x=>x.id===id);
-  openStudentForm(null, {_inq:id, name:i.name, phone:i.phone, course:i.course, shift:i.shift||"", monthlyFee:i.fee||"", address:(i.city||"")+(i.area?(", "+i.area):"")});
+  openStudentForm(null, {_inq:id, name:i.name, phone:i.phone, course:i.course, shift:i.shift||"", mode:i.mode||"Onsite", monthlyFee:i.fee||"", address:(i.city||"")+(i.area?(", "+i.area):"")});
 }
 function inqConverted(st){
   const i = pendingInq && DB.inquiries.find(x=>x.id===pendingInq);
@@ -4627,6 +4724,45 @@ function removeFeeCode(){
   }, "Haan, hatayein");
 }
 
+/* ================= v46: A LEVELS → AS / A2 =================
+   Purani "A Levels" class khatam. Kaun AS mein hai kaun A2 mein — ye office batata hai (yahan aik dafa chun lein).
+   Subjects mein "A2" likha ho to A2 pehle se chuna hota hai. Is mahine aur aage ke unpaid challans bhi nayi class par. */
+function openAlSplit(){
+  const L = DB.students.filter(x=>x.course==="A Levels" && x.status!=="Left").sort((a,b)=>a.shift.localeCompare(b.shift) || a.name.localeCompare(b.name));
+  const guess = st => (st.subjects||[]).some(x=>/\bA2\b/i.test(x.name)) ? "A2" : "AS";
+  openModal(`
+    <h3>A Levels → AS / A2</h3>
+    <p class="sub" style="margin-bottom:10px">${L.length} students. Har aik ki class chunein. Sab ek jaise hon to upar ke button.</p>
+    <div class="toolbar"><button class="btn-line btn-sm" onclick="document.querySelectorAll('.al-r[value=AS]').forEach(x=>x.checked=true)">Sab AS</button>
+      <button class="btn-line btn-sm" onclick="document.querySelectorAll('.al-r[value=A2]').forEach(x=>x.checked=true)">Sab A2</button></div>
+    <div class="tbl-wrap" style="max-height:420px;overflow:auto"><table><thead><tr><th>Student</th><th>Shift</th><th>Subjects</th><th>AS</th><th>A2</th></tr></thead><tbody>
+      ${L.map(st=>`<tr><td><b>${esc(st.name)}</b> <span class="sub">${esc(st.regNo||"")}</span></td><td>${esc(st.shift)}</td><td class="sub">${(st.subjects||[]).map(x=>esc(x.name)).join(", ")}</td>
+        ${["AS","A2"].map(c=>`<td><input type="radio" class="al-r" name="al_${st.id}" value="${c}" style="width:auto" ${guess(st)===c?"checked":""}></td>`).join("")}</tr>`).join("")}
+    </tbody></table></div>
+    <div class="modal-foot"><button class="btn-line" onclick="closeModal()">Cancel</button><button class="btn-red" onclick="applyAlSplit()">Save</button></div>`, true);
+}
+function applyAlSplit(){
+  let n = 0;
+  DB.students.filter(x=>x.course==="A Levels").forEach(st=>{
+    const r = document.querySelector(`input[name="al_${st.id}"]:checked`); if(!r) return;
+    st.prevClass = "A Levels"; st.course = r.value; n++;
+    DB.fees.filter(f=>f.studentId===st.id && f.month >= wm() && feeOutstanding(f) > 0).forEach(f=>{ f.course = r.value; });
+  });
+  /* jis shift mein ab koi A Levels student nahi — teachers ki assignment bhi AS + A2 */
+  ["Morning","Evening"].forEach(sh=>{
+    if(DB.students.some(x=>x.course==="A Levels" && x.shift===sh && x.status!=="Left")) return;
+    DB.employees.forEach(e=>{
+      const out = [];
+      (e.assignments||[]).forEach(a=>{
+        if(a.course==="A Levels" && a.shift===sh) ["AS","A2"].forEach(c=>{ if(!out.some(o=>o.course===c && o.shift===sh && (o.subject||"")===(a.subject||""))) out.push({...a, course:c}); });
+        else out.push(a);
+      });
+      e.assignments = out;
+    });
+  });
+  save(); closeModal(); renderStudents(); toast(`✓ ${n} students AS / A2 mein`);
+}
+
 /* ================= v45: MONTHLY TEACHER KPI CHECKLIST =================
    Coordinator har mahine har teacher ki 26-point checklist bharta hai (8 categories). Har KPI 1–5,
    Not done = 0, N/A = ginti se bahar. Score = mile hue / (applicable × 5). Excel wali sheet CSV se import bhi. */
@@ -4969,7 +5105,50 @@ function installApp(){
 const CLASS_DAYS = ["Mon–Fri","Mon–Sat","Mon, Wed, Fri","Tue, Thu, Sat","Sat–Sun","Daily"];
 const DAY_SET = {"Mon–Fri":[1,2,3,4,5], "Mon–Sat":[1,2,3,4,5,6], "Mon, Wed, Fri":[1,3,5], "Tue, Thu, Sat":[2,4,6], "Sat–Sun":[6,0], "Daily":[0,1,2,3,4,5,6]};
 const fmtT = t => { if(!t) return ""; const [h, mi] = t.split(":").map(Number); return `${((h+11)%12)+1}:${String(mi).padStart(2,"0")} ${h<12?"AM":"PM"}`; };
+/* v46: Evening teachers — har class mein mahine ke kam az kam 2 tests */
+const EVE_TEST_TARGET = 2;
+function eveTestStatus(m){
+  return [...myClassKeys()].filter(k=>k.startsWith("Evening|")).map(k=>{
+    const c = k.split("|")[1];
+    const n = DB.tests.filter(t=>t.shift==="Evening" && t.course===c && String(t.date).startsWith(m) && (t.teacherId===MY_TID || (t.by==="teacher" && t.teacherId===MY_TID))).length;
+    return {c, n, need:Math.max(0, EVE_TEST_TARGET - n)};
+  });
+}
+function myLiveKpi(m){
+  const keys = [...myClassKeys()];
+  const tests = DB.tests.filter(t=>String(t.date).startsWith(m) && keys.includes(t.shift+"|"+t.course) && (!t.teacherId || t.teacherId===MY_TID));
+  let n = 0, d = 0; tests.forEach(t=>{ n += testStudents(t).length; d += testMarks(t).length; });
+  const recs = DB.exams.filter(e=>tests.some(t=>t.id===e.testId));
+  const att = DB.empAttendance || {}, days = Object.keys(att).filter(x=>x.startsWith(m) && att[x][MY_TID]);
+  const pres = days.filter(x=>["P","L"].includes(att[x][MY_TID].s)).length;
+  const ev = eveTestStatus(m);
+  const aud = (DB.audits||[]).filter(a=>a.teacherId===MY_TID && String(a.date).startsWith(m)).map(audScore).filter(Boolean);
+  const ck = (DB.kpis||[]).filter(k=>k.teacherId===MY_TID && k.month <= m).sort((a,b)=>b.month.localeCompare(a.month))[0];
+  const ckc = ck ? kpiCalc(ck) : null;
+  const rows = [
+    ["📝 Marks entry", n ? Math.round(d*100/n) : null, n ? `${d} / ${n} bachon ke marks (${tests.length} tests)` : "Is mahine koi test nahi"],
+    ["💬 Remarks", recs.length ? Math.round(recs.filter(e=>String(e.comment||"").trim().length >= 2).length*100/recs.length) : null, recs.length ? `${recs.filter(e=>String(e.comment||"").trim().length>=2).length} / ${recs.length} marks ke saath remark` : "—"],
+    ...(ev.length ? [["🧪 Evening tests (2 / class)", Math.round(ev.reduce((a,x)=>a+Math.min(x.n, EVE_TEST_TARGET),0)*100/(ev.length*EVE_TEST_TARGET)), ev.map(x=>`${x.c}: ${x.n}/${EVE_TEST_TARGET}`).join(" · ")]] : []),
+    ["🗓 Meri attendance", days.length ? Math.round(pres*100/days.length) : null, days.length ? `${pres} / ${days.length} din hazir` : "Abhi mark nahi hui"],
+    ["🔍 Class audit", aud.length ? Math.round(avgOf(aud)) : null, aud.length ? `${aud.length} audits ka ausat` : "Is mahine audit nahi hua"],
+    ["📋 Monthly checklist", ckc ? Math.round(ckc.pct) : null, ck ? `${fmtM(ck.month)} · ${ckc.got}/${ckc.max} · ${kpiRating(ckc.pct)}` : "Coordinator ne abhi nahi bhari"]
+  ];
+  const v = rows.map(r=>r[1]).filter(x=>x !== null);
+  return {rows, live: v.length ? Math.round(avgOf(v)) : null, ck, ckc};
+}
 function renderMyDash(){
+  { const m0 = wm(), K = myLiveKpi(m0), ev = eveTestStatus(m0).filter(x=>x.need);
+    $("mdKpiM").textContent = fmtM(m0);
+    $("mdRemind").innerHTML = ev.length ? `<div class="note" style="margin-bottom:14px;border-left-color:var(--accent-dark,#d9a400);background:#FFF6E0">⏰ <b>Yaad-dahani:</b> Evening mein har class ke mahine mein kam az kam <b>${EVE_TEST_TARGET} tests</b> — ${ev.map(x=>`<b>${esc(x.c)}</b>: ${x.n}/${EVE_TEST_TARGET} (${x.need} aur)`).join(" · ")}
+      <button class="btn-red btn-sm" style="margin-left:8px" onclick="document.querySelector('#nav button[data-page=tests]').click();setTimeout(()=>openTestForm(),50)">+ Test banayein</button></div>` : "";
+    $("mdKpi").innerHTML = `<div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:10px">
+        <div style="font-size:2.2rem;font-weight:900;${scoreColor(K.live)}">${K.live === null ? "—" : K.live + "%"}</div>
+        <div><b>Live KPI score</b><br><span class="sub">${K.live === null ? "Abhi data nahi" : kpiRating(K.live)} · neeche sab ka ausat</span></div></div>
+      <div class="tbl-wrap"><table><tbody>${K.rows.map(([l, p, h])=>`<tr><td style="width:210px"><b>${l}</b></td>
+        <td style="width:46%"><div style="background:#E8EEF0;border-radius:6px;height:10px;overflow:hidden"><div style="height:10px;width:${p ?? 0}%;background:${p === null ? "#ccc" : p >= 80 ? "var(--ok)" : p >= 60 ? "#E0A800" : "var(--danger)"}"></div></div></td>
+        <td style="width:60px;text-align:right"><b style="${scoreColor(p)}">${p === null ? "—" : p + "%"}</b></td><td class="sub">${esc(h)}</td></tr>`).join("")}</tbody></table></div>
+      ${K.ckc ? `<div class="sub" style="margin-top:10px"><b>Checklist categories (${fmtM(K.ck.month)}):</b> ${Object.entries(K.ckc.cats).filter(([,c])=>c.max).map(([n,c])=>`${esc(n)} <b style="${scoreColor(c.pct)}">${c.pct}%</b>`).join(" · ")}${K.ck.signOff ? `<br><b>Coordinator:</b> ${esc(K.ck.signOff)}` : ""}</div>` : ""}`;
+  }
   const me = empById(MY_TID) || {name:"", assignments:[]};
   const m = wm(), RM = rosterMonths(), keys = [...myClassKeys()];
   const stus = DB.students.filter(st=>keys.includes(st.shift+"|"+st.course) && activeIn(st, m, RM));
@@ -6457,7 +6636,8 @@ const CLASS_ALIASES = {
   o2level:"O2", o1level:"O1",
   preolevel:"Pre O Levels", preolevels:"Pre O Levels", preo:"Pre O Levels",
   sat:"SAT",
-  grade5:"Grade 5", grade6:"Grade 6", grade7:"Grade 7", grade8:"Grade 8"
+  aslevel:"AS", aslevels:"AS", a2level:"A2", a2levels:"A2",
+  grade5:"Pre O Levels", grade6:"Pre O Levels", grade7:"Pre O Levels", grade8:"Pre O Levels"
 };
 function matchClass(v, shift){
   let k = keyify(v); if(!k) return "";
@@ -8972,7 +9152,8 @@ if(IS_ADMIN){
   drawLockBtn();
   ADMIN_HIDDEN.forEach(pg=>{ const b = document.querySelector(`#nav button[data-page="${pg}"]`); if(b) b.style.display = "none"; });
   if(IS_TEACHER){ document.body.classList.add("role-teacher"); const me = empById(MY_TID); if(me) ROLE_LABEL = "Teacher · " + me.name;
-    document.querySelector('#nav button[data-page="mydash"]').style.display = ""; }
+    document.querySelector('#nav button[data-page="mydash"]').style.display = "";
+    setTimeout(()=>{ const ev = eveTestStatus(wm()).filter(x=>x.need); if(ev.length) toast(`⏰ Is mahine ${ev.map(x=>`${x.c}: ${x.n}/${EVE_TEST_TARGET} tests`).join(", ")} — har Evening class mein 2 tests lein`); }, 1200); }
   document.querySelector(`#nav button[data-page="${IS_TEACHER ? "mydash" : "students"}"]`).click();
 }
 renderDashboard();
@@ -9020,6 +9201,21 @@ if(ROLE !== "teacher"){
     DB.settings.pakSplitV40 = todayStr(); changed = true;
   }
   if(changed) save();
+}
+/* v46: Grade 5–8 → Pre O Levels (students + teachers ki assignments); naam mein "(Online)" → mode Online */
+if(ROLE !== "teacher" && !DB.settings.classMigV46){
+  DB.students.forEach(st=>{
+    if(LEGACY_CLASS[st.course]){ st.prevClass = st.course; st.course = LEGACY_CLASS[st.course]; }
+    if(!st.mode && /\(\s*online\s*\)/i.test(st.name||"")) st.mode = "Online";
+  });
+  DB.employees.forEach(e=>{
+    const out = [];
+    (e.assignments||[]).forEach(a=>{ const c = LEGACY_CLASS[a.course] || a.course;
+      if(!out.some(o=>o.course===c && o.shift===a.shift && (o.subject||"")===(a.subject||""))) out.push({...a, course:c}); });
+    e.assignments = out;
+  });
+  DB.settings.classMigV46 = todayStr();
+  save();
 }
 if(SERVER){ setSyncState(); if(syncDirty()) queuePush(); }
 frNotify(true);
