@@ -76,6 +76,14 @@ Education Management System for Cambridge Grads Academy.
   remark — so class results, report cards and the parents' chat pick it up. Optionally mark students who never started as absent.
   Changing marks after approval updates Tests & Marks automatically; "Let student redo" removes that student's mark. Deleting the
   assignment keeps the marks already sent.
+- **Teacher access & monthly limit (v66):** Assignments is locked for teachers until the admin approves them. Executive / Admin →
+  ✍ Assignments → **🔐 Teacher access** → "Approve & give code" shows a 6-digit code once (copy / WhatsApp); the teacher enters it once
+  on their Assignments page. "New code" or "Remove" locks them again (5 wrong codes = 15-minute wait). Each approved teacher can make
+  **2 tests + 3 assignments per month** (chosen as "Type" when creating; tests are timed by default) — a tracker on their page shows
+  what is left. The count goes up when one is created and does not go down on delete; the admin can "Reset month". Executive / Admin
+  have no limit. Approved tests go to Tests & Marks as "Test: …", assignments as "Assignment: …".
+- **Students — paper option (v66):** after Start, "⬇ Download PDF" saves the paper as a PDF (or downloads the teacher's own PDF paper);
+  "📤 Upload solved PDF & submit" uploads the solved PDF / photos and submits it for checking straight away (PDF up to 15 MB).
 - Needs **`ANTHROPIC_API_KEY`** on Render (Environment). Without it, "Write my own" still works and work is marked by hand.
 - Data: `DATA_DIR/asg/` (assignments, every student's answers, uploaded papers and photos) — separate from `db.json`; back up that
   folder too.
