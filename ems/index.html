@@ -1296,7 +1296,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v66 · 8 Oct 2026";
+const BUILD = "v67 · 8 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -4242,6 +4242,9 @@ function inqNorm(i){
   if(!i.source) i.source = "";
   return i;
 }
+/* v67: "Online" can be picked as the shift — stored as mode:"Online" (shift stays Morning/Evening or empty) */
+const inqShift = i => i.mode === "Online" && !i.shift ? "Online" : (i.shift || "");
+const inqShiftTxt = i => [i.shift, i.mode === "Online" ? "🌐 Online" : ""].filter(Boolean).join(" · ");
 const staffName = () => { try{ return localStorage.getItem("emsUser") || ""; }catch(e){ return ""; } };
 const setStaffName = n => { try{ if(n) localStorage.setItem("emsUser", n); }catch(e){} };
 const telLink = p => `tel:${String(p||"").replace(/[^\d+]/g,"")}`;
@@ -4303,7 +4306,7 @@ function renderInquiries(){
     return `<tr>
       <td>${fmtD(i.date)}</td>
       <td><b>${esc(i.name)}</b><br><span class="sub">${esc(i.phone)}${i.city||i.area?` · ${esc(i.city||"")}${i.area?", "+esc(i.area):""}`:""}</span></td>
-      <td>${esc(i.course||"—")}${i.shift?`<br><span class="sub">${esc(i.shift)}</span>`:""}${i.fee?`<br><span class="sub">Fee ${money(i.fee)}</span>`:""}</td>
+      <td>${esc(i.course||"—")}${inqShiftTxt(i)?`<br><span class="sub">${esc(inqShiftTxt(i))}</span>`:""}${i.fee?`<br><span class="sub">Fee ${money(i.fee)}</span>`:""}</td>
       <td>${esc(i.source||"—")}${i.assignedTo ? `<br><span class="sub">👤 ${esc(i.assignedTo)}</span>` : ""}</td>
       <td>${inqStageBadge(i.stage)}${i.stage==="Converted"&&i.studentId&&stuById(i.studentId)?`<br><span class="sub">${esc(stuById(i.studentId).regNo)}</span>`:""}${i.stage==="Lost"&&i.lostReason?`<br><span class="sub">${esc(i.lostReason)}</span>`:""}</td>
       <td>${INQ_OPEN(i.stage) && i.nextFollow ? `<span style="${i.nextFollow<t?"color:var(--danger);font-weight:700":i.nextFollow===t?"font-weight:700":""}">${i.nextFollow<t?"⚠ ":""}${fmtD(i.nextFollow)}</span>` : "—"}</td>
@@ -4355,8 +4358,8 @@ function openInqForm(id){
       <div class="field"><label>Name *</label><input id="i_name" value="${esc(i.name||"")}"></div>
       <div class="field"><label>Phone Number *</label><input id="i_phone" value="${esc(i.phone||"")}"></div>
       <div class="field"><label>Interested Class</label><select id="i_course">${courseOptions(i.course)}</select></div>
-      <div class="field"><label>Shift</label><select id="i_shift"><option value="">—</option>${["Morning","Evening"].map(x=>`<option ${i.shift===x?"selected":""}>${x}</option>`).join("")}</select></div>
-      <div class="field"><label>Mode of education</label><select id="i_mode">${["Onsite","Online"].map(x=>`<option ${(i.mode||"Onsite")===x?"selected":""}>${x}</option>`).join("")}</select></div>
+      <div class="field"><label>Shift</label><select id="i_shift" onchange="if(this.value==='Online')$('i_mode').value='Online'"><option value="">—</option>${["Morning","Evening","Online"].map(x=>`<option ${inqShift(i)===x?"selected":""}>${x}</option>`).join("")}</select></div>
+      <div class="field"><label>Mode of education</label><select id="i_mode" onchange="if(this.value!=='Online'&&$('i_shift').value==='Online')$('i_shift').value=''">${["Onsite","Online"].map(x=>`<option ${(i.mode||"Onsite")===x?"selected":""}>${x}</option>`).join("")}</select></div>
       <div class="field"><label>Source (how did they find us?)</label><select id="i_source"><option value="">—</option>${INQ_SOURCES.map(x=>`<option ${i.source===x?"selected":""}>${x}</option>`).join("")}</select></div>
       <div class="field"><label>Agreed / Decided Fee (Rs)</label><input type="number" id="i_fee" value="${i.fee||""}" placeholder="fee agreed upon"></div>
       <div class="field"><label>Inquiry Date</label><input type="date" id="i_date" value="${i.date||wmDate()}"></div>
@@ -4375,7 +4378,8 @@ function openInqForm(id){
 function saveInq(id){
   const name=$("i_name").value.trim(), phone=$("i_phone").value.trim();
   if(!name||!phone){ toast("Name and phone are required"); return; }
-  const data = {name, phone, course:$("i_course").value, shift:$("i_shift").value, mode:$("i_mode").value, source:$("i_source").value,
+  const shSel = $("i_shift").value, online = shSel === "Online" || $("i_mode").value === "Online";
+  const data = {name, phone, course:$("i_course").value, shift:shSel === "Online" ? "" : shSel, mode:online ? "Online" : "Onsite", source:$("i_source").value,
     fee:$("i_fee").value||"", date:$("i_date").value||wmDate(), nextFollow:$("i_next").value||"",
     assignedTo:$("i_assigned").value.trim(), stage:$("i_stage").value||"New",
     city:$("i_city").value.trim(), area:$("i_area").value.trim(), detail:$("i_detail").value.trim()};
@@ -4403,11 +4407,13 @@ function openInqLog(id){
   const i = inqNorm(DB.inquiries.find(x=>x.id===id));
   openModal(`
     <h3>📞 ${esc(i.name)} — ${esc(i.phone)}</h3>
-    <p class="sub" style="margin-bottom:10px">${esc(i.course||"")} ${i.shift?"· "+esc(i.shift):""} ${i.source?"· "+esc(i.source):""} · Inquiry ${fmtD(i.date)} · ${inqStageBadge(i.stage)}
+    <p class="sub" style="margin-bottom:10px">${esc(i.course||"")} ${inqShiftTxt(i)?"· "+esc(inqShiftTxt(i)):""} ${i.source?"· "+esc(i.source):""} · Inquiry ${fmtD(i.date)} · ${inqStageBadge(i.stage)}
       &nbsp;<a href="${telLink(i.phone)}">Call</a> · <a target="_blank" rel="noopener" href="${waLink(i.phone)}">WhatsApp</a></p>
-    <div class="tbl-wrap" style="max-height:220px;overflow:auto"><table><thead><tr><th>Date</th><th>Stage</th><th>Note</th><th>By</th></tr></thead><tbody>
-      ${i.log.length ? i.log.slice().reverse().map(l=>`<tr><td>${fmtD(l.d)}</td><td>${esc(l.stage||"")}</td><td>${esc(l.note||"")}</td><td>${esc(l.by||"")}</td></tr>`).join("")
-        : `<tr><td colspan="4" class="empty">No follow-ups yet</td></tr>`}</tbody></table></div>
+    <div class="tbl-wrap" style="max-height:220px;overflow:auto"><table><thead><tr><th>Date</th><th>Stage</th><th>Note</th><th>By</th><th></th></tr></thead><tbody>
+      ${i.log.length ? i.log.slice().reverse().map(l=>`<tr id="ilr_${l.id}"><td>${fmtD(l.d)}</td><td>${esc(l.stage||"")}</td><td>${esc(l.note||"")}${l.edited?`<br><span class="sub" title="Before: ${esc(fmtD(l.edited.prev.d)+" · "+(l.edited.prev.note||"")+(l.edited.prev.by?" · "+l.edited.prev.by:""))}">✎ edited ${fmtD(l.edited.on.slice(0,10))}${l.edited.by?" by "+esc(l.edited.by):""}</span>`:""}</td><td>${esc(l.by||"")}</td>
+          <td>${l.edited || !l.id ? "" : `<button class="btn-line btn-sm" title="Edit this entry (allowed once)" onclick="editInqLogRow('${id}','${l.id}')">✎ Edit</button>`}</td></tr>`).join("")
+        : `<tr><td colspan="5" class="empty">No follow-ups yet</td></tr>`}</tbody></table></div>
+    <p class="sub" style="margin-top:4px">✎ Each log entry can be edited <b>one time only</b> — the original text is kept (hover "edited").</p>
     ${i.stage==="Converted" ? `<div class="note" style="margin-top:12px">Admitted${i.studentId&&stuById(i.studentId)?` — ${esc(stuById(i.studentId).name)} (${esc(stuById(i.studentId).regNo)})`:""} · ${fmtD(i.convertedOn)}</div>` : `
     <h3 style="margin:16px 0 8px">Add a follow-up</h3>
     <div class="grid2">
@@ -4423,6 +4429,26 @@ function openInqLog(id){
       <button class="btn-line" onclick="closeModal()">Close</button>
       <button class="btn-red" onclick="saveInqLog('${id}')">Save Follow-up</button>
     </div>`}`, true);
+}
+function editInqLogRow(id, lid){
+  const i = inqNorm(DB.inquiries.find(x=>x.id===id)), l = i.log.find(x=>x.id===lid);
+  if(!l || l.edited){ toast("This entry has already been edited once"); return; }
+  $("ilr_" + lid).innerHTML = `<td><input type="date" id="le_d" value="${esc(l.d||"")}" style="max-width:150px"></td><td>${esc(l.stage||"")}</td>
+    <td><textarea id="le_note" rows="2" style="min-width:180px">${esc(l.note||"")}</textarea></td><td><input id="le_by" value="${esc(l.by||"")}" style="max-width:120px"></td>
+    <td style="white-space:nowrap"><button class="btn-red btn-sm" onclick="saveInqLogEdit('${id}','${lid}')">Save</button> <button class="btn-line btn-sm" onclick="openInqLog('${id}')">✕</button></td>`;
+}
+function saveInqLogEdit(id, lid){
+  const i = inqNorm(DB.inquiries.find(x=>x.id===id)), l = i.log.find(x=>x.id===lid);
+  if(!l || l.edited){ toast("This entry has already been edited once"); return; }
+  const d = $("le_d").value || l.d, note = $("le_note").value.trim(), by = $("le_by").value.trim();
+  if(!note){ toast("The note cannot be empty"); return; }
+  if(d === l.d && note === (l.note||"") && by === (l.by||"")){ openInqLog(id); return; }
+  askConfirm("Save this edit?", "A log entry can be edited <b>only once</b> — after this it is locked.", ()=>{
+    l.edited = {on:new Date().toISOString(), by:myName() || staffName() || ROLE_LABEL, prev:{d:l.d, note:l.note||"", by:l.by||""}};
+    l.d = d; l.note = note; l.by = by;
+    if(l.kind === "new" && d !== i.date) i.date = d;
+    save(); openInqLog(id); renderInquiries(); toast("Log entry updated (locked now)");
+  }, "Yes, save");
 }
 function saveInqLog(id){
   const i = inqNorm(DB.inquiries.find(x=>x.id===id));
@@ -5603,7 +5629,7 @@ function inqNotify(first){
 function openInqBell(){
   if(!myName()){ openMe(); return; }
   const L = inqMineLists(), t = todayStr();
-  const row = i => `<tr><td><b>${esc(i.name)}</b><br><span class="sub">${esc(i.phone||"")}</span></td><td>${esc(i.course||"")}${i.shift ? `<br><span class="sub">${esc(i.shift)}</span>` : ""}</td>
+  const row = i => `<tr><td><b>${esc(i.name)}</b><br><span class="sub">${esc(i.phone||"")}</span></td><td>${esc(i.course||"")}${inqShiftTxt(i) ? `<br><span class="sub">${esc(inqShiftTxt(i))}</span>` : ""}</td>
     <td>${inqStageBadge(i.stage)}</td><td style="${i.nextFollow && i.nextFollow < t ? "color:var(--danger);font-weight:700" : ""}">${i.nextFollow ? fmtD(i.nextFollow) : "—"}</td>
     <td class="sub">${i.assignedBy ? `${esc(i.assignedBy)} ne · ` : ""}${i.assignedOn ? fmtD(String(i.assignedOn).slice(0,10)) : fmtD(i.date)}</td>
     <td style="white-space:nowrap"><a class="btn-line btn-sm" href="${telLink(i.phone)}">📞</a> <a class="btn-line btn-sm" target="_blank" rel="noopener" href="${waLink(i.phone)}">WA</a>
