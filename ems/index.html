@@ -891,6 +891,14 @@ label.chk input{width:auto}
       <div class="field"><label>Access</label><select id="parAccF" onchange="renderParents()"><option value="">All</option><option value="yes">PIN given</option><option value="no">No PIN yet</option></select></div></div>
     <div class="tbl-wrap"><table><thead><tr><th>Phone</th><th>Children</th><th>Whose number</th><th>Access</th><th>Last login</th><th>Actions</th></tr></thead><tbody id="parFams"></tbody></table></div>
     <div id="parNoPhone" style="margin-top:10px"></div></div>
+  <div class="panel"><h3>🎓 Student logins — Evening</h3>
+    <p class="sub" style="margin:4px 0 10px">Evening students log in to <b id="slLink"></b> themselves with their <b>Reg No + 6-digit PIN</b> (assignments). Morning students use their parent's phone + PIN (above). The PIN is shown only once — creating a new one stops the old one.</p>
+    <div class="toolbar"><div class="field"><label>Class</label><select id="slCls" onchange="renderStudentLogins()"></select></div>
+      <div class="field"><label>Search</label><input id="slQ" placeholder="Name / Reg No" oninput="renderStudentLogins()"></div>
+      <div class="field"><label>Login</label><select id="slF" onchange="renderStudentLogins()"><option value="">All</option><option value="yes">PIN given</option><option value="no">No PIN yet</option></select></div>
+      <button class="btn-red" style="margin-bottom:10px" onclick="bulkStudentPins()">🔑 Create PINs for all without one (this list)</button></div>
+    <p class="sub" id="slHint" style="margin:0 0 8px"></p>
+    <div class="tbl-wrap"><table><thead><tr><th>Reg No</th><th>Student</th><th>Class</th><th>Login</th><th>Actions</th></tr></thead><tbody id="slRows"></tbody></table></div></div>
 </section>
 
 <section class="page" id="page-audit">
@@ -1281,7 +1289,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v61 · 8 Oct 2026";
+const BUILD = "v62 · 8 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -1396,6 +1404,7 @@ const DEFAULT_DB = {
   attendance:{},           // { "2026-07-07": { studentId: {s:"P|A|L", t:"08:05", shift:"Morning"} } }
   empAttendance:{},        // { "2026-07-07": { empId: {s:"P|A|L", t:"09:00"} } }
   classCosts:{},           // { "Morning|O1": [{id, teacherId, subject, amount}] } — teacher pay per class
+  studentAccess:[],        // v62: [{id, studentId, salt, hash, iter, active, pinSetOn}] — Evening students ka apna login (Reg No + PIN)
   parentAccess:[],         // v28: [{id, phone(10 digit key), salt, hash, iter, active, pinSetOn}] — parents chat login
   feeReceipts:[],          // v43: parents ki app se fee receipts — [{id,studentId,feeId,chNo,amount,paidOn,method,ref,file,d,status:"Pending|Approved|Rejected",note}]
   parentMsgs:[],           // v28: [{id, studentId, studentName, phone, d, text, status, reply, repliedOn, repliedBy}]
@@ -4510,10 +4519,94 @@ function renderParents(){
       <td style="white-space:nowrap">${f.kids.length ? `<button class="btn-red btn-sm" onclick="genParentPin('${f.key}')">${has ? "New PIN" : "Create PIN"}</button>` : ""}
         ${has ? `<button class="btn-line btn-sm" onclick="blockParent('${f.key}')">Close</button>` : ""}</td></tr>`;
   }).join("") : `<tr><td colspan="6" class="empty">No families found — add Father / Mother phone in student profiles</td></tr>`;
+  renderStudentLogins();
   $("parNoPhone").innerHTML = noPhone.length
     ? `<div class="note"><b>${noPhone.length} active students have no phone number</b> — their parents cannot be given access: ` +
       noPhone.slice(0, 30).map(st=>`<a href="#" class="chip" onclick="openStudentForm('${st.id}');return false">${esc(st.name)} · ${esc(st.course)}</a>`).join(" ") + (noPhone.length > 30 ? ` +${noPhone.length-30}` : "") + `</div>` : "";
 }
+/* ================= v62: STUDENT LOGINS (Evening) =================
+   Parent PIN jaisa: PIN browser mein banta hai, DB mein sirf PBKDF2 hash (DB.studentAccess). Server /student par Reg No + PIN check karta hai. */
+const stuAccOf = sid => (DB.studentAccess||[]).find(a=>a.studentId===sid);
+const stuHasPin = sid => { const a = stuAccOf(sid); return !!(a && a.active !== false && a.hash); };
+const regK = r => String(r||"").trim().toLowerCase().replace(/\s+/g,"");
+function eveStudents(){ return DB.students.filter(st=>st.shift === "Evening" && st.status !== "Left"); }
+function eveRegDupes(){
+  const n = {}; eveStudents().forEach(st=>{ const k = regK(st.regNo); if(k) n[k] = (n[k]||0) + 1; });
+  return k => n[regK(k)] > 1;
+}
+function slFiltered(){
+  const c = $("slCls").value, q = ($("slQ").value||"").toLowerCase(), f = $("slF").value;
+  return eveStudents().filter(st=>(!c || inClass(st, c)) && (!q || (st.name + " " + (st.regNo||"")).toLowerCase().includes(q))
+    && (!f || (f === "yes") === stuHasPin(st.id))).sort((a,b)=>a.course.localeCompare(b.course) || a.name.localeCompare(b.name));
+}
+function renderStudentLogins(){
+  if(!$("slRows")) return;
+  if(!DB.studentAccess) DB.studentAccess = [];
+  $("slLink").textContent = SERVER ? location.origin + "/student" : "/student";
+  const sel = $("slCls"), keep = sel.value, eve = eveStudents();
+  sel.innerHTML = `<option value="">All Evening classes</option>` + [...new Set(eve.flatMap(classesOf))].sort().map(c=>`<option ${c===keep?"selected":""}>${esc(c)}</option>`).join("");
+  const dup = eveRegDupes(), rows = slFiltered();
+  $("slHint").textContent = `${eve.filter(st=>stuHasPin(st.id)).length} of ${eve.length} Evening students have a login`;
+  $("slRows").innerHTML = rows.length ? rows.map(st=>{ const a = stuAccOf(st.id), has = stuHasPin(st.id), bad = !st.regNo ? "no Reg No" : dup(st.regNo) ? "Reg No used twice" : "";
+    return `<tr><td><b>${esc(st.regNo||"—")}</b></td><td>${esc(st.name)}</td><td>${esc(classesOf(st).join(" + "))}</td>
+      <td>${has ? `<span class="badge b-paid">PIN ✓</span> <span class="sub">${fmtD(a.pinSetOn)}</span>` : a ? `<span class="badge b-left">Closed</span>` : `<span class="sub">—</span>`}</td>
+      <td style="white-space:nowrap">${bad ? `<a href="#" class="sub" onclick="openStudentForm('${st.id}');return false">⚠ ${bad} — fix first</a>`
+        : `<button class="btn-red btn-sm" onclick="genStudentPin('${st.id}')">${has ? "New PIN" : "Create PIN"}</button>${has ? ` <button class="btn-line btn-sm" onclick="closeStudentLogin('${st.id}')">Close</button>` : ""}`}</td></tr>`; }).join("")
+    : `<tr><td colspan="5" class="empty">No Evening students found</td></tr>`;
+}
+async function newStudentPin(st){
+  const pin = String(crypto.getRandomValues(new Uint32Array(1))[0] % 1000000).padStart(6, "0"), h = await pinHash(pin);
+  DB.studentAccess = DB.studentAccess || [];
+  const a = stuAccOf(st.id);
+  if(a) Object.assign(a, h, {active:true, pinSetOn:todayStr()}); else DB.studentAccess.push({id:uid(), studentId:st.id, ...h, active:true, pinSetOn:todayStr()});
+  return pin;
+}
+const studentPinMsg = (st, pin) => `Dear ${st.name},\n${DB.settings.name||"Cambridge Grads Academy"} — Student Assignments:\n${location.origin}/student\n\nChoose "Evening student" and log in with\nReg No: ${st.regNo}\nPIN: ${pin}\n\nKeep your PIN private.`;
+async function genStudentPin(sid){
+  if(!SERVER){ toast("Student logins only work on the online version"); return; }
+  if(!window.crypto || !crypto.subtle){ toast("This browser cannot create PINs — use Chrome / Edge"); return; }
+  const st = stuById(sid); if(!st || !st.regNo){ toast("Add the Reg No first"); return; }
+  const had = stuHasPin(sid), pin = await newStudentPin(st);
+  save(); renderStudentLogins();
+  const msg = studentPinMsg(st, pin), ph = st.phone || st.fatherPhone || st.motherPhone;
+  openModal(`<h3>🔑 Student PIN — ${esc(st.name)}</h3>
+    <div class="note">Reg No <b>${esc(st.regNo)}</b> · PIN <b style="font-size:1.6rem;letter-spacing:.2em;font-family:monospace">${pin}</b><br>Shown only now. ${had ? "The old PIN no longer works." : ""}</div>
+    <div class="field"><label>Message</label><textarea id="pinMsg" rows="7">${esc(msg)}</textarea></div>
+    <div class="modal-foot"><button class="btn-line" onclick="navigator.clipboard&&navigator.clipboard.writeText($('pinMsg').value).then(()=>toast('Copied'))">📋 Copy</button>
+      ${ph ? `<a class="btn-red" style="padding:9px 14px" target="_blank" rel="noopener" href="${waLink(ph)}?text=${encodeURIComponent(msg)}">Send on WhatsApp</a>` : ""}
+      <button class="btn-line" onclick="closeModal()">Close</button></div>`, true);
+}
+async function bulkStudentPins(){
+  if(!SERVER){ toast("Student logins only work on the online version"); return; }
+  if(!window.crypto || !crypto.subtle){ toast("This browser cannot create PINs — use Chrome / Edge"); return; }
+  const dup = eveRegDupes(), list = slFiltered().filter(st=>!stuHasPin(st.id) && st.regNo && !dup(st.regNo));
+  if(!list.length){ toast("Everyone in this list already has a PIN (or needs a Reg No)"); return; }
+  askConfirm(`Create PINs for ${list.length} students?`, "You will get a list of Reg No + PIN to print or share. PINs are shown only once.", async ()=>{
+    toast("Creating PINs…");
+    const out = [];
+    for(const st of list) out.push([st, await newStudentPin(st)]);
+    save(); renderStudentLogins();
+    const text = out.map(([st, pin])=>`${st.regNo}\t${st.name}\t${classesOf(st).join("+")}\tPIN ${pin}`).join("\n");
+    openModal(`<h3>🔑 ${out.length} student PINs created</h3><div class="note">Shown only now — print or copy before closing. Students log in at <b>${esc(location.origin)}/student</b> → "Evening student".</div>
+      <div class="tbl-wrap" style="max-height:340px;overflow:auto"><table><thead><tr><th>Reg No</th><th>Student</th><th>Class</th><th>PIN</th></tr></thead><tbody>
+      ${out.map(([st, pin])=>`<tr><td>${esc(st.regNo)}</td><td>${esc(st.name)}</td><td>${esc(classesOf(st).join(" + "))}</td><td style="font-family:monospace;font-weight:700;letter-spacing:.15em">${pin}</td></tr>`).join("")}</tbody></table></div>
+      <textarea id="pinMsg" style="position:absolute;left:-9999px">${esc(text)}</textarea>
+      <div class="modal-foot"><button class="btn-line" onclick="navigator.clipboard&&navigator.clipboard.writeText($('pinMsg').value).then(()=>toast('Copied'))">📋 Copy all</button>
+        <button class="btn-line" onclick="printPinSlips()">🖨 Print slips</button><button class="btn-line" onclick="closeModal()">Close</button></div>`, true);
+    window.__pinSlips = out.map(([st, pin])=>({name:st.name, reg:st.regNo, cls:classesOf(st).join(" + "), pin}));
+  }, "Create PINs");
+}
+function printPinSlips(){
+  const w = window.open("", "_blank"); if(!w){ toast("Allow pop-ups to print"); return; }
+  w.document.write(`<!doctype html><title>Student PINs</title><style>body{font-family:Arial,sans-serif;margin:16px}.s{display:inline-block;width:46%;border:1px dashed #999;margin:6px;padding:10px;vertical-align:top}b{font-size:18px}</style>
+    ${(window.__pinSlips||[]).map(x=>`<div class="s">${esc(DB.settings.name||"Cambridge Grads Academy")} — Assignments<br>${esc(location.origin)}/student → Evening student<br><br>${esc(x.name)} · ${esc(x.cls)}<br>Reg No: <b>${esc(x.reg)}</b> &nbsp; PIN: <b>${x.pin}</b></div>`).join("")}`);
+  w.document.close(); setTimeout(()=>w.print(), 300);
+}
+function closeStudentLogin(sid){
+  const a = stuAccOf(sid), st = stuById(sid); if(!a) return;
+  askConfirm("Close this student's login?", `${esc(st ? st.name : "")} will no longer be able to log in with their PIN.`, ()=>{ a.active = false; save(); renderStudentLogins(); toast("Login closed"); }, "Close login");
+}
+
 function drawParentLogins(){
   document.querySelectorAll("#parFams [data-login]").forEach(td=>{ const v = parentLogins[td.dataset.login]; td.textContent = v ? fmtD(v) : "—"; });
   const wk = new Date(Date.now() - 7*864e5).toISOString();
@@ -5040,7 +5133,7 @@ function renderTests(){
       <td>${t.total}</td>
       <td><span class="badge ${n && d>=n ? "b-paid" : d ? "b-freeze" : "b-unpaid"}">${d} / ${n}</span></td>
       <td>${av===null ? "—" : `<b>${av}%</b>`}</td>
-      <td class="sub">${t.by==="teacher" ? "Teacher" : "Admin"}</td>
+      <td class="sub">${t.by==="teacher" ? "Teacher" : t.by==="assignment" ? "✍ Assignment" : "Admin"}</td>
       <td style="white-space:nowrap">
         <button class="btn-red btn-sm" onclick="openMarks('${t.id}')">✍ Marks</button>
         ${canEditTest(t) ? `<button class="btn-line btn-sm" onclick="openTestForm('${t.id}')">Edit</button>
@@ -6295,18 +6388,37 @@ async function asgDetail(id, quiet){
     <div class="card"><div class="k">Submitted</div><div class="v">${r.filter(x=>!["not_started","in_progress"].includes(x.status)).length}</div><div class="hint">${r.filter(x=>x.status==="in_progress").length} working now</div></div>
     <div class="card"><div class="k">Class average</div><div class="v">${avg === null ? "—" : avg + "%"}</div></div>
     <div class="card"><div class="k">Need your check</div><div class="v ${r.some(x=>x.review || x.status === "error") ? "red" : "green"}">${r.filter(x=>x.review || x.status === "error").length}</div><div class="hint">AI unsure / not marked</div></div></div>
-  <div class="panel"><h3>Results</h3><div class="tbl-wrap"><table><thead><tr><th>Student</th><th>Status</th><th>Submitted</th><th style="text-align:right">Marks</th><th></th></tr></thead><tbody>
+  <div class="panel"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><h3 style="margin:0">Results</h3>
+      ${(()=>{ const n = r.filter(x=>x.status === "marked" && (!x.approved || x.approvedScore !== x.score)).length;
+        return n ? `<button class="btn-red btn-sm" onclick="asgApprove()">✅ Approve ${n} & send to Tests & Marks</button>`
+          : r.some(x=>x.approved) ? `<span class="sub">✓ Approved marks are in Tests & Marks</span>` : ""; })()}</div>
+    <p class="sub" style="margin:6px 0 10px">Check the scripts (especially "⚠ check"), then approve — the marks go to <b>Tests & Marks</b> as “Assignment: ${esc(a.title)}”, and from there to class results, report cards and the parents' chat.</p>
+    <div class="tbl-wrap"><table><thead><tr><th>Student</th><th>Status</th><th>Submitted</th><th style="text-align:right">Marks</th><th>Tests & Marks</th><th></th></tr></thead><tbody>
     ${r.length ? r.map(x=>{ const [l,c] = ASG_ST[x.status] || [x.status,""]; return `<tr><td><b>${esc(x.name)}</b> <span class="sub">${esc(x.regNo)}</span></td>
       <td><span class="badge ${c}">${l}</span>${x.review ? ` <span class="badge b-unpaid">⚠ check</span>` : ""}${x.teacherEdited ? ` <span class="sub">edited</span>` : ""}</td>
       <td>${x.submittedAt ? new Date(x.submittedAt).toLocaleString("en-GB",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"}) + (x.auto ? " <span class='sub'>(time up)</span>" : "") : "—"}</td>
       <td style="text-align:right">${x.score === null ? "—" : `<b>${x.score}</b>/${a.total}`}</td>
+      <td>${x.approved ? (x.approvedScore === x.score ? `<span class="badge b-paid">✓ Sent</span>` : `<span class="badge b-unpaid">Changed — approve again</span>`) : x.status === "marked" ? `<span class="sub">Not approved</span>` : "—"}</td>
       <td>${x.subId && !["in_progress"].includes(x.status) ? `<button class="btn-black btn-sm" onclick="asgScript('${x.subId}')">View script</button>` : ""}</td></tr>`; }).join("")
-    : `<tr><td colspan="5" class="empty">No students chosen yet — Edit → Give to students.</td></tr>`}</tbody></table></div></div>`;
+    : `<tr><td colspan="6" class="empty">No students chosen yet — Edit → Give to students.</td></tr>`}</tbody></table></div></div>`;
   if(!ASG.poll && r.some(x=>["in_progress","submitted","checking"].includes(x.status))) ASG.poll = setInterval(()=>{ if(ASG.view === "detail" && !document.hidden) asgDetail(id, true); }, 12000);
+}
+function asgApprove(){
+  const a = ASG.cur, r = a.roster, n = r.filter(x=>x.status === "marked" && (!x.approved || x.approvedScore !== x.score)).length;
+  const missing = r.filter(x=>x.status === "not_started").length, review = r.filter(x=>x.status === "marked" && x.review && !x.teacherEdited).length;
+  askConfirm(`Send ${n} student(s)' marks to Tests & Marks?`,
+    `${review ? `<div class="note">⚠ ${review} script(s) were flagged by the AI and you have not opened them yet.</div>` : ""}
+     The marks are saved as the test <b>Assignment: ${esc(a.title)}</b> (${esc(a.course)} · ${esc(a.subject)} · ${a.total} marks).
+     ${missing ? `<label class="chk" style="margin-top:10px"><input type="checkbox" id="apAbs"> Also mark the ${missing} student(s) who never started as <b>absent</b></label>` : ""}`,
+    async ()=>{
+      try{ const d = await asgApi("/api/asg/approve", {id:a.id, absent:!!($("apAbs") && $("apAbs").checked)});
+        toast(`✓ ${d.approved} sent to Tests & Marks${d.absent ? ` · ${d.absent} absent` : ""}`); asgDetail(a.id); }
+      catch(e){ toast(e.message); }
+    }, "✅ Approve");
 }
 function asgDelete(){
   const a = ASG.cur;
-  askConfirm("Delete this assignment?", `<b>${esc(a.title)}</b> and every student's answers and marks will be removed.`, async ()=>{
+  askConfirm("Delete this assignment?", `<b>${esc(a.title)}</b> and every student's answers will be removed.${a.testId ? " Marks already sent to Tests & Marks stay there." : ""}`, async ()=>{
     try{ await asgApi("/api/asg/delete", {id:a.id}); toast("Deleted"); renderAssign(); }catch(e){ toast(e.message); }
   }, "Delete");
 }
@@ -6351,12 +6463,15 @@ async function asgScript(id){
         <div class="m"><input class="as_aw" type="number" min="0" max="${q.marks}" step="0.5" value="${m.awarded}" oninput="asgSum()"><span>/ ${q.marks}</span><small>${esc(m.marks_annotation||"")}</small></div></div>`; }).join("")}
     <div class="field" style="margin-top:12px"><label>Overall comment</label><textarea id="as_over" rows="3">${esc(r.overall_feedback||"")}</textarea></div>
     ${(s.files||[]).length ? `<h3>Written work</h3><div class="asg-photos">${s.files.map(f=>f.type === "application/pdf" ? `<a href="/api/asg/file/${f.file}" target="_blank" rel="noopener">📄 ${esc(f.name)}</a>` : `<a href="/api/asg/file/${f.file}" target="_blank" rel="noopener"><img src="/api/asg/file/${f.file}" alt=""></a>`).join("")}</div>` : ""}
-    <div style="display:flex;gap:8px;margin-top:14px"><button class="btn-red" onclick="asgSaveMarks('${s.id}')">💾 Save marks</button><span class="sub" style="align-self:center">The student sees your marks and comments straight away.</span></div></div>`;
+    <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;align-items:center"><button class="btn-red" onclick="asgSaveMarks('${s.id}', true)">✅ Approve & send to Tests & Marks</button>
+      <button class="btn-line" onclick="asgSaveMarks('${s.id}')">💾 Save only</button>
+      <span class="sub">${s.approved ? `In Tests & Marks: <b>${s.approvedScore}/${a.total}</b> (approved by ${esc(s.approvedBy||"")}). Saving updates it.` : "The student sees your marks and comments straight away."}</span></div></div>`;
 }
 function asgSum(){ $("as_tot").textContent = [...document.querySelectorAll(".as_aw")].reduce((t,i)=>t + Math.min(+i.max, Math.max(0, +i.value||0)), 0); }
-async function asgSaveMarks(id){
+async function asgSaveMarks(id, approve){
   const questions = [...document.querySelectorAll(".asg-sq")].map(el=>({number:el.dataset.n, awarded:+el.querySelector(".as_aw").value, examiner_comment:el.querySelector(".as_cm").value}));
-  try{ await asgApi("/api/asg/mark", {id, questions, overall_feedback:$("as_over").value}); toast("Marks saved"); asgScript(id); }catch(e){ toast(e.message); }
+  try{ const s = await asgApi("/api/asg/mark", {id, questions, overall_feedback:$("as_over").value, approve:!!approve});
+    toast(approve || s.approved ? "✓ Saved and sent to Tests & Marks" : "Marks saved"); asgScript(id); }catch(e){ toast(e.message); }
 }
 async function asgRecheck(id, aid){
   try{ await asgApi("/api/asg/recheck", {id}); toast("Checking again — results in about a minute"); asgDetail(aid); }catch(e){ toast(e.message); }

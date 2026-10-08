@@ -30,7 +30,7 @@ const isDate = (d) => /^\d{4}-\d{2}-\d{2}$/.test(String(d || ""));
 
 module.exports = function setup(ctx) {
   const { DATA_DIR, send, sendJson, readBody, readRaw, sameOrigin, dbNow, logAct, actWho, accessFor, pinOk, childrenOf, phoneKey,
-          clientIp, blocked, failed, fails, isHttps, escHtml, schoolName, teacherClasses } = ctx;
+          clientIp, blocked, failed, fails, isHttps, escHtml, schoolName, teacherClasses, mutateDb } = ctx;
 
   const DIR = path.join(DATA_DIR, "asg"), SUBS = path.join(DIR, "subs"), FILES = path.join(DIR, "files");
   const ASG_FILE = path.join(DIR, "assignments.json");
@@ -158,6 +158,39 @@ module.exports = function setup(ctx) {
   }
   setInterval(() => { for (const s of subs.values()) settle(s); }, 30e3).unref();
 
+  /* ---------------- v62: approve → Tests & Marks (DB.tests / DB.exams) ----------------
+     Har assignment ka Tests & Marks mein aik test ("Assignment: …", by "assignment"); har approved bache ka record
+     isi test par — is liye class result, report card aur parents chat khud utha lete hain. */
+  function pushToTests(a, list, whoName, absentIds) {
+    let testId = a.testId;
+    mutateDb((d) => {
+      d.tests = d.tests || []; d.exams = d.exams || [];
+      let t = d.tests.find((x) => x.id === testId);
+      if (!t) {
+        t = { id: "asg-" + a.id, name: `Assignment: ${a.title}`.slice(0, 120), date: a.dueDate || a.openFrom || pktDate(), shift: a.shift, course: a.course,
+              subject: a.subject, teacherId: a.teacherId || "", total: a.total, by: "assignment", asgId: a.id, createdOn: pktDate(), createdBy: whoName };
+        if (!d.tests.some((x) => x.id === t.id)) d.tests.push(t); else t = d.tests.find((x) => x.id === t.id);
+      }
+      t.total = a.total; testId = t.id;
+      const upsert = (studentId, rec) => {
+        const cur = d.exams.find((e) => e.testId === t.id && e.studentId === studentId);
+        const full = { testId: t.id, studentId, exam: t.name, subject: t.subject, date: t.date, total: +a.total, by: a.teacherId || "", byName: whoName,
+                       savedAt: new Date().toISOString(), source: "assignment", ...rec };
+        if (cur) Object.assign(cur, full); else d.exams.push({ id: uid(), ...full });
+      };
+      list.forEach((sub) => upsert(sub.studentId, { obtained: sub.result.total_awarded, absent: false,
+        comment: str(sub.result.overall_feedback, 400) || "Assignment marked" }));
+      (absentIds || []).forEach((sid) => upsert(sid, { obtained: 0, absent: true, comment: "Did not attempt the assignment" }));
+    });
+    a.testId = testId; saveAsg();
+    const now = new Date().toISOString();
+    list.forEach((sub) => { sub.approved = true; sub.approvedAt = now; sub.approvedScore = sub.result.total_awarded; sub.approvedBy = whoName; saveSub(sub); });
+  }
+  function dropFromTests(a, studentId) {
+    if (!a.testId) return;
+    mutateDb((d) => { d.exams = (d.exams || []).filter((e) => !(e.testId === a.testId && e.studentId === studentId)); });
+  }
+
   /* ------------------------------- views ------------------------------- */
   function summary(a) {
     const list = subsOf(a.id).map(settle), marked = list.filter((s) => s.result && s.status === "marked");
@@ -166,7 +199,7 @@ module.exports = function setup(ctx) {
       teacherId: a.teacherId, teacherName: a.teacherName, source: a.source, status: a.status, total: a.total, questions: a.questions.length,
       timed: a.timed, minutes: a.minutes, openFrom: a.openFrom, dueDate: a.dueDate, createdAt: a.createdAt,
       recipients: (a.studentIds || []).length, started: list.length, submitted: list.filter((s) => s.status !== "in_progress").length,
-      marked: marked.length,
+      marked: marked.length, approved: list.filter((s) => s.approved).length,
       avg: marked.length ? Math.round(marked.reduce((s, x) => s + (x.result.total_awarded / (x.result.total_available || 1)) * 100, 0) / marked.length) : null,
     };
   }
@@ -249,7 +282,8 @@ module.exports = function setup(ctx) {
         const st = names.get(sid) || {}, s = settle(subFor(a.id, sid));
         return { studentId: sid, name: st.name || "(removed student)", regNo: st.regNo || "", subId: s ? s.id : "", status: s ? s.status : "not_started",
           submittedAt: s ? s.submittedAt || "" : "", auto: !!(s && s.auto), score: s && s.result && (s.status === "marked" || s.teacherEdited) ? s.result.total_awarded : null,
-          review: s && s.result ? (s.result.needs_teacher_review || []).length : 0, teacherEdited: !!(s && s.teacherEdited) };
+          review: s && s.result ? (s.result.needs_teacher_review || []).length : 0, teacherEdited: !!(s && s.teacherEdited),
+          approved: !!(s && s.approved), approvedScore: s && s.approved ? s.approvedScore : null };
       }).sort((x, y) => x.name.localeCompare(y.name));
       return sendJson(res, 200, { ...a, roster, aiReady: ai.ready() });
     }
@@ -320,8 +354,24 @@ module.exports = function setup(ctx) {
       s.result.total_available = a.total;
       s.teacherEdited = true; s.status = "marked"; s.checkError = "";
       saveSub(s);
+      if (s.approved || body.approve) pushToTests(a, [s], who.name, []);
       logAct(req, who, "Assignment marks changed", `${a.title} · ${(db.students || []).find((x) => x.id === s.studentId)?.name || s.studentId} → ${s.result.total_awarded}/${a.total}`);
       return sendJson(res, 200, s);
+    }
+
+    /* v62: teacher marks approve kare → Tests & Marks mein */
+    if (p === "/api/asg/approve" && req.method === "POST") {
+      const a = asgById(body.id);
+      if (!canAsg(auth, a)) return sendJson(res, 404, { error: "Not found" });
+      const mine = subsOf(a.id).map(settle).filter((x) => (a.studentIds || []).includes(x.studentId));
+      const want = Array.isArray(body.subIds) ? new Set(body.subIds) : null;
+      const list = mine.filter((x) => x.status === "marked" && x.result && (!want || want.has(x.id)) && (!x.approved || x.approvedScore !== x.result.total_awarded || want));
+      const done = new Set(mine.filter((x) => x.status !== "in_progress").map((x) => x.studentId));
+      const absent = body.absent ? (a.studentIds || []).filter((sid) => !done.has(sid) && !mine.some((x) => x.studentId === sid && x.status === "in_progress")) : [];
+      if (!list.length && !absent.length) return sendJson(res, 400, { error: "Nothing new to approve — marks are sent once the AI (or you) has marked the work." });
+      pushToTests(a, list, who.name, absent);
+      logAct(req, who, "Assignment marks approved", `${a.title} · ${a.course} ${a.shift} · ${list.length} student(s) → Tests & Marks${absent.length ? ` · ${absent.length} absent` : ""}`);
+      return sendJson(res, 200, { ok: true, approved: list.length, absent: absent.length, testId: a.testId });
     }
 
     if (p === "/api/asg/recheck" && req.method === "POST") {
@@ -338,6 +388,7 @@ module.exports = function setup(ctx) {
       const s = subs.get(body.id), a = s && asgById(s.assignmentId);
       if (!canAsg(auth, a)) return sendJson(res, 404, { error: "Not found" });
       subs.delete(s.id); try { fs.unlinkSync(path.join(SUBS, s.id + ".json")); } catch {}
+      if (s.approved) dropFromTests(a, s.studentId);
       logAct(req, who, "Assignment attempt reset", `${a.title} · ${(db.students || []).find((x) => x.id === s.studentId)?.name || s.studentId}`);
       return sendJson(res, 200, { ok: true });
     }
@@ -360,15 +411,25 @@ module.exports = function setup(ctx) {
   const SKEY = crypto.createHash("sha256").update(fs.readFileSync(path.join(DATA_DIR, ".secret"), "utf8") + "|students").digest();
   const ssign = (x) => crypto.createHmac("sha256", SKEY).update(x).digest("base64url");
   const safeEq = (a, b) => { const x = Buffer.from(String(a)), y = Buffer.from(String(b)); return x.length === y.length && crypto.timingSafeEqual(x, y); };
-  function studentToken(acc) {
+  function studentToken(key, acc) {
     const exp = Date.now() + 60 * 864e5, tag = acc.hash.slice(0, 12);
-    return `${acc.phone}.${exp}.${tag}.${ssign(`s|${acc.phone}|${exp}|${tag}`)}`;
+    return `${key}.${exp}.${tag}.${ssign(`s|${key}|${exp}|${tag}`)}`;
   }
+  /* v62: Evening ke bache ka apna login — Reg No + 6 digit PIN (Parents page → Student logins). Morning wale parent ke login se. */
+  const regKey = (r) => String(r || "").trim().toLowerCase().replace(/\s+/g, "");
+  const stuAccess = (db, sid) => (db.studentAccess || []).find((a) => a.studentId === sid && a.active !== false && a.hash);
+  const eveStudent = (db, sid) => (db.students || []).find((st) => st.id === sid && st.shift === "Evening" && st.status !== "Left") || null;
   function familyOf(req) {
     const m = /(?:^|;\s*)ems_st=([^;]+)/.exec(req.headers.cookie || "");
     const [key, exp, tag, sig] = String(m ? m[1] : "").split(".");
     if (!key || !exp || !tag || !sig || +exp < Date.now() || !safeEq(sig, ssign(`s|${key}|${exp}|${tag}`))) return null;
-    const db = dbNow() || {}, acc = accessFor(db, key);
+    const db = dbNow() || {};
+    if (key.startsWith("e-")) {
+      const st = eveStudent(db, key.slice(2)), acc = st && stuAccess(db, st.id);
+      if (!acc || !acc.hash.startsWith(tag)) return null;
+      return { key, db, kids: [st], self: true };
+    }
+    const acc = accessFor(db, key);
     if (!acc || !acc.hash.startsWith(tag)) return null;
     return { key, db, kids: childrenOf(db, key) };
   }
@@ -383,7 +444,23 @@ module.exports = function setup(ctx) {
 
     if (p === "/student/login" && req.method === "POST") {
       if (!sameOrigin(req)) return sendJson(res, 403, { error: "origin" });
-      const ip = clientIp(req), body = JSON.parse((await readBody(req)) || "{}"), key = phoneKey(body.phone);
+      const ip = clientIp(req), body = JSON.parse((await readBody(req)) || "{}");
+      if (body.regNo !== undefined) {                                   // Evening student
+        const reg = regKey(body.regNo), db = dbNow() || {};
+        if (blocked("st:" + ip) || (reg && blocked("str:" + reg))) return sendJson(res, 429, { error: "Too many wrong attempts — try again in 15 minutes." });
+        const st = reg && (db.students || []).find((x) => x.shift === "Evening" && x.status !== "Left" && regKey(x.regNo) === reg && stuAccess(db, x.id));
+        const acc = st && stuAccess(db, st.id);
+        if (!acc || !pinOk(acc, String(body.pin || "").trim())) {
+          failed("st:" + ip); if (reg) failed("str:" + reg);
+          logAct(req, { role: "student", name: "Reg No " + String(body.regNo || "?").slice(0, 20) }, "Failed login", "Student portal — wrong Reg No or PIN");
+          return sendJson(res, 401, { error: "Wrong Reg No or PIN. (Morning students: log in with your parent's phone number.)" });
+        }
+        fails.delete("st:" + ip); fails.delete("str:" + reg);
+        logAct(req, { role: "student", name: "Student: " + st.name }, "Login", "Student portal (own login)");
+        setCookie(req, res, studentToken("e-" + st.id, acc), 60 * 86400);
+        return sendJson(res, 200, { ok: true });
+      }
+      const key = phoneKey(body.phone);
       if (blocked("st:" + ip) || (key && blocked("stp:" + key))) return sendJson(res, 429, { error: "Too many wrong attempts — try again in 15 minutes." });
       const acc = key && accessFor(dbNow() || {}, key);
       if (!acc || !pinOk(acc, String(body.pin || "").trim())) {
@@ -393,7 +470,7 @@ module.exports = function setup(ctx) {
       }
       fails.delete("st:" + ip); fails.delete("stp:" + key);
       logAct(req, { role: "student", name: "Student 0" + key }, "Login", "Student portal");
-      setCookie(req, res, studentToken(acc), 60 * 86400);
+      setCookie(req, res, studentToken(key, acc), 60 * 86400);
       return sendJson(res, 200, { ok: true });
     }
     if (p === "/student/logout") { setCookie(req, res, "", 0); return send(res, 303, "", "text/plain", { Location: "/student" }); }
@@ -413,7 +490,7 @@ module.exports = function setup(ctx) {
     }
 
     if (p === "/student/api/me" && req.method === "GET")
-      return sendJson(res, 200, { school: schoolName(fam.db), children: fam.kids.map((k) => ({ id: k.id, name: k.name, course: k.course, shift: k.shift })) });
+      return sendJson(res, 200, { school: schoolName(fam.db), self: !!fam.self, children: fam.kids.map((k) => ({ id: k.id, name: k.name, course: k.course, shift: k.shift })) });
 
     if (p === "/student/api/list" && req.method === "GET") {
       const st = kid(url.searchParams.get("studentId"));

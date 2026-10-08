@@ -211,7 +211,7 @@ function teacherView(d, tid) {
     inquiries: [], fees: [], txns: [], homework: [], inventory: [], issues: [], attendance: {},
     /* v41: sirf apni staff attendance — dekhne ke liye; teacherMerge ise kabhi nahi leta */
     empAttendance: Object.fromEntries(Object.entries(d.empAttendance || {}).filter(([, day]) => day && day[tid]).map(([dt, day]) => [dt, { [tid]: day[tid] }])),
-    classCosts: {}, parentAccess: [], parentMsgs: [], audits: (d.audits || []).filter((a) => a.teacherId === tid), counters: d.counters || {},
+    classCosts: {}, parentAccess: [], studentAccess: [], parentMsgs: [], audits: (d.audits || []).filter((a) => a.teacherId === tid), counters: d.counters || {},
     settings: { name: s.name, addr: s.addr, phone: s.phone, logo: s.logo, latePolicy: s.latePolicy },
   };
 }
@@ -369,13 +369,14 @@ const canon = (v) => JSON.stringify(v, (k, x) => x && typeof x === "object" && !
 /* Save se pehle aur baad ka data — kya badla, insaani zabaan mein */
 const ACT_COLS = { students: "Students", fees: "Fee challans", employees: "Employees", txns: "Income / Expense", inquiries: "Inquiries",
   exams: "Exam marks", tests: "Tests", homework: "Homework", inventory: "Inventory", issues: "Issuance", audits: "Class audits", kpis: "KPI checklists",
-  subjects: "Subjects", feeReceipts: "Fee receipts (app)", parentAccess: "Parent access", parentMsgs: "Parent messages", classAtt: "Class attendance" };
+  subjects: "Subjects", feeReceipts: "Fee receipts (app)", parentAccess: "Parent access", studentAccess: "Student logins (Evening)", parentMsgs: "Parent messages", classAtt: "Class attendance" };
 const ACT_SKIP_FIELDS = new Set(["hash", "salt", "iter"]);
 const recLabel = (r, col) => {
   if (!r || typeof r !== "object") return "?";
   if (col === "fees") return [r.chNo, r.month].filter(Boolean).join(" ") || r.id;
   if (col === "exams") return [r.exam, r.subject].filter(Boolean).join(" · ") || r.id;
   if (col === "txns") return `${r.type || ""} ${r.desc || ""} Rs ${r.amount || 0}`.trim();
+  if (col === "studentAccess") return "login" + (r.active === false ? " (closed)" : "");
   return r.name || r.studentName || r.title || r.chNo || r.desc || r.subject || r.phone || r.id || "?";
 };
 const shortVal = (v) => { if (v === undefined || v === null || v === "") return "—";
@@ -481,7 +482,7 @@ const escHtml = (x) => String(x).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<"
 const asg = require("./assignments")({
   DATA_DIR, send: (...a) => send(...a), sendJson: (...a) => sendJson(...a), readBody: (r) => readBody(r), readRaw: (r, l) => readRaw(r, l),
   sameOrigin: (r) => sameOrigin(r), dbNow, logAct, actWho, accessFor, pinOk, childrenOf: bot.childrenOf, phoneKey: bot.phoneKey,
-  clientIp, blocked, failed, fails, isHttps, escHtml, schoolName, teacherClasses,
+  clientIp, blocked, failed, fails, isHttps, escHtml, schoolName, teacherClasses, mutateDb: (fn) => mutateDb(fn),
 });
 async function asgRoute(fn, res) {
   try { return await fn(); }

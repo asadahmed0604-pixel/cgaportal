@@ -42,6 +42,9 @@ label input{display:block;width:100%;margin-top:5px;border:1.5px solid var(--lin
 .login img{width:70px;height:70px;border-radius:16px}
 .login label{text-align:left}
 .login .btn{width:100%}
+.seg{display:flex;background:#EEF3F2;border-radius:12px;padding:4px;margin:6px 0 14px}
+.seg button{flex:1;border:0;background:transparent;border-radius:9px;padding:9px 6px;font-weight:700;color:var(--muted)}
+.seg button.on{background:#fff;color:var(--navy);box-shadow:0 1px 3px rgba(0,0,0,.1)}
 .kids{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
 .kids button{border:1.5px solid var(--line);background:#fff;border-radius:999px;padding:7px 14px;font-weight:600;color:var(--navy)}
 .kids button.on{background:var(--navy);color:#fff;border-color:var(--navy)}
@@ -103,11 +106,13 @@ label input{display:block;width:100%;margin-top:5px;border:1.5px solid var(--lin
     <img src="/icons/cga-192.png" alt="">
     <h2 style="margin-top:8px">Student Assignments</h2>
     <p class="sub">{{SCHOOL}}</p>
-    <label>Parent's phone number<input name="phone" inputmode="tel" autocomplete="tel" placeholder="03xx xxxxxxx" required></label>
+    <div class="seg" id="loginSeg"><button type="button" data-m="stu" class="on">🎓 Evening student</button><button type="button" data-m="par">👪 Parent</button></div>
+    <label id="regF">Reg No<input name="regNo" autocomplete="username" autocapitalize="characters" placeholder="e.g. E-1024"></label>
+    <label id="phoneF" class="hidden">Parent's phone number<input name="phone" inputmode="tel" autocomplete="tel" placeholder="03xx xxxxxxx"></label>
     <label>6-digit PIN<input name="pin" inputmode="numeric" maxlength="6" autocomplete="current-password" placeholder="••••••" required></label>
     <button class="btn" type="submit">Log in</button>
     <p class="err" id="loginErr"></p>
-    <p class="sub">Use the same phone number and PIN as the parents' app. No PIN? Ask the school office.</p>
+    <p class="sub" id="loginHelp"></p>
   </form>
 </section>
 
@@ -150,9 +155,23 @@ $("#backBtn").addEventListener("click", async () => { if (cur && cur.sub && cur.
 
 /* ------------------------------ login ------------------------------ */
 function showLogin() { stopTimers(); $("#app").classList.add("hidden"); $("#login").classList.remove("hidden"); }
+/* v62: Evening ke bache apne Reg No + PIN se; Morning (aur koi bhi) parent ke phone + PIN se */
+let loginMode = "stu";
+function setMode(m) {
+  loginMode = m;
+  document.querySelectorAll("#loginSeg button").forEach((b) => b.classList.toggle("on", b.dataset.m === m));
+  $("#regF").classList.toggle("hidden", m !== "stu"); $("#phoneF").classList.toggle("hidden", m !== "par");
+  $("#loginHelp").textContent = m === "stu" ? "Evening students: your Reg No and the PIN the office gave you. Morning students log in with their parent's phone number."
+    : "The same phone number and PIN as the parents' app. No PIN? Ask the school office.";
+  try { localStorage.setItem("cgaLoginMode", m); } catch {}
+}
+document.querySelectorAll("#loginSeg button").forEach((b) => b.addEventListener("click", () => { setMode(b.dataset.m); $("#loginErr").textContent = ""; }));
+try { setMode(localStorage.getItem("cgaLoginMode") === "par" ? "par" : "stu"); } catch { setMode("stu"); }
 $("#loginForm").addEventListener("submit", async (e) => {
   e.preventDefault(); $("#loginErr").textContent = "";
-  try { await api("/student/login", { phone: e.target.phone.value, pin: e.target.pin.value }); e.target.reset(); boot(); }
+  const f = e.target, body = loginMode === "stu" ? { regNo: f.regNo.value, pin: f.pin.value } : { phone: f.phone.value, pin: f.pin.value };
+  if (!(body.regNo || body.phone)) { $("#loginErr").textContent = loginMode === "stu" ? "Enter your Reg No." : "Enter the phone number."; return; }
+  try { await api("/student/login", body); f.reset(); boot(); }
   catch (err) { $("#loginErr").textContent = err.message; }
 });
 
