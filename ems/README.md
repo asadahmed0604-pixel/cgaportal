@@ -75,7 +75,10 @@ Custom domain (e.g. `ems.cga.com.pk`): Render → service → **Settings → Cus
 ```bash
 cd ems
 EMS_PASSWORD=some-password-123 node server.js   # http://localhost:3000
+node check.js                                    # safety check: every button calls a real function, all scripts parse
 ```
+
+The same check runs on GitHub for every pull request that touches `ems/` (`.github/workflows/ems-check.yml`).
 
 ## Install as an app (v41)
 

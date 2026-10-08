@@ -1123,7 +1123,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v51 · 8 Oct 2026";
+const BUILD = "v52 · 8 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -3294,6 +3294,13 @@ function payArrearsOnly(id){
   if(!arr.list.length && hasVal(f.balance)) f.balance = Math.max(0, (+f.amount||0) - feeReceived(f));
   save(); closeModal(); renderFees(); renderDashboard();
   toast(`✓ Arrears ${money(a)} received (${fmtD(date)})${rest > 0 ? ` · ${money(rest)} arrears remaining` : ""} — ${f.chNo} now ${money(feeOutstanding(f))} due`);
+}
+/* v52: "Confirm Paid" — v46 mein ghalti se hat gaya tha, is liye button kuch nahi karta tha */
+function confirmPaid(id){
+  const f = DB.fees.find(x=>x.id===id); if(!f){ toast("Challan not found"); closeModal(); return; }
+  f.status = "Paid"; f.paidDate = ($("mp_date") && $("mp_date").value) || wmDate();
+  if(hasVal(f.balance) || hasVal(f.paidAmount)){ f.paidAmount = +f.amount||0; f.balance = 0; }   // partial payment wala bhi ab poora
+  save(); closeModal(); renderFees(); renderDashboard(); toast("Paid ✓ ("+f.chNo+" — "+fmtD(f.paidDate)+")");
 }
 
 /* ================= v46: CHALLAN EDIT (banne ke baad bhi) =================
