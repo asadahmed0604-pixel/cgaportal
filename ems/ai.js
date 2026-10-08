@@ -98,7 +98,9 @@ function block(file) {
 
 async function callJSON(system, content, schema) {
   if (!client) throw Object.assign(new Error(loadError || "AI is not available."), { ai: true });
-  const response = await client.beta.messages.create({
+  /* Streaming: bade max_tokens par SDK non-streaming request khud rok deta hai ("streaming is required") —
+     finalMessage() poora jawab ikattha kar ke deta hai */
+  const response = await client.beta.messages.stream({
     model: MODEL,
     max_tokens: 32000,
     betas: ["server-side-fallback-2026-07-01"],
@@ -107,14 +109,17 @@ async function callJSON(system, content, schema) {
     output_config: { effort: "high", format: { type: "json_schema", schema } },
     system,
     messages: [{ role: "user", content }],
-  });
+  }).finalMessage();
   if (response.stop_reason === "refusal") throw Object.assign(new Error("Claude declined this request — please rephrase it."), { ai: true });
   if (response.stop_reason === "max_tokens") throw Object.assign(new Error("The paper is too long for one go — split it into two assignments."), { ai: true });
   const text = response.content.filter((b) => b.type === "text").map((b) => b.text).join("");
-  return JSON.parse(text);
+  try { return JSON.parse(text); }
+  catch { throw Object.assign(new Error("The AI's answer was incomplete — please try again."), { ai: true, detail: `stop_reason=${response.stop_reason} text=${text.slice(0, 200)}` }); }
 }
 
 function friendly(e) {
+  /* asal wajah Render ke Logs mein — agli dafa foran pata chale */
+  console.error("[ai]", e && (e.status ? `status ${e.status}` : ""), e && e.message, e && e.detail ? e.detail : "");
   try {
     const A = require("@anthropic-ai/sdk");
     if (e instanceof A.AuthenticationError) return "The Claude API key on the server is invalid.";
@@ -122,7 +127,7 @@ function friendly(e) {
     if (e instanceof A.APIConnectionError) return "Could not reach Claude — check the server's internet.";
     if (e instanceof A.APIError) return `Claude API error (${e.status}) — please try again.`;
   } catch {}
-  return e && e.ai ? e.message : "The AI could not finish this — please try again.";
+  return e && e.ai ? e.message : `The AI could not finish this — please try again. (${String(e && e.message || e).slice(0, 160)})`;
 }
 
 const specLines = (s) => [
