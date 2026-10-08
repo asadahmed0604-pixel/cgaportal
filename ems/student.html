@@ -198,7 +198,7 @@ async function list() {
     const st = { new: `<span class="tag new">New</span>`, in_progress: `<span class="tag prog">In progress</span>`, submitted: `<span class="tag prog">Checking…</span>`,
       checking: `<span class="tag prog">Checking…</span>`, marked: `<span class="tag done">Marked</span>`, error: `<span class="tag prog">With teacher</span>` }[a.state] || "";
     return `<div class="item" data-a="${a.id}"><div class="i"><b>${esc(a.title)}</b><div class="sub">${esc(a.subject)}${a.code ? " (" + esc(a.code) + ")" : ""} · ${a.questions} questions · ${a.total} marks${a.teacherName ? " · " + esc(a.teacherName) : ""}</div>
-      ${st}${a.timed ? `<span class="tag time">⏱ ${a.minutes} min</span>` : ""}${a.dueDate ? `<span class="tag ${a.late && a.state === "new" ? "time" : ""}">Due ${fmtD(a.dueDate)}</span>` : ""}</div>
+      ${st}${a.kind === "test" ? `<span class="tag">🧪 Test</span>` : ""}${a.timed ? `<span class="tag time">⏱ ${a.minutes} min</span>` : ""}${a.dueDate ? `<span class="tag ${a.late && a.state === "new" ? "time" : ""}">Due ${fmtD(a.dueDate)}</span>` : ""}</div>
       ${a.score !== null ? `<div class="score">${a.score}/${a.total}</div>` : `<div style="font-size:1.4rem;color:var(--muted)">›</div>`}</div>`;
   }).join("") : `<div class="card center">No assignments yet 🎉</div>`);
   bindKids();
@@ -249,6 +249,11 @@ function work() {
   const a = cur.a, s = cur.sub;
   view.innerHTML = `
     ${a.instructions ? `<div class="card note" style="white-space:pre-wrap;margin-top:0">${esc(a.instructions)}</div>` : ""}
+    <div class="card" style="border:2px dashed var(--green)"><h3>📄 Solve on paper?</h3>
+      <p class="sub" style="margin:0 0 10px">Download the paper as a PDF, solve it on paper (write each question number), then upload your solved PDF or photos — it is submitted and checked straight away.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn line" id="dlPdf">⬇ Download PDF</button>
+        <button class="btn" id="upSolved">📤 Upload solved PDF &amp; submit</button></div>
+      <input type="file" id="solvedIn" accept="application/pdf,image/*" multiple hidden></div>
     ${a.files.length ? `<div class="card paper"><h3>Question paper</h3>${a.files.map((f) => f.type === "application/pdf"
         ? `<a class="btn line" href="${fileUrl(f)}" target="_blank" rel="noopener">📄 Open ${esc(f.name)}</a>` : `<img src="${fileUrl(f)}" alt="${esc(f.name)}" loading="lazy">`).join("")}</div>` : ""}
     <div class="card">${a.questions.map((q, i) => {
@@ -270,6 +275,15 @@ function work() {
     <div class="saved" id="saved">Your answers are saved automatically.</div>`;
   drawPhotos();
   $("#addPic").addEventListener("click", () => $("#pic").click());
+  $("#dlPdf").addEventListener("click", downloadPdf);
+  $("#upSolved").addEventListener("click", () => $("#solvedIn").click());
+  $("#solvedIn").addEventListener("change", async (e) => {
+    const files = [...e.target.files]; e.target.value = "";
+    if (!files.length) return;
+    const ok = await upload(files);
+    if (!ok) return;
+    if (confirm(`${cur.sub.files.length} file(s) uploaded. Submit now for checking? You cannot change your work after this.`)) submit(false);
+  });
   $("#pic").addEventListener("change", (e) => { upload([...e.target.files]); e.target.value = ""; });
   $("#submitBtn").addEventListener("click", () => {
     const empty = Object.values(collect()).filter((v) => !v.trim()).length;
@@ -316,16 +330,67 @@ function shrink(file) {
   });
 }
 async function upload(files) {
+  let ok = 0;
   for (const f of files) {
     $("#upMsg").textContent = "Uploading " + f.name + "…";
     try {
       const isPdf = f.type === "application/pdf";
       const blob = isPdf ? f : await shrink(f);
+      if (isPdf && f.size > 15 * 1024 * 1024) throw new Error(`${f.name} is larger than 15 MB — scan at a lower quality or upload photos instead.`);
       cur.sub = await api(`/student/api/upload?studentId=${encodeURIComponent(kidId)}&subId=${cur.sub.id}&name=${encodeURIComponent(f.name)}`, null, { type: isPdf ? "application/pdf" : "image/jpeg", blob });
-      drawPhotos();
+      drawPhotos(); ok++;
     } catch (e) { alert(e.message); }
   }
   $("#upMsg").textContent = "";
+  return ok;
+}
+
+/* v66: paper PDF mein — jsPDF (cdnjs) se asli PDF file; Urdu jaisi script ho ya library na aaye to print → "Save as PDF" */
+const PDF_LIB = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
+function loadScript(src) {
+  return new Promise((resolve, reject) => { if (window.jspdf) return resolve(); const el = document.createElement("script");
+    el.src = src; el.onload = resolve; el.onerror = () => reject(new Error("PDF library could not load")); document.head.appendChild(el); });
+}
+const latinOk = (t) => !/[^\x00-\xff\u2013\u2014\u2018\u2019\u201c\u201d\u2022\u2026]/.test(t);
+async function downloadPdf() {
+  const a = cur.a, kid = (me.children.find((k) => k.id === kidId) || {}).name || "";
+  for (const f of a.files.filter((f) => f.type === "application/pdf")) {          // teacher ka asal PDF paper
+    const l = document.createElement("a"); l.href = fileUrl(f); l.download = f.name || "paper.pdf"; document.body.appendChild(l); l.click(); l.remove();
+  }
+  const all = [a.title, a.instructions, ...a.questions.flatMap((q) => [q.text, ...q.options])].join(" ");
+  try {
+    if (!latinOk(all)) throw new Error("script");
+    await loadScript(PDF_LIB);
+    const doc = new window.jspdf.jsPDF({ unit: "mm", format: "a4" }), W = 210, M = 16, maxW = W - 2 * M;
+    let y = 18;
+    const need = (h) => { if (y + h > 282) { doc.addPage(); y = 18; } };
+    const para = (t, size = 11, style = "normal", indent = 0) => { doc.setFont("helvetica", style); doc.setFontSize(size);
+      doc.splitTextToSize(String(t || ""), maxW - indent).forEach((line) => { need(size * 0.45); doc.text(line, M + indent, y); y += size * 0.45; }); };
+    para(document.title.replace(/^Assignments — /, ""), 10, "normal"); y += 1;
+    para(a.title, 15, "bold"); y += 1;
+    para(`${a.subject}${a.code ? " (" + a.code + ")" : ""} · ${a.course || ""} · ${a.total} marks${a.timed ? " · " + a.minutes + " minutes" : ""}${a.dueDate ? " · due " + a.dueDate : ""}`, 10);
+    para(`Name: ${kid}        Date: ______________`, 10); y += 3;
+    if (a.instructions) { para(a.instructions, 10, "italic"); y += 3; }
+    a.questions.forEach((q) => {
+      need(14); doc.setFont("helvetica", "bold"); doc.setFontSize(11); doc.text(q.number, M, y); doc.text(`[${q.marks}]`, W - M, y, { align: "right" });
+      const start = y; para(q.text, 11, "normal", 12); if (y === start) y += 5;
+      q.options.forEach((o, j) => para(`${"ABCDEF"[j]}.  ${o}`, 11, "normal", 16));
+      if (q.type !== "mcq") { const lines = Math.min(14, 2 + q.marks * 2); for (let i = 0; i < lines; i++) { need(8); y += 8; doc.setDrawColor(190); doc.line(M + 12, y, W - M, y); } }
+      y += 6;
+    });
+    if (a.files.some((f) => f.type !== "application/pdf")) { y += 2; para("The question paper images are in the app — see the assignment page.", 9, "italic"); }
+    doc.save(`${a.title.replace(/[^\w -]+/g, "").trim().slice(0, 60) || "assignment"}.pdf`);
+  } catch (e) {
+    const w = window.open("", "_blank");
+    if (!w) { alert("Allow pop-ups to download the PDF."); return; }
+    w.document.write(`<!doctype html><meta charset="utf-8"><title>${esc(a.title)}</title><style>body{font-family:Arial,sans-serif;margin:24px;line-height:1.5}.m{float:right;font-weight:bold}.q{margin:14px 0;page-break-inside:avoid}.l{height:70px;border-bottom:1px dotted #999}</style>
+      <h2>${esc(a.title)}</h2><p>${esc(a.subject)}${a.code ? " (" + esc(a.code) + ")" : ""} · ${a.total} marks${a.timed ? " · " + a.minutes + " minutes" : ""}</p><p>Name: ${esc(kid)}</p>
+      ${a.instructions ? `<p><i>${esc(a.instructions)}</i></p>` : ""}
+      ${a.questions.map((q) => `<div class="q"><span class="m">[${q.marks}]</span><b>${esc(q.number)}</b> <span style="white-space:pre-wrap">${esc(q.text)}</span>${q.options.map((o, j) => `<div>${"ABCDEF"[j]}. ${esc(o)}</div>`).join("")}${q.type === "mcq" ? "" : '<div class="l"></div>'}</div>`).join("")}
+      ${a.files.filter((f) => f.type !== "application/pdf").map((f) => `<img src="${fileUrl(f)}" style="max-width:100%;margin-top:10px">`).join("")}
+      <p style="color:#888;font-size:12px">To save: Print → "Save as PDF".</p>`);
+    w.document.close(); setTimeout(() => w.print(), 500);
+  }
 }
 async function submit(auto) {
   if (submitting) return;

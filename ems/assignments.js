@@ -12,7 +12,10 @@ const ai = require("./ai");
 
 const GRACE_MS = 90e3;                        // timer khatam hone ke baad network ke liye thori mohlat
 const MAX_WORK_FILES = 12;
-const MAX_UPLOAD = 10 * 1024 * 1024;
+const MAX_UPLOAD = 15 * 1024 * 1024;        // solved paper ki PDF bhi
+/* v66: har teacher har mahine — 2 tests + 3 assignments (Executive / Admin par koi had nahi) */
+const LIMITS = { test: 2, assignment: 3 };
+const KIND_LABEL = { test: "Test", assignment: "Assignment" };
 const TYPES = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "application/pdf": "pdf" };
 const EXT_TYPE = { jpg: "image/jpeg", png: "image/png", webp: "image/webp", pdf: "application/pdf" };
 const MAGIC = { jpg: [0xff, 0xd8], png: [0x89, 0x50, 0x4e, 0x47], webp: [0x52, 0x49, 0x46, 0x46], pdf: [0x25, 0x50, 0x44, 0x46] };
@@ -49,6 +52,27 @@ module.exports = function setup(ctx) {
   const saveAsg = () => writeAtomic(ASG_FILE, JSON.stringify(assignments));
   const saveSub = (s) => { s.updatedAt = new Date().toISOString(); subs.set(s.id, s); writeAtomic(path.join(SUBS, s.id + ".json"), JSON.stringify(s)); };
   const asgById = (id) => assignments.find((a) => a.id === id) || null;
+
+  /* ---------- v66: teacher access (Admin approve kare → code → teacher code daale) + mahana ginti ----------
+     DATA_DIR/asg/access.json: { teachers: {tid: {enabled, salt, hash, iter, unlocked, setAt, setBy}}, usage: {tid: {"YYYY-MM": {test, assignment}}} }
+     Ginti banane par barhti hai aur delete se kam nahi hoti; Admin "Reset month" se mita sakta hai. */
+  const ACCESS_FILE = path.join(DIR, "access.json");
+  let access = { teachers: {}, usage: {} };
+  try { access = Object.assign(access, JSON.parse(fs.readFileSync(ACCESS_FILE, "utf8"))); } catch {}
+  const saveAccess = () => writeAtomic(ACCESS_FILE, JSON.stringify(access));
+  const month = () => pktDate().slice(0, 7);
+  const tAcc = (tid) => access.teachers[tid] || null;
+  const unlocked = (tid) => { const t = tAcc(tid); return !!(t && t.enabled && t.hash && t.unlocked === t.hash.slice(0, 12)); };
+  const usedOf = (tid, m = month()) => Object.assign({ test: 0, assignment: 0 }, (access.usage[tid] || {})[m] || {});
+  const usageView = (tid) => { const u = usedOf(tid); return { month: month(), test: { used: u.test, limit: LIMITS.test }, assignment: { used: u.assignment, limit: LIMITS.assignment } }; };
+  function useSlot(tid, kind) {
+    const m = month(); access.usage[tid] = access.usage[tid] || {};
+    const u = access.usage[tid][m] = Object.assign({ test: 0, assignment: 0 }, access.usage[tid][m] || {});
+    u[kind]++; saveAccess();
+  }
+  const slotLeft = (auth, kind) => auth.role !== "teacher" || usedOf(auth.tid)[kind] < LIMITS[kind];
+  const limitMsg = (kind) => `You have used all ${LIMITS[kind]} ${kind === "test" ? "tests" : "assignments"} for this month (limit: ${LIMITS.test} tests + ${LIMITS.assignment} assignments). Ask the admin if you need more.`;
+  const hashCode = (code, salt) => crypto.pbkdf2Sync(String(code), Buffer.from(salt, "hex"), 100000, 32, "sha256").toString("hex");
   const subsOf = (aid) => [...subs.values()].filter((s) => s.assignmentId === aid);
   const subFor = (aid, sid) => [...subs.values()].find((s) => s.assignmentId === aid && s.studentId === sid) || null;
 
@@ -97,6 +121,7 @@ module.exports = function setup(ctx) {
       level: str(b.level, 30),
       code: str(b.code, 12).replace(/[^0-9A-Za-z/ -]/g, ""),
       topic: str(b.topic, 600),
+      kind: b.kind === "test" ? "test" : "assignment",
     };
   }
   const total = (qs) => qs.reduce((s, q) => s + q.marks, 0);
@@ -167,7 +192,7 @@ module.exports = function setup(ctx) {
       d.tests = d.tests || []; d.exams = d.exams || [];
       let t = d.tests.find((x) => x.id === testId);
       if (!t) {
-        t = { id: "asg-" + a.id, name: `Assignment: ${a.title}`.slice(0, 120), date: a.dueDate || a.openFrom || pktDate(), shift: a.shift, course: a.course,
+        t = { id: "asg-" + a.id, name: `${a.kind === "test" ? "Test" : "Assignment"}: ${a.title}`.slice(0, 120), date: a.dueDate || a.openFrom || pktDate(), shift: a.shift, course: a.course,
               subject: a.subject, teacherId: a.teacherId || "", total: a.total, by: "assignment", asgId: a.id, createdOn: pktDate(), createdBy: whoName };
         if (!d.tests.some((x) => x.id === t.id)) d.tests.push(t); else t = d.tests.find((x) => x.id === t.id);
       }
@@ -196,7 +221,7 @@ module.exports = function setup(ctx) {
     const list = subsOf(a.id).map(settle), marked = list.filter((s) => s.result && s.status === "marked");
     return {
       id: a.id, title: a.title, subject: a.subject, level: a.level, code: a.code, course: a.course, shift: a.shift,
-      teacherId: a.teacherId, teacherName: a.teacherName, source: a.source, status: a.status, total: a.total, questions: a.questions.length,
+      teacherId: a.teacherId, teacherName: a.teacherName, source: a.source, status: a.status, kind: a.kind || "assignment", total: a.total, questions: a.questions.length,
       timed: a.timed, minutes: a.minutes, openFrom: a.openFrom, dueDate: a.dueDate, createdAt: a.createdAt,
       recipients: (a.studentIds || []).length, started: list.length, submitted: list.filter((s) => s.status !== "in_progress").length,
       marked: marked.length, approved: list.filter((s) => s.approved).length,
@@ -205,7 +230,7 @@ module.exports = function setup(ctx) {
   }
   const forStudent = (a) => ({
     id: a.id, title: a.title, subject: a.subject, level: a.level, code: a.code, course: a.course, instructions: a.instructions,
-    total: a.total, timed: a.timed, minutes: a.minutes, dueDate: a.dueDate, teacherName: a.teacherName,
+    total: a.total, timed: a.timed, minutes: a.minutes, dueDate: a.dueDate, teacherName: a.teacherName, kind: a.kind || "assignment",
     questions: a.questions.map((q) => ({ number: q.number, type: q.type, text: q.text, options: q.options, marks: q.marks })),
     files: (a.files || []).map((f) => ({ file: f.file, type: f.type, name: f.name })),
   });
@@ -221,11 +246,70 @@ module.exports = function setup(ctx) {
     const body = req.method === "POST" && !p.startsWith("/api/asg/upload") ? JSON.parse((await readBody(req)) || "{}") : {};
     if (req.method === "POST" && !sameOrigin(req)) return sendJson(res, 403, { error: "origin" });
     const who = actWho(auth);
+    const isT = auth.role === "teacher";
+
+    /* ---- v66: teacher apna code daale ---- */
+    if (p === "/api/asg/unlock" && req.method === "POST") {
+      if (!isT) return sendJson(res, 200, { ok: true });
+      const t = tAcc(auth.tid), k = "asgc:" + auth.tid;
+      if (!t || !t.enabled || !t.hash) return sendJson(res, 403, { error: "The admin has not given you access yet." });
+      if (blocked(k)) return sendJson(res, 429, { error: "Too many wrong codes — try again in 15 minutes." });
+      if (!/^\d{6}$/.test(String(body.code || "").trim()) || hashCode(String(body.code).trim(), t.salt) !== t.hash) {
+        failed(k); failed(k);                                    // 5 ghalat koshishein = 15 minute ruko
+        logAct(req, who, "Failed assignment code", "Wrong access code");
+        return sendJson(res, 401, { error: "Wrong code." });
+      }
+      fails.delete(k);
+      t.unlocked = t.hash.slice(0, 12); saveAccess();
+      logAct(req, who, "Assignments unlocked", "Access code accepted");
+      return sendJson(res, 200, { ok: true });
+    }
+
+    /* ---- v66: Admin / Executive — teachers ko access dena, code, ginti ---- */
+    if (p === "/api/asg/access" && req.method === "GET") {
+      if (isT) return sendJson(res, 403, { error: "Admin only" });
+      const list = (db.employees || []).filter((e) => e.category === "Teacher").map((e) => {
+        const t = tAcc(e.id) || {};
+        return { id: e.id, name: e.name, shift: e.shift || "", hasLogin: !!(e.login && e.login.hash),
+          status: !t.enabled ? "off" : unlocked(e.id) ? "active" : "code", setAt: t.setAt || "", setBy: t.setBy || "", usage: usageView(e.id) };
+      }).sort((a, b) => a.name.localeCompare(b.name));
+      return sendJson(res, 200, { limits: LIMITS, month: month(), list });
+    }
+    if (p === "/api/asg/access" && req.method === "POST") {
+      if (isT) return sendJson(res, 403, { error: "Admin only" });
+      const e = (db.employees || []).find((x) => x.id === body.tid && x.category === "Teacher");
+      if (!e) return sendJson(res, 404, { error: "Teacher not found" });
+      if (body.action === "approve") {
+        const code = String(crypto.randomInt(0, 1000000)).padStart(6, "0"), salt = crypto.randomBytes(16).toString("hex");
+        access.teachers[e.id] = { enabled: true, salt, hash: hashCode(code, salt), iter: 100000, unlocked: "", setAt: new Date().toISOString(), setBy: who.name };
+        saveAccess();
+        logAct(req, who, "Assignment access given", `${e.name} — new access code`);
+        return sendJson(res, 200, { ok: true, code });
+      }
+      if (body.action === "revoke") {
+        if (access.teachers[e.id]) { access.teachers[e.id].enabled = false; access.teachers[e.id].unlocked = ""; saveAccess(); }
+        logAct(req, who, "Assignment access removed", e.name);
+        return sendJson(res, 200, { ok: true });
+      }
+      if (body.action === "reset") {
+        if (access.usage[e.id]) { delete access.usage[e.id][month()]; saveAccess(); }
+        logAct(req, who, "Assignment count reset", `${e.name} — ${month()}`);
+        return sendJson(res, 200, { ok: true });
+      }
+      return sendJson(res, 400, { error: "Unknown action" });
+    }
 
     if (p === "/api/asg/list" && req.method === "GET") {
+      if (isT && !unlocked(auth.tid)) {
+        const t = tAcc(auth.tid);
+        return sendJson(res, 200, { locked: true, approved: !!(t && t.enabled), list: [], usage: usageView(auth.tid), limits: LIMITS });
+      }
       const list = assignments.filter((a) => canAsg(auth, a)).map(summary).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
-      return sendJson(res, 200, { aiReady: ai.ready(), aiWhy: ai.whyNot(), list });
+      return sendJson(res, 200, { aiReady: ai.ready(), aiWhy: ai.whyNot(), list, usage: isT ? usageView(auth.tid) : null, limits: LIMITS });
     }
+
+    /* baqi sab kuch band jab tak teacher ka code nahi lagta */
+    if (isT && !unlocked(auth.tid)) return sendJson(res, 403, { error: "Assignments are locked — enter the access code from the admin.", locked: true });
 
     if (p === "/api/asg/eligible" && req.method === "GET") {
       const shift = url.searchParams.get("shift") === "Evening" ? "Evening" : "Morning", course = str(url.searchParams.get("course"), 60);
@@ -248,6 +332,7 @@ module.exports = function setup(ctx) {
       if (!spec.course || !spec.subject) return sendJson(res, 400, { error: "Choose the class and subject." });
       if (!canClass(auth, db, spec.shift, spec.course)) return sendJson(res, 403, { error: "You can only make assignments for your own classes." });
       if (!ai.ready()) return sendJson(res, 503, { error: "AI is not switched on: " + ai.whyNot() });
+      if (!slotLeft(auth, spec.kind)) return sendJson(res, 403, { error: limitMsg(spec.kind) });
       let out, files = [], scheme = [];
       if (p === "/api/asg/generate") {
         if (!spec.topic) return sendJson(res, 400, { error: "Write the topic." });
@@ -267,10 +352,11 @@ module.exports = function setup(ctx) {
       const a = { id: uid(), ...spec, title: str(out.title, 200) || `${spec.subject} — ${spec.topic || "Assignment"}`, instructions: str(out.instructions, 4000),
         questions, total: total(questions), source: p.endsWith("generate") ? "ai" : "upload", files, schemeFiles: scheme,
         teacherId: auth.role === "teacher" ? auth.tid : str(body.teacherId, 40), teacherName: "", status: "draft",
-        timed: false, minutes: 0, openFrom: pktDate(), dueDate: "", studentIds: [], createdAt: new Date().toISOString(), createdBy: who.name };
+        timed: spec.kind === "test", minutes: spec.kind === "test" ? 40 : 0, openFrom: pktDate(), dueDate: "", studentIds: [], createdAt: new Date().toISOString(), createdBy: who.name };
       a.teacherName = teacherName(db, a.teacherId) || who.name;
       assignments.push(a); saveAsg();
-      logAct(req, who, "Assignment drafted", `${a.title} · ${a.course} ${a.shift} · ${a.subject} (${a.source === "ai" ? "AI generated" : "uploaded paper"})`);
+      if (isT) useSlot(auth.tid, a.kind);
+      logAct(req, who, `${KIND_LABEL[a.kind]} drafted`, `${a.title} · ${a.course} ${a.shift} · ${a.subject} (${a.source === "ai" ? "AI generated" : "uploaded paper"})`);
       return sendJson(res, 200, a);
     }
 
@@ -292,7 +378,8 @@ module.exports = function setup(ctx) {
     if (p === "/api/asg/save" && req.method === "POST") {
       const old = body.id ? asgById(body.id) : null;
       if (body.id && !canAsg(auth, old)) return sendJson(res, 404, { error: "Not found" });
-      const spec = cleanSpec({ ...(old || {}), ...body });
+      const spec = cleanSpec({ ...(old || {}), ...body, kind: old ? old.kind : body.kind });
+      if (!old && !slotLeft(auth, spec.kind)) return sendJson(res, 403, { error: limitMsg(spec.kind) });
       if (!spec.course || !spec.subject) return sendJson(res, 400, { error: "Choose the class and subject." });
       if (!canClass(auth, db, spec.shift, spec.course)) return sendJson(res, 403, { error: "You can only make assignments for your own classes." });
       const questions = cleanQuestions(body.questions);
@@ -315,7 +402,7 @@ module.exports = function setup(ctx) {
         studentIds, timed, minutes, openFrom, dueDate, status: publish ? "published" : (old && old.status === "published" && body.status !== "draft" ? "published" : "draft") });
       if (Array.isArray(body.files)) a.files = body.files.filter(fileOk).slice(0, 20);
       a.teacherName = teacherName(db, a.teacherId) || a.teacherName || who.name;
-      if (!old) assignments.push(a);
+      if (!old) { assignments.push(a); if (isT) useSlot(auth.tid, a.kind); }
       saveAsg();
       logAct(req, who, publish ? "Assignment published" : "Assignment saved", `${a.title} · ${a.course} ${a.shift} · ${a.subject} · ${studentIds.length} students${a.timed ? ` · timed ${a.minutes} min` : ""}${a.dueDate ? ` · due ${a.dueDate}` : ""}`);
       return sendJson(res, 200, a);
@@ -498,7 +585,7 @@ module.exports = function setup(ctx) {
       const today = pktDate();
       const list = assignments.filter((a) => open(a, today) && (a.studentIds || []).includes(st.id)).map((a) => {
         const s = settle(subFor(a.id, st.id));
-        return { id: a.id, title: a.title, subject: a.subject, level: a.level, code: a.code, total: a.total, questions: a.questions.length,
+        return { id: a.id, title: a.title, subject: a.subject, level: a.level, code: a.code, total: a.total, questions: a.questions.length, kind: a.kind || "assignment",
           timed: a.timed, minutes: a.minutes, dueDate: a.dueDate, teacherName: a.teacherName, late: late(a),
           state: s ? s.status : "new", score: s && s.result && (s.status === "marked" || s.teacherEdited) ? s.result.total_awarded : null, deadline: s ? s.deadline : null };
       }).sort((x, y) => (x.state === "marked") - (y.state === "marked") || String(x.dueDate || "9").localeCompare(String(y.dueDate || "9")));

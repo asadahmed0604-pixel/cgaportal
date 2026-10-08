@@ -794,13 +794,15 @@ label.chk input{width:auto}
 <section class="page" id="page-assign">
   <div class="page-head">
     <div><h2>Assignments</h2><div class="sub">Make Cambridge-style assignments with AI (or upload your own paper), give them to your class with or without a timer — students' work is marked by AI the moment they submit.</div></div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <div style="display:flex;gap:8px;flex-wrap:wrap" id="asgBtns">
       <button class="btn-red" onclick="asgNew('ai')">✨ Generate with AI</button>
       <button class="btn-black" onclick="asgNew('upload')">⬆ Upload paper</button>
       <button class="btn-line" onclick="asgNew('manual')">✍ Write my own</button>
     </div>
   </div>
+  <div id="asgTrack"></div>
   <div id="asgAiNote"></div>
+  <div id="asgAccess"></div>
   <div id="asgBody"></div>
 </section>
 
@@ -1294,7 +1296,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v65 · 8 Oct 2026";
+const BUILD = "v66 · 8 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -6187,18 +6189,81 @@ async function renderAssign(){
   asgStop(); ASG.view = "list";
   const box = $("asgBody");
   box.innerHTML = `<div class="empty" style="padding:30px">Loading…</div>`;
-  try{ const d = await asgApi("/api/asg/list"); ASG.list = d.list; ASG.aiReady = d.aiReady; ASG.aiWhy = d.aiWhy; }
+  let d;
+  try{ d = await asgApi("/api/asg/list"); ASG.list = d.list; ASG.aiReady = d.aiReady; ASG.aiWhy = d.aiWhy; ASG.usage = d.usage; ASG.limits = d.limits; }
   catch(e){ box.innerHTML = `<div class="note">${esc(e.message)}</div>`; return; }
+  $("asgBtns").style.display = d.locked ? "none" : "";
+  $("asgTrack").innerHTML = d.usage ? asgTracker(d.usage) : "";
+  if(d.locked){
+    $("asgAiNote").innerHTML = ""; $("asgAccess").innerHTML = "";
+    box.innerHTML = `<div class="panel" style="max-width:460px;margin:10px auto;text-align:center"><div style="font-size:2.4rem">🔒</div><h3 style="border:0">Assignments are locked</h3>
+      ${d.approved ? `<p class="sub">Enter the 6-digit access code the admin gave you.</p>
+        <input id="asgCode" inputmode="numeric" maxlength="6" placeholder="••••••" style="font-size:1.6rem;letter-spacing:.3em;text-align:center;max-width:220px;margin:6px auto 10px;display:block" onkeydown="if(event.key==='Enter')asgUnlock()">
+        <button class="btn-red" onclick="asgUnlock()">🔓 Unlock</button>`
+      : `<p class="sub">AI assignments are given to approved teachers only. Ask the admin to approve you — they will give you an access code.</p>`}</div>`;
+    return;
+  }
+  if(!IS_TEACHER) asgAccessPanel();
   $("asgAiNote").innerHTML = ASG.aiReady ? "" : `<div class="note"><b>AI is off:</b> ${esc(ASG.aiWhy)} You can still write assignments yourself and mark them by hand.</div>`;
   const L = ASG.list;
   box.innerHTML = `<div class="tbl-wrap"><table><thead><tr><th>Assignment</th><th>Class</th><th>Subject</th><th>Timer</th><th>Due</th><th>Status</th><th style="text-align:right">Done</th><th style="text-align:right">Avg</th><th></th></tr></thead><tbody>
-    ${L.length ? L.map(a=>`<tr><td><b>${esc(a.title)}</b><br><span class="sub">${a.questions} questions · ${a.total} marks · ${a.source === "ai" ? "✨ AI" : a.source === "upload" ? "⬆ uploaded" : "✍ own"}${IS_TEACHER ? "" : " · " + esc(a.teacherName||"")}</span></td>
+    ${L.length ? L.map(a=>`<tr><td>${a.kind === "test" ? "🧪" : "📝"} <b>${esc(a.title)}</b><br><span class="sub">${a.kind === "test" ? "Test" : "Assignment"} · ${a.questions} questions · ${a.total} marks · ${a.source === "ai" ? "✨ AI" : a.source === "upload" ? "⬆ uploaded" : "✍ own"}${IS_TEACHER ? "" : " · " + esc(a.teacherName||"")}</span></td>
       <td>${esc(a.course)}<br><span class="sub">${esc(a.shift)}</span></td><td>${esc(a.subject)}${a.code ? `<br><span class="sub">${esc(a.code)}</span>` : ""}</td>
       <td>${a.timed ? `⏱ ${a.minutes} min` : "—"}</td><td>${a.dueDate ? fmtD(a.dueDate) : "—"}</td>
       <td><span class="badge ${a.status === "published" ? "b-paid" : "b-freeze"}">${a.status === "published" ? "Published" : "Draft"}</span></td>
       <td style="text-align:right">${a.submitted}/${a.recipients}</td><td style="text-align:right">${a.avg === null ? "—" : a.avg + "%"}</td>
       <td><button class="btn-black btn-sm" onclick="asgDetail('${a.id}')">Open</button></td></tr>`).join("")
     : `<tr><td colspan="9" class="empty">No assignments yet — generate one with AI, upload a paper or write your own.</td></tr>`}</tbody></table></div>`;
+}
+
+/* v66: mahana tracker — 2 tests + 3 assignments */
+function asgTracker(u){
+  const bar = (l, x) => { const left = Math.max(0, x.limit - x.used);
+    return `<div style="flex:1;min-width:180px"><div style="display:flex;justify-content:space-between"><b>${l}</b><span><b>${x.used}</b> / ${x.limit}</span></div>
+      <div style="background:#E8EEF0;border-radius:6px;height:10px;overflow:hidden;margin:6px 0 4px"><div style="height:10px;width:${Math.min(100, x.used/x.limit*100)}%;background:${left ? "var(--ok)" : "var(--danger)"}"></div></div>
+      <span class="sub">${left ? `${left} left` : "limit reached"}</span></div>`; };
+  return `<div class="panel" style="display:flex;gap:24px;flex-wrap:wrap;align-items:center"><div style="min-width:150px"><b>📊 This month</b><br><span class="sub">${fmtM(u.month)}</span></div>
+    ${bar("🧪 Tests", u.test)}${bar("📝 Assignments", u.assignment)}</div>`;
+}
+async function asgRefreshTrack(){
+  if(!IS_TEACHER) return;
+  try{ const d = await asgApi("/api/asg/list"); ASG.usage = d.usage; if(d.usage) $("asgTrack").innerHTML = asgTracker(d.usage); }catch(e){}
+}
+async function asgUnlock(){
+  const code = ($("asgCode").value||"").trim();
+  if(!/^\d{6}$/.test(code)){ toast("Enter the 6-digit code"); return; }
+  try{ await asgApi("/api/asg/unlock", {code}); toast("🔓 Unlocked"); renderAssign(); }catch(e){ toast(e.message); }
+}
+/* v66: Admin / Executive — kaun se teachers assignments bana sakte hain */
+async function asgAccessPanel(){
+  let d; try{ d = await asgApi("/api/asg/access"); }catch(e){ $("asgAccess").innerHTML = `<div class="note">${esc(e.message)}</div>`; return; }
+  const st = {off:`<span class="sub">No access</span>`, code:`<span class="badge b-freeze">Code given — not entered yet</span>`, active:`<span class="badge b-paid">✓ Active</span>`};
+  $("asgAccess").innerHTML = `<details class="panel" ${d.list.some(t=>t.status !== "off") ? "" : "open"}><summary style="cursor:pointer"><b>🔐 Teacher access</b> <span class="sub">— approved teachers get a code; each can make ${d.limits.test} tests + ${d.limits.assignment} assignments a month (${esc(fmtM(d.month))})</span></summary>
+    <div class="tbl-wrap" style="margin-top:10px"><table><thead><tr><th>Teacher</th><th>Access</th><th>Tests</th><th>Assignments</th><th>Actions</th></tr></thead><tbody>
+    ${d.list.length ? d.list.map(t=>`<tr><td><b>${esc(t.name)}</b><br><span class="sub">${t.hasLogin ? "" : "⚠ no teacher login yet"}</span></td><td>${st[t.status]}${t.setAt ? `<br><span class="sub">${fmtD(t.setAt.slice(0,10))} · ${esc(t.setBy)}</span>` : ""}</td>
+      <td>${t.usage.test.used}/${t.usage.test.limit}</td><td>${t.usage.assignment.used}/${t.usage.assignment.limit}</td>
+      <td style="white-space:nowrap"><button class="btn-red btn-sm" onclick="asgAccess('${t.id}','approve')">${t.status === "off" ? "Approve & give code" : "New code"}</button>
+        ${t.status !== "off" ? `<button class="btn-line btn-sm" onclick="asgAccess('${t.id}','revoke')">Remove</button>` : ""}
+        ${t.usage.test.used || t.usage.assignment.used ? `<button class="btn-line btn-sm" onclick="asgAccess('${t.id}','reset')">Reset month</button>` : ""}</td></tr>`).join("")
+      : `<tr><td colspan="5" class="empty">No teachers found (Employees → category Teacher)</td></tr>`}</tbody></table></div></details>`;
+}
+function asgAccess(tid, action){
+  const name = (empById(tid)||{}).name || "this teacher";
+  const go = async ()=>{
+    try{ const r = await asgApi("/api/asg/access", {tid, action});
+      if(r.code){ const msg = `${DB.settings.name||"Cambridge Grads Academy"} — AI Assignments\nYour access code: ${r.code}\nTeacher login → ✍ Assignments → enter this code.`;
+        openModal(`<h3>🔐 Access code — ${esc(name)}</h3><div class="note">Code: <b style="font-size:1.8rem;letter-spacing:.25em;font-family:monospace">${r.code}</b><br>Shown only now. Give it to the teacher — they enter it once on the Assignments page.${action === "approve" ? " Any old code stops working." : ""}</div>
+          <div class="field"><label>Message</label><textarea id="acMsg" rows="4">${esc(msg)}</textarea></div>
+          <div class="modal-foot"><button class="btn-line" onclick="navigator.clipboard&&navigator.clipboard.writeText($('acMsg').value).then(()=>toast('Copied'))">📋 Copy</button>
+          ${(empById(tid)||{}).phone ? `<a class="btn-red" style="padding:9px 14px" target="_blank" rel="noopener" href="${waLink(empById(tid).phone)}?text=${encodeURIComponent(msg)}">Send on WhatsApp</a>` : ""}
+          <button class="btn-line" onclick="closeModal()">Close</button></div>`, true); }
+      else toast(action === "revoke" ? "Access removed" : "This month's count reset");
+      asgAccessPanel();
+    }catch(e){ toast(e.message); }
+  };
+  if(action === "approve") return go();
+  askConfirm(action === "revoke" ? `Remove ${esc(name)}'s access?` : `Reset ${esc(name)}'s count for this month?`,
+    action === "revoke" ? "They will not be able to open Assignments until you approve them again. Their published work stays for students." : "They can make 2 more tests and 3 more assignments this month.", go, action === "revoke" ? "Remove" : "Reset");
 }
 
 /* ------------------------------- create ------------------------------- */
@@ -6208,8 +6273,12 @@ function asgNew(mode){
   if(!keys.length){ toast(IS_TEACHER ? "No class is assigned to you — ask the admin (Employees → Edit → Assign)" : "No classes found"); return; }
   if(mode !== "manual" && !ASG.aiReady){ toast("AI is off on the server — use “Write my own”"); return; }
   const title = {ai:"✨ Generate an assignment with AI", upload:"⬆ Upload a question paper", manual:"✍ Write your own assignment"}[mode];
+  const u = ASG.usage, left = k => !u ? 99 : u[k].limit - u[k].used;
+  if(IS_TEACHER && left("test") <= 0 && left("assignment") <= 0){ toast("You have used all your tests and assignments for this month"); return; }
+  const kindDef = left("assignment") > 0 ? "assignment" : "test";
   $("asgBody").innerHTML = `<div class="panel"><h3>${title}</h3>
     <div class="toolbar" style="margin-top:10px">
+      <div class="field"><label>Type</label><select id="an_kind">${[["assignment","📝 Assignment"],["test","🧪 Test (timed)"]].map(([v,l])=>`<option value="${v}" ${v===kindDef?"selected":""} ${left(v) <= 0 ? "disabled" : ""}>${l}${u ? ` — ${Math.max(0,left(v))} left` : ""}</option>`).join("")}</select></div>
       <div class="field"><label>Class</label><select id="an_cls" onchange="asgClsChanged()">${keys.map(k=>`<option value="${esc(k)}">${esc(asgKeyLabel(k))}</option>`).join("")}</select></div>
       <div class="field" style="flex:1;min-width:160px"><label>Subject</label><input id="an_subj" list="an_subjL" placeholder="e.g. Physics" oninput="asgCode()"><datalist id="an_subjL"></datalist></div>
       <div class="field"><label>Level</label><select id="an_lvl" onchange="asgCode(true)">${["O Level","AS Level","A Level","IGCSE","Lower Secondary"].map(x=>`<option>${x}</option>`).join("")}</select></div>
@@ -6283,11 +6352,11 @@ function asgDrawUpl(kind){
 }
 async function asgCreate(mode){
   const [shift, course] = $("an_cls").value.split("|");
-  const spec = {shift, course, subject:$("an_subj").value.trim(), level:$("an_lvl").value, code:$("an_code").value.trim()};
+  const spec = {shift, course, subject:$("an_subj").value.trim(), level:$("an_lvl").value, code:$("an_code").value.trim(), kind:$("an_kind").value};
   if(!spec.subject){ toast("Write the subject"); return; }
   if(mode === "manual"){
     return asgEdit({...spec, id:"", title:"", instructions:"Answer all questions. Show your working.", source:"manual", files:[], status:"draft",
-      questions:[{number:"1", type:"short", text:"", options:[], marks:2, mark_scheme:[""], model_answer:""}], timed:false, minutes:30, openFrom:wmDate(), dueDate:"", studentIds:null});
+      questions:[{number:"1", type:"short", text:"", options:[], marks:2, mark_scheme:[""], model_answer:""}], timed:spec.kind === "test", minutes:40, openFrom:wmDate(), dueDate:"", studentIds:null});
   }
   let body;
   if(mode === "ai"){
@@ -6299,7 +6368,7 @@ async function asgCreate(mode){
     body = {...spec, files:ASG.upl.paper, scheme:ASG.upl.scheme, notes:$("an_notes").value};
   }
   asgBusy(true, mode === "ai" ? "Writing your assignment and Cambridge mark scheme… (about a minute)" : "Reading the paper and preparing the mark scheme… (about a minute)");
-  try{ const a = await asgApi(mode === "ai" ? "/api/asg/generate" : "/api/asg/extract", body); a.studentIds = null; asgEdit(a); toast("Draft ready — check it, choose students and publish"); }
+  try{ const a = await asgApi(mode === "ai" ? "/api/asg/generate" : "/api/asg/extract", body); a.studentIds = null; asgEdit(a); asgRefreshTrack(); toast("Draft ready — check it, choose students and publish"); }
   catch(e){ toast(e.message); }
   finally{ asgBusy(false); }
 }
@@ -6308,7 +6377,7 @@ async function asgCreate(mode){
 async function asgEdit(a){
   asgStop(); ASG.view = "edit"; ASG.cur = structuredClone(a);
   const x = ASG.cur, started = x.id ? (ASG.list.find(l=>l.id===x.id)||{}).started || 0 : 0;
-  $("asgBody").innerHTML = `<div class="panel"><h3>${x.id && x.status === "published" ? "Edit assignment" : "Check the draft, then publish"}</h3>
+  $("asgBody").innerHTML = `<div class="panel"><h3>${x.kind === "test" ? "🧪 Test" : "📝 Assignment"} — ${x.id && x.status === "published" ? "edit" : "check the draft, then publish"}</h3>
     <p class="sub">${esc(asgKeyLabel(x.shift + "|" + x.course))} · ${esc(x.subject)}${x.code ? " · " + esc(x.level) + " " + esc(x.code) : ""}</p>
     ${started ? `<div class="note">${started} student(s) have started — you can fix wording and the mark scheme, but not add / remove questions or change marks.</div>` : ""}
     <div class="field"><label>Title</label><input id="ae_title" value="${esc(x.title)}"></div>
@@ -6365,12 +6434,12 @@ const asgTot = () => { $("ae_tot").textContent = `Total: ${ASG.cur.questions.red
 function asgAddQ(){ ASG.cur.questions.push({number:String(ASG.cur.questions.length + 1), type:"short", text:"", options:[], marks:2, mark_scheme:[""], model_answer:""}); asgDrawQs(); }
 async function asgSave(status){
   const x = ASG.cur;
-  const body = {id:x.id || undefined, shift:x.shift, course:x.course, subject:x.subject, level:x.level, code:x.code, files:x.files || [],
+  const body = {id:x.id || undefined, shift:x.shift, course:x.course, subject:x.subject, level:x.level, code:x.code, kind:x.kind || "assignment", files:x.files || [],
     title:$("ae_title").value, instructions:$("ae_instr").value, status,
     questions:x.questions.map(q=>({...q, options:q.type === "mcq" ? q.options.filter(o=>o.trim()) : [], mark_scheme:q.mark_scheme.filter(p=>p.trim())})),
     timed:$("ae_timed").checked, minutes:$("ae_min").value, openFrom:$("ae_open").value, dueDate:$("ae_due").value,
     studentIds:[...document.querySelectorAll(".ae_st:checked")].map(c=>c.value)};
-  try{ const a = await asgApi("/api/asg/save", body); toast(status === "published" ? `Published to ${a.studentIds.length} student(s)` : "Draft saved"); asgDetail(a.id); }
+  try{ const a = await asgApi("/api/asg/save", body); if(!x.id) asgRefreshTrack(); toast(status === "published" ? `Published to ${a.studentIds.length} student(s)` : "Draft saved"); asgDetail(a.id); }
   catch(e){ toast(e.message); }
 }
 
