@@ -1294,7 +1294,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v62 · 8 Oct 2026";
+const BUILD = "v63 · 8 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -6075,11 +6075,12 @@ function renderMyDash(){
   const people = uniqueStudents(stus);
   /* Evening class jis ka subject maloom nahi — poori class ginti mein (admin subject set kare) */
   const wholeCls = keys.filter(k=>k.startsWith("Evening|") && !subjOf(k));
-  const asg = (me.assignments||[]).slice().sort((a,b)=>(a.from||"99").localeCompare(b.from||"99") || a.course.localeCompare(b.course));
+  const today0 = new Date().getDay();
+  const asg = (me.assignments||[]).slice().sort((a,b)=>((slotOf(a,today0)||a).from||"99").localeCompare((slotOf(b,today0)||b).from||"99") || a.course.localeCompare(b.course));
   const today = new Date().getDay(), nowT = new Date().toTimeString().slice(0,5);
   const forAsg = a => stus.filter(st=>st.shift===a.shift && inClass(st, a.course)
     && (a.shift === "Morning" || (a.subject ? (st.subjects||[]).some(x=>x.teacherId ? x.teacherId===MY_TID : subjLike(x.name, a.subject)) : teachesStu(st, a.shift+"|"+a.course, subjOf))));
-  const todays = asg.filter(a=>(a.from || a.dayList) && asgDays(a).includes(today));
+  const todays = asg.filter(a=>(a.from || a.dayList) && asgDays(a).includes(today)).map(a=>({...a, ...(slotOf(a, today) || {})}));
   /* attendance (sirf parhne ke liye) */
   const att = DB.empAttendance || {}, days = Object.keys(att).filter(d=>d.startsWith(m) && empRecs(att[d], MY_TID).length).sort();
   const c = empAttCount(MY_TID, d=>d.startsWith(m)), marked = c.marked, pct = c.pct;
@@ -6096,9 +6097,9 @@ function renderMyDash(){
     <div class="card click" onclick="document.querySelector('#nav button[data-page=tests]').click()"><div class="k">Marks pending</div><div class="v ${pend.length ? "red" : "green"}">${pend.length}</div><div class="hint">papers with incomplete marks</div></div>`;
   $("mdToday").innerHTML = todays.length ? `<b>Today:</b> ${todays.map(a=>`${fmtT(a.from)}–${fmtT(a.to)} ${esc(a.course)}${a.subject ? " (" + esc(a.subject) + ")" : ""}`).join(" · ")}` : "No class times set for today.";
   $("mdTT").innerHTML = asg.length ? `<div class="tbl-wrap"><table><thead><tr><th>Class</th><th>Shift</th><th>Subject</th><th>Days</th><th>Time</th><th style="text-align:right">Students</th></tr></thead><tbody>
-    ${asg.map(a=>{ const now = a.from && asgDays(a).includes(today) && nowT >= a.from && nowT < (a.to || "24:00");
+    ${asg.map(a=>{ const ts = slotOf(a, today), now = ts && ts.from && nowT >= ts.from && nowT < (ts.to || "24:00");
       return `<tr${now ? ' style="background:#e8f7f0"' : ""}><td><b>${esc(a.course)}</b></td><td>${esc(a.shift)}</td><td>${esc(a.subject || "—")}</td><td>${esc(a.dayList ? daysLabel(a.dayList) : a.from ? a.days || "Mon–Fri" : "—")}</td>
-        <td>${a.from ? `${fmtT(a.from)} – ${fmtT(a.to)}${now ? ` <span class="badge b-paid">Now</span>` : ""}` : `<span class="sub">time not set</span>`}</td><td style="text-align:right">${forAsg(a).length}</td></tr>`; }).join("")}
+        <td>${a.from ? `${esc(asgTimeText(a))}${now ? ` <span class="badge b-paid">Now</span>` : ""}` : `<span class="sub">time not set</span>`}</td><td style="text-align:right">${forAsg(a).length}</td></tr>`; }).join("")}
     </tbody></table></div>` : `<div class="note">No class is assigned to you yet — the admin will set your class, subject and time via Employees → your name → Edit.</div>`;
   $("mdAttM").textContent = fmtM(m);
   const ltm = empLateMonth(MY_TID, m), lp = latePolicy();
@@ -7147,11 +7148,15 @@ function openEmpForm(id){
         <div class="field"><label>Shift</label><select id="m_as" onchange="syncClassSel('m_as','m_ac')"><option>Morning</option><option>Evening</option></select></div>
         <div class="field" style="flex:1;min-width:130px"><label>Class</label><select id="m_ac">${courseOptions(undefined,"Morning")}</select></div>
         <div class="field" style="flex:1;min-width:130px"><label>Subject (recommended)</label><input id="m_asub" list="m_asubList" placeholder="e.g. Physics"><datalist id="m_asubList">${[...new Set(DB.subjects.map(x=>x.name))].sort().map(n=>`<option value="${esc(n)}">`).join("")}</datalist></div>
-        <div class="field" style="min-width:250px"><label>Days (tap to pick)</label><div class="daypick" id="m_adays">${WEEK_ORDER.map(d=>`<button type="button" data-d="${d}" onclick="this.classList.toggle('on')">${WEEK[d]}</button>`).join("")}</div>
+        <div class="field" style="min-width:250px"><label>Days (tap to pick)</label><div class="daypick" id="m_adays">${WEEK_ORDER.map(d=>`<button type="button" data-d="${d}" onclick="this.classList.toggle('on');drawSlots()">${WEEK[d]}</button>`).join("")}</div>
           <div class="daypre">${Object.entries({"Mon–Fri":[1,2,3,4,5],"Mon–Sat":[1,2,3,4,5,6],"MWF":[1,3,5],"TTS":[2,4,6],"Clear":[]}).map(([l,ds])=>`<button type="button" onclick="pickDays(${JSON.stringify(ds)})">${l}</button>`).join("")}</div></div>
-        <div class="field"><label>From</label><input type="time" id="m_afrom" style="max-width:120px"></div>
-        <div class="field"><label>To</label><input type="time" id="m_ato" style="max-width:120px"></div>
+        <div class="field"><label>From</label><input type="time" id="m_afrom" style="max-width:120px" onchange="drawSlots(true)"></div>
+        <div class="field"><label>To</label><input type="time" id="m_ato" style="max-width:120px" onchange="drawSlots(true)"></div>
         <button class="btn-black" onclick="addAsg()">+ Assign</button>
+      </div>
+      <label class="chk" style="margin:-6px 0 6px"><input type="checkbox" id="m_aper" onchange="drawSlots()"> ⏱ Different time on each day</label>
+      <div id="m_aslots" class="daypick" style="gap:8px;margin-bottom:10px"></div>
+      <div>
       </div>
       <div class="chips" id="asgChips"></div>
     </div>
@@ -7166,7 +7171,8 @@ function schedGridHTML(e){
   const cell = (sh, d) => { const sl = (empSched(e, sh) || {})[d], k = (sh === "Morning" ? "M" : "E") + d;
     return `<td class="sc-${sh}"><label class="chk" style="margin:0;display:inline-flex"><input type="checkbox" id="sc_${k}" ${sl ? "checked" : ""} onchange="schedRow('${k}')"></label>
       <input type="time" id="sc_${k}_f" value="${sl ? sl.from||"" : ""}" style="max-width:110px" ${sl ? "" : "disabled"}> – <input type="time" id="sc_${k}_t" value="${sl ? sl.to||"" : ""}" style="max-width:110px" ${sl ? "" : "disabled"}></td>`; };
-  return `<div class="note" style="margin-top:10px"><b>🗓 Work days & times</b> — tick the days this person works and their start / end time. Attendance is only taken on these days
+  return `<label class="chk" style="margin:10px 0 0"><input type="checkbox" id="schedAuto" ${e.schedAuto === false ? "" : "checked"} onchange="syncSchedFromAsg()"> ⟳ Fill check-in / check-out automatically from the class times below (earliest class start → latest class end, each day)</label>
+    <div class="note" style="margin-top:6px"><b>🗓 Work days & times</b> — tick the days this person works and their start / end time. Attendance is only taken on these days
       (other days are not counted), and arriving after the start time counts as late. Leave a shift empty for the regular Mon–Fri with no fixed time.</div>
     <div class="tbl-wrap"><table><thead><tr><th>Day</th><th class="sc-Morning">🌅 Morning <button type="button" class="btn-line btn-sm" onclick="schedFill('M')" title="Copy Monday's time to Mon–Fri">Mon–Fri = Mon</button></th>
       <th class="sc-Evening">🌆 Evening <button type="button" class="btn-line btn-sm" onclick="schedFill('E')" title="Copy Monday's time to Mon–Fri">Mon–Fri = Mon</button></th></tr></thead><tbody>
@@ -7198,7 +7204,39 @@ function toggleOnline(id){
 }
 function toggleAsg(){ $("asgBox").style.display = $("m_cat").value==="Teacher"? "block":"none"; }
 /* v60: class / subject ke apne din (koi bhi din chunein) aur waqt */
-function pickDays(ds){ document.querySelectorAll("#m_adays button").forEach(b=>b.classList.toggle("on", ds.includes(+b.dataset.d))); }
+function pickDays(ds){ document.querySelectorAll("#m_adays button").forEach(b=>b.classList.toggle("on", ds.includes(+b.dataset.d))); drawSlots(); }
+/* v61: har din ka alag waqt (e.g. FT1 Maths: Mon 9–10, Tue 11–12) */
+let SLOT_DRAFT = {};
+function drawSlots(fromMain){
+  const box = $("m_aslots"); if(!box) return;
+  if(!$("m_aper").checked){ box.innerHTML = ""; return; }
+  document.querySelectorAll("#m_aslots [data-sd]").forEach(x=>{ const d = x.dataset.sd; SLOT_DRAFT[d] = {from:$("sl_f"+d).value, to:$("sl_t"+d).value}; });
+  const f = $("m_afrom").value, t = $("m_ato").value, ds = pickedDays();
+  if(fromMain) ds.forEach(d=>{ SLOT_DRAFT[d] = {from:f, to:t}; });
+  box.innerHTML = ds.length ? ds.map(d=>{ const v = SLOT_DRAFT[d] || {from:f, to:t};
+    return `<div data-sd="${d}" style="display:flex;align-items:center;gap:4px;border:1px solid var(--line);border-radius:8px;padding:4px 6px"><b style="min-width:32px">${WEEK[d]}</b>
+      <input type="time" id="sl_f${d}" value="${v.from||""}" style="max-width:110px"> – <input type="time" id="sl_t${d}" value="${v.to||""}" style="max-width:110px"></div>`; }).join("")
+    : `<span class="sub">Pick the days above first</span>`;
+}
+/* Is din ka waqt: din wise slot, warna aam From/To */
+const slotOf = (a, wd) => !asgDays(a).includes(wd) ? null : (a.slots && a.slots[wd]) ? a.slots[wd] : a.from ? {from:a.from, to:a.to} : null;
+const asgTimeText = a => a.slots && Object.keys(a.slots).length
+  ? asgDays(a).filter(d=>a.slots[d]).sort((x,y)=>((x+6)%7)-((y+6)%7)).map(d=>`${WEEK[d]} ${fmtT(a.slots[d].from)}${a.slots[d].to ? "–" + fmtT(a.slots[d].to) : ""}`).join(", ")
+  : a.from ? `${fmtT(a.from)}${a.to ? "–" + fmtT(a.to) : ""}` : "";
+/* Upar wala check-in / check-out: har shift aur din ka sab se pehla class start → sab se aakhri class end */
+function syncSchedFromAsg(){
+  if(!$("schedAuto") || !$("schedAuto").checked || !$("sc_M1")) return;
+  const want = {};
+  asgDraft.forEach(a=>WEEK_ORDER.forEach(d=>{ const sl = slotOf(a, d); if(!sl || !sl.from) return;
+    const k = (a.shift === "Evening" ? "E" : "M") + d, w = want[k] = want[k] || {from:sl.from, to:sl.to || ""};
+    if(sl.from < w.from) w.from = sl.from; if((sl.to||"") > w.to) w.to = sl.to || w.to; }));
+  const shs = new Set(asgDraft.filter(a=>Object.keys(want).some(k=>k[0] === (a.shift === "Evening" ? "E" : "M"))).map(a=>a.shift));
+  if(shs.size && $("m_shift")){ const cur = $("m_shift").value, need = shs.size > 1 ? "Both" : [...shs][0];
+    if(cur !== "Both" && cur !== need){ $("m_shift").value = shs.size > 1 || asgDraft.some(x=>x.shift === cur) ? "Both" : need; schedShiftSync(); } }
+  ["M","E"].forEach(p=>WEEK_ORDER.forEach(d=>{ const k = p + d, cb = $("sc_"+k); if(!cb) return; const w = want[k];
+    if(w){ cb.checked = true; schedRow(k); $("sc_"+k+"_f").value = w.from; $("sc_"+k+"_t").value = w.to; cb.dataset.auto = "1"; }
+    else if(cb.dataset.auto === "1"){ cb.checked = false; schedRow(k); $("sc_"+k+"_f").value = ""; $("sc_"+k+"_t").value = ""; cb.dataset.auto = ""; } }));
+}
 const pickedDays = () => [...document.querySelectorAll("#m_adays button.on")].map(b=>+b.dataset.d).sort((a,b)=>((a+6)%7)-((b+6)%7));
 function daysLabel(list){
   const k = [...list].sort().join(","), pre = Object.entries(DAY_SET).find(([,v])=>[...v].sort().join(",") === k);
@@ -7210,20 +7248,33 @@ function addAsg(){
   if(asgDraft.some(a=>a.course===c && a.shift===s && keyify(a.subject||"")===keyify(sub) && (a.from||"")===from && daysLabel(asgDays(a))===daysLabel(dl.length ? dl : asgDays({})))){ toast("This assignment already exists"); return; }
   if(from && to && to <= from){ toast("'To' time must be after 'From' time"); return; }
   if(to && !from){ toast("Enter the 'From' time too"); return; }
-  asgDraft.push({course:c, shift:s, ...(sub ? {subject:sub} : {}), ...(from ? {from, to} : {}), ...(dl.length ? {dayList:dl, days:daysLabel(dl)} : from ? {days:"Mon–Fri"} : {})});
-  $("m_asub").value = ""; $("m_afrom").value = ""; $("m_ato").value = ""; pickDays([]); drawAsg();
+  let slots = null;
+  if($("m_aper") && $("m_aper").checked){
+    if(!dl.length){ toast("Pick the days first"); return; }
+    slots = {};
+    for(const d of dl){ const f = $("sl_f"+d).value, t = $("sl_t"+d).value;
+      if(!f){ toast(`Enter the start time for ${WEEK[d]}`); return; }
+      if(t && t <= f){ toast(`${WEEK[d]}: end time must be after start time`); return; }
+      slots[d] = {from:f, to:t}; }
+  }
+  const fr = slots ? Object.values(slots).map(x=>x.from).sort()[0] : from, tt = slots ? Object.values(slots).map(x=>x.to||"").sort().pop() : to;
+  asgDraft.push({course:c, shift:s, ...(sub ? {subject:sub} : {}), ...(fr ? {from:fr, to:tt} : {}), ...(slots ? {slots} : {}), ...(dl.length ? {dayList:dl, days:daysLabel(dl)} : fr ? {days:"Mon–Fri"} : {})});
+  $("m_asub").value = ""; $("m_afrom").value = ""; $("m_ato").value = ""; if($("m_aper")) $("m_aper").checked = false; SLOT_DRAFT = {}; pickDays([]); drawAsg();
 }
-const asgLabel = a => `${a.course} · ${a.shift}${a.subject ? " · " + a.subject : ""}${a.dayList || a.from ? ` · ${a.dayList ? daysLabel(a.dayList) : (a.days || "Mon–Fri")}` : ""}${a.from ? ` ${fmtT(a.from)}${a.to ? "–" + fmtT(a.to) : ""}` : ""}`;
+const asgLabel = a => `${a.course} · ${a.shift}${a.subject ? " · " + a.subject : ""}${a.slots ? " · " + asgTimeText(a) : `${a.dayList || a.from ? ` · ${a.dayList ? daysLabel(a.dayList) : (a.days || "Mon–Fri")}` : ""}${a.from ? " " + asgTimeText(a) : ""}`}`;
 function editAsg(i){
   const a = asgDraft[i]; if(!a) return;
   $("m_as").value = a.shift; syncClassSel('m_as','m_ac'); $("m_ac").value = a.course;
   $("m_asub").value = a.subject || ""; $("m_afrom").value = a.from || ""; $("m_ato").value = a.to || "";
+  SLOT_DRAFT = a.slots ? JSON.parse(JSON.stringify(a.slots)) : {};
+  if($("m_aper")) $("m_aper").checked = !!a.slots;
   pickDays(a.dayList || (a.from ? asgDays(a) : []));
   asgDraft.splice(i, 1); drawAsg(); toast("Change the days / time and press + Assign");
 }
 function drawAsg(){
   const box=$("asgChips"); if(!box) return;
   box.innerHTML = asgDraft.map((a,i)=>`<span class="chip">${esc(asgLabel(a))} <button title="Edit days / time" onclick="editAsg(${i})">✎</button> <button onclick="asgDraft.splice(${i},1);drawAsg()">✕</button></span>`).join("") || `<span class="sub">No assignments yet</span>`;
+  syncSchedFromAsg();
 }
 function saveEmp(id){
   const name=$("m_name").value.trim();
@@ -7231,7 +7282,7 @@ function saveEmp(id){
   const cat = $("m_cat").value;
   const schedule = readSched($("m_shift").value);
   if(Object.values(schedule).some(sc=>Object.values(sc).some(x=>x.from && x.to && x.to <= x.from))){ toast("A work day's end time must be after its start time"); return; }
-  const data = {schedule, name, category:cat, shift:$("m_shift").value, phone:$("m_phone").value.trim(), doj:$("m_doj").value||"", salary:$("m_sal").value||0, address:$("m_addr").value.trim(), photo:photoTemp, assignments: cat==="Teacher"? asgDraft : [], online: $("m_online").checked};
+  const data = {schedule, schedAuto: $("schedAuto") ? $("schedAuto").checked : true, name, category:cat, shift:$("m_shift").value, phone:$("m_phone").value.trim(), doj:$("m_doj").value||"", salary:$("m_sal").value||0, address:$("m_addr").value.trim(), photo:photoTemp, assignments: cat==="Teacher"? asgDraft : [], online: $("m_online").checked};
   if(id) Object.assign(empById(id), data);
   else { data.id=uid(); DB.employees.push(data); }
   save(); syncSalaries(); closeModal(); renderEmployees(); toast("Employee saved");

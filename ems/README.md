@@ -129,6 +129,13 @@ On phones the EMS works like an app: top bar with the CGA logo and page name, �
 a bottom tab bar (role-wise shortcuts + More), and the 👤 account button (Install app, Who are you?, Log out with
 confirmation). The login page has the logo, a Staff | Teacher switch and a show-password button; sessions last 30 days.
 
+## Class times → work days (v61)
+
+Employees → Edit → Assign: a class can have **a different time on each day** (tick "⏱ Different time on each day",
+e.g. FT1 Maths Mon 9–10, Tue 11–12, Thu 8:30–9:30). With "⟳ Fill check-in / check-out automatically" on, the
+teacher's Work days & times grid is filled from the class times (earliest class start → latest class end, per day and
+shift), so attendance, late minutes and the teacher's timetable all follow the class schedule.
+
 ## Install as an app (v41)
 
 Staff (`/`), Teachers (`/teacher`) and Parents (`/parent`) — all three links can be installed as an app on a phone / computer
