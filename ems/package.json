@@ -5,7 +5,8 @@
   "description": "CGA EMS — online server (shared data, office password login)",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "node check.js"
   },
   "engines": {
     "node": ">=18"
