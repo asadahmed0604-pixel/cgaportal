@@ -177,7 +177,9 @@ function teacherSubjects(d, tid, cls) {
   (d.students || []).forEach((st) => (st.subjects || []).forEach((x) => { if (x.teacherId === tid) stuClasses(st).forEach((c) => add(st.shift + "|" + c, x.name)); }));
   Object.entries((d.settings || {}).subjTeacher || {}).forEach(([key, t]) => { if (t !== tid) return; const [sh, c, sk] = key.split("|"); add(sh + "|" + c, sk); });
   (d.tests || []).forEach((t) => { if (t.teacherId === tid) add(t.shift + "|" + t.course, t.subject); });
-  return (k) => (all.has(k) || !map.has(k) ? null : map.get(k));      // null = poori class
+  /* v60: class ke subjects kahin se bhi maloom hon to sirf wohi (bina-subject assignment ab poori class nahi kholti);
+     kuch bhi maloom na ho tab hi poori class */
+  return (k) => (map.has(k) ? map.get(k) : null);      // null = poori class
 }
 const subjHit = (set, name) => { const n = keyOf(name); for (const k of set) if (n === k || n.includes(k) || k.includes(n)) return true; return false; };
 const testSeen = (t, tid, cls) => !!t && cls.has(t.shift + "|" + t.course) && (!t.teacherId || t.teacherId === tid);
@@ -203,7 +205,9 @@ function teacherView(d, tid) {
     /* v46: apni KPI checklist aur class audits — live KPI ke liye (sirf parhne ko) */
     kpis: (d.kpis || []).filter((k) => k.teacherId === tid),
     employees: (d.employees || []).map((e) => e.id === tid
-      ? { id: e.id, name: e.name, category: e.category, shift: e.shift, assignments: e.assignments || [], online: !!e.online, schedule: e.schedule || {} }
+      ? { id: e.id, name: e.name, category: e.category, shift: e.shift, assignments: e.assignments || [], online: !!e.online, schedule: e.schedule || {},
+          /* v60: har class mein teacher ke subjects (null = subject maloom nahi, poori class) */
+          scope: Object.fromEntries([...cls].map((k) => { const x = subjOf(k); return [k, x ? [...x] : null]; })) }
       : { id: e.id, name: e.name, category: e.category, shift: e.shift, online: !!e.online }),
     tests, exams: (d.exams || []).filter((e) => ids.has(e.testId)),
     classAtt: (d.classAtt || []).filter((c) => catOwn(c, tid, cls)),
