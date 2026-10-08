@@ -818,7 +818,7 @@ label.chk input{width:auto}
 
   <div class="panel" style="margin-top:16px">
     <h3>👥 Staff Attendance</h3>
-    <p class="sub" style="margin:4px 0 12px">Working days: Monday – Friday · Saturday & Sunday off · Morning and Evening are marked separately ("Both" staff appear in each).
+    <p class="sub" style="margin:4px 0 12px">Each person appears only on their own work days (Employees → Edit → Work days & times; default Mon–Fri) · Morning and Evening are marked separately ("Both" staff appear in each).
       Leave: <b>Informed</b> or <b>Uninformed</b> — max <b>2</b> leave days a month; after that only Absent can be marked. Uninformed leaves show as a remark on the teacher's portal.</p>
     <div class="toolbar">
       <div class="field"><label>Date</label><input type="date" id="empAttDate" onchange="loadEmpAttendance()"></div>
@@ -826,9 +826,10 @@ label.chk input{width:auto}
       <button class="btn-black" onclick="empMarkAll('P')">All Present</button>
       <button class="btn-red" onclick="saveEmpAttendance()">Save Attendance</button>
     </div>
+    <div id="lateBox" class="note" style="margin:0 0 10px"></div>
     <div id="empAttWarn"></div>
     <div class="tbl-wrap"><table>
-      <thead><tr><th>#</th><th></th><th>Employee</th><th>Category</th><th>Status</th><th>Time</th><th>Leaves (month)</th></tr></thead>
+      <thead><tr><th>#</th><th></th><th>Employee</th><th>Category</th><th>Status</th><th>Arrival time</th><th>Late</th><th>Leaves (month)</th></tr></thead>
       <tbody id="empAttRows"></tbody>
     </table></div>
   </div>
@@ -1145,7 +1146,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v56 · 8 Oct 2026";
+const BUILD = "v57 · 8 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -5690,6 +5691,10 @@ function myLiveKpi(m){
     ["💬 Remarks", recs.length ? Math.round(recs.filter(e=>String(e.comment||"").trim().length >= 2).length*100/recs.length) : null, recs.length ? `${recs.filter(e=>String(e.comment||"").trim().length>=2).length} / ${recs.length} marks with a remark` : "—"],
     ...(ev.length ? [["🧪 Evening tests (2 / class)", Math.round(ev.reduce((a,x)=>a+Math.min(x.n, EVE_TEST_TARGET),0)*100/(ev.length*EVE_TEST_TARGET)), ev.map(x=>`${x.c}: ${x.n}/${EVE_TEST_TARGET}`).join(" · ")]] : []),
     ["🗓 My attendance", days.length ? Math.round(pres*100/days.length) : null, days.length ? `Present ${pres} / ${days.length} days` : "Not marked yet"],
+    /* v57: punctuality — schedule ke waqt se der; 45 min tak maaf, us ke baad har minute ka asar */
+    (()=>{ const lt = empLateMonth(MY_TID, m), on = ac.P + ac.L;
+      const sc = on ? Math.max(0, Math.round((on - lt.n)*100/on) - Math.min(50, lt.over)) : null;
+      return ["⏰ Punctuality", sc, on ? `${lt.n} late arrival${lt.n===1?"":"s"} · ${lt.tot} late min (${lt.allow} allowed)${lt.ded ? ` · ${lt.over} min over → Rs ${lt.ded.toLocaleString("en-US")} salary deduction` : ""}` : "Not marked yet"]; })(),
     ["🔍 Class audit", aud.length ? Math.round(avgOf(aud)) : null, aud.length ? `Average of ${aud.length} audits` : "No audit this month"],
     ["📋 Monthly checklist", ckc ? Math.round(ckc.pct) : null, ck ? `${fmtM(ck.month)} · ${ckc.got}/${ckc.max} · ${kpiRating(ckc.pct)}` : "Not filled by the coordinator yet"]
   ];
@@ -5728,7 +5733,7 @@ function renderMyDash(){
     <div class="card"><div class="k">My classes</div><div class="v">${keys.length}</div><div class="hint">${keys.map(k=>k.split("|").reverse().join(" · ")).join(", ") || "Ask the admin to assign"}</div></div>
     <div class="card"><div class="k">My students</div><div class="v">${stus.length}</div><div class="hint">${fmtM(m)} list</div></div>
     <div class="card"><div class="k">Today's classes</div><div class="v">${todays.length}</div><div class="hint">${todays.length ? todays.map(a=>`${fmtT(a.from)} ${a.course}`).join(", ") : "No class times set for today"}</div></div>
-    <div class="card"><div class="k">My attendance (${fmtM(m)})</div><div class="v ${pct >= 90 || !marked ? "green" : "red"}">${marked ? pct + "%" : "—"}</div><div class="hint">${c.P} present · ${c.L} late · ${c.A} absent · ${c.E} informed leave · ${c.U} uninformed · leaves ${empLeaveDays(MY_TID, m).length}/${EMP_LEAVE_LIMIT}</div></div>
+    <div class="card"><div class="k">My attendance (${fmtM(m)})</div><div class="v ${pct >= 90 || !marked ? "green" : "red"}">${marked ? pct + "%" : "—"}</div><div class="hint">${c.P} present · ${c.L} late · ${c.A} absent · ${c.E} informed leave · ${c.U} uninformed · leaves ${empLeaveDays(MY_TID, m).length}/${EMP_LEAVE_LIMIT} · late ${empLateMonth(MY_TID, m).tot}/${latePolicy().allow} min${empLateMonth(MY_TID, m).ded ? ` · <b style="color:var(--danger)">fine Rs ${empLateMonth(MY_TID, m).ded.toLocaleString("en-US")}</b>` : ""}</div></div>
     <div class="card click" onclick="document.querySelector('#nav button[data-page=tests]').click()"><div class="k">Marks pending</div><div class="v ${pend.length ? "red" : "green"}">${pend.length}</div><div class="hint">papers with incomplete marks</div></div>`;
   $("mdToday").innerHTML = todays.length ? `<b>Today:</b> ${todays.map(a=>`${fmtT(a.from)}–${fmtT(a.to)} ${esc(a.course)}${a.subject ? " (" + esc(a.subject) + ")" : ""}`).join(" · ")}` : "No class times set for today.";
   $("mdTT").innerHTML = asg.length ? `<div class="tbl-wrap"><table><thead><tr><th>Class</th><th>Shift</th><th>Subject</th><th>Days</th><th>Time</th><th style="text-align:right">Students</th></tr></thead><tbody>
@@ -5737,11 +5742,14 @@ function renderMyDash(){
         <td>${a.from ? `${fmtT(a.from)} – ${fmtT(a.to)}${now ? ` <span class="badge b-paid">Now</span>` : ""}` : `<span class="sub">time not set</span>`}</td><td style="text-align:right">${forAsg(a).length}</td></tr>`; }).join("")}
     </tbody></table></div>` : `<div class="note">No class is assigned to you yet — the admin will set your class, subject and time via Employees → your name → Edit.</div>`;
   $("mdAttM").textContent = fmtM(m);
-  $("mdAtt").innerHTML = (uninf.length ? `<div class="note" style="border-left-color:#7a3b8f;margin-bottom:10px"><b>⚠ Remarks from the office — uninformed leave (${uninf.length})</b><br>
+  const ltm = empLateMonth(MY_TID, m), lp = latePolicy();
+  $("mdAtt").innerHTML = `<div class="sub" style="margin-bottom:8px"><b>Your work days:</b> ${esc(schedText(me))}<br>
+      <b>Late policy:</b> ${lp.allow} late minutes a month are allowed; after that every minute is Rs ${lp.rate} deducted from salary.
+      This month: <b>${ltm.tot} min</b> late${ltm.ded ? ` — <b style="color:var(--danger)">${ltm.over} min over → Rs ${ltm.ded.toLocaleString("en-US")} deduction</b>` : ` — ${Math.max(0, lp.allow - ltm.tot)} min of allowance left`}.</div>` + (uninf.length ? `<div class="note" style="border-left-color:#7a3b8f;margin-bottom:10px"><b>⚠ Remarks from the office — uninformed leave (${uninf.length})</b><br>
       ${uninf.slice(0,8).map(d=>`${fmtD(d)} (${empRecs(att[d], MY_TID).filter(x=>x.s==="U").map(x=>x.shift).join(" & ")} shift) — leave taken without informing the office. Please inform the office in advance next time.`).join("<br>")}</div>` : "")
-    + (days.length ? `<div class="tbl-wrap"><table><thead><tr><th>Date</th><th>Day</th><th>Shift</th><th>Status</th><th>Time</th></tr></thead><tbody>
+    + (days.length ? `<div class="tbl-wrap"><table><thead><tr><th>Date</th><th>Day</th><th>Shift</th><th>Status</th><th>Arrived</th><th>Late</th></tr></thead><tbody>
     ${days.slice().reverse().flatMap(d=>empRecs(att[d], MY_TID).map(r=>`<tr><td>${fmtD(d)}</td><td>${new Date(d+"T00:00").toLocaleDateString("en-GB",{weekday:"short"})}</td><td>${r.shift}</td>
-      <td><span class="badge b-${r.s}">${EMP_ATT_LABEL[r.s] || r.s}</span></td><td>${r.t ? fmtT(r.t) : "—"}</td></tr>`)).join("")}</tbody></table></div>`
+      <td><span class="badge b-${r.s}">${EMP_ATT_LABEL[r.s] || r.s}</span></td><td>${r.t ? fmtT(r.t) : "—"}</td><td>${+r.lm ? `<b style="color:var(--danger)">+${r.lm} min</b>` : "—"}</td></tr>`)).join("")}</tbody></table></div>`
     : `<div class="empty" style="padding:14px">No attendance marked for ${fmtM(m)} yet</div>`);
   $("mdPend").innerHTML = pend.length ? `<div class="tbl-wrap"><table><thead><tr><th>Date</th><th>Paper</th><th>Class</th><th>Marks</th><th></th></tr></thead><tbody>
     ${pend.slice(0, 12).map(x=>`<tr><td>${fmtD(x.t.date)}</td><td><b>${esc(x.t.name)}</b><br><span class="sub">${esc(x.t.subject||"")}</span></td><td>${esc(x.t.course)}</td>
@@ -6147,7 +6155,7 @@ function renderEmployees(){
       <td>${avatarHTML(e)}</td>
       <td><b>${esc(e.name)}</b>${e.category==="Teacher" ? `<br><button class="btn-sm ${e.online?"btn-black":"btn-line"}" style="margin-top:4px" onclick="toggleOnline('${e.id}')" title="Takes online classes?">${e.online?`<span class="online-dot"></span>Online`:"Online?"}</button>` : ""}</td>
       <td><span class="badge ${e.category==="Teacher"?"b-active":"b-freeze"}">${e.category}</span></td>
-      <td><span class="chip">${esc(e.shift||"Morning")}</span></td>
+      <td><span class="chip">${esc(e.shift||"Morning")}</span>${e.schedule && Object.keys(e.schedule).length ? `<br><span class="sub" style="font-size:.7rem">${esc(schedText(e))}</span>` : ""}</td>
       <td>${esc(e.phone||"—")}</td>
       <td>${fmtD(e.doj)}</td>
       <td>${(e.assignments||[]).map(a=>`<span class="chip">${esc(asgLabel(a))}</span>`).join(" ")||"—"}</td>
@@ -6163,6 +6171,37 @@ function renderEmployees(){
 /* ---------- Staff / Employee Attendance ---------- */
 /* v56: record = {Morning:{s,t}, Evening:{s,t}} — purana record {s,t} employee ki apni shift (Both = Morning) ka maana jata hai */
 const empShiftsOf = e => e && e.shift === "Both" ? ["Morning","Evening"] : [e && e.shift === "Evening" ? "Evening" : "Morning"];
+/* v57: Kaam ke din aur waqt — e.schedule = {Morning:{1:{from,to}, 3:{…}}, Evening:{…}} (0 = Sunday … 6 = Saturday).
+   Kisi shift ka schedule na ho to purana qaida: Mon–Fri, waqt ke baghair (late minutes nahi ginte). */
+const WEEK = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"], WEEK_ORDER = [1,2,3,4,5,6,0];
+const latePolicy = () => ({allow:45, rate:250, ...((DB.settings||{}).latePolicy||{})});
+const empSched = (e, shift) => { const sc = e && e.schedule && e.schedule[shift]; return sc && Object.keys(sc).length ? sc : null; };
+const wdOf = date => new Date(date + "T00:00").getDay();
+function empWorksOn(e, shift, date){
+  if(!empShiftsOf(e).includes(shift)) return false;
+  const wd = wdOf(date), sc = empSched(e, shift);
+  return sc ? !!sc[wd] : (wd >= 1 && wd <= 5);
+}
+const empSlot = (e, shift, date) => { const sc = empSched(e, shift); return sc ? sc[wdOf(date)] || null : null; };
+const minsOf = t => { const m = String(t||"").match(/^(\d{1,2}):(\d{2})/); return m ? +m[1]*60 + +m[2] : null; };
+function lateMinsFor(e, shift, date, t){
+  const sl = empSlot(e, shift, date), a = minsOf(t), f = sl ? minsOf(sl.from) : null;
+  return a === null || f === null ? 0 : Math.max(0, a - f);
+}
+/* Mahine ke late minutes aur jurmana: 45 min tak maaf, us se upar har minute × Rs 250 */
+function empLateMonth(eid, m){
+  let tot = 0, n = 0;
+  for(const d in (DB.empAttendance||{})){ if(!d.startsWith(m)) continue;
+    empRecs(DB.empAttendance[d], eid).forEach(x=>{ const lm = +x.lm || 0; if(lm > 0){ tot += lm; n++; } }); }
+  const p = latePolicy(), over = Math.max(0, tot - p.allow);
+  return {tot, n, allow:p.allow, rate:p.rate, over, ded: over * p.rate};
+}
+function schedText(e){
+  return empShiftsOf(e).map(sh=>{ const sc = empSched(e, sh);
+    if(!sc) return `${sh}: Mon–Fri`;
+    return `${sh}: ` + WEEK_ORDER.filter(d=>sc[d]).map(d=>`${WEEK[d]}${sc[d].from ? " " + fmtT(sc[d].from) + (sc[d].to ? "–" + fmtT(sc[d].to) : "") : ""}`).join(", ");
+  }).join(" · ");
+}
 function empRecs(day, eid, shift){
   const r = day && day[eid]; if(!r) return [];
   let out;
@@ -6187,31 +6226,66 @@ function loadEmpAttendance(){
   if(!$("empAttDate").value) $("empAttDate").value = wmDate();
   const date = $("empAttDate").value, sh = EMP_ATT_SHIFT;
   if($("empAttShiftBtns")) $("empAttShiftBtns").innerHTML = ["Morning","Evening"].map(x=>`<button class="${x===sh?"on":""}" onclick="setEmpAttShift('${x}')">${x==="Morning"?"🌅":"🌆"} ${x}</button>`).join("");
+  drawLateBox();
   const warn = $("empAttWarn");
-  if(isWeekend(date)){
-    warn.innerHTML = `<div class="note"><b>${fmtD(date)}</b> is a Saturday/Sunday. The academy is closed; attendance cannot be marked on this day.</div>`;
-    $("empAttRows").innerHTML = `<tr><td colspan="7" class="empty">Off day — no attendance</td></tr>`;
+  /* v57: sirf wo staff jin ka is din (aur is shift mein) kaam hai — baqi din ginti mein hi nahi */
+  const emps = [...DB.employees].filter(e=>empWorksOn(e, sh, date)).sort((a,b)=>a.name.localeCompare(b.name));
+  const offToday = [...DB.employees].filter(e=>empShiftsOf(e).includes(sh) && !empWorksOn(e, sh, date));
+  if(!emps.length){
+    warn.innerHTML = `<div class="note"><b>${fmtD(date)}</b> (${WEEK[wdOf(date)]}) — no ${sh} staff is scheduled to work on this day${isWeekend(date) ? " (weekend)" : ""}. Nothing to mark.</div>`;
+    $("empAttRows").innerHTML = `<tr><td colspan="8" class="empty">Off day — no attendance</td></tr>`;
     empAttDraft = null; return;
   }
-  warn.innerHTML = "";
-  const emps = [...DB.employees].filter(e=>empShiftsOf(e).includes(sh)).sort((a,b)=>a.name.localeCompare(b.name));
+  warn.innerHTML = offToday.length ? `<div class="sub" style="margin-bottom:8px">Not scheduled on ${WEEK[wdOf(date)]} (${sh}) — not counted today: ${offToday.map(e=>esc(e.name)).join(", ")}</div>` : "";
   const day = DB.empAttendance[date] || {}, m = date.slice(0,7);
   empAttDraft = {};
-  emps.forEach(e=>{ const r = empRecs(day, e.id, sh)[0]; empAttDraft[e.id] = r ? {s:r.s, t:r.t} : {s:null, t:sh === "Evening" ? "15:00" : "09:00"}; });
+  emps.forEach(e=>{ const r = empRecs(day, e.id, sh)[0], sl = empSlot(e, sh, date);
+    empAttDraft[e.id] = r ? {s:r.s, t:r.t} : {s:null, t:(sl && sl.from) || (sh === "Evening" ? "15:00" : "09:00")}; });
   $("empAttRows").innerHTML = emps.length? emps.map((e,i)=>{
-    const r = empAttDraft[e.id], used = empLeaveDays(e.id, m, date).length, block = used >= EMP_LEAVE_LIMIT;
+    const r = empAttDraft[e.id], used = empLeaveDays(e.id, m, date).length, block = used >= EMP_LEAVE_LIMIT, sl = empSlot(e, sh, date), lt = empLateMonth(e.id, m);
     return `<tr>
       <td><b>${i+1}</b></td>
       <td>${avatarHTML(e)}</td>
-      <td><b>${esc(e.name)}</b>${e.shift === "Both" ? ` <span class="sub">(both shifts)</span>` : ""}</td>
+      <td><b>${esc(e.name)}</b>${e.shift === "Both" ? ` <span class="sub">(both shifts)</span>` : ""}<br><span class="sub">${sl && sl.from ? `Starts ${fmtT(sl.from)}${sl.to ? " – " + fmtT(sl.to) : ""}` : "No fixed time"}</span></td>
       <td>${e.category}</td>
       <td><div class="att-opts" id="eopt_${e.id}">
         ${EMP_ATT_ORDER.map(c=>`<button class="${r.s===c?"sel"+c:""}" ${block && (c==="E"||c==="U") && r.s!==c ? `disabled title="${EMP_LEAVE_LIMIT} leaves already used in ${fmtM(m)} — mark Absent"` : ""} onclick="empMark('${e.id}','${c}')">${EMP_ATT_LABEL[c]}</button>`).join("")}
       </div></td>
-      <td style="max-width:120px"><input type="time" value="${r.t||"09:00"}" onchange="empAttDraft['${e.id}'].t=this.value"></td>
+      <td style="max-width:120px"><input type="time" value="${r.t||"09:00"}" onchange="empSetTime('${e.id}',this.value)"></td>
+      <td id="elate_${e.id}" style="min-width:150px">${empLateCell(e, sh, date, r)}<br>${empLateLine(e.id, m)}</td>
       <td><span class="badge ${block ? "b-unpaid" : "b-freeze"}" title="Leave days this month (both shifts)">${used} / ${EMP_LEAVE_LIMIT}</span>${block ? `<br><span class="sub" style="color:var(--danger)">limit reached — Absent</span>` : ""}</td>
     </tr>`;
-  }).join("") : `<tr><td colspan="7" class="empty">No ${sh} staff — set the employee's shift (Morning / Evening / Both) in Employees</td></tr>`;
+  }).join("") : `<tr><td colspan="8" class="empty">No ${sh} staff</td></tr>`;
+}
+function empLateLine(eid, m){
+  const lt = empLateMonth(eid, m);
+  return `<span class="sub" title="Late minutes this month (allowed ${lt.allow})">${lt.tot} / ${lt.allow} min this month${lt.ded ? ` · <b style="color:var(--danger)">Rs ${lt.ded.toLocaleString("en-US")} fine</b>` : ""}</span>`;
+}
+function empLateCell(e, sh, date, r){
+  if(!r || !(r.s === "P" || r.s === "L")) return `<span class="sub">—</span>`;
+  const lm = lateMinsFor(e, sh, date, r.t);
+  return lm ? `<b style="color:var(--danger)">+${lm} min late</b>` : (empSlot(e, sh, date) ? `<span style="color:var(--ok)">On time</span>` : `<span class="sub">—</span>`);
+}
+/* Waqt badla: schedule se der ho to khud "Late" */
+function empSetTime(eid, t){
+  const d = empAttDraft && empAttDraft[eid]; if(!d) return;
+  d.t = t;
+  const e = empById(eid), date = $("empAttDate").value, lm = lateMinsFor(e, EMP_ATT_SHIFT, date, t);
+  if(lm > 0 && (d.s === "P" || !d.s)) empMark(eid, "L");
+  else if(!lm && d.s === "L" && empSlot(e, EMP_ATT_SHIFT, date)) empMark(eid, "P");
+  const c = $("elate_" + eid); if(c) c.innerHTML = empLateCell(e, EMP_ATT_SHIFT, date, d) + "<br>" + empLateLine(eid, date.slice(0,7));
+}
+function drawLateBox(){
+  const b = $("lateBox"); if(!b) return;
+  const p = latePolicy();
+  b.innerHTML = `<b>⏰ Late policy:</b> up to <input type="number" id="lpAllow" value="${p.allow}" min="0" style="width:70px" ${IS_ADMIN ? "disabled" : ""}> late minutes a month are allowed; every extra minute costs
+    Rs <input type="number" id="lpRate" value="${p.rate}" min="0" style="width:80px" ${IS_ADMIN ? "disabled" : ""}>, deducted from the salary.
+    ${IS_ADMIN ? "" : `<button class="btn-line btn-sm" onclick="saveLatePolicy()">Save</button>`}
+    <span class="sub">Late minutes = arrival time − the start time set in the employee's work days (Employees → Edit).</span>`;
+}
+function saveLatePolicy(){
+  DB.settings.latePolicy = {allow:Math.max(0, +$("lpAllow").value||0), rate:Math.max(0, +$("lpRate").value||0)};
+  save(); syncSalaries(); loadEmpAttendance(); toast("Late policy saved");
 }
 function empMark(eid, st){
   if(!empAttDraft || !empAttDraft[eid]) return;
@@ -6241,9 +6315,12 @@ function saveEmpAttendance(){
     /* purana {s,t} record naye shift-wise format mein */
     const old = day[eid], rec = old && !old.s ? {...old} : {};
     if(old && old.s){ const e = empById(eid); rec[e && e.shift === "Evening" ? "Evening" : "Morning"] = {s:old.s, t:old.t}; }
-    rec[sh] = {s:r.s, t:r.t}; day[eid] = rec; n++;
+    const e = empById(eid);
+    let st = r.s, lm = (st === "P" || st === "L") ? lateMinsFor(e, sh, date, r.t) : 0;
+    if(lm > 0 && st === "P") st = "L";
+    rec[sh] = {s:st, t:r.t, ...(lm ? {lm} : {})}; day[eid] = rec; n++;
   }
-  save(); loadEmpAttendance();
+  save(); syncSalaries(); loadEmpAttendance();
   toast(`${sh} staff attendance saved — ${n} employees (${fmtD(date)})${forced ? ` · ${forced} leave(s) over the limit saved as Absent` : ""}`);
 }
 function empAttSummary(eid, doj){ return empAttCount(eid); }
@@ -6253,26 +6330,29 @@ function empAttReportData(){
   const [y,mo] = m.split("-").map(Number);
   const daysInMonth = new Date(y, mo, 0).getDate();
   const days = [];
+  const emps = [...DB.employees].filter(e=>!sh || empShiftsOf(e).includes(sh)).sort((a,b)=>a.name.localeCompare(b.name));
+  const shs = e => sh ? [sh] : empShiftsOf(e);
   for(let d=1; d<=daysInMonth; d++){
     const ds = m + "-" + String(d).padStart(2,"0");
-    if(!isWeekend(ds)) days.push(ds);
+    if(emps.some(e=>shs(e).some(x=>empWorksOn(e, x, ds))) || Object.values(DB.empAttendance[ds]||{}).length) days.push(ds);
   }
-  const emps = [...DB.employees].filter(e=>!sh || empShiftsOf(e).includes(sh)).sort((a,b)=>a.name.localeCompare(b.name));
   const rows = emps.map(e=>{
-    const marks = days.map(d=>{ const rs = empRecs(DB.empAttendance[d], e.id, sh); return rs.length ? rs.map(x=>x.s).join("/") : "—"; });
-    const c = empAttCount(e.id, d=>d.startsWith(m), sh);
-    return {e, marks, P:c.P, A:c.A, L:c.L, E:c.E, U:c.U, pct:c.pct};
+    const marks = days.map(d=>{ const rs = empRecs(DB.empAttendance[d], e.id, sh);
+      if(rs.length) return rs.map(x=>x.s + (+x.lm ? "+" + x.lm : "")).join("/");
+      return shs(e).some(x=>empWorksOn(e, x, d)) ? "—" : ""; });
+    const c = empAttCount(e.id, d=>d.startsWith(m), sh), lt = empLateMonth(e.id, m);
+    return {e, marks, P:c.P, A:c.A, L:c.L, E:c.E, U:c.U, pct:c.pct, late:lt.tot, fine:lt.ded};
   });
   return {m, days, rows, sh};
 }
 function exportEmpAttCSV(){
   const {m, days, rows} = empAttReportData();
   if(!rows.length){ toast("No employees added — add staff in Employees first"); return; }
-  const head = ["#","Name","Category", ...days.map(d=>d.slice(8)), "Present","Late","Absent","Informed leave","Uninformed leave","%"];
+  const head = ["#","Name","Category", ...days.map(d=>d.slice(8)), "Present","Late","Absent","Informed leave","Uninformed leave","%","Late minutes","Late fine (Rs)"];
   const csvEsc = v => `"${String(v??"").replace(/"/g,'""')}"`;
   const lines = [head.map(csvEsc).join(",")];
   rows.forEach((r,i)=>{
-    lines.push([i+1, r.e.name, r.e.category, ...r.marks, r.P, r.L, r.A, r.E, r.U, r.pct+"%"].map(csvEsc).join(","));
+    lines.push([i+1, r.e.name, r.e.category, ...r.marks, r.P, r.L, r.A, r.E, r.U, r.pct+"%", r.late, r.fine].map(csvEsc).join(","));
   });
   const blob = new Blob(["\ufeff"+lines.join("\r\n")],{type:"text/csv;charset=utf-8"});
   downloadFile(`staff-attendance-${m}.csv`, blob);
@@ -6294,12 +6374,14 @@ function exportEmpAttPDF(){
     <td style="border:1px solid #999;padding:3px 5px;text-align:center">${r.E}</td>
     <td style="border:1px solid #999;padding:3px 5px;text-align:center;color:#7a3b8f">${r.U}</td>
     <td style="border:1px solid #999;padding:3px 5px;text-align:center"><b>${r.pct}%</b></td>
+    <td style="border:1px solid #999;padding:3px 5px;text-align:center">${r.late}</td>
+    <td style="border:1px solid #999;padding:3px 5px;text-align:center;${r.fine ? "color:#C0392B;font-weight:700" : ""}">${r.fine ? r.fine.toLocaleString("en-US") : "—"}</td>
   </tr>`).join("");
   $("challanPrint").innerHTML = `
     <div style="font-size:.75rem">
       <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #174B60;padding-bottom:8px;margin-bottom:10px">
         <div style="display:flex;gap:10px;align-items:center">${A.logo?`<img src="${A.logo}" style="height:44px;width:auto;object-fit:contain">`:""}<div><div style="font-size:1.15rem;font-weight:900">${esc(A.name||"Cambridge Grads Academy")}</div><div style="font-size:.7rem;color:#555">${esc(A.addr||"")} ${A.phone?("· "+esc(A.phone)):""}</div></div></div>
-        <div style="text-align:right"><b>STAFF ATTENDANCE REGISTER</b><br>${fmtM(m)}${$("empAttRepShift") && $("empAttRepShift").value ? " · " + $("empAttRepShift").value + " shift" : " · Morning/Evening"}<br><span style="color:#555">P = Present · L = Late · A = Absent · E = Informed leave · U = Uninformed leave · — = Not marked · "P/A" = Morning/Evening</span></div>
+        <div style="text-align:right"><b>STAFF ATTENDANCE REGISTER</b><br>${fmtM(m)}${$("empAttRepShift") && $("empAttRepShift").value ? " · " + $("empAttRepShift").value + " shift" : " · Morning/Evening"}<br><span style="color:#555">P = Present · L = Late · A = Absent · E = Informed leave · U = Uninformed leave · — = Not marked · "P/A" = Morning/Evening · "L+12" = 12 min late · blank = not a working day · late policy: ${latePolicy().allow} min/month free, then Rs ${latePolicy().rate}/min</span></div>
       </div>
       <table style="width:100%;border-collapse:collapse">
         <thead><tr>
@@ -6307,7 +6389,7 @@ function exportEmpAttPDF(){
           <th style="border:1px solid #999;padding:3px 5px">Name</th>
           <th style="border:1px solid #999;padding:3px 5px">Category</th>
           ${th}
-          <th style="border:1px solid #999;padding:3px 3px">P</th><th style="border:1px solid #999;padding:3px 3px">L</th><th style="border:1px solid #999;padding:3px 3px">A</th><th style="border:1px solid #999;padding:3px 3px">E</th><th style="border:1px solid #999;padding:3px 3px">U</th><th style="border:1px solid #999;padding:3px 3px">%</th>
+          <th style="border:1px solid #999;padding:3px 3px">P</th><th style="border:1px solid #999;padding:3px 3px">L</th><th style="border:1px solid #999;padding:3px 3px">A</th><th style="border:1px solid #999;padding:3px 3px">E</th><th style="border:1px solid #999;padding:3px 3px">U</th><th style="border:1px solid #999;padding:3px 3px">%</th><th style="border:1px solid #999;padding:3px 3px">Late min</th><th style="border:1px solid #999;padding:3px 3px">Fine (Rs)</th>
         </tr></thead>
         <tbody>${body}</tbody>
       </table>
@@ -6325,7 +6407,7 @@ function openEmpForm(id){
     <div class="grid2">
       <div class="field"><label>Name *</label><input id="m_name" value="${esc(e.name||"")}"></div>
       <div class="field"><label>Category *</label><select id="m_cat" onchange="toggleAsg()">${["Admin","Teacher","Coordinator","Supportive Staff"].map(c=>`<option ${e.category===c?"selected":""}>${c}</option>`).join("")}</select></div>
-      <div class="field"><label>Shift</label><select id="m_shift">${["Morning","Evening","Both"].map(c=>`<option ${e.shift===c?"selected":""}>${c}</option>`).join("")}</select></div>
+      <div class="field"><label>Shift</label><select id="m_shift" onchange="schedShiftSync()">${["Morning","Evening","Both"].map(c=>`<option ${e.shift===c?"selected":""}>${c}</option>`).join("")}</select></div>
       <div class="field"><label>Phone</label><input id="m_phone" value="${esc(e.phone||"")}"></div>
       <div class="field"><label>Joining Date</label><input type="date" id="m_doj" value="${e.doj||wmDate()}"></div>
       <div class="field" ${IS_ADMIN?'style="display:none"':""}><label>Monthly Salary (Rs)</label><input type="number" id="m_sal" value="${e.salary||""}"></div>
@@ -6333,6 +6415,7 @@ function openEmpForm(id){
       <div class="field"><label>Employee Photo</label><input type="file" id="m_photo" accept="image/*" onchange="pickPhoto(this)"><div id="photoPrev" style="margin-top:6px">${photoTemp?`<img class="avatar-lg" src="${photoTemp}">`:""}</div></div>
     </div>
     <div class="field"><label>Address</label><input id="m_addr" value="${esc(e.address||"")}"></div>
+    ${schedGridHTML(e)}
     <div id="asgBox" style="display:${(e.category||"Admin")==="Teacher"?"block":"none"}">
       <div class="note">Assign classes to the teacher — also enter the subject and <b>class time</b>: the teacher sees their timetable on their login dashboard.</div>
       <div class="toolbar">
@@ -6350,7 +6433,37 @@ function openEmpForm(id){
       <button class="btn-line" onclick="closeModal()">Cancel</button>
       <button class="btn-red" onclick="saveEmp('${id||""}')">Save Employee</button>
     </div>`, true);
-  drawAsg();
+  drawAsg(); schedShiftSync();
+}
+/* v57: kaam ke din aur waqt — har shift ke liye din tick karein aur shuru / khatam ka waqt */
+function schedGridHTML(e){
+  const cell = (sh, d) => { const sl = (empSched(e, sh) || {})[d], k = (sh === "Morning" ? "M" : "E") + d;
+    return `<td class="sc-${sh}"><label class="chk" style="margin:0;display:inline-flex"><input type="checkbox" id="sc_${k}" ${sl ? "checked" : ""} onchange="schedRow('${k}')"></label>
+      <input type="time" id="sc_${k}_f" value="${sl ? sl.from||"" : ""}" style="max-width:110px" ${sl ? "" : "disabled"}> – <input type="time" id="sc_${k}_t" value="${sl ? sl.to||"" : ""}" style="max-width:110px" ${sl ? "" : "disabled"}></td>`; };
+  return `<div class="note" style="margin-top:10px"><b>🗓 Work days & times</b> — tick the days this person works and their start / end time. Attendance is only taken on these days
+      (other days are not counted), and arriving after the start time counts as late. Leave a shift empty for the regular Mon–Fri with no fixed time.</div>
+    <div class="tbl-wrap"><table><thead><tr><th>Day</th><th class="sc-Morning">🌅 Morning <button type="button" class="btn-line btn-sm" onclick="schedFill('M')" title="Copy Monday's time to Mon–Fri">Mon–Fri = Mon</button></th>
+      <th class="sc-Evening">🌆 Evening <button type="button" class="btn-line btn-sm" onclick="schedFill('E')" title="Copy Monday's time to Mon–Fri">Mon–Fri = Mon</button></th></tr></thead><tbody>
+      ${WEEK_ORDER.map(d=>`<tr><td><b>${WEEK[d]}</b></td>${cell("Morning", d)}${cell("Evening", d)}</tr>`).join("")}
+    </tbody></table></div>`;
+}
+function schedRow(k){ const on = $("sc_"+k).checked; $("sc_"+k+"_f").disabled = !on; $("sc_"+k+"_t").disabled = !on; }
+function schedFill(p){
+  const f = $("sc_"+p+"1_f").value, t = $("sc_"+p+"1_t").value;
+  if(!$("sc_"+p+"1").checked || !f){ toast("Tick Monday and enter its time first"); return; }
+  [1,2,3,4,5].forEach(d=>{ $("sc_"+p+d).checked = true; schedRow(p+d); $("sc_"+p+d+"_f").value = f; $("sc_"+p+d+"_t").value = t; });
+}
+function schedShiftSync(){
+  const sh = $("m_shift") ? $("m_shift").value : "Morning";
+  document.querySelectorAll(".sc-Morning").forEach(x=>x.style.display = sh === "Evening" ? "none" : "");
+  document.querySelectorAll(".sc-Evening").forEach(x=>x.style.display = sh === "Morning" ? "none" : "");
+}
+function readSched(shift){
+  const out = {};
+  empShiftsOf({shift}).forEach(sh=>{ const p = sh === "Morning" ? "M" : "E", sc = {};
+    WEEK_ORDER.forEach(d=>{ if($("sc_"+p+d) && $("sc_"+p+d).checked) sc[d] = {from:$("sc_"+p+d+"_f").value || "", to:$("sc_"+p+d+"_t").value || ""}; });
+    if(Object.keys(sc).length) out[sh] = sc; });
+  return out;
 }
 function toggleOnline(id){
   const e = empById(id); if(!e) return;
@@ -6374,7 +6487,9 @@ function saveEmp(id){
   const name=$("m_name").value.trim();
   if(!name){ toast("Enter the employee name"); return; }
   const cat = $("m_cat").value;
-  const data = {name, category:cat, shift:$("m_shift").value, phone:$("m_phone").value.trim(), doj:$("m_doj").value||"", salary:$("m_sal").value||0, address:$("m_addr").value.trim(), photo:photoTemp, assignments: cat==="Teacher"? asgDraft : [], online: $("m_online").checked};
+  const schedule = readSched($("m_shift").value);
+  if(Object.values(schedule).some(sc=>Object.values(sc).some(x=>x.from && x.to && x.to <= x.from))){ toast("A work day's end time must be after its start time"); return; }
+  const data = {schedule, name, category:cat, shift:$("m_shift").value, phone:$("m_phone").value.trim(), doj:$("m_doj").value||"", salary:$("m_sal").value||0, address:$("m_addr").value.trim(), photo:photoTemp, assignments: cat==="Teacher"? asgDraft : [], online: $("m_online").checked};
   if(id) Object.assign(empById(id), data);
   else { data.id=uid(); DB.employees.push(data); }
   save(); syncSalaries(); closeModal(); renderEmployees(); toast("Employee saved");
@@ -6397,7 +6512,7 @@ function openEmpProfile(id){
   const myStu = DB.students.filter(s=>s.teacherId===id);
   const ea = empAttSummary(id, e.doj);
   const eaRows = Object.keys(DB.empAttendance).filter(d=>empRecs(DB.empAttendance[d], id).length).sort().reverse().slice(0,30)
-    .flatMap(d=>empRecs(DB.empAttendance[d], id).map(r=>`<tr><td>${fmtD(d)} <span class="sub">${r.shift}</span></td><td><span class="badge b-${r.s}">${EMP_ATT_LABEL[r.s]||r.s}</span></td><td>${r.t||"—"}</td></tr>`)).join("");
+    .flatMap(d=>empRecs(DB.empAttendance[d], id).map(r=>`<tr><td>${fmtD(d)} <span class="sub">${r.shift}</span></td><td><span class="badge b-${r.s}">${EMP_ATT_LABEL[r.s]||r.s}</span>${+r.lm ? ` <span class="sub" style="color:var(--danger)">+${r.lm} min</span>` : ""}</td><td>${r.t||"—"}</td></tr>`)).join("");
   openModal(`
     <h3>Employee Profile</h3>
     <div class="profile-top" style="margin-bottom:14px">
@@ -6420,6 +6535,7 @@ function openEmpProfile(id){
       <div class="stat"><b style="color:var(--danger)">${ea.A}</b><span>Absent</span></div>
       <div class="stat"><b>${ea.E}</b><span>Informed leave</span></div>
       <div class="stat"><b style="color:#7a3b8f">${ea.U}</b><span>Uninformed leave</span></div>
+      <div class="stat"><b style="color:${empLateMonth(id, thisMonth()).ded ? "var(--danger)" : "inherit"}">${empLateMonth(id, thisMonth()).tot}</b><span>Late min (${fmtM(thisMonth())})${empLateMonth(id, thisMonth()).ded ? ` · fine Rs ${empLateMonth(id, thisMonth()).ded.toLocaleString("en-US")}` : ""}</span></div>
       <div class="stat"><b>${ea.pct}%</b><span>Attendance</span><div class="att-bar"><i style="width:${ea.pct}%"></i></div></div>
     </div>
     <h3 style="font-size:.95rem">Attendance Record (Last 30 entries)</h3>
@@ -9493,7 +9609,9 @@ function salManualDup(e, m){
 }
 /* Kis employee ka is mahine kya haal hai — sync aur preview dono yahi use karte hain */
 function salState(e, m, cfg){
-  const key = salKey(m, e.id), s = salaryOf(e);
+  const key = salKey(m, e.id), base = salaryOf(e), lt = empLateMonth(e.id, m);
+  /* v57: late policy ka jurmana isi mahine ki salary se kat-ta hai */
+  const s = lt.ded && base.amt ? {amt:Math.max(0, base.amt - lt.ded), src:`${base.src} − late fine Rs ${lt.ded.toLocaleString("en-US")} (${lt.over} min over)`, base:base.amt, fine:lt.ded} : base;
   const posted = DB.txns.find(t=>t.autoKey===key);
   if(!salEligible(e,cfg))                          return {key, s, st:"notEligible", posted};
   if(e.doj && e.doj.slice(0,7) > m)                return {key, s, st:"notJoined", posted};

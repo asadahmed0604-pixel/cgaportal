@@ -201,7 +201,7 @@ function teacherView(d, tid) {
     /* v46: apni KPI checklist aur class audits — live KPI ke liye (sirf parhne ko) */
     kpis: (d.kpis || []).filter((k) => k.teacherId === tid),
     employees: (d.employees || []).map((e) => e.id === tid
-      ? { id: e.id, name: e.name, category: e.category, shift: e.shift, assignments: e.assignments || [], online: !!e.online }
+      ? { id: e.id, name: e.name, category: e.category, shift: e.shift, assignments: e.assignments || [], online: !!e.online, schedule: e.schedule || {} }
       : { id: e.id, name: e.name, category: e.category, shift: e.shift, online: !!e.online }),
     tests, exams: (d.exams || []).filter((e) => ids.has(e.testId)),
     classAtt: (d.classAtt || []).filter((c) => catOwn(c, tid, cls)),
@@ -210,7 +210,7 @@ function teacherView(d, tid) {
     /* v41: sirf apni staff attendance — dekhne ke liye; teacherMerge ise kabhi nahi leta */
     empAttendance: Object.fromEntries(Object.entries(d.empAttendance || {}).filter(([, day]) => day && day[tid]).map(([dt, day]) => [dt, { [tid]: day[tid] }])),
     classCosts: {}, parentAccess: [], parentMsgs: [], audits: (d.audits || []).filter((a) => a.teacherId === tid), counters: d.counters || {},
-    settings: { name: s.name, addr: s.addr, phone: s.phone, logo: s.logo },
+    settings: { name: s.name, addr: s.addr, phone: s.phone, logo: s.logo, latePolicy: s.latePolicy },
   };
 }
 /* Teacher ke save se sirf us ke apne hisse badalte hain — baaki sab server wala hi rehta hai */
