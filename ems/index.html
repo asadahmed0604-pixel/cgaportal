@@ -525,6 +525,18 @@ label.chk input{width:auto}
     <p class="sub" style="margin:4px 0 8px" id="ernSub"></p>
     <div class="dchart" id="ernChart"></div>
   </div>
+  <div class="panel" id="topStuPanel">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+      <div><h3 style="margin-bottom:0">🏆 Best students & ⚠ needs attention</h3><p class="sub" style="margin-top:6px" id="tsSub"></p></div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><div class="mchips" id="tsShift" style="margin:0"></div>
+        <select id="tsClass" onchange="drawTopStudents()" style="width:auto"></select>
+        <button class="btn-line btn-sm" onclick="topStudentsCSV()">⬇ CSV</button></div>
+    </div>
+    <div class="grid2" style="margin-top:12px">
+      <div><div class="sub" style="font-weight:700;color:var(--ok);margin-bottom:6px">🏆 Top performers</div><div class="tbl-wrap"><table><tbody id="tsBest"></tbody></table></div></div>
+      <div><div class="sub" style="font-weight:700;color:var(--danger);margin-bottom:6px">⚠ Needs attention</div><div class="tbl-wrap"><table><tbody id="tsWorst"></tbody></table></div></div>
+    </div>
+  </div>
   <div class="panel">
     <h3>📅 Monthly summary</h3>
     <p class="sub" style="margin:4px 0 12px">Last 6 months. Click a month to switch the whole dashboard to that month.</p>
@@ -1296,7 +1308,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v67 · 8 Oct 2026";
+const BUILD = "v68 · 8 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -2023,9 +2035,53 @@ function renderDashboard(){
   const inq = [...DB.inquiries].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,6);
   drawMonthRows(m);
   drawEarnings(m);
+  drawTopStudents();
   if(DASH_ALL) dashAllMonths();
   drawExportGrid();
   $("dInqRows").innerHTML = inq.length? inq.map(i=>`<tr><td>${esc(i.name)}</td><td>${esc(i.course)}</td><td>${inqStageBadge(i.stage)}</td><td>${fmtD(i.date)}</td></tr>`).join("") : `<tr><td colspan="4" class="empty">No inquiries yet</td></tr>`;
+}
+/* v68: Executive dashboard — best / weakest students.
+   Score = 60% test average (dashboard month + 2 months before) + 40% attendance (dashboard month, leave not counted),
+   minus 3 points per class bunk that month. Only one of the two available → that one. No data → not ranked. */
+let TS_SHIFT = "";
+function studentScores(m){
+  const RM = rosterMonths(), from = (()=>{ const [y, mo] = m.split("-").map(Number), d = new Date(y, mo - 3, 1); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`; })();
+  const act = DB.students.filter(s=>activeIn(s, m, RM));
+  const ex = {}, att = {}, bunk = {};
+  DB.exams.forEach(e=>{ const mm = String(e.date||"").slice(0,7); if(mm < from || mm > m || !(+e.total > 0)) return;
+    (ex[e.studentId] = ex[e.studentId] || []).push(e.absent ? 0 : Math.min(100, (+e.obtained||0) * 100 / +e.total)); });
+  Object.keys(DB.attendance||{}).forEach(d=>{ if(!d.startsWith(m)) return; const day = DB.attendance[d];
+    for(const sid in day){ const k = day[sid] && day[sid].s; if(!k) continue; const r = att[sid] = att[sid] || {P:0,L:0,A:0,E:0}; if(r[k] !== undefined) r[k]++; } });
+  (DB.classAtt||[]).forEach(c=>{ if(!String(c.date||"").startsWith(m) || !c.marks) return; const day = (DB.attendance||{})[c.date] || {};
+    for(const sid in c.marks) if(c.marks[sid] === "A" && day[sid] && (day[sid].s === "P" || day[sid].s === "L")) bunk[sid] = (bunk[sid]||0) + 1; });
+  return {from, rows: act.map(s=>{
+    const l = ex[s.id] || [], a = att[s.id] || {P:0,L:0,A:0,E:0}, den = a.P + a.L + a.A;
+    const mk = l.length ? l.reduce((x,y)=>x+y,0) / l.length : null, ap = den >= 4 ? (a.P + a.L) * 100 / den : null;
+    if(mk === null && ap === null) return null;
+    const b = bunk[s.id] || 0, score = Math.max(0, (mk !== null && ap !== null ? mk * .6 + ap * .4 : mk !== null ? mk : ap) - b * 3);
+    return {s, mk, n:l.length, ap, abs:a.A, late:a.L, bunks:b, score};
+  }).filter(Boolean).sort((x,y)=>y.score - x.score)};
+}
+function drawTopStudents(){
+  if(!$("topStuPanel")) return;
+  const m = dashMonth(), {from, rows} = studentScores(m);
+  $("tsShift").innerHTML = [["","All"],["Morning","Morning"],["Evening","Evening"]].map(([k,l])=>`<button class="${TS_SHIFT===k?"on":""}" onclick="TS_SHIFT='${k}';drawTopStudents()">${l}</button>`).join("");
+  const cs = $("tsClass"), cv = cs.value, cls = [...new Set(rows.filter(r=>!TS_SHIFT || r.s.shift===TS_SHIFT).flatMap(r=>classesOf(r.s)))].sort(classSort);
+  cs.innerHTML = `<option value="">All classes</option>` + cls.map(c=>`<option ${c===cv?"selected":""}>${esc(c)}</option>`).join("");
+  const L = rows.filter(r=>(!TS_SHIFT || r.s.shift===TS_SHIFT) && (!cs.value || inClass(r.s, cs.value)));
+  $("tsSub").textContent = `${L.length} students ranked · tests ${from === m ? fmtM(m) : fmtM(from) + " – " + fmtM(m)} (60%) + ${fmtM(m)} attendance (40%) − 3 per class bunk`;
+  const n = Math.min(5, Math.ceil(L.length / 2)), best = L.slice(0, n), worst = L.slice(n).slice(-5).reverse();
+  const row = (r, i, good) => `<tr><td style="width:28px"><b>${good ? ["🥇","🥈","🥉"][i] || i + 1 : i + 1}</b></td>
+    <td><a href="#" onclick="openProfile('${r.s.id}');return false"><b>${esc(r.s.name)}</b></a><br><span class="sub">${esc(classLabelOf(r.s))} · ${esc(r.s.shift)}</span></td>
+    <td class="sub">${r.mk !== null ? `Tests <b>${Math.round(r.mk)}%</b> (${r.n})` : "No tests"}<br>${r.ap !== null ? `Attendance <b>${Math.round(r.ap)}%</b>${r.abs ? ` · ${r.abs} absent` : ""}` : "Attendance —"}${r.bunks ? ` · <span style="color:var(--danger)">${r.bunks} bunk${r.bunks>1?"s":""}</span>` : ""}</td>
+    <td style="text-align:right"><span class="badge ${good ? "b-paid" : r.score < 50 ? "b-left" : "b-unpaid"}">${Math.round(r.score)}</span></td></tr>`;
+  $("tsBest").innerHTML = best.length ? best.map((r,i)=>row(r,i,true)).join("") : `<tr><td class="empty">No marks or attendance yet for ${fmtM(m)}</td></tr>`;
+  $("tsWorst").innerHTML = worst.length ? worst.map((r,i)=>row(r,i,false)).join("") : `<tr><td class="empty">Not enough students to compare</td></tr>`;
+}
+function topStudentsCSV(){
+  const m = dashMonth(), {rows} = studentScores(m);
+  downloadCSV(`Student ranking ${fmtM(m)}.csv`, [["Rank","Reg No","Name","Class","Shift","Test avg %","Tests","Attendance %","Absent","Late","Class bunks","Score"],
+    ...rows.map((r,i)=>[i+1, r.s.regNo||"", r.s.name, classLabelOf(r.s), r.s.shift, r.mk===null?"":Math.round(r.mk), r.n, r.ap===null?"":Math.round(r.ap), r.abs, r.late, r.bunks, Math.round(r.score)])]);
 }
 /* v41: mahine ke challans — paid / unpaid (adhi payment bhi unpaid) / baqaya agle challan mein */
 function feeStatusList(m){

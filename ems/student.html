@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Assignments — {{SCHOOL}}</title>
+<title>Student Portal — {{SCHOOL}}</title>
 <meta name="theme-color" content="#174B60">
 <link rel="icon" type="image/png" href="/icons/cga-192.png">
 <link rel="apple-touch-icon" href="/icons/cga-180.png">
@@ -97,6 +97,29 @@ label input{display:block;width:100%;margin-top:5px;border:1.5px solid var(--lin
 .two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 @media(max-width:600px){.two{grid-template-columns:1fr}.sq{grid-template-columns:1fr 70px}}
 .two ul{margin:4px 0 0;padding-left:1.1rem}
+/* ---- v68: My Report ---- */
+.tabs{display:flex;gap:6px;background:#E3ECEA;border-radius:14px;padding:4px;margin-bottom:14px}
+.tabs button{flex:1;border:0;background:transparent;border-radius:11px;padding:10px 6px;font-weight:700;color:var(--muted)}
+.tabs button.on{background:#fff;color:var(--navy);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.live{display:inline-flex;align-items:center;gap:6px;font-size:.82rem;color:var(--muted)}
+.live i{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 0 0 rgba(21,150,112,.6);animation:lv 2s infinite}
+@keyframes lv{70%{box-shadow:0 0 0 7px rgba(21,150,112,0)}100%{box-shadow:0 0 0 0 rgba(21,150,112,0)}}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:14px}
+.stat{background:#fff;border-radius:14px;padding:12px 14px;box-shadow:0 1px 2px rgba(23,75,96,.06),0 6px 18px rgba(23,75,96,.05)}
+.stat small{display:block;color:var(--muted);font-weight:600;font-size:.8rem;text-transform:uppercase;letter-spacing:.03em}
+.stat b{display:block;font-size:1.6rem;color:var(--navy);line-height:1.15;margin-top:2px}
+.stat span{font-size:.82rem;color:var(--muted)}
+.meter{height:8px;border-radius:99px;background:#E6EEEC;overflow:hidden;margin-top:6px}.meter i{display:block;height:100%;border-radius:99px;background:var(--green)}
+.meter.mid i{background:#E0A526}.meter.low i{background:var(--red)}
+.rt{width:100%;border-collapse:collapse;font-size:.93rem}.rt th{text-align:left;color:var(--muted);font-size:.78rem;text-transform:uppercase;letter-spacing:.03em;padding:6px 6px;border-bottom:1.5px solid var(--line)}
+.rt td{padding:8px 6px;overflow-wrap:anywhere;border-bottom:1px solid var(--line);vertical-align:top}.rt tr:last-child td{border-bottom:0}
+.rt .r{text-align:right;white-space:nowrap}
+.dots{display:flex;gap:4px;flex-wrap:wrap;margin-top:8px}.dots span{width:26px;height:26px;border-radius:7px;display:grid;place-items:center;font-size:.72rem;font-weight:700;color:#fff}
+.d-P{background:var(--green)}.d-L{background:#E0A526}.d-A{background:var(--red)}.d-E{background:#7C8B94}
+.pill{display:inline-block;border-radius:999px;padding:2px 10px;font-weight:700;font-size:.82rem}
+.pill.P{background:#E3F4EE;color:var(--green-d)}.pill.L{background:#FFF1D0;color:#7a5600}.pill.A{background:#FDECEA;color:var(--red)}.pill.E{background:#EEF1F3;color:#4F5F68}
+.tt{display:grid;gap:8px}.tt .day{border:1.5px solid var(--line);border-radius:12px;padding:10px 12px}.tt .day.now{border-color:var(--green);background:#F1FAF6}
+.tt .day b{color:var(--navy)}.tt .slot{display:flex;gap:10px;margin-top:4px;font-size:.93rem}.tt .slot .tm{min-width:84px;font-size:.86rem;color:var(--muted);font-variant-numeric:tabular-nums}
 @media print{.top,.bar,.noprint{display:none!important}body{background:#fff}.card{box-shadow:none}}
 </style>
 </head>
@@ -104,7 +127,7 @@ label input{display:block;width:100%;margin-top:5px;border:1.5px solid var(--lin
 <section id="login" class="login hidden">
   <form class="card" id="loginForm">
     <img src="/icons/cga-192.png" alt="">
-    <h2 style="margin-top:8px">Student Assignments</h2>
+    <h2 style="margin-top:8px">Student Portal</h2>
     <p class="sub">{{SCHOOL}}</p>
     <div class="seg" id="loginSeg"><button type="button" data-m="stu" class="on">🎓 Evening student</button><button type="button" data-m="par">👪 Parent</button></div>
     <label id="regF">Reg No<input name="regNo" autocomplete="username" autocapitalize="characters" placeholder="e.g. E-1024"></label>
@@ -184,9 +207,14 @@ async function boot() {
 }
 
 /* ------------------------------ list ------------------------------ */
-async function list() {
+let tab = "rep";
+try { tab = localStorage.getItem("cgaTab") === "asg" ? "asg" : "rep"; } catch {}
+const topBits = () => (me.children.length > 1 ? `<div class="kids">${me.children.map((k) => `<button data-k="${k.id}" class="${k.id === kidId ? "on" : ""}">${esc(k.name)}</button>`).join("")}</div>` : "")
+  + `<div class="tabs"><button data-tab="rep" class="${tab === "rep" ? "on" : ""}">📊 My Report</button><button data-tab="asg" class="${tab === "asg" ? "on" : ""}">📝 Assignments</button></div>`;
+function list() { return tab === "rep" ? report() : asgList(); }
+async function asgList() {
   stopTimers(); header("Assignments", me.school, false);
-  const kids = me.children.length > 1 ? `<div class="kids">${me.children.map((k) => `<button data-k="${k.id}" class="${k.id === kidId ? "on" : ""}">${esc(k.name)}</button>`).join("")}</div>` : "";
+  const kids = topBits();
   if (!kidId) { view.innerHTML = `<div class="card center">No student is linked to this phone number. Please contact the school office.</div>`; return; }
   view.innerHTML = kids + `<div class="center"><div class="spin"></div></div>`;
   bindKids();
@@ -205,8 +233,67 @@ async function list() {
   view.querySelectorAll("[data-a]").forEach((el) => el.addEventListener("click", () => openAsg(el.dataset.a)));
 }
 function bindKids() {
+  view.querySelectorAll("[data-tab]").forEach((b) => b.addEventListener("click", () => { tab = b.dataset.tab; try { localStorage.setItem("cgaTab", tab); } catch {} list(); }));
   view.querySelectorAll("[data-k]").forEach((b) => b.addEventListener("click", () => { kidId = b.dataset.k; try { localStorage.setItem("cgaKid", kidId); } catch {} list(); }));
 }
+
+/* ------------------------------ v68: My Report (live) ------------------------------ */
+const ATT_N = { P: "Present", L: "Late", A: "Absent", E: "Leave" };
+const fmtT = (t) => { if (!t) return ""; const [h, m] = t.split(":").map(Number); return `${((h + 11) % 12) + 1}:${String(m).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`; };
+const span = (f, t) => f ? fmtT(f) + (t ? "–" + fmtT(t) : "") : "";
+const meter = (p) => p === null || p === undefined ? "" : `<div class="meter ${p < 60 ? "low" : p < 80 ? "mid" : ""}"><i style="width:${Math.max(3, p)}%"></i></div>`;
+async function report(quiet) {
+  if (!quiet) { stopTimers(); header("My Report", me.school, false); }
+  if (!kidId) { view.innerHTML = `<div class="card center">No student is linked to this login. Please contact the school office.</div>`; return; }
+  if (!quiet) { view.innerHTML = topBits() + `<div class="center"><div class="spin"></div></div>`; bindKids(); }
+  let r;
+  try { r = await api("/student/api/report?studentId=" + encodeURIComponent(kidId)); }
+  catch (e) { if (!quiet) { view.innerHTML = topBits() + `<div class="card err">${esc(e.message)}</div>`; bindKids(); } return; }
+  if (tab !== "rep" || cur) return;
+  const s = r.student, a = r.attendance, mc = a.monthCount, mk = r.marks, wd = new Date(r.today + "T12:00").getDay();
+  const days = {}; r.classes.forEach((c) => c.times.forEach((t) => { (days[t.d] = days[t.d] || []).push({ ...t, subject: c.subject, course: c.course, teacher: c.teacher }); }));
+  const order = [1, 2, 3, 4, 5, 6, 0].filter((d) => days[d]);
+  const pend = (r.assignments || []).filter((x) => x.state === "new" || x.state === "in_progress");
+  const y = window.scrollY;
+  view.innerHTML = topBits() + `
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+      <div><h2 style="margin:0">${esc(s.name)}</h2><div class="sub">${esc(s.regNo)}${s.regNo ? " · " : ""}${esc(s.course)} · ${esc(s.shift)}${s.mode === "Online" ? " · 🌐 Online" : ""}</div></div>
+      <span class="live"><i></i>Live · updated ${new Date(r.asOf).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}</span></div>
+    <div class="stats">
+      <div class="stat"><small>Today</small><b>${a.today ? `<span class="pill ${a.today.s}">${ATT_N[a.today.s] || a.today.s}</span>` : "—"}</b><span>${a.today ? (a.today.t ? "at " + esc(a.today.t) : "attendance marked") : "not marked yet"}</span></div>
+      <div class="stat"><small>Attendance · ${esc(new Date(a.month + "-01T12:00").toLocaleDateString("en-GB", { month: "short" }))}</small><b>${mc.pct === null ? "—" : mc.pct + "%"}</b><span>${mc.P + mc.L} present · ${mc.A} absent</span>${meter(mc.pct)}</div>
+      <div class="stat"><small>Average marks</small><b>${mk.average === null ? "—" : mk.average + "%"}</b><span>${mk.count ? (mk.count > 10 ? `last 10 of ${mk.count} tests` : `${mk.count} test${mk.count === 1 ? "" : "s"}`) : "no marks yet"}</span>${meter(mk.average)}</div>
+      <div class="stat"><small>Assignments</small><b>${pend.length}</b><span>${pend.length ? "to do" : "nothing pending ✓"}</span></div>
+    </div>
+    <div class="card"><h3>🕘 Today's classes</h3>${r.todayClasses.length ? `<table class="rt"><tbody>${r.todayClasses.map((c) => `<tr><td class="r" style="text-align:left;width:130px">${esc(span(c.from, c.to))}</td><td><b>${esc(c.subject || c.course)}</b>${c.teacher ? `<div class="sub">${esc(c.teacher)}</div>` : ""}</td></tr>`).join("")}</tbody></table>`
+      : `<p class="sub" style="margin:0">No classes scheduled for today.</p>`}</div>
+    <div class="card"><h3>📅 Attendance</h3>
+      <div class="two"><div><b>This month</b><div class="sub">${mc.P} present · ${mc.L} late · ${mc.A} absent · ${mc.E} leave</div>${meter(mc.pct)}</div>
+        <div><b>Last 30 days</b><div class="sub">${a.last30.P + a.last30.L} present · ${a.last30.A} absent${a.last30.pct === null ? "" : " · " + a.last30.pct + "%"}</div>${meter(a.last30.pct)}</div></div>
+      ${a.last14.length ? `<div class="sub" style="margin-top:12px">Last ${a.last14.length} school days</div><div class="dots">${a.last14.map((d) => `<span class="d-${esc(d.s)}" title="${esc(fmtD(d.date))} — ${ATT_N[d.s] || d.s}">${new Date(d.date + "T12:00").getDate()}</span>`).join("")}</div>` : `<p class="sub">No attendance marked yet.</p>`}
+      ${a.recent.length ? `<table class="rt" style="margin-top:12px"><tbody>${a.recent.map((d) => `<tr><td>${esc(fmtD(d.date))}</td><td><span class="pill ${esc(d.s)}">${ATT_N[d.s]}</span>${d.t && d.s === "L" ? ` <span class="sub">${esc(d.t)}</span>` : ""}</td></tr>`).join("")}</tbody></table>` : ""}
+      ${a.bySubject.length ? `<div class="sub" style="margin-top:12px"><b>Class attendance (by teacher) this month</b></div><table class="rt"><tbody>${a.bySubject.map((x) => `<tr><td>${esc(x.subject)}</td><td class="r">${x.P + x.L}/${x.P + x.L + x.A}${x.pct === null ? "" : ` · ${x.pct}%`}</td></tr>`).join("")}</tbody></table>` : ""}
+      ${a.bunks.length ? `<div class="note" style="border-left-color:var(--red);background:#FDECEA"><b>⚠ Missed class while at the academy:</b> ${a.bunks.map((b) => `${esc(fmtD(b.date))} (${esc(b.subject)})`).join(", ")}</div>` : ""}
+    </div>
+    <div class="card"><h3>🗓 My classes & teachers</h3>
+      ${r.classes.length ? `<table class="rt"><thead><tr><th>Subject</th><th>Teacher</th><th>Days & time</th></tr></thead><tbody>${r.classes.map((c) => `<tr><td><b>${esc(c.subject || c.course)}</b>${c.subject ? `<div class="sub">${esc(c.course)}</div>` : ""}</td><td>${esc(c.teacher || "—")}</td>
+          <td>${c.times.length ? c.times.map((t) => `<div><b>${esc(t.day)}</b> ${esc(span(t.from, t.to)) || ""}</div>`).join("") : `<span class="sub">—</span>`}</td></tr>`).join("")}</tbody></table>` : `<p class="sub" style="margin:0">Your classes have not been set up yet.</p>`}
+      ${order.length ? `<div class="sub" style="margin:14px 0 6px"><b>Weekly timetable</b></div><div class="tt">${order.map((d) => `<div class="day ${d === wd ? "now" : ""}"><b>${["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][d]}${d === wd ? " · today" : ""}</b>
+          ${days[d].sort((x, z) => String(x.from).localeCompare(String(z.from))).map((t) => `<div class="slot"><span class="tm">${esc(span(t.from, t.to)) || "—"}</span><span>${esc(t.subject || t.course)}${t.teacher ? ` <span class="sub">· ${esc(t.teacher)}</span>` : ""}</span></div>`).join("")}</div>`).join("")}</div>` : ""}
+    </div>
+    <div class="card"><h3>📝 Marks</h3>
+      ${mk.bySubject.length ? `<div class="stats" style="margin-bottom:10px">${mk.bySubject.map((x) => `<div class="stat"><small>${esc(x.subject)}</small><b>${x.avg}%</b><span>${x.n} test${x.n === 1 ? "" : "s"} · grade ${grade(x.avg)}</span>${meter(x.avg)}</div>`).join("")}</div>` : ""}
+      ${mk.list.length ? `<table class="rt"><thead><tr><th>Date</th><th>Test</th><th class="r">Marks</th></tr></thead><tbody>${mk.list.map((e) => `<tr><td style="white-space:nowrap">${esc(fmtD(e.date))}</td>
+          <td><b>${esc(e.exam)}</b>${e.subject ? ` <span class="sub">· ${esc(e.subject)}</span>` : ""}${e.by ? `<div class="sub">${esc(e.by)}</div>` : ""}${e.comment ? `<div class="sub" style="font-style:italic">“${esc(e.comment)}”</div>` : ""}</td>
+          <td class="r">${e.absent ? `<span class="pill A">Absent</span>` : `<b>${e.obtained}/${e.total}</b><div class="sub">${e.pct}% · ${grade(e.pct)}</div>`}</td></tr>`).join("")}</tbody></table>` : `<p class="sub" style="margin:0">No marks entered yet — they appear here as soon as your teacher saves them.</p>`}
+    </div>
+    ${r.remarks.length ? `<div class="card"><h3>💬 Teacher remarks</h3><table class="rt"><tbody>${r.remarks.map((x) => `<tr><td style="white-space:nowrap">${esc(fmtD(x.d))}</td><td><b>${esc(x.type)}</b>${x.by ? ` <span class="sub">· ${esc(x.by)}</span>` : ""}<div>${esc(x.note)}</div></td></tr>`).join("")}</tbody></table></div>` : ""}`;
+  bindKids();
+  if (quiet) window.scrollTo(0, y);
+  if (!poll) poll = setInterval(() => { if (document.visibilityState === "visible" && tab === "rep" && !cur) report(true); }, 30e3);
+}
+
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && me && tab === "rep" && !cur && !$("#app").classList.contains("hidden")) report(true); });
 
 /* ------------------------------ open / start ------------------------------ */
 async function openAsg(id, start) {

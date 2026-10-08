@@ -9,6 +9,7 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 const ai = require("./ai");
+const { studentReport } = require("./student-report");
 
 const GRACE_MS = 90e3;                        // timer khatam hone ke baad network ke liye thori mohlat
 const MAX_WORK_FILES = 12;
@@ -578,6 +579,18 @@ module.exports = function setup(ctx) {
 
     if (p === "/student/api/me" && req.method === "GET")
       return sendJson(res, 200, { school: schoolName(fam.db), self: !!fam.self, children: fam.kids.map((k) => ({ id: k.id, name: k.name, course: k.course, shift: k.shift })) });
+
+    if (p === "/student/api/report" && req.method === "GET") {     // v68: My Report — live from the DB on every call
+      const st = kid(url.searchParams.get("studentId"));
+      if (!st) return sendJson(res, 400, { error: "Choose a student." });
+      const r = studentReport(fam.db, st, pktDate());
+      r.assignments = assignments.filter((a) => open(a, pktDate()) && (a.studentIds || []).includes(st.id)).map((a) => {
+        const s = settle(subFor(a.id, st.id));
+        return { title: a.title, subject: a.subject, total: a.total, state: s ? s.status : "new", dueDate: a.dueDate || "",
+                 score: s && s.result && (s.status === "marked" || s.teacherEdited) ? s.result.total_awarded : null };
+      });
+      return sendJson(res, 200, r);
+    }
 
     if (p === "/student/api/list" && req.method === "GET") {
       const st = kid(url.searchParams.get("studentId"));
