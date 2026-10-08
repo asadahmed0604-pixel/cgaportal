@@ -42,6 +42,10 @@ Education Management System for Cambridge Grads Academy.
   tests / marks / class attendance.
   - Morning tests are created by the admin only; the teacher enters marks + a **required remark** (or fills them from a CSV sheet).
   - An Evening teacher can create a basic test for their own class and mark class attendance.
+  - **My students (v60):** Morning — every student of the teacher's Morning class appears automatically (by class).
+    Evening — only students of that class who take the teacher's subject (if a student's subject is set to another
+    teacher, that student is theirs). A student who is in both Morning and Evening (same Reg No, or same name in the
+    other shift) is shown on one row and counted once.
   - Present / Late in main attendance but Absent in class = **class bunk** → shown automatically in the parents'
     chat under "Attendance" and "Teacher Remarks".
 

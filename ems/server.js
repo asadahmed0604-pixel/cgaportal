@@ -194,7 +194,8 @@ function teacherView(d, tid) {
   const mine = (st) => { const sets = keys(st).map(subjOf); if (!sets.length || sets.some((x) => !x)) return st.subjects || [];
     return (st.subjects || []).filter((x) => sets.some((set) => subjHit(set, x.name))); };
   return {
-    students: (d.students || []).filter((st) => keys(st).length && (marked.has(st.id) || keys(st).some((k) => !subjOf(k)) || mine(st).length)).map((st) => ({
+    /* v60: Morning class ke sab bache khud (class se); Evening mein sirf apne subject wale (client wahi hisaab lagata hai) */
+    students: (d.students || []).filter((st) => keys(st).length && (marked.has(st.id) || keys(st).some((k) => k.startsWith("Morning|") || !subjOf(k)) || mine(st).length)).map((st) => ({
       id: st.id, name: st.name, regNo: st.regNo, course: st.course, course2: st.course2, shift: st.shift, status: st.status, mode: st.mode,
       statusSince: st.statusSince, doj: st.doj, joinMonth: st.joinMonth, roster: st.roster, group: st.group,
       subjects: mine(st).map((x) => ({ name: x.name, teacherId: x.teacherId || "" })) })),
