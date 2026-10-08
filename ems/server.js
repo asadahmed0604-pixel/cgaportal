@@ -313,6 +313,114 @@ function persist(next, label) {
 }
 const stamp = () => new Date().toISOString().replace(/[:.]/g, "-");
 
+/* ================= v58: ACTIVITY LOG =================
+   Kis ne kab login kiya, kaunsa hissa khola, kya daala / badla / mitaya — server khud likhta hai (DATA_DIR/activity.jsonl),
+   is liye browser se badla ya mitaya nahi ja sakta. Sirf Executive parh sakta hai (/api/activity). */
+const ACT_FILE = path.join(DATA_DIR, "activity.jsonl");
+const ACT_KEEP_DAYS = 180, ACT_MAX_BYTES = 12 * 1024 * 1024;
+const shortUA = (ua) => { ua = String(ua || "");
+  const os = /Android/i.test(ua) ? "Android" : /iPhone|iPad/i.test(ua) ? "iPhone" : /Windows/i.test(ua) ? "Windows" : /Mac OS/i.test(ua) ? "Mac" : /Linux/i.test(ua) ? "Linux" : "";
+  const br = /Edg\//.test(ua) ? "Edge" : /Chrome\//.test(ua) ? "Chrome" : /Safari\//.test(ua) ? "Safari" : /Firefox\//.test(ua) ? "Firefox" : "";
+  return [br, os].filter(Boolean).join(" · ") || ua.slice(0, 40); };
+function actWho(auth) {
+  const d = dbNow() || {}, s = d.settings || {};
+  if (!auth) return { role: "", name: "" };
+  if (auth.role === "exec") return { role: "exec", name: "Executive" };
+  if (auth.role === "feeadmin") return { role: "feeadmin", name: "Fee Admin" + (s.feeAdminAuth && s.feeAdminAuth.who ? " (" + s.feeAdminAuth.who + ")" : "") };
+  if (auth.role === "admin") return { role: "admin", name: "Admin" };
+  if (auth.role === "teacher") { const e = (d.employees || []).find((x) => x.id === auth.tid); return { role: "teacher", name: "Teacher: " + (e ? e.name : auth.tid) }; }
+  return { role: auth.role, name: auth.role };
+}
+function logAct(req, who, action, detail) {
+  try {
+    let raw = String((req && req.headers["x-ems-me"]) || ""); try { raw = decodeURIComponent(raw); } catch {}
+    const me = raw.replace(/[^\p{L}\p{N} .'-]/gu, "").trim().slice(0, 40);
+    const line = { t: new Date().toISOString(), role: who.role || "", name: who.name || "", as: me && me !== who.name ? me : "",
+      ip: req ? clientIp(req) : "", dev: req ? shortUA(req.headers["user-agent"]) : "", action, detail: String(detail || "").slice(0, 1500) };
+    fs.appendFileSync(ACT_FILE, JSON.stringify(line) + "\n");
+    if (fs.statSync(ACT_FILE).size > ACT_MAX_BYTES) actTrim();
+  } catch (e) { console.error("activity log", e.message); }
+}
+function actTrim() {
+  try {
+    if (!fs.existsSync(ACT_FILE)) return;
+    const cut = new Date(Date.now() - ACT_KEEP_DAYS * 864e5).toISOString();
+    let lines = fs.readFileSync(ACT_FILE, "utf8").split("\n").filter((l) => l && l.slice(6, 30) >= cut);
+    while (lines.join("\n").length > ACT_MAX_BYTES * 0.7) lines = lines.slice(Math.ceil(lines.length * 0.1));
+    writeAtomic(ACT_FILE, lines.join("\n") + (lines.length ? "\n" : ""));
+  } catch (e) { console.error("activity trim", e.message); }
+}
+function actRead(q) {
+  if (!fs.existsSync(ACT_FILE)) return [];
+  let rows = fs.readFileSync(ACT_FILE, "utf8").split("\n").filter(Boolean).map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+  if (q.role) rows = rows.filter((r) => r.role === q.role);
+  if (q.date) rows = rows.filter((r) => String(r.t).slice(0, 10) === q.date || pktDate(r.t) === q.date);
+  if (q.kind === "changes") rows = rows.filter((r) => r.action === "Saved changes" || /import|delete/i.test(r.action));
+  if (q.kind === "logins") rows = rows.filter((r) => /login|logout|unlock/i.test(r.action));
+  if (q.q) { const k = q.q.toLowerCase(); rows = rows.filter((r) => (r.name + " " + r.as + " " + r.action + " " + r.detail + " " + r.ip).toLowerCase().includes(k)); }
+  return rows.reverse();
+}
+const pktDate = (iso) => new Date(new Date(iso).getTime() + 5 * 3600e3).toISOString().slice(0, 10);
+
+/* key ki tarteeb se farq na pare (server admin ke liye chhupi fields wapas jorta hai to tarteeb badal jati hai) */
+const canon = (v) => JSON.stringify(v, (k, x) => x && typeof x === "object" && !Array.isArray(x) ? Object.keys(x).sort().reduce((o, kk) => (o[kk] = x[kk], o), {}) : x);
+/* Save se pehle aur baad ka data — kya badla, insaani zabaan mein */
+const ACT_COLS = { students: "Students", fees: "Fee challans", employees: "Employees", txns: "Income / Expense", inquiries: "Inquiries",
+  exams: "Exam marks", tests: "Tests", homework: "Homework", inventory: "Inventory", issues: "Issuance", audits: "Class audits", kpis: "KPI checklists",
+  subjects: "Subjects", feeReceipts: "Fee receipts (app)", parentAccess: "Parent access", parentMsgs: "Parent messages", classAtt: "Class attendance" };
+const ACT_SKIP_FIELDS = new Set(["hash", "salt", "iter"]);
+const recLabel = (r, col) => {
+  if (!r || typeof r !== "object") return "?";
+  if (col === "fees") return [r.chNo, r.month].filter(Boolean).join(" ") || r.id;
+  if (col === "exams") return [r.exam, r.subject].filter(Boolean).join(" · ") || r.id;
+  if (col === "txns") return `${r.type || ""} ${r.desc || ""} Rs ${r.amount || 0}`.trim();
+  return r.name || r.studentName || r.title || r.chNo || r.desc || r.subject || r.phone || r.id || "?";
+};
+const shortVal = (v) => { if (v === undefined || v === null || v === "") return "—";
+  if (typeof v === "object") return Array.isArray(v) ? `[${v.length}]` : "{…}";
+  const t = String(v); return t.startsWith("data:") ? "(image)" : t.length > 40 ? t.slice(0, 37) + "…" : t; };
+function fieldDiff(a, b) {
+  const keys = new Set([...Object.keys(a || {}), ...Object.keys(b || {})]), out = [];
+  keys.forEach((k) => { if (ACT_SKIP_FIELDS.has(k)) return;
+    const x = a ? a[k] : undefined, y = b ? b[k] : undefined;
+    if (canon(x) === canon(y)) return;
+    out.push(k === "photo" ? "photo changed" : (typeof x === "object" && x) || (typeof y === "object" && y) ? `${k} changed` : `${k}: ${shortVal(x)} → ${shortVal(y)}`); });
+  return out;
+}
+function diffData(before, after) {
+  before = before || {}; after = after || {};
+  const parts = [], names = (stu) => (id) => { const st = (after.students || before.students || []).find((x) => x.id === id); return st ? st.name : ""; };
+  Object.keys(ACT_COLS).forEach((col) => {
+    const A = Array.isArray(before[col]) ? before[col] : [], B = Array.isArray(after[col]) ? after[col] : [];
+    if (!A.length && !B.length) return;
+    const ma = new Map(A.filter((r) => r && r.id).map((r) => [r.id, r])), mb = new Map(B.filter((r) => r && r.id).map((r) => [r.id, r]));
+    const add = [...mb.keys()].filter((k) => !ma.has(k)), del = [...ma.keys()].filter((k) => !mb.has(k));
+    const chg = [...mb.keys()].filter((k) => ma.has(k) && canon(ma.get(k)) !== canon(mb.get(k)));
+    if (!add.length && !del.length && !chg.length) return;
+    const who = (r) => { const n = col !== "students" && r && r.studentId ? names()(r.studentId) : ""; return recLabel(r, col) + (n ? ` (${n})` : ""); };
+    const bits = [];
+    if (add.length) bits.push(`+${add.length} added: ${add.slice(0, 5).map((k) => who(mb.get(k))).join(", ")}${add.length > 5 ? " …" : ""}`);
+    if (chg.length) bits.push(`~${chg.length} changed: ${chg.slice(0, 4).map((k) => { const f = fieldDiff(ma.get(k), mb.get(k)); return `${who(mb.get(k))} [${f.slice(0, 5).join("; ")}${f.length > 5 ? "; …" : ""}]`; }).join(", ")}${chg.length > 4 ? " …" : ""}`);
+    if (del.length) bits.push(`−${del.length} deleted: ${del.slice(0, 5).map((k) => who(ma.get(k))).join(", ")}${del.length > 5 ? " …" : ""}`);
+    parts.push(`${ACT_COLS[col]}: ${bits.join(" · ")}`);
+  });
+  [["attendance", "Student attendance"], ["empAttendance", "Staff attendance"]].forEach(([col, label]) => {
+    const A = before[col] || {}, B = after[col] || {};
+    const days = [...new Set([...Object.keys(A), ...Object.keys(B)])].filter((d) => canon(A[d]) !== canon(B[d])).sort();
+    if (!days.length) return;
+    parts.push(`${label}: ${days.slice(0, 4).map((d) => { const a = A[d] || {}, b = B[d] || {};
+      const n = [...new Set([...Object.keys(a), ...Object.keys(b)])].filter((k) => canon(a[k]) !== canon(b[k])).length;
+      return `${d} (${n} ${col === "attendance" ? "students" : "staff"})`; }).join(", ")}${days.length > 4 ? " …" : ""}`);
+  });
+  const sa = before.settings || {}, sb = after.settings || {};
+  const sk = [...new Set([...Object.keys(sa), ...Object.keys(sb)])].filter((k) => canon(sa[k]) !== canon(sb[k]));
+  if (sk.length) parts.push("Settings: " + sk.map((k) => ({ adminAuth: "Admin password", feeAdminAuth: "Fee Admin password", feeAdminCode: "Fee Admin code", logo: "logo", appIcons: "app icons" }[k] ||
+    (typeof sb[k] === "object" ? k + " changed" : `${k}: ${shortVal(sa[k])} → ${shortVal(sb[k])}`))).join(" · "));
+  const ea = new Map((before.employees || []).map((e) => [e.id, e])), loginChg = (after.employees || []).filter((e) => canon((ea.get(e.id) || {}).login) !== canon(e.login));
+  if (loginChg.length) parts.push("Teacher logins: " + loginChg.map((e) => e.name + (e.login ? " (password set)" : " (disabled)")).join(", "));
+  return parts;
+}
+
 /* ================= v28: PARENTS CHATBOT =================
    Parents ka login staff se bilkul alag: phone + 6 digit PIN (admin EMS ke "Parents" page se banata hai,
    PBKDF2 hash DB mein). Parent sirf apne bachon ka data dekh sakta hai — jawab yahin server par
@@ -504,10 +612,12 @@ const server = http.createServer(async (req, res) => {
       const acc = key && accessFor(dbNow(), key);
       if (!acc || !pinOk(acc, String(body.pin || "").trim())) {
         failed("p:" + ip); if (key) failed("pp:" + key);
+        logAct(req, { role: "parent", name: "Parent 0" + (key || "?") }, "Failed login", "Parents app — wrong phone or PIN");
         return sendJson(res, 401, { error: "Wrong phone number or PIN." });
       }
       fails.delete("p:" + ip); fails.delete("pp:" + key);
       parentLogins[key] = new Date().toISOString();
+      logAct(req, { role: "parent", name: "Parent 0" + key }, "Login", "Parents app");
       try { writeAtomic(LOGINS_FILE, JSON.stringify(parentLogins)); } catch {}
       setParentCookie(req, res, parentToken(acc), 60 * 86400);
       return sendJson(res, 200, { ok: true });
@@ -569,6 +679,7 @@ const server = http.createServer(async (req, res) => {
             method: METHODS.includes(body.method) ? body.method : "Other", ref: String(body.ref || "").trim().slice(0, 60),
             file: `/fee-receipts/${name}`, fileType: ext, d: new Date().toISOString(), status: "Pending", note: "" });
         });
+        logAct(req, { role: "parent", name: "Parent 0" + who.key }, "Fee receipt sent", `${child.name} · Rs ${amount}${fee ? " · " + (fee.chNo || "") : ""}`);
         return sendJson(res, 200, { ok: true });
       }
       if (p === "/parent/api/message") {
@@ -580,6 +691,7 @@ const server = http.createServer(async (req, res) => {
           d.parentMsgs.push({ id: crypto.randomBytes(8).toString("hex"), studentId: child.id, studentName: child.name,
             phone: who.key, d: new Date().toISOString(), text, status: "Open", reply: "", repliedOn: "" });
         });
+        logAct(req, { role: "parent", name: "Parent 0" + who.key }, "Message sent", `${child.name}: ${text.slice(0, 120)}`);
         return sendJson(res, 200, { ok: true });
       }
       return send(res, 404, "Not found");
@@ -601,8 +713,9 @@ const server = http.createServer(async (req, res) => {
       if (blocked(ip)) return send(res, 429, loginPage("Too many wrong attempts — try again in 15 minutes.", !!user), "text/html; charset=utf-8");
       if (user) {
         const t = teacherPwOk(user, pw);
-        if (!t) { failed(ip); return send(res, 401, loginPage("Wrong Login ID or password.", true), "text/html; charset=utf-8"); }
+        if (!t) { failed(ip); logAct(req, { role: "teacher", name: "Login ID: " + user.slice(0, 30) }, "Failed login", "Wrong teacher Login ID or password"); return send(res, 401, loginPage("Wrong Login ID or password.", true), "text/html; charset=utf-8"); }
         fails.delete(ip);
+        logAct(req, { role: "teacher", name: "Teacher: " + t.name }, "Login", "Teacher portal");
         setSession(req, res, teacherToken(t), SESSION_DAYS * 86400);
         return redirect(res, "/");
       }
@@ -610,14 +723,17 @@ const server = http.createServer(async (req, res) => {
       const who = isExec ? "exec" : rolePwOk("feeadmin", pw) ? "feeadmin" : rolePwOk("admin", pw) ? "admin" : null;
       if (!who) {
         failed(ip);
+        logAct(req, { role: "", name: "Unknown" }, "Failed login", "Wrong staff password");
         return send(res, 401, loginPage("Wrong password."), "text/html; charset=utf-8");
       }
       fails.delete(ip);
+      logAct(req, actWho({ role: who }), "Login", "Staff portal");
       setSession(req, res, who === "exec" ? newToken("exec") : newToken(who, roleAuth(who).hash.slice(0, 12)), SESSION_DAYS * 86400);
       return redirect(res, "/");
     }
     if (p === "/logout") {
       const wasTeacher = (authed(req) || {}).role === "teacher";
+      if (authed(req)) logAct(req, actWho(authed(req)), "Logout", "");
       res.setHeader("Set-Cookie", [`ems_s=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${isHttps(req) ? "; Secure" : ""}`,
                                    `ems_u=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${isHttps(req) ? "; Secure" : ""}`]);
       return redirect(res, wasTeacher ? "/teacher" : "/login");
@@ -647,8 +763,9 @@ const server = http.createServer(async (req, res) => {
       const f = fails.get(k);
       if (f && f.until > Date.now() && f.n >= 5) return sendJson(res, 429, { error: "Wrong code 5 times — try again in 15 minutes." });
       const body = JSON.parse((await readBody(req)) || "{}");
-      if (!codeOk(body.code)) { failed(k); return sendJson(res, 401, { error: "Wrong code." }); }
+      if (!codeOk(body.code)) { failed(k); logAct(req, actWho(auth), "Failed unlock", "Wrong 4-digit code"); return sendJson(res, 401, { error: "Wrong code." }); }
       fails.delete(k);
+      logAct(req, actWho(auth), "Unlocked fees", "Fee / Billing and Income / Expense unlocked for 30 minutes");
       const exp = Date.now() + UNLOCK_MIN * 60e3, tag = c.hash.slice(0, 12);
       res.setHeader("Set-Cookie", `ems_u=${exp}.${tag}.${sign(`unlock|${exp}|${tag}|${sessSig(req)}`)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${UNLOCK_MIN * 60}${isHttps(req) ? "; Secure" : ""}`);
       return sendJson(res, 200, { ok: true, exp });
@@ -656,6 +773,20 @@ const server = http.createServer(async (req, res) => {
     if (p === "/api/lock" && req.method === "POST") {
       res.setHeader("Set-Cookie", `ems_u=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${isHttps(req) ? "; Secure" : ""}`);
       return sendJson(res, 200, { ok: true });
+    }
+    /* v58: activity log — likhna (kaunsa page khola) sab kar sakte hain, parhna sirf Executive */
+    if (p === "/api/act" && req.method === "POST") {
+      if (!sameOrigin(req)) return sendJson(res, 403, { error: "origin" });
+      const body = JSON.parse((await readBody(req)) || "{}");
+      const page = String(body.page || "").replace(/[^\p{L}\p{N} /&()·-]/gu, "").slice(0, 60);
+      if (page && !tooMany("act:" + (tid || role) + ":" + page + ":" + clientIp(req), 1, 10 * 60e3)) logAct(req, actWho(auth), "Viewed", page);
+      return sendJson(res, 200, { ok: true });
+    }
+    if (p === "/api/activity" && req.method === "GET") {
+      if (role !== "exec") return sendJson(res, 403, { error: "Executive only" });
+      const q = Object.fromEntries(["role", "date", "q", "kind"].map((k) => [k, String(url.searchParams.get(k) || "").slice(0, 60)]));
+      const rows = actRead(q), off = Math.max(0, +url.searchParams.get("offset") || 0), lim = Math.min(500, Math.max(1, +url.searchParams.get("limit") || 100));
+      return sendJson(res, 200, { total: rows.length, rows: rows.slice(off, off + lim) });
     }
     if (p === "/api/version" && req.method === "GET")
       return sendJson(res, 200, { version: state.version, updatedAt: state.updatedAt, role });
@@ -674,8 +805,12 @@ const server = http.createServer(async (req, res) => {
       if (!body.force && body.baseVersion !== state.version)
         return sendJson(res, 409, `{"version":${state.version},"unlock":${JSON.stringify(ul || {})},"data":${dataFor(view, tid)}}`);
       const out = role === "teacher" ? teacherMerge(data, tid) : role !== "exec" ? keepProtected(data, view) : data;
+      let changes = [];
+      try { changes = body.force ? [] : diffData(dbNow(), out); } catch (e) { changes = ["(could not compare: " + e.message + ")"]; }
       persist({ version: state.version + 1, updatedAt: new Date().toISOString(), dataText: JSON.stringify(out) },
               body.force ? "import" : "");
+      if (body.force) logAct(req, actWho(auth), "Imported backup", `Whole database replaced — ${(out.students || []).length} students, ${(out.fees || []).length} challans, ${(out.employees || []).length} employees`);
+      else if (changes.length) logAct(req, actWho(auth), "Saved changes", changes.join("\n"));
       return sendJson(res, 200, { version: state.version, updatedAt: state.updatedAt });
     }
 
@@ -690,6 +825,7 @@ const server = http.createServer(async (req, res) => {
       if (!buf.length) return sendJson(res, 400, { error: "Empty file" });
       const name = `${crypto.randomBytes(12).toString("hex")}.${ext}`;
       writeAtomic(path.join(FILES_DIR, name), buf);
+      logAct(req, actWho(auth), "Uploaded file", `Expense receipt (${ext}, ${Math.round(buf.length / 1024)} KB)`);
       return sendJson(res, 200, { url: `/files/${name}`, size: buf.length });
     }
     /* v43: parents ki fee receipts — sirf Executive aur Fee Admin */
