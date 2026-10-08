@@ -519,7 +519,7 @@ body{font-family:"League Spartan","Segoe UI",Arial,sans-serif;background:radial-
 .logo img{width:100%;height:100%;object-fit:contain}
 h1{font-size:1.45rem;font-weight:800;text-align:center}
 .sub{color:#6B7C85;font-size:.92rem;text-align:center;margin:4px 0 18px}
-.seg{display:grid;grid-template-columns:1fr 1fr;background:#EEF3F5;border-radius:12px;padding:4px;margin-bottom:18px}
+.seg{display:grid;grid-template-columns:1fr 1fr 1fr;background:#EEF3F5;border-radius:12px;padding:4px;margin-bottom:18px}
 .seg a{text-align:center;padding:10px 6px;border-radius:9px;font-weight:700;font-size:.95rem;color:#6B7C85;text-decoration:none}
 .seg a.on{background:#fff;color:#174B60;box-shadow:0 2px 8px rgba(0,0,0,.08)}
 label{font-size:.85rem;font-weight:700;display:block;margin:0 0 6px}
@@ -540,7 +540,7 @@ input:focus{outline:none;border-color:#159670;background:#fff;box-shadow:0 0 0 4
   <div class="logo"><img src="/icons/cga-192.png" alt="${school}"></div>
   <h1>${teacher ? "Teacher Portal" : "CGA EMS"}</h1>
   <p class="sub">${school}${teacher ? " · tests, marks and class attendance" : " · staff login"}</p>
-  <div class="seg"><a href="/login" class="${teacher ? "" : "on"}">🏢 Staff</a><a href="/teacher" class="${teacher ? "on" : ""}">🧑‍🏫 Teacher</a></div>
+  <div class="seg"><a href="/login" class="${teacher ? "" : "on"}">🏢 Staff</a><a href="/teacher" class="${teacher ? "on" : ""}">🧑‍🏫 Teacher</a><a href="/student">🎓 Student</a></div>
   ${msg ? `<div class="err">${msg}</div>` : ""}
   ${teacher ? `<div class="f"><label for="user">Login ID</label>
   <input id="user" name="user" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" required autofocus placeholder="e.g. ahmed"></div>` : ""}
