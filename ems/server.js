@@ -485,37 +485,56 @@ function appPage(role, tid, view, ul) {
 }
 /* v38: Staff (/login) aur Teachers (/teacher) ke alag login pages — dono /login par post karte hain */
 function loginPage(msg, teacher) {
+  const school = escHtml(schoolName(dbNow()));
   return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1"><title>CGA EMS — ${teacher ? "Teacher Login" : "Login"}</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>CGA EMS — ${teacher ? "Teacher Login" : "Login"}</title>
 ${APP_HEAD(teacher ? "teacher" : "staff")}
 <link href="https://fonts.googleapis.com/css2?family=League+Spartan:wght@400;600;800&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0}
-body{font-family:"League Spartan","Segoe UI",Arial,sans-serif;background:#174B60;color:#12313D;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:16px}
-form{background:#fff;border-radius:14px;padding:30px 26px;width:100%;max-width:360px;box-shadow:0 10px 40px rgba(0,0,0,.25)}
-.mark{width:46px;height:46px;border-radius:11px;background:#159670;color:#fff;font-weight:800;display:flex;align-items:center;justify-content:center;font-size:1.1rem;margin-bottom:14px}
-h1{font-size:1.4rem;font-weight:800}
-p{color:#6d6d6d;font-size:.9rem;margin:4px 0 18px}
-label{font-size:.8rem;font-weight:600;display:block;margin-bottom:6px}
-input{width:100%;font:inherit;padding:11px 12px;border:1px solid #cfcfcf;border-radius:8px}
-input:focus{outline:2px solid #159670;border-color:#159670}
-button{width:100%;margin-top:14px;padding:12px;border:none;border-radius:8px;background:#159670;color:#fff;font:inherit;font-weight:700;cursor:pointer}
-button:hover{background:#0F7657}
-.alt{display:block;text-align:center;margin-top:14px;font-size:.85rem;color:#159670;text-decoration:none;font-weight:600}
-.err{background:#fdecea;color:#C0392B;border-radius:8px;padding:9px 11px;font-size:.88rem;margin-bottom:12px}
+body{font-family:"League Spartan","Segoe UI",Arial,sans-serif;background:radial-gradient(120% 80% at 50% 0%,#1E6A84 0%,#174B60 45%,#0F3646 100%);color:#12313D;min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:max(20px,env(safe-area-inset-top)) 16px max(20px,env(safe-area-inset-bottom))}
+.card{background:#fff;border-radius:22px;padding:28px 24px 22px;width:100%;max-width:400px;box-shadow:0 20px 60px rgba(0,0,0,.35)}
+.logo{width:84px;height:84px;border-radius:22px;background:#fff;box-shadow:0 8px 24px rgba(23,75,96,.25);display:flex;align-items:center;justify-content:center;margin:-70px auto 12px;padding:8px}
+.logo img{width:100%;height:100%;object-fit:contain}
+h1{font-size:1.45rem;font-weight:800;text-align:center}
+.sub{color:#6B7C85;font-size:.92rem;text-align:center;margin:4px 0 18px}
+.seg{display:grid;grid-template-columns:1fr 1fr;background:#EEF3F5;border-radius:12px;padding:4px;margin-bottom:18px}
+.seg a{text-align:center;padding:10px 6px;border-radius:9px;font-weight:700;font-size:.95rem;color:#6B7C85;text-decoration:none}
+.seg a.on{background:#fff;color:#174B60;box-shadow:0 2px 8px rgba(0,0,0,.08)}
+label{font-size:.85rem;font-weight:700;display:block;margin:0 0 6px}
+.f{position:relative;margin-bottom:14px}
+input{width:100%;font:inherit;font-size:17px;padding:14px 14px;border:1.5px solid #D5DEE2;border-radius:12px;background:#F8FAFB}
+input:focus{outline:none;border-color:#159670;background:#fff;box-shadow:0 0 0 4px rgba(21,150,112,.15)}
+.eye{position:absolute;right:6px;bottom:6px;width:44px;height:40px;border:none;background:transparent;font-size:1.15rem;cursor:pointer;border-radius:9px;margin:0;padding:0;color:#174B60}
+.go{width:100%;margin-top:4px;padding:15px;border:none;border-radius:12px;background:#159670;color:#fff;font:inherit;font-size:1.08rem;font-weight:800;cursor:pointer;box-shadow:0 6px 18px rgba(21,150,112,.35)}
+.go:active{transform:translateY(1px)}
+.go[disabled]{opacity:.7}
+.keep{display:flex;align-items:center;gap:8px;justify-content:center;color:#6B7C85;font-size:.82rem;margin-top:12px}
+.err{background:#fdecea;color:#C0392B;border-radius:10px;padding:10px 12px;font-size:.9rem;margin-bottom:14px;font-weight:600}
+.inst{display:none;width:100%;margin-top:12px;padding:12px;border:1.5px dashed #9CBCC9;border-radius:12px;background:#fff;color:#174B60;font:inherit;font-weight:700;cursor:pointer}
+.foot{color:#CFE3EA;font-size:.8rem;margin-top:18px;text-align:center}
+.foot a{color:#fff;font-weight:700}
 </style></head><body>
-<form method="post" action="/login">
-  <div class="mark">CGA</div>
-  ${teacher ? `<h1>Teacher Login</h1><p>Cambridge Grads Academy · Tests, marks and class attendance</p>` : `<h1>CGA EMS</h1><p>Cambridge Grads Academy · Staff login</p>`}
+<form class="card" method="post" action="/login" onsubmit="this.querySelector('.go').disabled=true;this.querySelector('.go').textContent='Signing in…'">
+  <div class="logo"><img src="/icons/cga-192.png" alt="${school}"></div>
+  <h1>${teacher ? "Teacher Portal" : "CGA EMS"}</h1>
+  <p class="sub">${school}${teacher ? " · tests, marks and class attendance" : " · staff login"}</p>
+  <div class="seg"><a href="/login" class="${teacher ? "" : "on"}">🏢 Staff</a><a href="/teacher" class="${teacher ? "on" : ""}">🧑‍🏫 Teacher</a></div>
   ${msg ? `<div class="err">${msg}</div>` : ""}
-  ${teacher ? `<label for="user">Login ID</label>
-  <input id="user" name="user" autocomplete="username" autocapitalize="none" required autofocus style="margin-bottom:12px">` : ""}
-  <label for="pw">Password${teacher ? "" : " (Executive / Fee Admin / Admin)"}</label>
-  <input id="pw" type="password" name="password" autocomplete="current-password" required ${teacher ? "" : "autofocus"}>
-  <button type="submit">Login</button>
-  ${teacher ? `<a class="alt" href="/login">Staff login →</a>` : `<a class="alt" href="/teacher">Teacher? Teacher login →</a>`}
+  ${teacher ? `<div class="f"><label for="user">Login ID</label>
+  <input id="user" name="user" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" required autofocus placeholder="e.g. ahmed"></div>` : ""}
+  <div class="f"><label for="pw">Password${teacher ? "" : " <span style=\"font-weight:500;color:#6B7C85\">(Executive / Fee Admin / Admin)</span>"}</label>
+  <input id="pw" type="password" name="password" autocomplete="current-password" required ${teacher ? "" : "autofocus"} placeholder="••••••••">
+  <button type="button" class="eye" aria-label="Show password" onclick="const i=document.getElementById('pw');i.type=i.type==='password'?'text':'password';this.textContent=i.type==='password'?'👁':'🙈'">👁</button></div>
+  <button class="go" type="submit">Sign in</button>
+  <div class="keep">🔒 You stay signed in on this device for ${SESSION_DAYS} days</div>
+  <button type="button" class="inst" id="inst">📲 Install the app on this phone</button>
 </form>
-<script>if("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(()=>{});</script></body></html>`;
+<div class="foot">Parent? <a href="/parent">Open the Parents App →</a></div>
+<script>if("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(()=>{});
+let ev=null;addEventListener("beforeinstallprompt",e=>{e.preventDefault();ev=e;document.getElementById("inst").style.display="block";});
+document.getElementById("inst").onclick=()=>{if(ev){ev.prompt();ev=null;document.getElementById("inst").style.display="none";}};
+if(/iPhone|iPad/.test(navigator.userAgent)&&!navigator.standalone){const b=document.getElementById("inst");b.style.display="block";b.textContent="📲 Install: tap Share ⬆ then “Add to Home Screen”";b.onclick=null;}</script></body></html>`;
 }
 
 /* ================= v41: APP (phone / desktop par install) =================

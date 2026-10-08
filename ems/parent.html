@@ -40,6 +40,8 @@ button{cursor:pointer}
 .top b{display:block;font-size:1.02rem;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .top small{color:#A9CAD6;font-size:.76rem;display:flex;align-items:center;gap:5px}
 .top small i{width:7px;height:7px;border-radius:50%;background:#4ADE80;display:inline-block}
+.tinst{margin-left:auto;color:#fff;font:inherit;font-size:.8rem;border:none;background:#159670;border-radius:10px;padding:8px 11px;white-space:nowrap;cursor:pointer}
+.tinst + a{margin-left:8px!important}
 .top a{margin-left:auto;color:#fff;font-size:.8rem;text-decoration:none;background:rgba(255,255,255,.12);border-radius:10px;padding:8px 11px;white-space:nowrap}
 .kids{display:flex;gap:8px;padding:10px 12px;overflow-x:auto;background:#fff;border-bottom:1px solid var(--line);scrollbar-width:none}
 .kids::-webkit-scrollbar{display:none}
@@ -148,7 +150,8 @@ button{cursor:pointer}
   <div class="top">
     <img src="/icons/cga-192.png" alt="">
     <div class="t"><b>{{SCHOOL}}</b><small><i></i><span id="topKid">Parents</span></small></div>
-    <a href="/parent/logout">Logout</a>
+    <button type="button" class="tinst" id="tinst" style="display:none" aria-label="Install app">📲 Install</button>
+    <a href="/parent/logout" onclick="return confirm('Log out of the Parents App?')">⎋ Logout</a>
   </div>
   <div class="kids" id="kids"></div>
   <div class="msgs" id="msgs" aria-live="polite"></div>
@@ -408,6 +411,11 @@ async function start(){
 }
 start().catch(()=> showLogin());
 </script>
-<script>if("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(()=>{});</script>
+<script>if("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(()=>{});
+/* v59: app install — Android par button, iPhone par tareeqa */
+let instEv = null; const tb = document.getElementById("tinst");
+addEventListener("beforeinstallprompt", e=>{ e.preventDefault(); instEv = e; tb.style.display = ""; });
+tb.onclick = ()=>{ if(instEv){ instEv.prompt(); instEv = null; tb.style.display = "none"; } else alert("iPhone: tap Share ⬆ then “Add to Home Screen”."); };
+if(/iPhone|iPad/.test(navigator.userAgent) && !navigator.standalone) tb.style.display = "";</script>
 </body>
 </html>
