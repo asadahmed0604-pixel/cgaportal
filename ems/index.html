@@ -176,7 +176,7 @@ tr:hover td{background:var(--soft)}
 .att-opts button.selE{background:#bdbdbd;color:#fff;border-color:#bdbdbd}
 .att-opts button.selU{background:#7a3b8f;color:#fff;border-color:#7a3b8f}
 .att-opts button:disabled{opacity:.35;cursor:not-allowed}
-.toast{position:fixed;bottom:22px;right:22px;background:var(--black);color:#fff;padding:12px 18px;border-radius:10px;border-left:4px solid var(--red);font-size:.9rem;display:none;z-index:99}
+.toast{position:fixed;bottom:22px;right:22px;max-width:calc(100vw - 24px);background:var(--black);color:#fff;padding:12px 18px;border-radius:10px;border-left:4px solid var(--red);font-size:.9rem;display:none;z-index:99}
 .toast.show{display:block;animation:fade .2s ease}
 
 /* ---------- v19: reports & export ---------- */
@@ -317,22 +317,101 @@ label.chk input{width:auto}
 .card.click{cursor:pointer;transition:box-shadow .15s,border-color .15s}
 .card.click:hover{box-shadow:0 4px 14px rgba(21,150,112,.18);border-color:var(--red)}
 
+/* ================= v59: MOBILE APP SHELL ================= */
+.mtop,.mtabs,.mdim,.ibanner{display:none}
+.side-logout{width:100%;margin-top:10px;padding:9px 10px;background:transparent;border:1px solid #2E6B83;color:#fff;font-weight:700;font-size:.82rem;border-radius:8px}
+.side-logout:hover{background:#9C2C1F;border-color:#9C2C1F}
+.acc-sheet .av{width:64px;height:64px;border-radius:50%;background:var(--black);color:#fff;display:flex;align-items:center;justify-content:center;font-size:1.5rem;font-weight:800;margin:0 auto 8px}
+.acc-sheet .rows{display:grid;gap:10px;margin-top:16px}
+.acc-sheet .rows button{display:flex;align-items:center;gap:12px;width:100%;padding:14px 16px;border-radius:12px;font-size:1rem;font-weight:700;text-align:left;background:#F3F7F9;color:var(--ink);border:1px solid var(--line)}
+.acc-sheet .rows button.out{background:#fdecea;color:#9C2C1F;border-color:#f3c3bd}
+.acc-sheet .rows button small{display:block;font-weight:500;color:var(--muted);font-size:.78rem}
 @media (max-width:900px){
-  body{flex-direction:column}
-  .sidebar{width:100%;height:auto;position:static;flex-direction:row;overflow-x:auto;align-items:center}
-  .brand{border:none;flex-shrink:0}
-  .nav{display:flex;padding:0}
-  .nav button{white-space:nowrap;border-left:none;border-bottom:3px solid transparent}
-  .nav button.active{border-left:none;border-bottom:3px solid var(--red)}
-  .side-foot{display:none}
-  .grid2,.grid3,.grid4{grid-template-columns:1fr}
-  .main{padding:16px}
+  body{flex-direction:column;padding-top:calc(58px + env(safe-area-inset-top))}
+  .mtop{display:flex;align-items:center;gap:10px;position:fixed;top:0;left:0;right:0;z-index:40;height:calc(58px + env(safe-area-inset-top));padding:env(safe-area-inset-top) 10px 0;background:var(--black);color:#fff;box-shadow:0 2px 12px rgba(0,0,0,.18)}
+  .mtop button{background:transparent;color:#fff;width:42px;height:42px;border-radius:12px;font-size:1.35rem;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .mtop button:active{background:#1E5E77}
+  .mt-brand{flex:1;display:flex;align-items:center;gap:9px;min-width:0}
+  .mt-brand img{width:34px;height:34px;border-radius:9px;background:#fff;padding:2px;object-fit:contain;flex-shrink:0}
+  .mt-brand b{display:block;font-size:1.02rem;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mt-brand small{display:block;font-size:.66rem;color:#9CBCC9;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mt-acc span{width:34px;height:34px;border-radius:50%;background:var(--red);display:flex;align-items:center;justify-content:center;font-size:.85rem;font-weight:800}
+  .sidebar{position:fixed;top:0;left:0;bottom:0;z-index:60;width:min(84vw,320px);height:100%;transform:translateX(-105%);transition:transform .22s ease;box-shadow:6px 0 30px rgba(0,0,0,.3);padding-top:env(safe-area-inset-top)}
+  .sidebar.open{transform:none}
+  .nav button{padding:13px 20px;font-size:1rem}
+  .side-foot{padding-bottom:calc(14px + env(safe-area-inset-bottom))}
+  .mdim{position:fixed;inset:0;background:rgba(10,30,40,.5);z-index:55}
+  body.drawer .mdim{display:block}
+  .mtabs{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:40;background:#fff;border-top:1px solid var(--line);box-shadow:0 -2px 14px rgba(0,0,0,.08);padding:4px 4px calc(4px + env(safe-area-inset-bottom))}
+  .mtabs button{flex:1;background:none;display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 2px;font-size:.68rem;font-weight:700;color:var(--muted);border-radius:10px;min-width:0}
+  .mtabs button .i{font-size:1.25rem;line-height:1.2}
+  .mtabs button.on{color:var(--black);background:#E7F2EE}
+  .mtabs button span:last-child{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+  .ibanner{position:fixed;left:10px;right:10px;bottom:calc(74px + env(safe-area-inset-bottom));z-index:45;background:var(--black);color:#fff;border-radius:16px;padding:12px;align-items:center;gap:12px;box-shadow:0 10px 30px rgba(0,0,0,.3)}
+  .ibanner.show{display:flex}
+  .ibanner img{width:44px;height:44px;border-radius:11px;background:#fff;padding:3px}
+  .ibanner b{display:block;font-size:.95rem}.ibanner small{color:#9CBCC9;font-size:.75rem}
+  .ibanner .go{background:var(--red);color:#fff;padding:9px 14px;font-weight:800;border-radius:10px;white-space:nowrap}
+  .ibanner .no{background:transparent;color:#9CBCC9;font-size:1.1rem;padding:4px 6px}
+  .main{padding:12px 12px calc(84px + env(safe-area-inset-bottom))}
+  .wmbar{top:calc(58px + env(safe-area-inset-top));margin:0 0 12px;padding:6px 10px;gap:6px;flex-wrap:nowrap;overflow-x:auto;border-radius:12px}
+  .wmbar > span:first-child b,.wmbar .wmh{display:none}
+  .wmbar.past .wmh{display:inline;font-size:.72rem;white-space:nowrap}
+  .wmbar input{max-width:140px;padding:5px 7px}
+  .wmbar .btn-sm{white-space:nowrap}
+  .wmbar .staff-only{margin-left:0!important}
+  .main{width:100%;max-width:100vw}
+  .page{max-width:100%;min-width:0}
+  .page-head{flex-direction:column;align-items:stretch;gap:10px;margin-bottom:14px;max-width:100%;min-width:0}
+  .page-head > *{min-width:0;max-width:100%}
+  .tabs{display:flex;flex-wrap:nowrap!important;overflow-x:auto;max-width:100%;-webkit-overflow-scrolling:touch}
+  .tabs > button{flex-shrink:0;white-space:nowrap}
+  .mchips{flex-wrap:wrap;margin-left:0!important;max-width:100%}
+  .page-head h2{font-size:1.35rem}
+  .page-head > div + div{display:flex!important;flex-wrap:nowrap!important;overflow-x:auto;gap:8px;padding-bottom:4px;-webkit-overflow-scrolling:touch}
+  .page-head button{white-space:nowrap;flex-shrink:0;padding:9px 13px;font-size:.86rem}
+  .cards{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:16px}
+  .card{padding:12px 13px;border-radius:14px}
+  .card .k{font-size:.64rem;letter-spacing:.05em}
+  .card .v{font-size:1.35rem;margin-top:4px}
+  .card .hint{font-size:.7rem;line-height:1.3}
+  .panel{padding:14px;border-radius:14px}
+  .toolbar{gap:8px}
+  .toolbar .field{min-width:0!important;flex:1 1 140px!important;max-width:100%}
+  .toolbar .field input,.toolbar .field select,.field input,.field select{min-width:0;max-width:100%}
+  .toolbar button{padding:9px 12px;font-size:.86rem}
+  input,select,textarea{font-size:16px!important}
+  table{font-size:.82rem}
+  th{padding:8px 9px;font-size:.66rem}
+  td{padding:8px 9px}
+  .grid2,.grid3,.grid4{grid-template-columns:minmax(0,1fr)}
+  .grid2 > *,.grid3 > *,.grid4 > *,.cards > *{min-width:0}
+  .wmbar #meBtn{display:none}
+  .modal.sheet{min-height:0;border-radius:22px 22px 0 0;animation:sheetUp .22s ease}
+  .overlay{padding:0;align-items:flex-end}
+  .modal,.modal.wide{max-width:100%;min-height:100%;border-radius:0;padding:16px 14px calc(16px + env(safe-area-inset-bottom))}
+  .modal h3{padding-right:40px;font-size:1.08rem}
+  .modal-foot{position:sticky;bottom:calc(-16px - env(safe-area-inset-bottom));background:#fff;margin:14px -14px calc(-16px - env(safe-area-inset-bottom));padding:12px 14px calc(12px + env(safe-area-inset-bottom));flex-wrap:wrap;box-shadow:0 -4px 12px rgba(0,0,0,.06)}
+  .modal-foot button{flex:1 1 auto}
+  #toast{bottom:calc(84px + env(safe-area-inset-bottom))!important;left:12px;right:12px}
+  .att-opts button{padding:6px 8px;font-size:.74rem}
 }
+@keyframes sheetUp{from{transform:translateY(40px);opacity:.4}to{transform:none;opacity:1}}
+@media (max-width:380px){ .cards{grid-template-columns:1fr 1fr} .card .v{font-size:1.2rem} .mtabs button{font-size:.62rem} }
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 </head>
 <body>
 
+<header class="mtop">
+  <button onclick="drawer(true)" aria-label="Open menu">☰</button>
+  <div class="mt-brand"><img id="mtLogo" alt=""><div><b id="mtTitle">Dashboard</b><small id="mtSub">Cambridge Grads Academy</small></div></div>
+  <button class="mt-acc" onclick="openAccount()" aria-label="Account and logout"><span id="mtAv">👤</span></button>
+</header>
+<div class="mdim" onclick="drawer(false)"></div>
+<nav class="mtabs" id="mtabs" aria-label="Quick sections"></nav>
+<div class="ibanner" id="ibanner"><img id="ibLogo" alt=""><div style="flex:1;min-width:0"><b>Install the CGA EMS app</b><small>Opens full-screen from your home screen</small></div>
+  <button class="go" onclick="installApp();hideInstallBanner()">Install</button><button class="no" onclick="hideInstallBanner(true)" aria-label="Not now">✕</button></div>
 <aside class="sidebar">
   <div class="brand">
     <div class="logo">
@@ -362,7 +441,8 @@ label.chk input{width:auto}
     <button data-page="biz"><span class="ico">📑</span> Business Reports</button>
     <button data-page="settings"><span class="ico">⚙</span> Settings</button>
   </nav>
-  <div class="side-foot"><button id="installBtn" onclick="installApp()" style="width:100%;margin-bottom:10px;padding:8px 10px;background:#159670;color:#fff;font-weight:700;font-size:.82rem">📲 Install app</button><b id="buildTag" style="color:#fff"></b><br><span id="syncLine">Offline system — data is saved in this browser</span></div>
+  <div class="side-foot"><button id="installBtn" onclick="installApp()" style="width:100%;margin-bottom:10px;padding:8px 10px;background:#159670;color:#fff;font-weight:700;font-size:.82rem">📲 Install app</button><b id="buildTag" style="color:#fff"></b><br><span id="syncLine">Offline system — data is saved in this browser</span>
+    <button class="side-logout" id="sideLogout" onclick="confirmLogout()" style="display:none">⎋ Log out</button></div>
 </aside>
 
 <main class="main">
@@ -1163,7 +1243,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v58 · 8 Oct 2026";
+const BUILD = "v59 · 8 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -1441,6 +1521,7 @@ function askConfirm(title, bodyHTML, onYes, yesLabel){
       <button class="btn-line" onclick="_confirmFn=null;closeModal()">Cancel</button>
       <button class="btn-danger" onclick="runConfirm()">${esc(yesLabel || "Yes, delete")}</button>
     </div>`);
+  $("modalBox").classList.add("sheet");
 }
 function runConfirm(){ const f = _confirmFn; _confirmFn = null; closeModal(); if(f) f(); }
 
@@ -1523,8 +1604,63 @@ document.querySelectorAll("#nav button").forEach(b=>{
     syncWMFilters();
     renderPage(b.dataset.page);
     actPing(b.textContent.trim());
+    mobileSync(b);
+    drawer(false); window.scrollTo(0, 0);
   };
 });
+/* ================= v59: MOBILE SHELL — menu, bottom tabs, account / logout, install ================= */
+const APP_LOGO = SERVER ? "/icons/cga-192.png" : "icons/icon-192.png";
+const isStandalone = () => (window.matchMedia && matchMedia("(display-mode: standalone)").matches) || navigator.standalone === true;
+function drawer(open){ document.querySelector(".sidebar").classList.toggle("open", !!open); document.body.classList.toggle("drawer", !!open); }
+const TAB_PICK = {exec:["dashboard","students","attendance","fees"], feeadmin:["students","attendance","fees","inquiries"],
+                  admin:["students","attendance","inquiries","homework"], teacher:["mydash","tests","classatt","exams"]};
+function buildTabs(){
+  const box = $("mtabs"); if(!box) return;
+  const vis = [...document.querySelectorAll("#nav button[data-page]")].filter(b=>b.style.display !== "none");
+  const pick = (TAB_PICK[ROLE] || TAB_PICK.exec).map(p=>vis.find(b=>b.dataset.page === p)).filter(Boolean).slice(0, 4);
+  box.innerHTML = pick.map(b=>{ const ico = (b.querySelector(".ico")||{}).textContent || "•", txt = b.textContent.replace(ico, "").trim().split(" / ")[0];
+    return `<button data-tab="${b.dataset.page}" onclick="document.querySelector('#nav button[data-page=${b.dataset.page}]').click()"><span class="i">${ico}</span><span>${esc(txt)}</span></button>`; }).join("")
+    + `<button onclick="drawer(true)"><span class="i">☰</span><span>More</span></button>`;
+  mobileSync(document.querySelector("#nav button.active"));
+}
+function mobileSync(b){
+  if(!b) return;
+  const ico = (b.querySelector(".ico")||{}).textContent || "";
+  if($("mtTitle")) $("mtTitle").textContent = b.textContent.replace(ico, "").trim();
+  document.querySelectorAll("#mtabs button[data-tab]").forEach(x=>x.classList.toggle("on", x.dataset.tab === b.dataset.page));
+}
+function initials(n){
+  const r = String(n||"").replace(/^(Teacher|Fee Admin|Admin|Executive)\s*·?\s*/,"").split(/\s+/).filter(Boolean).slice(0,2).map(x=>x[0].toUpperCase()).join("");
+  return r || ({exec:"EX", feeadmin:"FA", admin:"AD", teacher:"T"}[ROLE] || "👤");
+}
+function openAccount(){
+  const who = IS_TEACHER ? ROLE_LABEL : (myName() ? `${ROLE_LABEL} · ${myName()}` : ROLE_LABEL);
+  openModal(`<div class="acc-sheet" style="text-align:center">
+    <div class="av">${esc(initials(IS_TEACHER ? ROLE_LABEL : (myName() || ROLE_LABEL)))}</div>
+    <h3 style="border:0;margin:0;padding:0">${esc(who)}</h3>
+    <p class="sub">${esc(DB.settings.name || "Cambridge Grads Academy")} · ${SERVER ? (SYNC.failed ? "⚠ offline — retrying" : "☁ online, synced") : "this browser only"}</p>
+    <div class="rows" style="text-align:left">
+      ${isStandalone() ? "" : `<button onclick="closeModal();installApp()">📲<span>Install app<small>Open CGA EMS from your home screen like a normal app</small></span></button>`}
+      ${IS_TEACHER || !SERVER ? "" : `<button onclick="closeModal();openMe()">👤<span>${myName() ? "Change my name" : "Who are you?"}<small>Shown in inquiries and the activity log</small></span></button>`}
+      ${ROLE === "feeadmin" && $("lockBtn") && $("lockBtn").style.display !== "none" ? `<button onclick="closeModal();$('lockBtn').click()">🔒<span>Lock fees now</span></button>` : ""}
+      ${SERVER ? `<button class="out" onclick="confirmLogout()">⎋<span>Log out<small>You stay signed in for 30 days on this device until you log out</small></span></button>` : ""}
+    </div></div>
+    <div class="modal-foot"><button class="btn-line" onclick="closeModal()">Close</button></div>`);
+  $("modalBox").classList.add("sheet");
+}
+function confirmLogout(){
+  askConfirm("Log out?", "You will need your password to sign in again on this device.", ()=>{ location.href = "/logout"; }, "⎋ Log out");
+}
+function hideInstallBanner(forLater){
+  const b = $("ibanner"); if(b) b.classList.remove("show");
+  if(forLater){ try{ localStorage.setItem("emsInstallLater", String(Date.now())); }catch(e){} }
+}
+function maybeInstallBanner(){
+  if(!SERVER || isStandalone() || window.innerWidth > 900) return;
+  let later = 0; try{ later = +localStorage.getItem("emsInstallLater") || 0; }catch(e){}
+  if(Date.now() - later < 7*864e5) return;
+  setTimeout(()=>{ if(!isStandalone() && $("ibanner")) $("ibanner").classList.add("show"); }, 3500);
+}
 /* v58: activity log — kaunsa hissa khola (server 10 min mein aik dafa likhta hai) */
 function actPing(page){
   if(!SERVER) return;
@@ -8801,7 +8937,9 @@ function saveSettings(){
 function drawLogo(){
   const m = $("brandMark");
   if(DB.settings.logo){ m.classList.add("has-logo"); m.innerHTML = `<img src="${DB.settings.logo}" alt="Logo">`; }
-  else { m.classList.remove("has-logo"); m.textContent = "CGA"; }
+  else { m.classList.add("has-logo"); m.innerHTML = `<img src="${APP_LOGO}" alt="CGA" onerror="this.parentNode.classList.remove('has-logo');this.parentNode.textContent='CGA'">`; }
+  if($("mtLogo")) $("mtLogo").src = DB.settings.logo || APP_LOGO;
+  if($("ibLogo")) $("ibLogo").src = APP_LOGO;
   const prev = $("logoPrev");
   if(prev) prev.innerHTML = DB.settings.logo
     ? `<img src="${DB.settings.logo}" style="max-height:74px;max-width:100%;border:1px solid var(--line);border-radius:8px;padding:6px;background:#fff">`
@@ -9810,7 +9948,8 @@ function setSyncState(){
   const state = SYNC.failed ? `<span style="color:#FFCC68">⚠ No connection to server — retrying</span>`
               : (SYNC.busy || syncDirty()) ? "⏳ Saving…"
               : "☁ Online — synced on every computer";
-  el.innerHTML = state + ` · <b style="color:#fff">${ROLE_LABEL}</b> · <a href="/logout" style="color:#9CBCC9">Logout</a>`;
+  el.innerHTML = state + ` · <b style="color:#fff">${esc(ROLE_LABEL)}</b>`;
+  if($("sideLogout")) $("sideLogout").style.display = "";
 }
 function queuePush(){
   clearTimeout(SYNC.timer);
@@ -9914,6 +10053,10 @@ if(IS_ADMIN){
   document.querySelector(`#nav button[data-page="${IS_TEACHER ? "mydash" : "students"}"]`).click();
 }
 renderDashboard();
+buildTabs();
+if($("mtSub")) $("mtSub").textContent = (DB.settings.name || "Cambridge Grads Academy");
+if($("mtAv")) $("mtAv").textContent = initials(IS_TEACHER ? ROLE_LABEL : (myName() || ROLE_LABEL));
+maybeInstallBanner();
 /* v37: FT1 / FT2 (Morning) — sab ke 8 compulsory subjects. Catalogue mein Foundation subjects, aur aik dafa
    har FT1 / FT2 student ki subject list yahi 8 (pehle se laga teacher wahi rehta hai). */
 const FT_SUBJECTS = ["Mathematics","English","Arabic","Islamic Ethics","Urdu","History","Geography","Science"];

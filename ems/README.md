@@ -87,6 +87,12 @@ node check.js                                    # safety check: every button ca
 
 The same check runs on GitHub for every pull request that touches `ems/` (`.github/workflows/ems-check.yml`).
 
+## Phone layout (v59)
+
+On phones the EMS works like an app: top bar with the CGA logo and page name, ☰ slide-in menu with every section,
+a bottom tab bar (role-wise shortcuts + More), and the 👤 account button (Install app, Who are you?, Log out with
+confirmation). The login page has the logo, a Staff | Teacher switch and a show-password button; sessions last 30 days.
+
 ## Install as an app (v41)
 
 Staff (`/`), Teachers (`/teacher`) and Parents (`/parent`) — all three links can be installed as an app on a phone / computer
