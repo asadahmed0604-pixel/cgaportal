@@ -668,8 +668,8 @@ label.chk input{width:auto}
 <!-- ================= HOMEWORK ================= -->
 <section class="page" id="page-homework">
   <div class="page-head">
-    <div><h2>Homework / Assignments</h2><div class="sub">Assign homework by class & shift — it shows on the student profile automatically</div></div>
-    <button class="btn-red" onclick="openHwForm()">+ New Homework</button>
+    <div><h2>Homework / Assignments</h2><div class="sub">Assign homework by class & subject — it shows on the student profile and in the parents' app automatically. Tick who handed it in with ✓ Receival.</div></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn-black" onclick="openHwReport()">📊 Monthly submission report</button><button class="btn-red" onclick="openHwForm()">+ New Homework</button></div>
   </div>
   <div class="toolbar">
     <div class="field"><label>Class</label><select id="hwFCourse" onchange="renderHomework()"><option value="">All Classes</option></select></div>
@@ -1308,7 +1308,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v68 · 8 Oct 2026";
+const BUILD = "v69 · 8 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -1447,7 +1447,7 @@ const IS_ADMIN = ROLE !== "exec";                    // admin, feeadmin ya teach
 const IS_TEACHER = ROLE === "teacher";               // v36: sirf apni classes ke tests / marks aur Evening class attendance
 const MY_TID = (SERVER && SERVER.tid) || "";
 const CAN_FEES = ROLE === "exec" || ROLE === "feeadmin";   // v32: Fee / Billing sirf Executive aur Fee Admin
-const TEACHER_PAGES = ["mydash","assign","tests","classatt"];
+const TEACHER_PAGES = ["mydash","assign","tests","classatt","homework"];
 const ALL_PAGES = ["dashboard","mydash","students","gallery","attendance","fees","homework","parents","inquiries","exams","tests","classatt","assign",
                    "audit","employees","inventory","issuance","finance","reports","biz","settings"];
 const ADMIN_HIDDEN = IS_TEACHER ? ALL_PAGES.filter(p=>!TEACHER_PAGES.includes(p))
@@ -2602,7 +2602,7 @@ function openProfile(id){
   const a = attSummary(id, s.doj);
   const fees = DB.fees.filter(f=>f.studentId===id).sort((x,y)=>y.month.localeCompare(x.month));
   const exams = DB.exams.filter(e=>e.studentId===id).sort((x,y)=>y.date.localeCompare(x.date));
-  const hws = DB.homework.filter(h=>inClass(s, h.course) && h.shift===s.shift).sort((x,y)=>y.dateGiven.localeCompare(x.dateGiven));
+  const hws = DB.homework.filter(h=>inClass(s, h.course) && h.shift===s.shift && (!h.subject || !(s.subjects||[]).length || (s.subjects||[]).some(x=>subjLike(x.name, h.subject)))).sort((x,y)=>y.dateGiven.localeCompare(x.dateGiven));
   /* Siblings — same Father/Guardian CNIC */
   const cnicKey = v => String(v||"").replace(/\D/g,"");
   const fKey = cnicKey(s.fatherCnic);
@@ -2703,7 +2703,7 @@ function openProfile(id){
 function hwToggle(hwId, sid, val){
   const h = DB.homework.find(x=>x.id===hwId); if(!h) return;
   if(!h.done) h.done = {};
-  if(val) h.done[sid] = true; else delete h.done[sid];
+  if(val) h.done[sid] = todayStr(); else delete h.done[sid];
   save(); toast(val? "Homework submitted ✓" : "Marked pending");
 }
 function swTab(btn,id){
@@ -3103,62 +3103,182 @@ function exportAttPDF(){
   toast("Choose 'Save as PDF' in the print dialog");
 }
 
-/* ================= HOMEWORK / ASSIGNMENTS ================= */
+/* ================= HOMEWORK / ASSIGNMENTS =================
+   v69: teacher bhi apni classes mein homework de sakta hai (server teacherMerge sirf apna hissa leta hai).
+   h.done[sid] = "YYYY-MM-DD" (jis din jama hua) ya purane records mein true. Due date guzar jaye aur done na ho = not submitted. */
+const hwKeys = () => IS_TEACHER ? [...myClassKeys()] : null;
+const hwMine = h => !IS_TEACHER || h.teacherId === MY_TID;
+/* is homework ke bache: class + shift; subject wala homework aur bache ke subjects maloom hon to sirf us subject wale */
+function hwStudents(h){
+  return DB.students.filter(st=>st.status==="Active" && st.shift===h.shift && inClass(st, h.course) &&
+    (!h.subject || !(st.subjects||[]).length || (st.subjects||[]).some(x=>subjLike(x.name, h.subject))) &&
+    (!IS_TEACHER || teachesStu(st, h.shift+"|"+h.course, mySubjMap())))
+    .sort((a,b)=>a.name.localeCompare(b.name));
+}
+const hwDue = h => h.dueDate || h.dateGiven || "";
+const hwState = (h, sid) => { const d = (h.done||{})[sid];
+  return d ? (typeof d === "string" && h.dueDate && d > h.dueDate ? "late" : "ok") : (hwDue(h) && hwDue(h) < todayStr() ? "miss" : "pending"); };
 function renderHomework(){
-  const fc=$("hwFCourse").value, fs=$("hwFShift").value, fm=$("hwFMonth").value;
-  const rows = DB.homework.filter(h=>(!fc||h.course===fc)&&(!fs||h.shift===fs)&&(!fm||String(h.dateGiven||"").startsWith(fm))).sort((a,b)=>b.dateGiven.localeCompare(a.dateGiven));
+  const fc=$("hwFCourse").value, fs=$("hwFShift").value, fm=$("hwFMonth").value, keys = hwKeys();
+  if(IS_TEACHER){ const cs = [...new Set(keys.map(k=>k.split("|")[1]))].sort(classSort);
+    if($("hwFCourse").dataset.t !== "1"){ $("hwFCourse").innerHTML = `<option value="">All my classes</option>` + cs.map(c=>`<option>${esc(c)}</option>`).join(""); $("hwFCourse").dataset.t = "1"; } }
+  const rows = DB.homework.filter(h=>(!fc||h.course===fc)&&(!fs||h.shift===fs)&&(!fm||String(h.dateGiven||"").startsWith(fm))&&(!keys||keys.includes(h.shift+"|"+h.course))).sort((a,b)=>b.dateGiven.localeCompare(a.dateGiven));
   $("hwRows").innerHTML = rows.length? rows.map(h=>{
-    const total = DB.students.filter(s=>s.status==="Active"&&inClass(s, h.course)&&s.shift===h.shift).length;
-    const sub = h.done? Object.keys(h.done).length : 0;
+    const L = hwStudents(h), sub = L.filter(st=>(h.done||{})[st.id]).length, miss = L.filter(st=>hwState(h, st.id)==="miss").length;
     return `<tr>
       <td>${fmtD(h.dateGiven)}</td>
-      <td><b>${esc(h.title)}</b></td>
+      <td><b>${esc(h.title)}</b>${h.subject?`<br><span class="sub">${esc(h.subject)}</span>`:""}${h.teacherId?`<br><span class="sub">👩‍🏫 ${esc(teacherName(h.teacherId))}</span>`:""}</td>
       <td>${esc(h.course)}</td>
       <td>${h.shift}</td>
       <td>${fmtD(h.dueDate)}</td>
       <td style="max-width:240px">${esc(h.detail||"—")}</td>
-      <td><b>${sub}</b> / ${total}</td>
+      <td><b>${sub}</b> / ${L.length}${miss?`<br><span class="sub" style="color:var(--danger)">${miss} not submitted</span>`:""}</td>
       <td style="white-space:nowrap">
-        <button class="btn-line btn-sm" onclick="openHwForm('${h.id}')">Edit</button>
-        <button class="btn-danger btn-sm" onclick="delHw('${h.id}')">Delete</button>
+        <button class="btn-black btn-sm" onclick="openHwRcv('${h.id}')">✓ Receival</button>
+        ${hwMine(h) ? `<button class="btn-line btn-sm" onclick="openHwForm('${h.id}')">Edit</button>
+        <button class="btn-danger btn-sm" onclick="delHw('${h.id}')">Delete</button>` : ""}
       </td>
     </tr>`;
   }).join("") : `<tr><td colspan="8" class="empty">No homework — assign via "+ New Homework".</td></tr>`;
 }
+function hwSubjects(sh, c){
+  const set = new Set();
+  if(IS_TEACHER){ const x = mySubjMap()(sh+"|"+c); (x||[]).forEach(v=>set.add(v)); (empById(MY_TID)||{}).assignments?.forEach(a=>{ if(a.shift===sh && a.course===c && a.subject) set.add(a.subject); }); }
+  else DB.employees.forEach(e=>(e.assignments||[]).forEach(a=>{ if(a.shift===sh && a.course===c && a.subject) set.add(a.subject); }));
+  DB.students.filter(st=>st.shift===sh && inClass(st, c)).forEach(st=>(st.subjects||[]).forEach(x=>{ if(!IS_TEACHER || !x.teacherId || x.teacherId===MY_TID) set.add(x.name); }));
+  return [...set].sort();
+}
+function hwFormSync(){
+  const sh = $("h_shift").value;
+  if(IS_TEACHER){ const cur = $("h_course").value, cs = hwKeys().filter(k=>k.startsWith(sh+"|")).map(k=>k.split("|")[1]).sort(classSort);
+    $("h_course").innerHTML = cs.length ? cs.map(c=>`<option ${c===cur?"selected":""}>${esc(c)}</option>`).join("") : `<option value="">— no ${sh} class —</option>`; }
+  $("h_subjList").innerHTML = hwSubjects(sh, $("h_course").value).map(x=>`<option value="${esc(x)}">`).join("");
+  if($("h_teacher") && !$("h_teacher").value){ const sub = $("h_subj").value.trim(), c = $("h_course").value;
+    const t = DB.employees.find(e=>(e.assignments||[]).some(a=>a.shift===sh && a.course===c && a.subject && sub && subjLike(a.subject, sub)));
+    if(t) $("h_teacher").value = t.id; }
+  const h = {shift:sh, course:$("h_course").value, subject:$("h_subj").value.trim()};
+  $("h_count").textContent = h.course ? `${hwStudents(h).length} students will get this homework` : "";
+}
 function openHwForm(id){
   const h = id? DB.homework.find(x=>x.id===id) : {};
+  if(IS_TEACHER && !hwKeys().length){ toast("No class is assigned to you — ask the admin (Employees → Edit → Assign)"); return; }
+  const sh0 = h.shift || (IS_TEACHER ? hwKeys()[0].split("|")[0] : "Morning");
   openModal(`
     <h3>${id?"Edit Homework":"New Homework / Assignment"}</h3>
-    <p class="sub" style="margin-bottom:12px">Homework is shown on the profile of every student in the selected class and shift.</p>
+    <p class="sub" style="margin-bottom:12px">Shows on the profile of every student of this class (and subject) and in the parents' app.</p>
     <div class="grid2">
-      <div class="field"><label>Title *</label><input id="h_title" value="${esc(h.title||"")}" placeholder="e.g. MS Word Assignment 1"></div>
-      <div class="field"><label>Shift *</label><select id="h_shift" onchange="syncClassSel('h_shift','h_course')">
-        <option value="Morning" ${h.shift==="Morning"?"selected":""}>Morning — School System</option>
-        <option value="Evening" ${h.shift==="Evening"?"selected":""}>Evening — Academy</option></select></div>
-      <div class="field"><label>Class *</label><select id="h_course">${courseOptions(h.course, h.shift||"Morning")}</select></div>
+      <div class="field"><label>Title *</label><input id="h_title" value="${esc(h.title||"")}" placeholder="e.g. Exercise 4.2, Q1–10"></div>
+      <div class="field"><label>Shift *</label><select id="h_shift" onchange="${IS_TEACHER?"":"syncClassSel('h_shift','h_course');"}hwFormSync()">
+        <option value="Morning" ${sh0==="Morning"?"selected":""}>Morning — School System</option>
+        <option value="Evening" ${sh0==="Evening"?"selected":""}>Evening — Academy</option></select></div>
+      <div class="field"><label>Class *</label><select id="h_course" onchange="hwFormSync()">${IS_TEACHER ? `<option>${esc(h.course||"")}</option>` : courseOptions(h.course, sh0)}</select></div>
+      <div class="field"><label>Subject</label><input id="h_subj" list="h_subjList" value="${esc(h.subject||"")}" placeholder="e.g. Mathematics" onchange="hwFormSync()"><datalist id="h_subjList"></datalist></div>
+      ${IS_TEACHER ? "" : `<div class="field"><label>Teacher</label><select id="h_teacher"><option value="">— none —</option>${DB.employees.filter(e=>e.category==="Teacher").sort((a,b)=>a.name.localeCompare(b.name)).map(e=>`<option value="${e.id}" ${h.teacherId===e.id?"selected":""}>${esc(e.name)}</option>`).join("")}</select></div>`}
       <div class="field"><label>Date Given</label><input type="date" id="h_date" value="${h.dateGiven||wmDate()}"></div>
       <div class="field"><label>Due Date</label><input type="date" id="h_due" value="${h.dueDate||""}"></div>
     </div>
     <div class="field"><label>Detail / Instructions</label><textarea id="h_detail" rows="3" placeholder="Homework details...">${esc(h.detail||"")}</textarea></div>
+    <p class="sub" id="h_count"></p>
     <div class="modal-foot">
       <button class="btn-line" onclick="closeModal()">Cancel</button>
       <button class="btn-red" onclick="saveHw('${id||""}')">${id?"Update Homework":"Assign Homework"}</button>
     </div>`);
+  if(IS_TEACHER){ hwFormSync(); if(h.course) $("h_course").value = h.course; }
+  hwFormSync();
 }
 function saveHw(id){
-  const title=$("h_title").value.trim();
+  const title=$("h_title").value.trim(), course=$("h_course").value;
   if(!title){ toast("Enter a homework title"); return; }
-  const data = {title, course:$("h_course").value, shift:$("h_shift").value, dateGiven:$("h_date").value||wmDate(), dueDate:$("h_due").value||"", detail:$("h_detail").value.trim()};
-  if(id) Object.assign(DB.homework.find(x=>x.id===id), data);
-  else { data.id=uid(); data.done={}; DB.homework.push(data); }
+  if(!course){ toast("Choose a class"); return; }
+  const due = $("h_due").value||"", given = $("h_date").value||wmDate();
+  if(due && due < given){ toast("Due date is before the date given"); return; }
+  const data = {title, course, shift:$("h_shift").value, subject:$("h_subj").value.trim(), dateGiven:given, dueDate:due, detail:$("h_detail").value.trim(),
+    teacherId: IS_TEACHER ? MY_TID : ($("h_teacher").value || "")};
+  if(IS_TEACHER && !hwKeys().includes(data.shift+"|"+data.course)){ toast("You can only give homework to your own classes"); return; }
+  if(id){ const h = DB.homework.find(x=>x.id===id); if(!hwMine(h)){ toast("Only the teacher who gave it can edit this homework"); return; } Object.assign(h, data); }
+  else { data.id=uid(); data.done={}; data.by = IS_TEACHER ? "teacher" : "admin"; data.createdOn = todayStr(); DB.homework.push(data); }
   save(); closeModal(); renderHomework();
-  const n = DB.students.filter(s=>s.status==="Active"&&inClass(s, data.course)&&s.shift===data.shift).length;
-  toast(`Homework assigned — will show on the profiles of ${n} students in ${data.course} (${data.shift})`);
+  toast(`Homework ${id?"updated":"assigned"} — ${hwStudents(data).length} students in ${data.course} (${data.shift}) and their parents will see it`);
 }
 function delHw(id){
   const h = DB.homework.find(x=>x.id===id); if(!h) return;
+  if(!hwMine(h)){ toast("Only the teacher who gave it can delete this homework"); return; }
   askConfirm("Delete homework?", `<b>${esc(h.title)}</b> — ${esc(h.course)} · ${h.shift}`,
     ()=>{ DB.homework=DB.homework.filter(x=>x.id!==id); save(); renderHomework(); toast("Homework deleted"); });
+}
+/* ---- receival: kis ne jama karwaya ---- */
+let HW_RCV = null;
+function openHwRcv(id){
+  const h = DB.homework.find(x=>x.id===id); if(!h) return;
+  const L = hwStudents(h);
+  HW_RCV = {id, done:{...(h.done||{})}};
+  openModal(`
+    <h3>✓ Homework receival — ${esc(h.title)}</h3>
+    <p class="sub" style="margin-bottom:10px">${esc(h.course)} · ${h.shift}${h.subject?" · "+esc(h.subject):""} · given ${fmtD(h.dateGiven)}${h.dueDate?` · due <b>${fmtD(h.dueDate)}</b>`:""}. Tick the students who handed it in — the date is saved (after the due date = late).</p>
+    <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:10px">
+      <div class="field" style="margin:0"><label>Received on</label><input type="date" id="hr_date" value="${todayStr()}"></div>
+      <button class="btn-line btn-sm" onclick="hwRcvAll(true)">✓ All submitted</button><button class="btn-line btn-sm" onclick="hwRcvAll(false)">Clear all</button>
+      <span class="sub" id="hr_sum" style="margin-left:auto"></span></div>
+    <div class="tbl-wrap" style="max-height:52vh;overflow:auto"><table><thead><tr><th>Student</th><th>Status</th><th style="text-align:center">Submitted</th></tr></thead>
+      <tbody>${L.length ? L.map(st=>`<tr><td><b>${esc(st.name)}</b><br><span class="sub">${esc(st.regNo||"")}</span></td><td id="hr_s_${st.id}"></td>
+        <td style="text-align:center"><input type="checkbox" id="hr_${st.id}" style="width:22px;height:22px" ${HW_RCV.done[st.id]?"checked":""} onchange="hwRcvSet('${st.id}',this.checked)"></td></tr>`).join("")
+        : `<tr><td colspan="3" class="empty">No students in this class${h.subject?" / subject":""}</td></tr>`}</tbody></table></div>
+    <div class="modal-foot">
+      <button class="btn-line" onclick="closeModal()">Cancel</button>
+      <button class="btn-red" onclick="saveHwRcv()">Save receival</button>
+    </div>`, true);
+  hwRcvDraw();
+}
+function hwRcvSet(sid, on){ if(!HW_RCV) return; if(on) HW_RCV.done[sid] = $("hr_date").value || todayStr(); else delete HW_RCV.done[sid]; hwRcvDraw(); }
+function hwRcvAll(on){ const h = DB.homework.find(x=>x.id===HW_RCV.id); hwStudents(h).forEach(st=>{ if(on){ if(!HW_RCV.done[st.id]) HW_RCV.done[st.id] = $("hr_date").value || todayStr(); } else delete HW_RCV.done[st.id]; const cb = $("hr_"+st.id); if(cb) cb.checked = on; }); hwRcvDraw(); }
+function hwRcvDraw(){
+  const h = DB.homework.find(x=>x.id===HW_RCV.id), L = hwStudents(h), tmp = {...h, done:HW_RCV.done};
+  const lab = {ok:`<span class="badge b-paid">Submitted</span>`, late:`<span class="badge b-freeze">Late</span>`, miss:`<span class="badge b-left">Not submitted</span>`, pending:`<span class="badge b-unpaid">Pending</span>`};
+  L.forEach(st=>{ const c = $("hr_s_"+st.id); if(c){ const d = HW_RCV.done[st.id]; c.innerHTML = lab[hwState(tmp, st.id)] + (typeof d === "string" ? ` <span class="sub">${fmtD(d)}</span>` : ""); } });
+  const n = L.filter(st=>HW_RCV.done[st.id]).length; $("hr_sum").textContent = `${n} / ${L.length} submitted`;
+}
+function saveHwRcv(){
+  const h = DB.homework.find(x=>x.id===HW_RCV.id); if(!h) return;
+  h.done = HW_RCV.done; h.checkedOn = todayStr(); h.checkedBy = IS_TEACHER ? teacherName(MY_TID) : (myName() || ROLE_LABEL);
+  save(); closeModal(); renderHomework(); toast(`Receival saved — ${Object.keys(h.done).length} submitted`);
+}
+/* ---- mahine ki report: kis bache ne kaunsa homework jama karwaya, kaunsa nahi ---- */
+function hwReportRows(m, c){
+  const keys = hwKeys(), L = DB.homework.filter(h=>String(hwDue(h)).startsWith(m) && (!c || h.shift+"|"+h.course===c) && (!keys || keys.includes(h.shift+"|"+h.course)));
+  const by = new Map();
+  L.forEach(h=>hwStudents(h).forEach(st=>{ const r = by.get(st.id) || {st, given:0, ok:0, late:0, miss:0, pending:0, missed:[]}; by.set(st.id, r);
+    r.given++; const k = hwState(h, st.id); r[k]++; if(k==="miss") r.missed.push(h); }));
+  return {L, rows:[...by.values()].sort((a,b)=>(b.miss - a.miss) || a.st.name.localeCompare(b.st.name))};
+}
+function openHwReport(){
+  const keys = IS_TEACHER ? hwKeys() : [...new Set(DB.homework.map(h=>h.shift+"|"+h.course))];
+  openModal(`
+    <h3>📊 Homework submission report</h3>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:10px">
+      <div class="field" style="margin:0"><label>Month (by due date)</label><input type="month" id="hrp_m" value="${wm()}" onchange="drawHwReport()"></div>
+      <div class="field" style="margin:0"><label>Class</label><select id="hrp_c" onchange="drawHwReport()"><option value="">All${IS_TEACHER?" my":""} classes</option>${keys.sort().map(k=>{ const [sh,c]=k.split("|"); return `<option value="${esc(k)}">${esc(c)} · ${sh}</option>`; }).join("")}</select></div>
+      <button class="btn-line btn-sm" onclick="hwReportCSV()">⬇ CSV</button></div>
+    <p class="sub" id="hrp_sub"></p>
+    <div class="tbl-wrap" style="max-height:58vh;overflow:auto"><table><thead><tr><th>Student</th><th>Class</th><th style="text-align:right">Given</th><th style="text-align:right">Submitted</th><th style="text-align:right">Late</th><th style="text-align:right">Not submitted</th><th style="text-align:right">%</th><th>Missing homework</th></tr></thead><tbody id="hrp_rows"></tbody></table></div>
+    <div class="modal-foot"><button class="btn-line" onclick="closeModal()">Close</button></div>`, true);
+  drawHwReport();
+}
+function drawHwReport(){
+  const m = $("hrp_m").value || wm(), {L, rows} = hwReportRows(m, $("hrp_c").value);
+  const tot = rows.reduce((a,r)=>({g:a.g+r.given, s:a.s+r.ok+r.late, x:a.x+r.miss}), {g:0,s:0,x:0});
+  $("hrp_sub").textContent = `${L.length} homework${L.length===1?"":"s"} due in ${fmtM(m)} · ${tot.s} of ${tot.g} handed in · ${tot.x} not submitted (pending = due date not passed yet)`;
+  $("hrp_rows").innerHTML = rows.length ? rows.map(r=>{ const p = r.given ? Math.round((r.ok + r.late) * 100 / r.given) : 0;
+    return `<tr><td><b>${esc(r.st.name)}</b><br><span class="sub">${esc(r.st.regNo||"")}</span></td><td>${esc(classLabelOf(r.st))} · ${r.st.shift}</td>
+      <td style="text-align:right">${r.given}</td><td style="text-align:right">${r.ok}</td><td style="text-align:right">${r.late||"—"}</td>
+      <td style="text-align:right">${r.miss ? `<b style="color:var(--danger)">${r.miss}</b>` : "—"}</td>
+      <td style="text-align:right"><span class="badge ${p>=80?"b-paid":p>=50?"b-freeze":"b-left"}">${p}%</span></td>
+      <td class="sub" style="max-width:260px">${r.missed.map(h=>`${esc(h.title)}${h.subject?` (${esc(h.subject)})`:""}`).join(", ") || "—"}</td></tr>`; }).join("")
+    : `<tr><td colspan="8" class="empty">No homework due in ${fmtM(m)}</td></tr>`;
+}
+function hwReportCSV(){
+  const m = $("hrp_m").value || wm(), {rows} = hwReportRows(m, $("hrp_c").value);
+  downloadCSV(`Homework submissions ${fmtM(m)}.csv`, [["Reg No","Name","Class","Shift","Given","Submitted","Late","Not submitted","Pending","%","Missing homework"],
+    ...rows.map(r=>[r.st.regNo||"", r.st.name, classLabelOf(r.st), r.st.shift, r.given, r.ok, r.late, r.miss, r.pending, r.given ? Math.round((r.ok + r.late) * 100 / r.given) : 0, r.missed.map(h=>h.title).join("; ")])]);
 }
 
 /* ================= FEES ================= */

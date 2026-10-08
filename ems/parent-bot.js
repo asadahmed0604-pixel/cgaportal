@@ -120,15 +120,18 @@ function tests(db, s) {
 }
 
 function homework(db, s, today) {
-  const hw = (db.homework || []).filter((h) => (h.course === s.course || (s.shift === "Evening" && h.course === s.course2)) && h.shift === s.shift)
-    .sort((a, b) => String(b.dateGiven).localeCompare(String(a.dateGiven))).slice(0, 5);
+  const subjOk = (h) => !h.subject || !(s.subjects || []).length || (s.subjects || []).some((x) => { const a = String(x.name || "").toLowerCase().replace(/[^a-z0-9]/g, ""), b = String(h.subject).toLowerCase().replace(/[^a-z0-9]/g, ""); return a && b && (a === b || a.includes(b) || b.includes(a)); });
+  const hw = (db.homework || []).filter((h) => (h.course === s.course || (s.shift === "Evening" && h.course === s.course2)) && h.shift === s.shift && subjOk(h))
+    .sort((a, b) => String(b.dateGiven).localeCompare(String(a.dateGiven))).slice(0, 8);
   if (!hw.length) return [H(`📚 ${s.course} — Homework`), P("No homework has been given yet.")];
   return [
     H(`📚 ${s.course} (${s.shift}) — Latest homework`),
     LI(hw.map((h) => {
       const done = h.done && h.done[s.id];
       const late = !done && h.dueDate && h.dueDate < today;
-      return `${fmtD(h.dateGiven)} · ${h.title}${h.dueDate ? ` — due ${fmtD(h.dueDate)}` : ""}${h.detail ? `: ${h.detail}` : ""} [${done ? "✓ submitted" : late ? "⚠ not submitted yet" : "pending"}]`;
+      const lateIn = typeof done === "string" && h.dueDate && done > h.dueDate;      // v69: teacher ne receival ki date daali
+      const tName = h.teacherId ? ((db.employees || []).find((e) => e.id === h.teacherId) || {}).name : "";
+      return `${fmtD(h.dateGiven)} · ${h.subject ? h.subject + ": " : ""}${h.title}${tName ? ` (${tName})` : ""}${h.dueDate ? ` — due ${fmtD(h.dueDate)}` : ""}${h.detail ? `: ${h.detail}` : ""} [${done ? (lateIn ? `✓ submitted late (${fmtD(done)})` : "✓ submitted") : late ? "⚠ not submitted" : "pending"}]`;
     })),
   ];
 }

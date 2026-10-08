@@ -47,6 +47,7 @@ function classesFor(db, st) {
     .sort((a, b) => (a.times.length ? 0 : 1) - (b.times.length ? 0 : 1) || a.subject.localeCompare(b.subject));
 }
 
+const mine = (st) => (st.subjects || []).filter((x) => x && x.name);
 function studentReport(db, st, today) {
   const att = db.attendance || {}, month = today.slice(0, 7);
   const since = new Date(Date.parse(today + "T00:00:00Z") - 30 * 864e5).toISOString().slice(0, 10);
@@ -92,6 +93,15 @@ function studentReport(db, st, today) {
       average: avg(exams.slice(0, 10).map(p)), count: exams.length,
       bySubject: Object.entries(bySub).map(([k, l]) => ({ subject: k, avg: avg(l), n: l.length, last: l[0] })).sort((a, b) => a.subject.localeCompare(b.subject)),
     },
+    /* v69: homework — subject wala sirf us subject ke bachon ko */
+    homework: (db.homework || []).filter((h) => h.shift === st.shift && classesOf(st).includes(h.course)
+        && (!h.subject || !mine(st).length || mine(st).some((x) => subjLike(x.name, h.subject))))
+      .sort((a, b) => String(b.dateGiven).localeCompare(String(a.dateGiven))).slice(0, 12).map((h) => {
+        const d = (h.done || {})[st.id], due = h.dueDate || "";
+        return { title: h.title || "", subject: h.subject || "", detail: h.detail || "", given: h.dateGiven || "", due,
+          teacher: h.teacherId ? ((db.employees || []).find((e) => e.id === h.teacherId) || {}).name || "" : "",
+          state: d ? (typeof d === "string" && due && d > due ? "late" : "done") : due && due < today ? "missed" : "pending", on: typeof d === "string" ? d : "" };
+      }),
     remarks: (st.remarks || []).filter((r) => r.parentVisible !== false).sort((a, b) => String(b.d).localeCompare(String(a.d))).slice(0, 8)
       .map((r) => ({ d: r.d, type: r.type || "Remark", note: r.note || "", by: r.by || "" })),
   };

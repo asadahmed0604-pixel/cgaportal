@@ -155,6 +155,16 @@ shift), so attendance, late minutes and the teacher's timetable all follow the c
   before) + 40% attendance (dashboard month) − 3 per class bunk. Filter by shift / class, click a name for the profile,
   ⬇ CSV for the full ranking.
 
+## Homework from teachers (v69)
+
+- Teachers now have **📚 Homework** in their portal: give homework to their own classes (class + subject + due date). It goes
+  straight into the EMS Homework section, the student profile, the parents' app ("homework") and the student app (My Report).
+- **✓ Receival**: tick who handed it in (the date is saved; after the due date = late). Not ticked after the due date =
+  not submitted. Teachers can mark receival on admin homework of their classes too, but can only edit / delete their own;
+  the server enforces this.
+- **📊 Monthly submission report** (Homework page): per student — given, submitted, late, not submitted, % and the missing
+  homework titles, by month (due date) and class, with CSV.
+
 ## Install as an app (v41)
 
 Staff (`/`), Teachers (`/teacher`) and Parents (`/parent`) — all three links can be installed as an app on a phone / computer
