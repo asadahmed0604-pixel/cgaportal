@@ -225,6 +225,16 @@ label.chk input{width:auto}
 .cx-total{display:flex;justify-content:space-between;align-items:center;background:#159670;color:#fff;margin:8px 10px 0;border-radius:6px;padding:7px 12px;font-weight:800}
 .cx-total span:last-child{font-size:1.15rem}
 .cx-pay{margin:5px 12px 0;font-size:.72rem}
+.cx-tbl tbody tr:nth-child(even) td{background:#F7FAFB}
+.cx-sum{margin:6px 10px 0 auto;width:min(360px,calc(100% - 20px));border:1px solid #DCE6EA;border-radius:6px;overflow:hidden;font-size:.78rem}
+.cx-sum div{display:flex;justify-content:space-between;gap:10px;padding:4px 10px;border-bottom:1px solid #EDF2F4}
+.cx-sum div:last-child{border-bottom:0}
+.cx-sum .gross{font-weight:800;background:#F2F6F8}
+.cx-sum .less{color:#0F7B3D}
+.cx-sum .less small{color:#6B7C85;font-size:.66rem;margin-left:4px}
+.cx-total.done{background:#0F7B3D}
+.cx-total small{display:block;font-size:.6rem;font-weight:600;opacity:.85;letter-spacing:.03em}
+.cx-stamp{display:inline-block;border:1.5px solid currentColor;border-radius:4px;padding:0 5px;margin-left:6px;font-size:.6rem;letter-spacing:.06em;transform:rotate(-4deg);vertical-align:middle}
 .cx-foot{display:flex;justify-content:space-between;gap:8px;padding:9px 12px 10px;font-size:.64rem;color:#6B7C85}
 .cx-cut{text-align:center;color:#888;font-size:.66rem;margin:12px auto;border-top:1.5px dashed #aaa;padding-top:3px;max-width:720px}
 .cx-ok{color:#0F7B3D}.cx-due{color:#C0392B}
@@ -1125,7 +1135,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v54 · 8 Oct 2026";
+const BUILD = "v55 · 8 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -2633,7 +2643,7 @@ function waChallans(){
     const st = stuById(f.studentId) || {}, o = feeOutstanding(f);
     const extra = (f.items||[]).map(i=>`${i.desc}: ${money(i.amt)}`).join(", ");
     return {id:f.id, who:st.name||"", sub:`${f.chNo} · ${money(f.amount)}${o ? "" : " · Paid"}`, phone:parentPhone(st),
-      text:`Dear Parent,\n${A} — Fee challan ${fmtM(f.month)}\nStudent: ${st.name} (${classLabelOf(st) || f.course || ""})\nChallan #: ${f.chNo}\nTotal amount: ${money(f.amount)}${extra ? `\n(${extra})` : ""}\n${o ? `Due: ${money(o)}${f.dueDate ? `\nDue date: ${fmtD(f.dueDate)}` : ""}` : "Status: Paid ✓ — thank you!"}\nThe challan PDF is attached. After paying, please upload the receipt in the parents app: ${location.origin}/parent`,
+      text:`Dear Parent,\n${A} — Fee challan ${fmtM(f.month)}\nStudent: ${st.name} (${classLabelOf(st) || f.course || ""})\nChallan #: ${f.chNo}\nTotal amount: ${money(f.amount)}${extra ? `\n(${extra})` : ""}${o && feeReceived(f) ? `\nAlready received: ${money(feeReceived(f))} (${payListText(f)})` : ""}\n${o ? `Balance due: ${money(o)}${f.dueDate ? `\nDue date: ${fmtD(f.dueDate)}` : ""}` : "Status: Paid ✓ — thank you!"}\nThe challan PDF is attached. After paying, please upload the receipt in the parents app: ${location.origin}/parent`,
       pdf: async()=>({name:`${fileSafe(st.name||"Student")} - Challan ${fmtM(f.month)}.pdf`, bytes: await challanPDF([f])})};
   }), "challans");
 }
@@ -3631,7 +3641,10 @@ function challanLines(f){
   if(disc) lines.push({label:`Discount (${pct}%)`, amt:-disc, red:true});
   (f.items||[]).forEach(it=>lines.push({label:it.desc, amt:+it.amt||0, arrears:!!it.arrears}));
   const course = (f.course && f.course !== st.course) ? f.course : (classLabelOf(st) || f.course || ""), shift = st.shift || f.shift || "";
-  return {st, lines, course, shift, total:+f.amount||0, paid:+f.paidAmount||0, balance:+f.balance||0, out:feeOutstanding(f)};
+  /* v55: jo qisten aa chuki — challan par "Less: received" ban kar total payable se kat-ti hain */
+  const pays = f.carriedTo ? [] : feePays(f).map(p=>({date:p.legacy ? (f.paidDate || "") : p.date, amt:+p.amt||0, method:p.method||""})).filter(p=>p.amt > 0);
+  return {st, lines, course, shift, total:+f.amount||0, paid:+f.paidAmount||0, balance:+f.balance||0, out:feeOutstanding(f), pays,
+          received:pays.reduce((a,p)=>a+p.amt,0)};
 }
 function challanCopyHTML(f, L, label){
   const A = DB.settings, st = L.st;
@@ -3657,8 +3670,12 @@ function challanCopyHTML(f, L, label){
     <table class="cx-tbl"><thead><tr><th>Description</th><th>Amount</th></tr></thead><tbody>
       ${L.lines.map(x=>`<tr><td><b>${esc(x.label)}</b>${x.sub ? `<small>${esc(x.sub)}</small>` : ""}</td><td${x.red ? ' style="color:#C0392B"' : ""}>${x.amt < 0 ? "− "+money(-x.amt) : money(x.amt)}</td></tr>`).join("")}
     </tbody></table>
-    <div class="cx-total"><span>TOTAL PAYABLE</span><span>${money(L.total)}</span></div>
-    ${L.paid || L.balance ? `<div class="cx-pay">Paid: <b>${money(L.paid)}</b>${L.balance > 0 ? ` · Balance: <b class="cx-due">${money(L.balance)}</b>` : ""}${feePays(f).length > 1 || isPartial(f) ? `<br>Payments: ${esc(payListText(f))}` : ""}</div>` : ""}
+    ${L.pays.length ? `<div class="cx-sum">
+      <div class="gross"><span>Total fee (this challan)</span><span>${money(L.total)}</span></div>
+      ${L.pays.map((p,i)=>`<div class="less"><span>Less: received${L.pays.length > 1 ? ` (${i+1})` : ""}<small>${p.date ? fmtD(p.date) : ""}${p.method ? " · " + esc(p.method) : ""}</small></span><span>− ${money(p.amt)}</span></div>`).join("")}
+    </div>
+    <div class="cx-total${L.out ? "" : " done"}"><span>${L.out ? `BALANCE PAYABLE<small>after ${money(L.received)} already received</small>` : `PAID IN FULL <span class="cx-stamp">✓ PAID</span>`}</span><span>${money(L.out)}</span></div>`
+    : `<div class="cx-total"><span>TOTAL PAYABLE</span><span>${money(L.out || L.total)}</span></div>`}
     ${f.remarks ? `<div class="cx-pay">Remarks: ${esc(f.remarks)}</div>` : ""}
     <div class="cx-foot"><span>Issued: ${fmtD(todayStr())}</span><span>Please pay the fee before the due date</span><span>Receiver signature: ______________</span></div>
   </div>`;
@@ -3826,7 +3843,10 @@ function pdfChallanCopy(doc, f, L, logo, y0, label){
   doc.text("DESCRIPTION", x0 + 18, ty + 11, {size:7, bold:true, color:PC.ink});
   doc.text("AMOUNT", x0 + W - 18, ty + 11, {size:7, bold:true, color:PC.ink, align:"right"});
   ty += 16;
-  const bottom = y0 + H - 74, avail = bottom - ty;
+  /* v55: neeche "Total fee / Less: received / Balance payable" ke liye jagah */
+  const P = L.pays.length > 4 ? [...L.pays.slice(0,3), {date:"", amt:L.pays.slice(3).reduce((a,p)=>a+p.amt,0), method:"", more:L.pays.length-3}] : L.pays;
+  const sumH = P.length ? (P.length + 1) * 12 + 6 : 0;
+  const bottom = y0 + H - 74 - sumH, avail = bottom - ty;
   const tall = L.lines.filter(x=>x.sub).length;
   let rh = Math.min(15, avail / Math.max(1, L.lines.length + tall*0.6));
   const shown = L.lines.length;
@@ -3838,14 +3858,28 @@ function pdfChallanCopy(doc, f, L, logo, y0, label){
     ty += h;
     doc.line(x0 + 10, ty, x0 + W - 10, ty, {color:PC.line, lw:.5});
   });
-  /* total */
+  /* total — qisten aa chuki hon to: Total fee, Less: received …, Balance payable */
   const ty2 = y0 + H - 68;
-  doc.rect(x0 + 10, ty2, W - 20, 24, {fill:PC.teal});
-  doc.text("TOTAL PAYABLE", x0 + 20, ty2 + 16, {size:10, bold:true, color:"#FFFFFF"});
-  doc.text(money(L.total), x0 + W - 20, ty2 + 17, {size:13.5, bold:true, color:"#FFFFFF", align:"right"});
+  if(P.length){
+    const sx = x0 + W/2, sw = W/2 - 10;
+    let sy = ty2 - sumH;
+    doc.rect(sx, sy, sw, 12, {fill:PC.soft});
+    doc.text("Total fee (this challan)", sx + 8, sy + 8.8, {size:7.8, bold:true, color:PC.ink});
+    doc.text(money(L.total), sx + sw - 8, sy + 8.8, {size:8.5, bold:true, color:PC.ink, align:"right"});
+    sy += 12;
+    P.forEach((p,i)=>{
+      const lab = p.more ? `Less: ${p.more} more payments` : `Less: received${L.pays.length > 1 ? " (" + (i+1) + ")" : ""}${p.date ? " · " + fmtD(p.date) : ""}${p.method ? " · " + p.method : ""}`;
+      doc.text(lab, sx + 8, sy + 8.8, {size:7.5, color:PC.green, maxW:sw - 90});
+      doc.text("- " + money(p.amt), sx + sw - 8, sy + 8.8, {size:8.5, bold:true, color:PC.green, align:"right"});
+      doc.line(sx, sy + 12, sx + sw, sy + 12, {color:PC.line, lw:.5});
+      sy += 12;
+    });
+  }
+  doc.rect(x0 + 10, ty2, W - 20, 24, {fill:P.length && !L.out ? PC.green : PC.teal});
+  doc.text(P.length ? (L.out ? "BALANCE PAYABLE" : "PAID IN FULL") : "TOTAL PAYABLE", x0 + 20, ty2 + (P.length && L.out ? 12 : 16), {size:10, bold:true, color:"#FFFFFF"});
+  if(P.length && L.out) doc.text(`after ${money(L.received)} already received`, x0 + 20, ty2 + 20.5, {size:6.5, color:"#FFFFFF"});
+  doc.text(money(P.length ? L.out : (L.out || L.total)), x0 + W - 20, ty2 + 17, {size:13.5, bold:true, color:"#FFFFFF", align:"right"});
   const notes = [];
-  if(L.paid || L.balance) notes.push(`Paid: ${money(L.paid)}${L.balance > 0 ? " · Balance: " + money(L.balance) : ""}`);
-  if(feePays(f).length > 1 || isPartial(f)) notes.push("Payments: " + payListText(f));
   if(f.remarks) notes.push("Remarks: " + f.remarks);
   if(notes.length) doc.text(notes.join("   ·   "), x0 + 12, ty2 + 36, {size:7.5, color:PC.ink, maxW:W - 24});
   const fy = y0 + H - 10;
