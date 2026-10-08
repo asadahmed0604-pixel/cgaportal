@@ -132,6 +132,7 @@ tr:hover td{background:var(--soft)}
 .b-A{background:var(--danger);color:#fff}
 .b-L{background:var(--accent);color:#5a4210}
 .b-E{background:#e3e3e3;color:#444}
+.b-U{background:#7a3b8f;color:#fff}
 
 /* ---------- Avatars ---------- */
 .avatar{width:38px;height:38px;border-radius:50%;object-fit:cover;border:2px solid var(--black);background:var(--soft)}
@@ -173,6 +174,8 @@ tr:hover td{background:var(--soft)}
 .att-opts button.selA{background:var(--danger);color:#fff;border-color:var(--danger)}
 .att-opts button.selL{background:var(--accent);color:#5a4210;border-color:var(--accent-dark)}
 .att-opts button.selE{background:#bdbdbd;color:#fff;border-color:#bdbdbd}
+.att-opts button.selU{background:#7a3b8f;color:#fff;border-color:#7a3b8f}
+.att-opts button:disabled{opacity:.35;cursor:not-allowed}
 .toast{position:fixed;bottom:22px;right:22px;background:var(--black);color:#fff;padding:12px 18px;border-radius:10px;border-left:4px solid var(--red);font-size:.9rem;display:none;z-index:99}
 .toast.show{display:block;animation:fade .2s ease}
 
@@ -815,15 +818,17 @@ label.chk input{width:auto}
 
   <div class="panel" style="margin-top:16px">
     <h3>👥 Staff Attendance</h3>
-    <p class="sub" style="margin:4px 0 12px">Working days: Monday – Friday · Saturday & Sunday off</p>
+    <p class="sub" style="margin:4px 0 12px">Working days: Monday – Friday · Saturday & Sunday off · Morning and Evening are marked separately ("Both" staff appear in each).
+      Leave: <b>Informed</b> or <b>Uninformed</b> — max <b>2</b> leave days a month; after that only Absent can be marked. Uninformed leaves show as a remark on the teacher's portal.</p>
     <div class="toolbar">
       <div class="field"><label>Date</label><input type="date" id="empAttDate" onchange="loadEmpAttendance()"></div>
+      <div class="field"><label>Shift</label><div class="mchips" id="empAttShiftBtns" style="margin:0"></div></div>
       <button class="btn-black" onclick="empMarkAll('P')">All Present</button>
       <button class="btn-red" onclick="saveEmpAttendance()">Save Attendance</button>
     </div>
     <div id="empAttWarn"></div>
     <div class="tbl-wrap"><table>
-      <thead><tr><th>#</th><th></th><th>Employee</th><th>Category</th><th>Status</th><th>Time</th></tr></thead>
+      <thead><tr><th>#</th><th></th><th>Employee</th><th>Category</th><th>Status</th><th>Time</th><th>Leaves (month)</th></tr></thead>
       <tbody id="empAttRows"></tbody>
     </table></div>
   </div>
@@ -833,6 +838,7 @@ label.chk input{width:auto}
     <p class="sub" style="margin:4px 0 12px">Download the full month's staff attendance register as Excel (CSV) or PDF.</p>
     <div class="toolbar">
       <div class="field"><label>Month</label><input type="month" id="empAttRepMonth"></div>
+      <div class="field"><label>Shift</label><select id="empAttRepShift"><option value="">Both shifts</option><option>Morning</option><option>Evening</option></select></div>
       <button class="btn-black" onclick="exportEmpAttCSV()">⬇ Export Excel (CSV)</button>
       <button class="btn-red" onclick="exportEmpAttPDF()">🖨 Export PDF / Print</button>
     </div>
@@ -1084,7 +1090,11 @@ const SHIFT_START = {Morning:"08:00", Evening:"15:00"};
 /* Attendance ke chaar nishaan — academy ki sheet isi tarteeb se chalti hai.
    Late bhi haazri mein ginta hai, Leave/Excuse nahi. */
 const ATT_ORDER = ["P","L","A","E"];
-const ATT_LABEL = {P:"Present", L:"Late", A:"Absent", E:"Leave"};
+const ATT_LABEL = {P:"Present", L:"Late", A:"Absent", E:"Leave", U:"Uninformed leave"};
+/* v56: Staff attendance — Morning / Evening alag, leave do qism ki (informed E / uninformed U), mahine mein 2 leave tak */
+const EMP_ATT_ORDER = ["P","L","A","E","U"];
+const EMP_ATT_LABEL = {P:"Present", L:"Late", A:"Absent", E:"Informed leave", U:"Uninformed leave"};
+const EMP_LEAVE_LIMIT = 2;
 const attPresent = c => c === "P" || c === "L";
 
 /* ---------- Class → level (subject list isi se filter hoti hai) ---------- */
@@ -1135,7 +1145,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v55 · 8 Oct 2026";
+const BUILD = "v56 · 8 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -5669,8 +5679,8 @@ function myLiveKpi(m){
   const tests = DB.tests.filter(t=>String(t.date).startsWith(m) && keys.includes(t.shift+"|"+t.course) && (!t.teacherId || t.teacherId===MY_TID));
   let n = 0, d = 0; tests.forEach(t=>{ n += testStudents(t).length; d += testMarks(t).length; });
   const recs = DB.exams.filter(e=>tests.some(t=>t.id===e.testId));
-  const att = DB.empAttendance || {}, days = Object.keys(att).filter(x=>x.startsWith(m) && att[x][MY_TID]);
-  const pres = days.filter(x=>["P","L"].includes(att[x][MY_TID].s)).length;
+  const ac = empAttCount(MY_TID, x=>x.startsWith(m)), days = {length: ac.marked};
+  const pres = ac.P + ac.L;
   const ev = eveTestStatus(m);
   const aud = (DB.audits||[]).filter(a=>a.teacherId===MY_TID && String(a.date).startsWith(m)).map(audScore).filter(Boolean);
   const ck = (DB.kpis||[]).filter(k=>k.teacherId===MY_TID && k.month <= m).sort((a,b)=>b.month.localeCompare(a.month))[0];
@@ -5707,18 +5717,18 @@ function renderMyDash(){
   const forAsg = a => stus.filter(st=>st.shift===a.shift && inClass(st, a.course) && (!a.subject || !(st.subjects||[]).length || st.subjects.some(x=>subjLike(x.name, a.subject))));
   const todays = asg.filter(a=>a.from && (DAY_SET[a.days] || DAY_SET["Mon–Fri"]).includes(today));
   /* attendance (sirf parhne ke liye) */
-  const att = DB.empAttendance || {}, days = Object.keys(att).filter(d=>d.startsWith(m) && att[d][MY_TID]).sort();
-  const c = {P:0, L:0, A:0, E:0}; days.forEach(d=>{ const k = att[d][MY_TID].s; if(c[k] !== undefined) c[k]++; });
-  const marked = c.P + c.L + c.A + c.E, pct = marked ? Math.round((c.P + c.L)*100/marked) : 0;
+  const att = DB.empAttendance || {}, days = Object.keys(att).filter(d=>d.startsWith(m) && empRecs(att[d], MY_TID).length).sort();
+  const c = empAttCount(MY_TID, d=>d.startsWith(m)), marked = c.marked, pct = c.pct;
+  const uninf = Object.keys(att).filter(d=>empRecs(att[d], MY_TID).some(x=>x.s==="U")).sort().reverse();
   const pend = DB.tests.filter(t=>keys.includes(t.shift+"|"+t.course) && (!t.teacherId || t.teacherId===MY_TID))
     .map(t=>({t, n:testStudents(t).length, d:testMarks(t).length})).filter(x=>x.d < x.n).sort((a,b)=>String(a.t.date).localeCompare(String(b.t.date)));
-  $("mdTitle").textContent = `Assalam o Alaikum, ${me.name || "Teacher"}`;
+  $("mdTitle").textContent = `Welcome, ${me.name || "Teacher"}`;
   $("mdSub").textContent = `${new Date().toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long",year:"numeric"})}${me.online ? " · 🟢 Online teacher" : ""}`;
   $("mdCards").innerHTML = `
     <div class="card"><div class="k">My classes</div><div class="v">${keys.length}</div><div class="hint">${keys.map(k=>k.split("|").reverse().join(" · ")).join(", ") || "Ask the admin to assign"}</div></div>
     <div class="card"><div class="k">My students</div><div class="v">${stus.length}</div><div class="hint">${fmtM(m)} list</div></div>
     <div class="card"><div class="k">Today's classes</div><div class="v">${todays.length}</div><div class="hint">${todays.length ? todays.map(a=>`${fmtT(a.from)} ${a.course}`).join(", ") : "No class times set for today"}</div></div>
-    <div class="card"><div class="k">Meri attendance (${fmtM(m)})</div><div class="v ${pct >= 90 || !marked ? "green" : "red"}">${marked ? pct + "%" : "—"}</div><div class="hint">${c.P} present · ${c.L} late · ${c.A} absent · ${c.E} leave</div></div>
+    <div class="card"><div class="k">My attendance (${fmtM(m)})</div><div class="v ${pct >= 90 || !marked ? "green" : "red"}">${marked ? pct + "%" : "—"}</div><div class="hint">${c.P} present · ${c.L} late · ${c.A} absent · ${c.E} informed leave · ${c.U} uninformed · leaves ${empLeaveDays(MY_TID, m).length}/${EMP_LEAVE_LIMIT}</div></div>
     <div class="card click" onclick="document.querySelector('#nav button[data-page=tests]').click()"><div class="k">Marks pending</div><div class="v ${pend.length ? "red" : "green"}">${pend.length}</div><div class="hint">papers with incomplete marks</div></div>`;
   $("mdToday").innerHTML = todays.length ? `<b>Today:</b> ${todays.map(a=>`${fmtT(a.from)}–${fmtT(a.to)} ${esc(a.course)}${a.subject ? " (" + esc(a.subject) + ")" : ""}`).join(" · ")}` : "No class times set for today.";
   $("mdTT").innerHTML = asg.length ? `<div class="tbl-wrap"><table><thead><tr><th>Class</th><th>Shift</th><th>Subject</th><th>Days</th><th>Time</th><th style="text-align:right">Students</th></tr></thead><tbody>
@@ -5727,10 +5737,12 @@ function renderMyDash(){
         <td>${a.from ? `${fmtT(a.from)} – ${fmtT(a.to)}${now ? ` <span class="badge b-paid">Now</span>` : ""}` : `<span class="sub">time not set</span>`}</td><td style="text-align:right">${forAsg(a).length}</td></tr>`; }).join("")}
     </tbody></table></div>` : `<div class="note">No class is assigned to you yet — the admin will set your class, subject and time via Employees → your name → Edit.</div>`;
   $("mdAttM").textContent = fmtM(m);
-  $("mdAtt").innerHTML = days.length ? `<div class="tbl-wrap"><table><thead><tr><th>Date</th><th>Day</th><th>Status</th><th>Time</th></tr></thead><tbody>
-    ${days.slice().reverse().map(d=>{ const r = att[d][MY_TID]; return `<tr><td>${fmtD(d)}</td><td>${new Date(d+"T00:00").toLocaleDateString("en-GB",{weekday:"short"})}</td>
-      <td><span class="badge b-${r.s}">${ATT_LABEL[r.s] || r.s}</span></td><td>${r.t ? fmtT(r.t) : "—"}</td></tr>`; }).join("")}</tbody></table></div>`
-    : `<div class="empty" style="padding:14px">No attendance marked for ${fmtM(m)} yet</div>`;
+  $("mdAtt").innerHTML = (uninf.length ? `<div class="note" style="border-left-color:#7a3b8f;margin-bottom:10px"><b>⚠ Remarks from the office — uninformed leave (${uninf.length})</b><br>
+      ${uninf.slice(0,8).map(d=>`${fmtD(d)} (${empRecs(att[d], MY_TID).filter(x=>x.s==="U").map(x=>x.shift).join(" & ")} shift) — leave taken without informing the office. Please inform the office in advance next time.`).join("<br>")}</div>` : "")
+    + (days.length ? `<div class="tbl-wrap"><table><thead><tr><th>Date</th><th>Day</th><th>Shift</th><th>Status</th><th>Time</th></tr></thead><tbody>
+    ${days.slice().reverse().flatMap(d=>empRecs(att[d], MY_TID).map(r=>`<tr><td>${fmtD(d)}</td><td>${new Date(d+"T00:00").toLocaleDateString("en-GB",{weekday:"short"})}</td><td>${r.shift}</td>
+      <td><span class="badge b-${r.s}">${EMP_ATT_LABEL[r.s] || r.s}</span></td><td>${r.t ? fmtT(r.t) : "—"}</td></tr>`)).join("")}</tbody></table></div>`
+    : `<div class="empty" style="padding:14px">No attendance marked for ${fmtM(m)} yet</div>`);
   $("mdPend").innerHTML = pend.length ? `<div class="tbl-wrap"><table><thead><tr><th>Date</th><th>Paper</th><th>Class</th><th>Marks</th><th></th></tr></thead><tbody>
     ${pend.slice(0, 12).map(x=>`<tr><td>${fmtD(x.t.date)}</td><td><b>${esc(x.t.name)}</b><br><span class="sub">${esc(x.t.subject||"")}</span></td><td>${esc(x.t.course)}</td>
       <td><span class="badge ${x.d ? "b-freeze" : "b-unpaid"}">${x.d} / ${x.n}</span></td><td><button class="btn-red btn-sm" onclick="openMarks('${x.t.id}')">✍ Marks</button></td></tr>`).join("")}</tbody></table></div>`
@@ -6149,66 +6161,95 @@ function renderEmployees(){
 }
 
 /* ---------- Staff / Employee Attendance ---------- */
-let empAttDraft = {};
+/* v56: record = {Morning:{s,t}, Evening:{s,t}} — purana record {s,t} employee ki apni shift (Both = Morning) ka maana jata hai */
+const empShiftsOf = e => e && e.shift === "Both" ? ["Morning","Evening"] : [e && e.shift === "Evening" ? "Evening" : "Morning"];
+function empRecs(day, eid, shift){
+  const r = day && day[eid]; if(!r) return [];
+  let out;
+  if(r.s){ const e = empById(eid); out = [{shift: e && e.shift === "Evening" ? "Evening" : "Morning", s:r.s, t:r.t}]; }
+  else out = ["Morning","Evening"].filter(k=>r[k] && r[k].s).map(k=>({shift:k, ...r[k]}));
+  return shift ? out.filter(x=>x.shift === shift) : out;
+}
+/* Mahine ke leave wale din (informed + uninformed), kisi aik din ko chhor kar */
+function empLeaveDays(eid, m, exceptDate){
+  return Object.keys(DB.empAttendance||{}).filter(d=>d.startsWith(m) && d !== exceptDate && empRecs(DB.empAttendance[d], eid).some(x=>x.s==="E" || x.s==="U")).sort();
+}
+function empAttCount(eid, pred, shift){
+  const c = {P:0, L:0, A:0, E:0, U:0};
+  for(const d in (DB.empAttendance||{})){ if(pred && !pred(d)) continue; empRecs(DB.empAttendance[d], eid, shift).forEach(x=>{ if(c[x.s] !== undefined) c[x.s]++; }); }
+  c.marked = c.P + c.L + c.A + c.E + c.U; c.pct = c.marked ? Math.round((c.P + c.L)*100/c.marked) : 0;
+  return c;
+}
+let empAttDraft = {}, EMP_ATT_SHIFT = "Morning";
+function setEmpAttShift(sh){ EMP_ATT_SHIFT = sh; loadEmpAttendance(); }
 function loadEmpAttendance(){
   if(!$("empAttDate")) return;
   if(!$("empAttDate").value) $("empAttDate").value = wmDate();
-  const date = $("empAttDate").value;
+  const date = $("empAttDate").value, sh = EMP_ATT_SHIFT;
+  if($("empAttShiftBtns")) $("empAttShiftBtns").innerHTML = ["Morning","Evening"].map(x=>`<button class="${x===sh?"on":""}" onclick="setEmpAttShift('${x}')">${x==="Morning"?"🌅":"🌆"} ${x}</button>`).join("");
   const warn = $("empAttWarn");
   if(isWeekend(date)){
     warn.innerHTML = `<div class="note"><b>${fmtD(date)}</b> is a Saturday/Sunday. The academy is closed; attendance cannot be marked on this day.</div>`;
-    $("empAttRows").innerHTML = `<tr><td colspan="6" class="empty">Off day — no attendance</td></tr>`;
+    $("empAttRows").innerHTML = `<tr><td colspan="7" class="empty">Off day — no attendance</td></tr>`;
     empAttDraft = null; return;
   }
   warn.innerHTML = "";
-  const emps = [...DB.employees].sort((a,b)=>a.name.localeCompare(b.name));
-  const saved = (DB.empAttendance[date]||{});
+  const emps = [...DB.employees].filter(e=>empShiftsOf(e).includes(sh)).sort((a,b)=>a.name.localeCompare(b.name));
+  const day = DB.empAttendance[date] || {}, m = date.slice(0,7);
   empAttDraft = {};
-  emps.forEach(e=>{ const r=saved[e.id]; empAttDraft[e.id] = r? {...r} : {s:null, t:"09:00"}; });
+  emps.forEach(e=>{ const r = empRecs(day, e.id, sh)[0]; empAttDraft[e.id] = r ? {s:r.s, t:r.t} : {s:null, t:sh === "Evening" ? "15:00" : "09:00"}; });
   $("empAttRows").innerHTML = emps.length? emps.map((e,i)=>{
-    const r = empAttDraft[e.id];
+    const r = empAttDraft[e.id], used = empLeaveDays(e.id, m, date).length, block = used >= EMP_LEAVE_LIMIT;
     return `<tr>
       <td><b>${i+1}</b></td>
       <td>${avatarHTML(e)}</td>
-      <td><b>${esc(e.name)}</b></td>
+      <td><b>${esc(e.name)}</b>${e.shift === "Both" ? ` <span class="sub">(both shifts)</span>` : ""}</td>
       <td>${e.category}</td>
       <td><div class="att-opts" id="eopt_${e.id}">
-        ${ATT_ORDER.map(c=>`<button class="${r.s===c?"sel"+c:""}" onclick="empMark('${e.id}','${c}')">${ATT_LABEL[c]}</button>`).join("")}
+        ${EMP_ATT_ORDER.map(c=>`<button class="${r.s===c?"sel"+c:""}" ${block && (c==="E"||c==="U") && r.s!==c ? `disabled title="${EMP_LEAVE_LIMIT} leaves already used in ${fmtM(m)} — mark Absent"` : ""} onclick="empMark('${e.id}','${c}')">${EMP_ATT_LABEL[c]}</button>`).join("")}
       </div></td>
       <td style="max-width:120px"><input type="time" value="${r.t||"09:00"}" onchange="empAttDraft['${e.id}'].t=this.value"></td>
+      <td><span class="badge ${block ? "b-unpaid" : "b-freeze"}" title="Leave days this month (both shifts)">${used} / ${EMP_LEAVE_LIMIT}</span>${block ? `<br><span class="sub" style="color:var(--danger)">limit reached — Absent</span>` : ""}</td>
     </tr>`;
-  }).join("") : `<tr><td colspan="6" class="empty">No employees — add staff via "New Employee" first</td></tr>`;
+  }).join("") : `<tr><td colspan="7" class="empty">No ${sh} staff — set the employee's shift (Morning / Evening / Both) in Employees</td></tr>`;
 }
 function empMark(eid, st){
-  if(!empAttDraft) return;
+  if(!empAttDraft || !empAttDraft[eid]) return;
+  const date = $("empAttDate").value;
+  if((st === "E" || st === "U") && empLeaveDays(eid, date.slice(0,7), date).length >= EMP_LEAVE_LIMIT){
+    toast(`${EMP_LEAVE_LIMIT} leaves already used this month — marked Absent`); st = "A";
+  }
   empAttDraft[eid].s = st;
   const box = $("eopt_"+eid).querySelectorAll("button");
-  box.forEach(b=>b.className="");
-  const i = ATT_ORDER.indexOf(st);
-  if(box[i]) box[i].className = "sel" + st;
+  box.forEach(b=>b.classList.remove(...EMP_ATT_ORDER.map(c=>"sel"+c)));
+  const i = EMP_ATT_ORDER.indexOf(st);
+  if(box[i]) box[i].classList.add("sel" + st);
 }
 function empMarkAll(st){
   if(!empAttDraft){ toast("Attendance is not marked on off days"); return; }
-  const j = ATT_ORDER.indexOf(st);
-  for(const eid in empAttDraft){ empAttDraft[eid].s = st; const box=$("eopt_"+eid); if(box){ const bs=box.querySelectorAll("button"); bs.forEach(b=>b.className=""); if(bs[j]) bs[j].className="sel"+st; } }
+  for(const eid in empAttDraft) empMark(eid, st);
 }
 function saveEmpAttendance(){
   if(!empAttDraft){ toast("Attendance cannot be saved on an off day"); return; }
-  const date = $("empAttDate").value;
+  const date = $("empAttDate").value, sh = EMP_ATT_SHIFT, m = date.slice(0,7);
   if(!DB.empAttendance[date]) DB.empAttendance[date] = {};
-  let n=0;
-  for(const eid in empAttDraft){ const r=empAttDraft[eid]; if(r.s){ DB.empAttendance[date][eid] = r; n++; } }
-  save(); toast(`Staff attendance saved — ${n} employees (${fmtD(date)})`);
+  const day = DB.empAttendance[date];
+  let n = 0, forced = 0;
+  for(const eid in empAttDraft){
+    const r = empAttDraft[eid]; if(!r.s) continue;
+    if((r.s === "E" || r.s === "U") && empLeaveDays(eid, m, date).length >= EMP_LEAVE_LIMIT && !empRecs(day, eid, sh).some(x=>x.s === r.s)){ r.s = "A"; forced++; }
+    /* purana {s,t} record naye shift-wise format mein */
+    const old = day[eid], rec = old && !old.s ? {...old} : {};
+    if(old && old.s){ const e = empById(eid); rec[e && e.shift === "Evening" ? "Evening" : "Morning"] = {s:old.s, t:old.t}; }
+    rec[sh] = {s:r.s, t:r.t}; day[eid] = rec; n++;
+  }
+  save(); loadEmpAttendance();
+  toast(`${sh} staff attendance saved — ${n} employees (${fmtD(date)})${forced ? ` · ${forced} leave(s) over the limit saved as Absent` : ""}`);
 }
-function empAttSummary(eid, doj){
-  let P=0,A=0,L=0,E=0;
-  for(const d in DB.empAttendance){ const r=DB.empAttendance[d][eid]; if(!r) continue; if(r.s==="P")P++; else if(r.s==="A")A++; else if(r.s==="L")L++; else if(r.s==="E")E++; }
-  const marked=P+A+L+E, pct = marked? Math.round((P+L)/marked*100) : 0;
-  return {P,A,L,E,marked,pct};
-}
+function empAttSummary(eid, doj){ return empAttCount(eid); }
 function empAttReportData(){
   if(!$("empAttRepMonth").value) $("empAttRepMonth").value = thisMonth();
-  const m = $("empAttRepMonth").value;
+  const m = $("empAttRepMonth").value, sh = $("empAttRepShift") ? $("empAttRepShift").value : "";
   const [y,mo] = m.split("-").map(Number);
   const daysInMonth = new Date(y, mo, 0).getDate();
   const days = [];
@@ -6216,28 +6257,22 @@ function empAttReportData(){
     const ds = m + "-" + String(d).padStart(2,"0");
     if(!isWeekend(ds)) days.push(ds);
   }
-  const emps = [...DB.employees].sort((a,b)=>a.name.localeCompare(b.name));
+  const emps = [...DB.employees].filter(e=>!sh || empShiftsOf(e).includes(sh)).sort((a,b)=>a.name.localeCompare(b.name));
   const rows = emps.map(e=>{
-    let P=0,A=0,L=0,E=0;
-    const marks = days.map(d=>{
-      const r = (DB.empAttendance[d]||{})[e.id];
-      if(!r) return "—";
-      if(r.s==="P")P++; else if(r.s==="A")A++; else if(r.s==="L")L++; else if(r.s==="E")E++;
-      return r.s;
-    });
-    const marked=P+A+L+E, pct = marked? Math.round((P+L)/marked*100) : 0;
-    return {e, marks, P, A, L, E, pct};
+    const marks = days.map(d=>{ const rs = empRecs(DB.empAttendance[d], e.id, sh); return rs.length ? rs.map(x=>x.s).join("/") : "—"; });
+    const c = empAttCount(e.id, d=>d.startsWith(m), sh);
+    return {e, marks, P:c.P, A:c.A, L:c.L, E:c.E, U:c.U, pct:c.pct};
   });
-  return {m, days, rows};
+  return {m, days, rows, sh};
 }
 function exportEmpAttCSV(){
   const {m, days, rows} = empAttReportData();
   if(!rows.length){ toast("No employees added — add staff in Employees first"); return; }
-  const head = ["#","Name","Category", ...days.map(d=>d.slice(8)), "Present","Late","Absent","Leave","%"];
+  const head = ["#","Name","Category", ...days.map(d=>d.slice(8)), "Present","Late","Absent","Informed leave","Uninformed leave","%"];
   const csvEsc = v => `"${String(v??"").replace(/"/g,'""')}"`;
   const lines = [head.map(csvEsc).join(",")];
   rows.forEach((r,i)=>{
-    lines.push([i+1, r.e.name, r.e.category, ...r.marks, r.P, r.L, r.A, r.E, r.pct+"%"].map(csvEsc).join(","));
+    lines.push([i+1, r.e.name, r.e.category, ...r.marks, r.P, r.L, r.A, r.E, r.U, r.pct+"%"].map(csvEsc).join(","));
   });
   const blob = new Blob(["\ufeff"+lines.join("\r\n")],{type:"text/csv;charset=utf-8"});
   downloadFile(`staff-attendance-${m}.csv`, blob);
@@ -6257,13 +6292,14 @@ function exportEmpAttPDF(){
     <td style="border:1px solid #999;padding:3px 5px;text-align:center">${r.L}</td>
     <td style="border:1px solid #999;padding:3px 5px;text-align:center;color:#C0392B">${r.A}</td>
     <td style="border:1px solid #999;padding:3px 5px;text-align:center">${r.E}</td>
+    <td style="border:1px solid #999;padding:3px 5px;text-align:center;color:#7a3b8f">${r.U}</td>
     <td style="border:1px solid #999;padding:3px 5px;text-align:center"><b>${r.pct}%</b></td>
   </tr>`).join("");
   $("challanPrint").innerHTML = `
     <div style="font-size:.75rem">
       <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #174B60;padding-bottom:8px;margin-bottom:10px">
         <div style="display:flex;gap:10px;align-items:center">${A.logo?`<img src="${A.logo}" style="height:44px;width:auto;object-fit:contain">`:""}<div><div style="font-size:1.15rem;font-weight:900">${esc(A.name||"Cambridge Grads Academy")}</div><div style="font-size:.7rem;color:#555">${esc(A.addr||"")} ${A.phone?("· "+esc(A.phone)):""}</div></div></div>
-        <div style="text-align:right"><b>STAFF ATTENDANCE REGISTER</b><br>${fmtM(m)}<br><span style="color:#555">P = Present · L = Late · A = Absent · E = Leave · — = Not marked</span></div>
+        <div style="text-align:right"><b>STAFF ATTENDANCE REGISTER</b><br>${fmtM(m)}${$("empAttRepShift") && $("empAttRepShift").value ? " · " + $("empAttRepShift").value + " shift" : " · Morning/Evening"}<br><span style="color:#555">P = Present · L = Late · A = Absent · E = Informed leave · U = Uninformed leave · — = Not marked · "P/A" = Morning/Evening</span></div>
       </div>
       <table style="width:100%;border-collapse:collapse">
         <thead><tr>
@@ -6271,7 +6307,7 @@ function exportEmpAttPDF(){
           <th style="border:1px solid #999;padding:3px 5px">Name</th>
           <th style="border:1px solid #999;padding:3px 5px">Category</th>
           ${th}
-          <th style="border:1px solid #999;padding:3px 3px">P</th><th style="border:1px solid #999;padding:3px 3px">L</th><th style="border:1px solid #999;padding:3px 3px">A</th><th style="border:1px solid #999;padding:3px 3px">E</th><th style="border:1px solid #999;padding:3px 3px">%</th>
+          <th style="border:1px solid #999;padding:3px 3px">P</th><th style="border:1px solid #999;padding:3px 3px">L</th><th style="border:1px solid #999;padding:3px 3px">A</th><th style="border:1px solid #999;padding:3px 3px">E</th><th style="border:1px solid #999;padding:3px 3px">U</th><th style="border:1px solid #999;padding:3px 3px">%</th>
         </tr></thead>
         <tbody>${body}</tbody>
       </table>
@@ -6360,8 +6396,8 @@ function openEmpProfile(id){
   const e = empById(id);
   const myStu = DB.students.filter(s=>s.teacherId===id);
   const ea = empAttSummary(id, e.doj);
-  const eaRows = Object.keys(DB.empAttendance).filter(d=>DB.empAttendance[d][id]).sort().reverse().slice(0,30)
-    .map(d=>{ const r=DB.empAttendance[d][id]; return `<tr><td>${fmtD(d)}</td><td><span class="badge b-${r.s}">${ATT_LABEL[r.s]||r.s}</span></td><td>${r.t||"—"}</td></tr>`; }).join("");
+  const eaRows = Object.keys(DB.empAttendance).filter(d=>empRecs(DB.empAttendance[d], id).length).sort().reverse().slice(0,30)
+    .flatMap(d=>empRecs(DB.empAttendance[d], id).map(r=>`<tr><td>${fmtD(d)} <span class="sub">${r.shift}</span></td><td><span class="badge b-${r.s}">${EMP_ATT_LABEL[r.s]||r.s}</span></td><td>${r.t||"—"}</td></tr>`)).join("");
   openModal(`
     <h3>Employee Profile</h3>
     <div class="profile-top" style="margin-bottom:14px">
@@ -6382,7 +6418,8 @@ function openEmpProfile(id){
       <div class="stat"><b>${ea.P}</b><span>Present</span></div>
       <div class="stat"><b>${ea.L}</b><span>Late</span></div>
       <div class="stat"><b style="color:var(--danger)">${ea.A}</b><span>Absent</span></div>
-      <div class="stat"><b>${ea.E}</b><span>Leave</span></div>
+      <div class="stat"><b>${ea.E}</b><span>Informed leave</span></div>
+      <div class="stat"><b style="color:#7a3b8f">${ea.U}</b><span>Uninformed leave</span></div>
       <div class="stat"><b>${ea.pct}%</b><span>Attendance</span><div class="att-bar"><i style="width:${ea.pct}%"></i></div></div>
     </div>
     <h3 style="font-size:.95rem">Attendance Record (Last 30 entries)</h3>
@@ -8877,9 +8914,9 @@ const EXPORTS = {
     return out;
   }},
   empAttendance:{label:"Staff attendance", file:"staff-attendance", count:()=>Object.values(DB.empAttendance).reduce((a,d)=>a+Object.keys(d).length,0), rows(){
-    const out=[["Date","Employee","Category","Status","Time"]];
-    Object.keys(DB.empAttendance).sort().forEach(d=>Object.entries(DB.empAttendance[d]).forEach(([id,r])=>{
-      const e=empById(id); out.push([d,e?e.name:"(deleted)",e?e.category:"",ATT_LABEL[r.s]||r.s,r.t]); }));
+    const out=[["Date","Employee","Category","Shift","Status","Time"]];
+    Object.keys(DB.empAttendance).sort().forEach(d=>Object.keys(DB.empAttendance[d]).forEach(id=>empRecs(DB.empAttendance[d], id).forEach(r=>{
+      const e=empById(id); out.push([d,e?e.name:"(deleted)",e?e.category:"",r.shift,EMP_ATT_LABEL[r.s]||r.s,r.t]); })));
     return out;
   }},
   classPay:{label:"Teacher pay per class", file:"teacher-pay-per-class", count:()=>Object.values(DB.classCosts||{}).reduce((a,l)=>a+l.length,0), rows(){
