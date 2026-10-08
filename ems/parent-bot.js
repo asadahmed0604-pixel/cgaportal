@@ -142,7 +142,8 @@ function fee(db, s) {
   out.push(LI(fs.slice(0, 4).map((f) => {
     const o = feeOutstanding(f);
     const st = f.carriedTo ? `included in next challan (${f.carriedChNo || ""})` : o ? `due ${money(o)}${f.dueDate ? ` · due ${fmtD(f.dueDate)}` : ""}` : `paid${f.paidDate ? ` ${fmtD(f.paidDate)}` : ""} ✓`;
-    return `${fmtM(f.month)} · ${f.chNo || ""} · ${money(f.amount)}${+f.arrears ? ` (incl. ${money(f.arrears)} arrears)` : ""} — ${st}`;
+    const pays = (f.payments || []).length > 1 || (o && (f.payments || []).length) ? ` · payments: ${f.payments.map((p) => `${money(p.amt)}${p.method ? ` (${p.method})` : ""} on ${fmtD(p.date)}`).join(", ")}` : "";   // v53: qisten
+    return `${fmtM(f.month)} · ${f.chNo || ""} · ${money(f.amount)}${+f.arrears ? ` (incl. ${money(f.arrears)} arrears)` : ""} — ${st}${pays}`;
   })));
   const rc = (db.feeReceipts || []).filter((r) => r.studentId === s.id).sort((a, b) => String(b.d).localeCompare(String(a.d))).slice(0, 3);
   if (rc.length) {
