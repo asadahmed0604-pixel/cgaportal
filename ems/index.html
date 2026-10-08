@@ -1243,7 +1243,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v59 · 8 Oct 2026";
+const BUILD = "v60 · 8 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -5901,7 +5901,10 @@ function renderMyDash(){
   }
   const me = empById(MY_TID) || {name:"", assignments:[]};
   const m = wm(), RM = rosterMonths(), keys = [...myClassKeys()];
-  const stus = DB.students.filter(st=>keys.includes(st.shift+"|"+st.course) && activeIn(st, m, RM));
+  /* v60: sirf wo students jo is teacher ke subjects parhte hain (server teacher ko sirf us ke subjects bhejta hai) */
+  const scope = me.scope || {}, wholeCls = keys.filter(k=>scope[k] === null || scope[k] === undefined);
+  const stus = DB.students.filter(st=>activeIn(st, m, RM) && classesOf(st).some(c=>{ const k = st.shift+"|"+c;
+    return keys.includes(k) && (wholeCls.includes(k) || (st.subjects||[]).length); }));
   const asg = (me.assignments||[]).slice().sort((a,b)=>(a.from||"99").localeCompare(b.from||"99") || a.course.localeCompare(b.course));
   const today = new Date().getDay(), nowT = new Date().toTimeString().slice(0,5);
   const forAsg = a => stus.filter(st=>st.shift===a.shift && inClass(st, a.course) && (!a.subject || !(st.subjects||[]).length || st.subjects.some(x=>subjLike(x.name, a.subject))));
@@ -5916,7 +5919,7 @@ function renderMyDash(){
   $("mdSub").textContent = `${new Date().toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long",year:"numeric"})}${me.online ? " · 🟢 Online teacher" : ""}`;
   $("mdCards").innerHTML = `
     <div class="card"><div class="k">My classes</div><div class="v">${keys.length}</div><div class="hint">${keys.map(k=>k.split("|").reverse().join(" · ")).join(", ") || "Ask the admin to assign"}</div></div>
-    <div class="card"><div class="k">My students</div><div class="v">${stus.length}</div><div class="hint">${fmtM(m)} list</div></div>
+    <div class="card"><div class="k">My students</div><div class="v">${stus.length}</div><div class="hint">taking your subjects · ${fmtM(m)} list${wholeCls.length && SERVER ? `<br><span style="color:var(--danger)">Subject not set for ${wholeCls.map(k=>k.split("|").reverse().join(" · ")).join(", ")} — whole class counted. Ask the admin to set your subject (Employees → Edit → Assign).</span>` : ""}</div></div>
     <div class="card"><div class="k">Today's classes</div><div class="v">${todays.length}</div><div class="hint">${todays.length ? todays.map(a=>`${fmtT(a.from)} ${a.course}`).join(", ") : "No class times set for today"}</div></div>
     <div class="card"><div class="k">My attendance (${fmtM(m)})</div><div class="v ${pct >= 90 || !marked ? "green" : "red"}">${marked ? pct + "%" : "—"}</div><div class="hint">${c.P} present · ${c.L} late · ${c.A} absent · ${c.E} informed leave · ${c.U} uninformed · leaves ${empLeaveDays(MY_TID, m).length}/${EMP_LEAVE_LIMIT} · late ${empLateMonth(MY_TID, m).tot}/${latePolicy().allow} min${empLateMonth(MY_TID, m).ded ? ` · <b style="color:var(--danger)">fine Rs ${empLateMonth(MY_TID, m).ded.toLocaleString("en-US")}</b>` : ""}</div></div>
     <div class="card click" onclick="document.querySelector('#nav button[data-page=tests]').click()"><div class="k">Marks pending</div><div class="v ${pend.length ? "red" : "green"}">${pend.length}</div><div class="hint">papers with incomplete marks</div></div>`;
