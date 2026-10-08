@@ -50,6 +50,7 @@ checkHtml("student.html");
 checkJs("parent-bot.js");
 checkJs("server.js");
 checkJs("assignments.js");
+checkJs("student-report.js");
 checkJs("ai.js");
 
 if (failed) { console.error(`\n${failed} problem(s) found`); process.exit(1); }

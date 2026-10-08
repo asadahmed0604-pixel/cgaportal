@@ -144,6 +144,17 @@ e.g. FT1 Maths Mon 9–10, Tue 11–12, Thu 8:30–9:30). With "⟳ Fill check-i
 teacher's Work days & times grid is filled from the class times (earliest class start → latest class end, per day and
 shift), so attendance, late minutes and the teacher's timetable all follow the class schedule.
 
+## Student report & best students (v68)
+
+- Student portal (`/student`) opens on **📊 My Report**: today's attendance and classes, month / 30-day attendance
+  with the last school days, class attendance by teacher and class bunks, all classes with **teacher names and
+  day-wise times** (weekly timetable), every mark a teacher has entered (with comments and grade), and teacher remarks.
+  It is built on the server from the live database on every request and refreshes itself every 30 seconds
+  (and whenever the app is reopened). Only that student's own data is sent.
+- Executive Dashboard → **🏆 Best students & ⚠ needs attention**: score = 60% test average (dashboard month + 2 months
+  before) + 40% attendance (dashboard month) − 3 per class bunk. Filter by shift / class, click a name for the profile,
+  ⬇ CSV for the full ranking.
+
 ## Install as an app (v41)
 
 Staff (`/`), Teachers (`/teacher`) and Parents (`/parent`) — all three links can be installed as an app on a phone / computer
