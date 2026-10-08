@@ -541,6 +541,8 @@ label.chk input{width:auto}
       <button class="btn-black" onclick="openBulkChallan()">⚡ Generate All Challans</button>
       <button class="btn-black" onclick="openChallanZip()">🗜 Challans PDF (ZIP)</button>
       <button class="btn-line" onclick="openFeeOnly()" title="Reset unpaid challans to the monthly fee only">🧹 Monthly fee only</button>
+      <button class="btn-line" onclick="openCarryForward()" title="Add previous months' unpaid balance to this month's challans">↪ Bring arrears forward</button>
+      <button class="btn-line" onclick="openInstLedger()" title="Every installment / partial payment with its date">📒 Installment ledger</button>
       <button class="btn-red" onclick="openChallanForm()">+ New Fee Challan</button>
     </div>
   </div>
@@ -1123,7 +1125,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v53 · 8 Oct 2026";
+const BUILD = "v54 · 8 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -1858,7 +1860,7 @@ function logFeePayment(f, amt, date, extra){
   if(!(f.payments && f.payments.length)) f.payments = feePays(f).map(p=>({id:uid(), amt:+p.amt, date:p.date, by:"", note:"earlier"}));
   f.payments.push({id:uid(), amt, date, by:ROLE_LABEL, ...(extra||{})});
 }
-const payListText = f => feePays(f).map(p=>`${money(p.amt)} (${fmtD(p.date)})`).join(" · ");
+const payListText = f => feePays(f).map(p=>`${money(p.amt)}${p.method ? " " + p.method : ""} (${fmtD(p.date)})`).join(" · ");
 /* Aik qist darj karein: poori ho to Paid, warna Unpaid + balance. Wapas: kitni darj hui. */
 function applyFeePayment(f, amt, date, extra){
   const o = feeOutstanding(f), before = feeReceived(f);
@@ -2377,7 +2379,7 @@ function openProfile(id){
           : `<tr><td colspan="6" class="empty">Nothing issued to this student yet</td></tr>`; })()}</tbody>
     </table></div></div>
     <div class="tabpane" id="tpAtt"><div class="tbl-wrap"><table><thead><tr><th>Date</th><th>Status</th><th>Time</th><th>Shift</th></tr></thead><tbody>${attRows||`<tr><td colspan="4" class="empty">No attendance marked yet</td></tr>`}</tbody></table></div></div>
-    <div class="tabpane fee-only" id="tpFee"><div class="tbl-wrap"><table><thead><tr><th>Challan #</th><th>Month</th><th>Amount</th><th>Status</th><th>Paid Date</th></tr></thead><tbody>${fees.length?fees.map(f=>`<tr><td>${f.chNo}</td><td>${fmtM(f.month)}</td><td>${money(f.amount)}</td><td>${isPartial(f) ? `<span class="badge b-freeze">Partial</span><br><span class="sub">${money(feeOutstanding(f))} due</span>` : `<span class="badge b-${f.status.toLowerCase()}">${f.status}</span>`}</td><td>${feePays(f).length > 1 || isPartial(f) ? feePays(f).map(p=>`${fmtD(p.date)} · ${money(p.amt)}`).join("<br>") : fmtD(f.paidDate)}</td></tr>`).join(""):`<tr><td colspan="5" class="empty">No challans</td></tr>`}</tbody></table></div></div>
+    <div class="tabpane fee-only" id="tpFee"><div style="margin-bottom:8px"><button class="btn-black btn-sm" onclick="openLedger('${s.id}')">📒 Fee ledger (installments & balance)</button></div><div class="tbl-wrap"><table><thead><tr><th>Challan #</th><th>Month</th><th>Amount</th><th>Status</th><th>Paid Date</th></tr></thead><tbody>${fees.length?fees.map(f=>`<tr><td>${f.chNo}</td><td>${fmtM(f.month)}</td><td>${money(f.amount)}</td><td>${isPartial(f) ? `<span class="badge b-freeze">Partial</span><br><span class="sub">${money(feeOutstanding(f))} due</span>` : `<span class="badge b-${f.status.toLowerCase()}">${f.status}</span>`}</td><td>${feePays(f).length > 1 || isPartial(f) ? feePays(f).map(p=>`${fmtD(p.date)} · ${money(p.amt)}${p.method ? " · " + esc(p.method) : ""}`).join("<br>") : fmtD(f.paidDate)}</td></tr>`).join(""):`<tr><td colspan="5" class="empty">No challans</td></tr>`}</tbody></table></div></div>
     <div class="tabpane" id="tpExam"><div class="tbl-wrap"><table><thead><tr><th>Date</th><th>Exam</th><th>Subject / Topic</th><th>Obtained</th><th>Total</th><th>%</th><th>Result</th><th>Teacher Comment</th></tr></thead><tbody>${exams.length?exams.map(e=>{const p=Math.round(e.obtained/e.total*100);return `<tr><td>${fmtD(e.date)}</td><td>${esc(e.exam)}</td><td>${esc(e.subject||"—")}</td><td>${e.obtained}</td><td>${e.total}</td><td>${p}%</td><td><span class="badge ${p>=50?"b-paid":"b-unpaid"}">${p>=50?"Pass":"Fail"}</span></td><td style="max-width:220px;font-size:.82rem">${esc(e.comment||"—")}</td></tr>`;}).join(""):`<tr><td colspan="8" class="empty">No exam records</td></tr>`}</tbody></table></div></div>
     <div class="tabpane" id="tpHw"><div class="tbl-wrap"><table><thead><tr><th>Date Given</th><th>Title</th><th>Due Date</th><th>Detail</th><th>Status</th></tr></thead><tbody>${hwRows||`<tr><td colspan="5" class="empty">No homework for this course/shift</td></tr>`}</tbody></table></div></div>
   `, true);
@@ -2863,10 +2865,11 @@ function renderFees(){
       <td><b>${money(f.amount)}</b>${+f.arrears?`<br><span class="sub">incl. ${money(f.arrears)} arrears</span>`:""}${isPartial(f)?`<br><span class="sub" style="color:var(--danger)">Paid ${money(feeReceived(f))} · due ${money(feeOutstanding(f))}</span>`:""}${+f.discount?`<br><span class="sub" style="color:var(--danger)">− ${money(f.discount)} discount (${f.discountPct||0}%)</span>`:""}${(f.subjects||[]).length?`<br><span class="sub" title="${esc(f.subjects.map(x=>x.name+(x.fee?(": Rs "+x.fee):"")+(x.disc?(" − "+x.disc):"")).join(", "))}">${f.subjects.length} subjects</span>`:""}${f.items&&f.items.length?` <span class="sub" title="${esc(f.items.map(i=>i.desc+": Rs "+i.amt).join(", "))}">(+${f.items.length} charges)</span>`:""}</td>
       <td>${f.dueDate? `<span style="${f.status==="Unpaid"&&f.dueDate<todayStr()?"color:var(--red);font-weight:700":""}">${fmtD(f.dueDate)}${f.status==="Unpaid"&&f.dueDate<todayStr()?" ⚠":""}</span>` : "—"}</td>
       <td>${f.carriedTo ? `<span class="badge b-freeze" title="Balance carried to the next challan">Arrears → ${esc(f.carriedChNo||"")}</span>` : isPartial(f) ? `<span class="badge b-freeze" title="Paid in part">Partial</span>` : `<span class="badge b-${f.status.toLowerCase()}">${f.status}</span>`}</td>
-      <td>${feePays(f).length > 1 || isPartial(f) ? feePays(f).map(p=>`<div style="white-space:nowrap">${fmtD(p.date)} <span class="sub">${money(p.amt)}</span></div>`).join("") : fmtD(f.paidDate)}</td>
+      <td>${feePays(f).length > 1 || isPartial(f) ? feePays(f).map(p=>`<div style="white-space:nowrap">${fmtD(p.date)} <span class="sub">${money(p.amt)}${p.method ? " · " + esc(p.method) : ""}</span></div>`).join("") : fmtD(f.paidDate)}</td>
       <td style="white-space:nowrap">
         ${f.carriedTo? "" : f.status==="Unpaid"?`<button class="btn-black btn-sm" onclick="markPaid('${f.id}')">${isPartial(f) ? "+ Payment" : "Mark Paid"}${+f.arrears ? " / Arrears" : ""}</button>`:`${(f.payments||[]).length > 1 ? `<button class="btn-line btn-sm" onclick="markPaid('${f.id}')">Payments</button>` : ""}<button class="btn-line btn-sm" onclick="markUnpaid('${f.id}')">Undo Paid</button>`}
         <button class="btn-line btn-sm" onclick="editChallan('${f.id}')">Edit</button>
+        <button class="btn-line btn-sm" title="Student fee ledger" onclick="openLedger('${f.studentId}')">📒</button>
         <button class="btn-line btn-sm" onclick="printChallan('${f.id}')">Print</button>
         <button class="btn-line btn-sm" onclick="downloadChallanPDF('${f.id}')">PDF</button>
         <button class="btn-danger btn-sm" onclick="delFee('${f.id}')">Delete</button>
@@ -3002,7 +3005,7 @@ function openChallanForm(){
     </div>
     <div class="field" id="c_paidwrap" style="display:none"><label>Paid Date</label><input type="date" id="c_paid" value="${wmDate()}"></div>
     <div id="chSubBox"></div>
-    <label class="chk" style="margin:8px 0"><input type="checkbox" id="c_arr" onchange="chTotal()"> Include previous balance (arrears) <b id="c_arrAmt"></b></label>
+    <label class="chk" style="margin:8px 0"><input type="checkbox" id="c_arr" checked onchange="chTotal()"> Include previous balance (arrears) <b id="c_arrAmt"></b></label>
     <div id="chOneTime"></div>
     <div class="note" style="margin:10px 0"><b>Other Charges</b> — add books, AC charges, admission fee, exam fee etc. here (optional)</div>
     <div class="toolbar">
@@ -3175,7 +3178,7 @@ function openBulkChallan(){
       <div class="field"><label>Shift</label><select id="bc_shift"><option value="">Both Shifts</option><option>Morning</option><option>Evening</option></select></div>
       <div class="field"><label>Due Date (all challans)</label><input type="date" id="bc_due" value="${wm()}-10"></div>
     </div>
-    <label class="chk" style="margin:4px 0 10px"><input type="checkbox" id="bc_arr"> Also add previous months' balance (arrears) <span class="sub">— leave unchecked for monthly fee only</span></label>
+    <label class="chk" style="margin:4px 0 10px"><input type="checkbox" id="bc_arr" checked> Carry previous months' unpaid balance (arrears) forward <span class="sub">— untick for monthly fee only</span></label>
     <div class="note">Total active students: <b>${act.length}</b> · Morning: <b>${act.filter(s=>s.shift==="Morning").length}</b> · Evening: <b>${act.filter(s=>s.shift==="Evening").length}</b></div>
     <div class="modal-foot">
       <button class="btn-line" onclick="closeModal()">Cancel</button>
@@ -3254,7 +3257,7 @@ function payHistoryHTML(f, canEdit){
   const pays = feePays(f);
   if(!pays.length) return "";
   return `<h4 style="margin:4px 0 6px">Payments received (${pays.length})</h4>
-    <div class="tbl-wrap" style="margin-bottom:10px"><table><thead><tr><th>#</th><th>Date</th><th style="text-align:right">Amount</th><th>Method / note</th><th>By</th>${canEdit ? "<th></th>" : ""}</tr></thead><tbody>
+    <div class="tbl-wrap" style="margin-bottom:10px"><table><thead><tr><th>#</th><th>Date</th><th style="text-align:right">Amount</th><th>Mode / note</th><th>By</th>${canEdit ? "<th></th>" : ""}</tr></thead><tbody>
     ${pays.map((p,i)=>`<tr><td>${i+1}</td><td><b>${fmtD(p.date)}</b></td><td style="text-align:right"><b>${money(p.amt)}</b></td>
       <td class="sub">${esc([p.method, p.note].filter(Boolean).join(" · ") || (p.legacy ? "earlier payment" : "—"))}</td><td class="sub">${esc(p.by||"")}</td>
       ${canEdit ? `<td>${p.legacy ? "" : `<button class="btn-line btn-sm" title="Remove this payment" onclick="removeFeePayment('${f.id}','${p.id}')">✕</button>`}</td>` : ""}</tr>`).join("")}
@@ -3272,7 +3275,7 @@ function markPaid(id){
     <div class="grid2">
       <div class="field"><label>Amount received now (Rs)</label><input type="number" id="mp_amt" value="${o}" min="1" max="${o}" oninput="mpAmtHint(${o})"></div>
       <div class="field"><label>Payment Date (date the student paid)</label><input type="date" id="mp_date" value="${wmDate()}"></div>
-      <div class="field"><label>Method</label><select id="mp_method">${PAY_METHODS.map(x=>`<option>${x}</option>`).join("")}</select></div>
+      <div class="field"><label>Mode of payment</label><select id="mp_method">${PAY_METHODS.map(x=>`<option>${x}</option>`).join("")}</select></div>
       <div class="field"><label>Note (optional)</label><input id="mp_note" placeholder="e.g. 1st installment"></div>
     </div>
     <div class="note" id="mp_amtHint" style="margin-bottom:8px">Full payment — challan will be marked <b>Paid</b>.</div>` : `<input type="hidden" id="mp_date" value="${wmDate()}">`}
@@ -3282,6 +3285,7 @@ function markPaid(id){
       <div class="sub" id="mp_arrHint" style="margin:-4px 0 8px"></div>` : ""}
     <div class="modal-foot">
       <button class="btn-line" onclick="closeModal()">Cancel</button>
+      <button class="btn-line" onclick="openLedger('${f.studentId}')">📒 Ledger</button>
       ${arr.amt ? `<button class="btn-black" onclick="payArrearsOnly('${id}')">Arrears only received</button>` : ""}
       ${o ? `<button class="btn-red" id="mp_go" onclick="confirmPaid('${id}')">Confirm Paid ✓</button>` : ""}
     </div>`, true);
@@ -3328,19 +3332,19 @@ function mpArrHint(full){
 }
 /* v46: Student ne pichle mahinon ka baqaya diya — poora ya kuch hissa (e.g. 56,000 mein se 50,000).
    Raqam purane challans par (pehle purana) lagti hai; jo baqi rahe wo isi challan mein arrears rehta hai. */
-function payArrearsOnly(id){
-  const f = DB.fees.find(x=>x.id===id); if(!f) return;
-  const arr = arrearsOf(f), date = $("mp_date").value || wmDate();
-  if(!arr.amt){ toast("This challan has no arrears"); return; }
-  const a = Math.min(arr.amt, Math.max(0, +($("mp_arr") ? $("mp_arr").value : arr.amt) || 0));
-  if(!a){ toast("Enter the amount received"); return; }
+/* v54: arrears ki wasooli — Mark Paid aur Edit challan dono yahi use karte hain. Wapas: {a, rest} ya error ka text */
+function applyArrearsPayment(f, amt, date, extra){
+  const arr = arrearsOf(f);
+  if(!arr.amt) return "This challan has no arrears";
+  let a = Math.min(arr.amt, Math.max(0, Math.round(+amt || 0)));
+  if(arr.list.length) a = Math.min(a, feeOutstanding(f));
+  if(!a) return "Enter the arrears amount received";
   if(arr.list.length){
-    if(feeReceived(f) > 0){ toast("A payment is already recorded on this challan — 'Undo' it first"); return; }
     let left = a;
     arr.list.slice().sort((x,y)=>String(x.month).localeCompare(String(y.month))).forEach(x=>{
       const due = +x.carriedAmt || 0; if(!left || !due) return;
       const part = Math.min(due, left); left -= part;
-      logFeePayment(x, part, date, {note:"Arrears paid via " + f.chNo});
+      logFeePayment(x, part, date, {...(extra||{}), note:"Arrears paid via " + f.chNo});
       x.paidDate = date;
       if(part >= due){
         x.status = "Paid";
@@ -3352,15 +3356,139 @@ function payArrearsOnly(id){
     });
   } else {
     /* Arrears haath se likha hua (purana challan jura nahi) — wasooli isi challan par darj */
-    applyFeePayment(f, a, date, {note:"Arrears"});
+    applyFeePayment(f, a, date, {...(extra||{}), note:"Arrears"});
   }
   const rest = arr.amt - a, desc = ((f.items||[]).find(it=>it.arrears) || {}).desc || "Arrears";
   f.items = (f.items||[]).filter(it=>!it.arrears).concat(rest > 0 ? [{desc, amt:rest, arrears:true}] : []);
   if(arr.list.length) f.amount = Math.max(0, (+f.amount||0) - a);
   if(rest > 0) f.arrears = rest; else delete f.arrears;
-  if(!arr.list.length && hasVal(f.balance)) f.balance = Math.max(0, (+f.amount||0) - feeReceived(f));
+  if(hasVal(f.balance)) f.balance = Math.max(0, (+f.amount||0) - feeReceived(f));
+  if(feeReceived(f) > 0 && feeOutstanding(f) <= 0){ f.status = "Paid"; f.balance = 0; }
+  return {a, rest};
+}
+/* v46: Student ne pichle mahinon ka baqaya diya — poora ya kuch hissa (e.g. 56,000 mein se 50,000).
+   Raqam purane challans par (pehle purana) lagti hai; jo baqi rahe wo isi challan mein arrears rehta hai. */
+function payArrearsOnly(id){
+  const f = DB.fees.find(x=>x.id===id); if(!f) return;
+  const date = $("mp_date").value || wmDate(), arr = arrearsOf(f);
+  const r = applyArrearsPayment(f, $("mp_arr") ? $("mp_arr").value : arr.amt, date, {method: $("mp_method") ? $("mp_method").value : ""});
+  if(typeof r === "string"){ toast(r); return; }
   save(); closeModal(); renderFees(); renderDashboard();
-  toast(`✓ Arrears ${money(a)} received (${fmtD(date)})${rest > 0 ? ` · ${money(rest)} arrears remaining` : ""} — ${f.chNo} now ${money(feeOutstanding(f))} due`);
+  toast(`✓ Arrears ${money(r.a)} received (${fmtD(date)})${r.rest > 0 ? ` · ${money(r.rest)} arrears remaining` : ""} — ${f.chNo} now ${money(feeOutstanding(f))} due`);
+}
+/* v54: Pehle se bane challan mein pichle mahinon ka baqaya jorein (jab challan baqaya clear hone se pehle ban gaya tha) */
+function carryForwardInto(f){
+  if(!f || f.carriedTo) return 0;
+  const d = prevDues(f.studentId, f.month); if(!d.amt) return 0;
+  const wasDue = feeOutstanding(f), got = feeReceived(f);
+  const oldArr = (f.items||[]).filter(i=>i.arrears).reduce((a,i)=>a+(+i.amt||0),0);
+  const months = [...new Set(d.list.map(x=>fmtM(x.month)))].join(", ");
+  f.items = (f.items||[]).filter(i=>!i.arrears).concat([{desc:`Arrears (${months})`, amt:oldArr + d.amt, arrears:true}]);
+  f.arrears = (+f.arrears||0) + d.amt;
+  f.amount = (+f.amount||0) + d.amt;
+  if(hasVal(f.balance) || got > 0 || f.status === "Paid"){ f.paidAmount = got; f.balance = wasDue + d.amt; }
+  f.status = "Unpaid";
+  d.list.forEach(x=>{ x.carriedAmt = feeOutstanding(x); x.carriedTo = f.id; x.carriedChNo = f.chNo; });
+  return d.amt;
+}
+function carryForwardPlan(m){
+  const seen = new Set();
+  return DB.fees.filter(f=>f.month===m && !f.carriedTo).sort((a,b)=>String(a.chNo).localeCompare(String(b.chNo)))
+    .filter(f=>{ if(seen.has(f.studentId)) return false; seen.add(f.studentId); return true; })
+    .map(f=>({f, st:stuById(f.studentId), d:prevDues(f.studentId, m)})).filter(x=>x.d.amt > 0);
+}
+function openCarryForward(){
+  const m = wm(), plan = carryForwardPlan(m), tot = plan.reduce((a,x)=>a+x.d.amt,0);
+  openModal(`
+    <h3>↪ Bring arrears forward — ${fmtM(m)}</h3>
+    <p class="sub" style="margin-bottom:10px">Students whose earlier challans are still unpaid, while their ${fmtM(m)} challan does not include that balance yet.
+      The unpaid amount is added to the ${fmtM(m)} challan as <b>Arrears</b> and the old challans are marked "Arrears →". New challans already do this automatically.</p>
+    ${plan.length ? `<div class="tbl-wrap" style="max-height:340px;overflow:auto"><table><thead><tr><th>Student</th><th>${fmtM(m)} challan</th><th>Unpaid from</th><th style="text-align:right">Arrears</th><th style="text-align:right">New total</th></tr></thead><tbody>
+      ${plan.map(x=>`<tr><td><b>${esc(x.st ? x.st.name : "—")}</b></td><td>${esc(x.f.chNo)} · ${money(x.f.amount)}</td>
+        <td class="sub">${x.d.list.map(y=>`${esc(y.chNo)} (${fmtM(y.month)}) ${money(feeOutstanding(y))}`).join("<br>")}</td>
+        <td style="text-align:right"><b style="color:var(--danger)">${money(x.d.amt)}</b></td><td style="text-align:right">${money((+x.f.amount||0) + x.d.amt)}</td></tr>`).join("")}
+      </tbody><tfoot><tr><td colspan="3"><b>Total</b></td><td style="text-align:right"><b>${money(tot)}</b></td><td></td></tr></tfoot></table></div>`
+    : `<div class="note">Nothing to bring forward — every ${fmtM(m)} challan already includes the student's previous unpaid balance ✓</div>`}
+    <div class="modal-foot"><button class="btn-line" onclick="closeModal()">Close</button>
+      ${plan.length ? `<button class="btn-red" onclick="runCarryForward('${m}')">Add arrears to ${plan.length} challan${plan.length>1?"s":""}</button>` : ""}</div>`, true);
+}
+function runCarryForward(m){
+  let n = 0, amt = 0;
+  carryForwardPlan(m).forEach(x=>{ const a = carryForwardInto(x.f); if(a){ n++; amt += a; } });
+  save(); closeModal(); renderFees(); renderDashboard();
+  toast(`✓ ${money(amt)} arrears carried into ${n} ${fmtM(m)} challan${n===1?"":"s"}`);
+}
+/* ================= v54: LEDGERS =================
+   Student ledger: har challan (charge) aur har payment (qist) tareekh-war, running balance ke saath.
+   Challan ka charge = amount − jura hua arrears (wo purane challan mein pehle hi gina hai) — double count nahi. */
+function studentLedger(sid){
+  const fees = DB.fees.filter(f=>f.studentId===sid), rows = [];
+  fees.forEach(f=>{
+    const linked = DB.fees.filter(x=>x.carriedTo===f.id).reduce((a,x)=>a+(+x.carriedAmt||0),0);
+    rows.push({date:(f.month||"") + "-01", kind:"charge", ch:f.chNo, desc:`Challan ${f.chNo} — ${fmtM(f.month)} fee${(f.items||[]).filter(i=>!i.arrears).length ? " + charges" : ""}${linked ? "" : (+f.arrears ? " (incl. arrears)" : "")}`, dr:Math.max(0, (+f.amount||0) - linked), cr:0});
+    feePays(f).forEach(pm=>rows.push({date:pm.legacy ? (f.paidDate || (f.month||"") + "-01") : pm.date, kind:"pay", ch:f.chNo,
+      desc:`Payment — ${f.chNo}${pm.note && pm.note !== "earlier" ? " · " + pm.note : ""}`, mode:pm.method || "", by:pm.by || "", dr:0, cr:+pm.amt||0}));
+  });
+  rows.sort((a,b)=>String(a.date).localeCompare(String(b.date)) || (a.kind === "charge" ? -1 : 1));
+  let bal = 0; rows.forEach(r=>{ bal += r.dr - r.cr; r.bal = bal; });
+  const due = fees.reduce((a,f)=>a + feeOutstanding(f), 0);
+  return {rows, dr:rows.reduce((a,r)=>a+r.dr,0), cr:rows.reduce((a,r)=>a+r.cr,0), bal, due};
+}
+function openLedger(sid){
+  const st = stuById(sid) || {}, L = studentLedger(sid);
+  window._ledgerCSV = [["Date","Particulars","Mode","Charged (Rs)","Received (Rs)","Balance (Rs)"], ...L.rows.map(r=>[r.date, r.desc, r.mode||"", r.dr||"", r.cr||"", r.bal])];
+  openModal(`
+    <h3>📒 Fee ledger — ${esc(st.name||"")}</h3>
+    <p class="sub" style="margin-bottom:10px">${esc(st.regNo||"")} · ${esc(classLabelOf(st)||st.course||"")} · ${esc(st.shift||"")} — every challan and every payment / installment by date, with running balance.</p>
+    <div class="cards" style="margin-bottom:10px">
+      <div class="card"><div class="k">Total charged</div><div class="v">${money(L.dr)}</div></div>
+      <div class="card"><div class="k">Total received</div><div class="v green">${money(L.cr)}</div><div class="hint">${L.rows.filter(r=>r.kind==="pay").length} payments</div></div>
+      <div class="card"><div class="k">Balance due</div><div class="v" style="color:${L.due ? "var(--danger)" : "inherit"}">${money(L.due)}</div></div>
+    </div>
+    <div class="tbl-wrap" style="max-height:52vh;overflow:auto"><table><thead><tr><th>Date</th><th>Particulars</th><th>Mode</th><th style="text-align:right">Charged</th><th style="text-align:right">Received</th><th style="text-align:right">Balance</th></tr></thead><tbody>
+      ${L.rows.length ? L.rows.map(r=>`<tr${r.kind==="pay" ? ' style="background:var(--soft)"' : ""}><td style="white-space:nowrap">${fmtD(r.date)}</td><td>${esc(r.desc)}</td><td class="sub">${esc(r.mode||"")}</td>
+        <td style="text-align:right">${r.dr ? money(r.dr) : ""}</td><td style="text-align:right;color:var(--ok)">${r.cr ? money(r.cr) : ""}</td><td style="text-align:right"><b>${money(r.bal)}</b></td></tr>`).join("")
+        : `<tr><td colspan="6" class="empty">No challans yet</td></tr>`}
+    </tbody></table></div>
+    ${Math.abs(L.bal - L.due) > 1 ? `<p class="sub" style="margin-top:6px">Note: older imported challans have slightly different totals — the due amount shown above comes from the challans themselves (${money(L.due)}).</p>` : ""}
+    <div class="modal-foot"><button class="btn-black" onclick="downloadCSV('ledger-${fileSafe(st.name||"student")}.csv', window._ledgerCSV)">⬇ CSV</button><button class="btn-red" onclick="closeModal()">Close</button></div>`, true);
+}
+/* Installment ledger — mahine ki har qist (partial payment) tareekh, student, mode ke saath */
+let IL = {m:"", onlyInst:true};
+function openInstLedger(){ IL.m = IL.m || wm(); drawInstLedger(); }
+function drawInstLedger(){
+  const m = IL.m, rows = [];
+  DB.fees.forEach(f=>{
+    if(IL.onlyInst && !((f.payments||[]).length > 1 || isPartial(f))) return;
+    feePays(f).forEach(pm=>{ const d = pm.legacy ? (f.paidDate || f.month + "-01") : pm.date; if(m && !String(d).startsWith(m)) return;
+      rows.push({d, f, st:stuById(f.studentId) || {}, amt:+pm.amt||0, mode:pm.method||"", note:pm.note && pm.note !== "earlier" ? pm.note : "", by:pm.by||""}); });
+  });
+  rows.sort((a,b)=>String(a.d).localeCompare(String(b.d)));
+  const tot = rows.reduce((a,r)=>a+r.amt,0), byMode = {};
+  rows.forEach(r=>{ const k = r.mode || "Not set"; byMode[k] = (byMode[k]||0) + r.amt; });
+  window._ilCSV = [["Date","Student","Reg No","Class","Challan","Fee month","Amount","Mode","Note","Recorded by","Challan status","Still due"],
+    ...rows.map(r=>[r.d, r.st.name||"", r.st.regNo||"", r.f.course||r.st.course||"", r.f.chNo, r.f.month, r.amt, r.mode, r.note, r.by, isPartial(r.f) ? "Partial" : r.f.status, feeOutstanding(r.f)])];
+  openModal(`
+    <h3>📒 Installment ledger</h3>
+    <div class="toolbar" style="align-items:flex-end">
+      <div class="field"><label>Month received</label><input type="month" value="${m}" onchange="IL.m=this.value;drawInstLedger()"></div>
+      <button class="btn-line btn-sm" style="margin-bottom:10px" onclick="IL.m='';drawInstLedger()">All months</button>
+      <label class="chk" style="margin-bottom:10px"><input type="checkbox" ${IL.onlyInst ? "checked" : ""} onchange="IL.onlyInst=this.checked;drawInstLedger()"> Only installments / partial payments</label>
+    </div>
+    <p class="sub" style="margin-bottom:8px">${m ? fmtM(m) : "All months"} · <b>${rows.length}</b> payments · total <b>${money(tot)}</b>${Object.keys(byMode).length ? " · " + Object.entries(byMode).map(([k,v])=>`${esc(k)} ${money(v)}`).join(" · ") : ""}</p>
+    <div class="tbl-wrap" style="max-height:55vh;overflow:auto"><table><thead><tr><th>Date</th><th>Student</th><th>Challan</th><th style="text-align:right">Amount</th><th>Mode</th><th>Note</th><th>Challan now</th><th></th></tr></thead><tbody>
+      ${rows.length ? rows.map(r=>`<tr><td style="white-space:nowrap"><b>${fmtD(r.d)}</b></td><td>${esc(r.st.name||"—")}<br><span class="sub">${esc(r.f.course||r.st.course||"")}</span></td>
+        <td>${esc(r.f.chNo)}<br><span class="sub">${fmtM(r.f.month)}</span></td><td style="text-align:right"><b>${money(r.amt)}</b></td><td>${esc(r.mode||"—")}</td><td class="sub">${esc(r.note)}</td>
+        <td>${isPartial(r.f) ? `<span class="badge b-freeze">Partial</span> <span class="sub">${money(feeOutstanding(r.f))} due</span>` : `<span class="badge b-${String(r.f.status||"").toLowerCase()}">${esc(r.f.status||"")}</span>`}</td>
+        <td><button class="btn-line btn-sm" onclick="openLedger('${r.f.studentId}')">Ledger</button></td></tr>`).join("")
+        : `<tr><td colspan="8" class="empty">No ${IL.onlyInst ? "installment " : ""}payments${m ? " in " + fmtM(m) : ""}</td></tr>`}
+    </tbody></table></div>
+    <div class="modal-foot"><button class="btn-black" onclick="downloadCSV('installments-${m||"all"}.csv', window._ilCSV)">⬇ CSV</button><button class="btn-red" onclick="closeModal()">Close</button></div>`, true);
+}
+function carryOne(id){
+  const f = DB.fees.find(x=>x.id===id); const a = carryForwardInto(f);
+  if(!a){ toast("No previous unpaid balance"); return; }
+  save(); renderFees(); renderDashboard(); toast(`✓ ${money(a)} arrears added to ${f.chNo}`); editChallan(id);
 }
 /* v52: "Confirm Paid" — v46 mein ghalti se hat gaya tha, is liye button kuch nahi karta tha */
 function confirmPaid(id){
@@ -3399,12 +3527,34 @@ function editChallan(id){
     <div id="e_items"></div>
     <button class="btn-line btn-sm" onclick="ECH.items.push({desc:'',amt:0});echItems()">+ Charge</button>
     <div class="grid2" style="margin-top:10px">
-      <div class="field"><label>Arrears / previous balance on this challan (Rs)</label><input type="number" id="e_arr" value="${arr}" oninput="echTotal()"></div>
+      <div class="field"><label>Arrears / previous balance on this challan (Rs)</label><input type="number" id="e_arr" value="${arr}" oninput="echTotal();echArrSync()"></div>
       <div class="field"><label>Remarks</label><input id="e_rem" value="${esc(f.remarks||"")}"></div>
     </div>
+    ${(()=>{ const d = f.carriedTo ? {amt:0} : prevDues(f.studentId, f.month); return d.amt ? `<div class="note" style="border-left-color:var(--danger)">⚠ <b>${money(d.amt)}</b> from earlier challans is still unpaid and not on this challan (${d.list.map(x=>esc(x.chNo)+" · "+fmtM(x.month)).join(", ")}).
+      <button class="btn-red btn-sm" style="margin-left:6px" onclick="carryOne('${id}')">+ Add to this challan</button></div>` : ""; })()}
+    <div class="note" style="margin-top:4px"><b>Arrears received?</b>
+      <label class="chk" style="display:inline-flex;margin:0 0 0 10px"><input type="radio" name="e_arrPay" value="none" checked onchange="echArrSync()"> Not paid</label>
+      <label class="chk" style="display:inline-flex;margin:0 0 0 10px"><input type="radio" name="e_arrPay" value="full" onchange="echArrSync()"> Fully paid</label>
+      <label class="chk" style="display:inline-flex;margin:0 0 0 10px"><input type="radio" name="e_arrPay" value="part" onchange="echArrSync()"> Partly paid</label>
+      <div class="grid2" id="e_arrPayBox" style="display:none;margin-top:8px">
+        <div class="field"><label>Arrears amount received (Rs)</label><input type="number" id="e_arrAmt" min="1" oninput="echArrSync()"></div>
+        <div class="field"><label>Date received</label><input type="date" id="e_arrDate" value="${wmDate()}"></div>
+        <div class="field"><label>Mode of payment</label><select id="e_arrMethod">${PAY_METHODS.map(x=>`<option>${x}</option>`).join("")}</select></div>
+        <div class="sub" id="e_arrHint" style="align-self:center"></div>
+      </div></div>
     <div id="e_tot" class="note"></div>
-    <div class="modal-foot"><button class="btn-line" onclick="closeModal()">Cancel</button><button class="btn-red" onclick="saveEditChallan()">Save changes</button></div>`, true);
+    <div class="modal-foot"><button class="btn-line" onclick="openLedger('${f.studentId}')">📒 Ledger</button><button class="btn-line" onclick="closeModal()">Cancel</button><button class="btn-red" onclick="saveEditChallan()">Save changes</button></div>`, true);
   echItems();
+}
+function echArrSync(){
+  const r = document.querySelector('input[name=e_arrPay]:checked'), mode = r ? r.value : "none";
+  const box = $("e_arrPayBox"); if(!box) return;
+  const arr = Math.max(0, +$("e_arr").value || 0);
+  box.style.display = mode === "none" ? "none" : "";
+  if(mode === "full"){ $("e_arrAmt").value = arr; $("e_arrAmt").readOnly = true; }
+  else $("e_arrAmt").readOnly = false;
+  const a = Math.min(arr, Math.max(0, +$("e_arrAmt").value || 0));
+  $("e_arrHint").innerHTML = mode === "none" ? "" : !arr ? "This challan has no arrears." : a >= arr ? `Full arrears ${money(arr)} — old challan(s) become <b>Paid</b>.` : `${money(a)} received · <b style="color:var(--danger)">${money(arr - a)}</b> arrears stay on this challan.`;
 }
 function echItems(){
   $("e_items").innerHTML = ECH.items.length ? ECH.items.map((it,i)=>`<div class="toolbar" style="margin-bottom:6px">
@@ -3437,7 +3587,15 @@ function saveEditChallan(){
     if(paid >= f.amount){ f.status = "Paid"; f.balance = 0; } else { f.status = "Unpaid"; f.balance = f.amount - paid; }
   }
   f.editedOn = todayStr(); f.editedBy = ROLE_LABEL;
-  save(); closeModal(); renderFees(); renderDashboard(); toast(`✓ ${f.chNo} update — ${money(f.amount)}`);
+  /* v54: arrears ki wasooli (poori / kuch hissa) */
+  const ap = document.querySelector('input[name=e_arrPay]:checked'), mode = ap ? ap.value : "none";
+  let msg = "";
+  if(mode !== "none"){
+    const r = applyArrearsPayment(f, mode === "full" ? arrearsOf(f).amt : $("e_arrAmt").value, $("e_arrDate").value || wmDate(), {method:$("e_arrMethod").value});
+    if(typeof r === "string"){ save(); renderFees(); toast("Challan saved — " + r); return; }
+    msg = ` · arrears ${money(r.a)} received${r.rest ? `, ${money(r.rest)} still on challan` : ""}`;
+  }
+  save(); closeModal(); renderFees(); renderDashboard(); toast(`✓ ${f.chNo} update — ${money(f.amount)}${msg}`);
 }
 function markUnpaid(id){
   const f=DB.fees.find(x=>x.id===id); if(!f) return;
