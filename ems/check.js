@@ -46,8 +46,11 @@ function checkJs(file) {
 
 checkHtml("index.html");
 checkHtml("parent.html");
+checkHtml("student.html");
 checkJs("parent-bot.js");
 checkJs("server.js");
+checkJs("assignments.js");
+checkJs("ai.js");
 
 if (failed) { console.error(`\n${failed} problem(s) found`); process.exit(1); }
 console.log("✓ EMS check passed — all button handlers point to real functions, all scripts parse");

@@ -5,7 +5,7 @@ Education Management System for Cambridge Grads Academy.
 - `index.html` — the whole app (a single file).
 - `parent.html`, `parent-bot.js` — the parents' chat (see below).
 - `server.js` — online server: login with the office password, and all data in one place so
-  **every computer and phone sees the same data**. No npm packages needed.
+  **every computer and phone sees the same data**. One npm package: `@anthropic-ai/sdk` (for AI assignments, installed by Render on deploy).
 
 ## How it works
 
@@ -49,6 +49,29 @@ Education Management System for Cambridge Grads Academy.
   - Present / Late in main attendance but Absent in class = **class bunk** → shown automatically in the parents'
     chat under "Attendance" and "Teacher Remarks".
 
+## Assignments — AI generator & checker (v61)
+
+- Teacher login → **✍ Assignments** (Executive / Admin also see it, for every class):
+  - **✨ Generate with AI** — choose class, subject, level and the **Cambridge syllabus code** (filled in automatically for
+    O Level / AS / A Level / IGCSE subjects, editable), topic, number of questions, total marks, difficulty and question types.
+    Claude writes the questions **and a Cambridge-style mark scheme** (command words, M/A/B marks, ECF, level descriptors for essays).
+  - **⬆ Upload paper** — upload a PDF or photos of a question paper (and its mark scheme if you have one). Claude reads it into
+    questions + mark scheme; students also see the original paper.
+  - **✍ Write my own** — type the questions and mark scheme yourself.
+  - Every draft can be edited. Then **Give to students**: tick the students (Morning: whole class; Evening: only that class's
+    students who take the subject), **⏱ Timed** (minutes) or not, opening date and optional due date → **Publish**.
+- **Students** open **`<your link>/student`** (also the 📝 button in the parents' app) with the **parent's phone number + PIN** from the
+  👪 Parents page. Timed: the timer starts when they press Start, runs on the server (closing the page does not stop it), and when it
+  runs out whatever they wrote is submitted automatically. They can type answers and/or upload photos of written work.
+- The moment work is submitted, Claude marks it against the mark scheme (Cambridge marking principles) and the student sees the
+  **marked script**: marks in the margin per question, ticks for credited points, examiner comments, total and indicative grade.
+  MCQs are marked exactly by the server. The server never lets marks exceed a question's maximum.
+- Teacher → assignment → **Results**: status of every student, average, "⚠ check" where the AI was unsure. **View script** to change any
+  mark or comment (the student sees it straight away), **Re-check with AI**, or **Let student redo**.
+- Needs **`ANTHROPIC_API_KEY`** on Render (Environment). Without it, "Write my own" still works and work is marked by hand.
+- Data: `DATA_DIR/asg/` (assignments, every student's answers, uploaded papers and photos) — separate from `db.json`; back up that
+  folder too.
+
 ## Activity log (v58)
 
 - Executive Dashboard → **🕵 Activity log**: who logged in (and failed logins), which sections they opened, and what
@@ -85,7 +108,8 @@ Custom domain (e.g. `ems.cga.com.pk`): Render → service → **Settings → Cus
 
 ```bash
 cd ems
-EMS_PASSWORD=some-password-123 node server.js   # http://localhost:3000
+npm install                                      # Claude SDK (only needed for AI assignments)
+EMS_PASSWORD=some-password-123 ANTHROPIC_API_KEY=sk-ant-... node server.js   # http://localhost:3000
 node check.js                                    # safety check: every button calls a real function, all scripts parse
 ```
 

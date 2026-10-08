@@ -9,12 +9,14 @@ services:
     branch: main
     rootDir: ems
     autoDeploy: true
-    buildCommand: echo "No dependencies to install"
+    buildCommand: npm install --omit=dev       # v61: Claude SDK (AI assignments)
     startCommand: node server.js
     healthCheckPath: /healthz
     envVars:
       - key: EMS_PASSWORD
         sync: false          # Render pehli dafa khud poochega — office ka password (8+ characters)
+      - key: ANTHROPIC_API_KEY
+        sync: false          # v61: console.anthropic.com se — AI assignment generator / checker ke liye
       - key: DATA_DIR
         value: /var/data
       - key: NODE_VERSION

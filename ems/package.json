@@ -2,7 +2,7 @@
   "name": "cga-ems",
   "version": "23.0.0",
   "private": true,
-  "description": "CGA EMS — online server (shared data, office password login)",
+  "description": "CGA EMS \u2014 online server (shared data, office password login, AI assignments)",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -10,5 +10,8 @@
   },
   "engines": {
     "node": ">=18"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "latest"
   }
 }

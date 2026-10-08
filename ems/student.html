@@ -1,0 +1,367 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Assignments — {{SCHOOL}}</title>
+<meta name="theme-color" content="#174B60">
+<link rel="icon" type="image/png" href="/icons/cga-192.png">
+<link rel="apple-touch-icon" href="/icons/cga-180.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=League+Spartan:wght@400;500;600;700;800&family=Caveat:wght@600;700&display=swap" rel="stylesheet">
+<style>
+:root{--green:#159670;--green-d:#0f7356;--navy:#174B60;--yellow:#FFCC68;--bg:#F2F6F5;--ink:#16303B;--muted:#5F7480;--line:#DCE6E4;--red:#C62828;--pen:#D32F2F}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{font-family:'League Spartan',system-ui,-apple-system,'Segoe UI',sans-serif;font-size:17px;color:var(--ink);background:var(--bg);line-height:1.45;-webkit-text-size-adjust:100%}
+.hidden{display:none!important}
+button{font:inherit;cursor:pointer}
+input,textarea,select{font:inherit;font-size:16px;color:var(--ink)}
+.top{position:sticky;top:0;z-index:20;background:var(--navy);color:#fff;padding:10px 16px;padding-top:max(10px,env(safe-area-inset-top));display:flex;align-items:center;gap:10px}
+.top img{width:34px;height:34px;border-radius:8px}
+.top .t{flex:1;min-width:0}.top b{display:block;font-size:1.02rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.top small{color:var(--yellow);font-size:.8rem}
+.top .btn-o{background:transparent;color:#fff;border:1.5px solid rgba(255,255,255,.35);border-radius:9px;padding:5px 10px;font-size:.88rem}
+.timer{font-variant-numeric:tabular-nums;font-weight:800;font-size:1.15rem;background:var(--yellow);color:var(--navy);border-radius:10px;padding:4px 10px;white-space:nowrap}
+.timer.low{background:var(--red);color:#fff;animation:pulse 1s infinite}
+@keyframes pulse{50%{opacity:.7}}
+main{max-width:860px;margin:0 auto;padding:16px}
+.card{background:#fff;border-radius:16px;padding:18px;box-shadow:0 1px 2px rgba(23,75,96,.06),0 8px 24px rgba(23,75,96,.06);margin-bottom:14px}
+h1,h2,h3{color:var(--navy);line-height:1.2;margin:0 0 8px}
+h2{font-size:1.35rem}
+.sub{color:var(--muted);font-size:.93rem}
+label{display:block;font-weight:600;font-size:.95rem;margin:0 0 12px}
+label input{display:block;width:100%;margin-top:5px;border:1.5px solid var(--line);border-radius:10px;padding:11px 12px}
+.btn{border:0;border-radius:11px;padding:11px 18px;font-weight:700;background:var(--green);color:#fff}
+.btn:active{transform:translateY(1px)}
+.btn.line{background:#fff;color:var(--navy);border:1.5px solid var(--line)}
+.btn.red{background:var(--red)}
+.btn:disabled{opacity:.6;cursor:wait}
+.err{color:var(--red);min-height:1.2em;margin:8px 0 0;font-weight:500}
+.login{min-height:100vh;display:grid;place-items:center;padding:16px;background:linear-gradient(140deg,var(--navy),var(--green))}
+.login .card{width:100%;max-width:380px;text-align:center}
+.login img{width:70px;height:70px;border-radius:16px}
+.login label{text-align:left}
+.login .btn{width:100%}
+.kids{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.kids button{border:1.5px solid var(--line);background:#fff;border-radius:999px;padding:7px 14px;font-weight:600;color:var(--navy)}
+.kids button.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+.item{display:flex;gap:12px;align-items:center;padding:14px;border:1.5px solid var(--line);border-radius:14px;margin-bottom:10px;background:#fff;cursor:pointer}
+.item:hover{border-color:var(--green)}
+.item .i{flex:1;min-width:0}.item b{color:var(--navy)}
+.tag{display:inline-block;border-radius:999px;padding:2px 9px;font-size:.8rem;font-weight:700;margin:3px 4px 0 0;background:#EEF3F2;color:var(--muted)}
+.tag.new{background:#E3F4EE;color:var(--green-d)}.tag.prog{background:#FFF1D0;color:#7a5600}.tag.done{background:var(--navy);color:#fff}.tag.time{background:#FDECEA;color:var(--red)}
+.score{font-weight:800;font-size:1.25rem;color:var(--green-d);white-space:nowrap}
+.q{padding:14px 0;border-bottom:1px solid var(--line)}
+.q:last-child{border:0}
+.qh{display:flex;gap:10px}
+.qn{font-weight:800;color:var(--navy);min-width:2.4rem}
+.qt{flex:1;white-space:pre-wrap}
+.qm{color:var(--muted);font-weight:700;white-space:nowrap}
+.q textarea{width:100%;min-height:110px;margin-top:10px;border:1.5px solid var(--line);border-radius:10px;padding:10px;resize:vertical;line-height:1.5}
+.opts{margin:8px 0 0 2.4rem;display:grid;gap:6px}
+.opts label{display:flex;gap:8px;align-items:flex-start;font-weight:400;margin:0;padding:8px 10px;border:1.5px solid var(--line);border-radius:10px;cursor:pointer}
+.opts input{display:inline-block;width:auto;margin:3px 0 0;accent-color:var(--green);flex:none}
+.opts label span{flex:1}
+.opts label:has(input:checked){border-color:var(--green);background:#E9F6F1}
+.paper img{width:100%;border-radius:10px;border:1px solid var(--line);margin-bottom:10px}
+.paper a{display:inline-block;margin:0 8px 8px 0}
+.photos{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px;margin-top:10px}
+.photos div{position:relative}.photos img{width:100%;height:120px;object-fit:cover;border-radius:10px;border:1px solid var(--line)}
+.photos button{position:absolute;top:4px;right:4px;border:0;border-radius:50%;width:26px;height:26px;background:rgba(0,0,0,.6);color:#fff}
+.photos .pdf{height:120px;display:grid;place-items:center;border:1px solid var(--line);border-radius:10px;background:#fafafa;font-size:.85rem;text-align:center;padding:6px}
+.bar{position:sticky;bottom:0;background:linear-gradient(transparent,var(--bg) 30%);padding:14px 0 max(14px,env(safe-area-inset-bottom));display:flex;gap:10px;align-items:center}
+.bar .btn{flex:1}
+.saved{font-size:.85rem;color:var(--muted);text-align:center}
+.center{text-align:center;padding:40px 16px}
+.spin{width:54px;height:54px;border:5px solid var(--line);border-top-color:var(--green);border-radius:50%;animation:s 1s linear infinite;margin:0 auto 14px}
+@keyframes s{to{transform:rotate(360deg)}}
+.note{background:#FFF6E0;border-left:4px solid var(--yellow);border-radius:10px;padding:10px 12px;margin:10px 0}
+/* ---- marked script ---- */
+.cover{display:flex;gap:16px;align-items:center;flex-wrap:wrap;border:2px solid var(--navy);border-radius:14px;padding:14px;margin-bottom:14px}
+.cover .tot{border:3px solid var(--pen);color:var(--pen);border-radius:14px;padding:6px 14px;text-align:center;font-family:'Caveat',cursive;transform:rotate(-3deg)}
+.cover .tot b{display:block;font-size:2.2rem;line-height:1}
+.cover .tot span{font-size:1.2rem}
+.grade{font-size:2.4rem;font-weight:800;color:var(--green)}
+.sq{display:grid;grid-template-columns:1fr 92px;border-bottom:1px solid var(--line)}
+.sq .body{padding:14px 12px 14px 0;min-width:0}
+.sq .margin{border-left:2px solid #f3a6a6;padding:12px 6px;text-align:center;font-family:'Caveat',cursive;color:var(--pen)}
+.sq .margin b{display:block;font-size:1.9rem;line-height:1}
+.sq .margin small{display:block;font-size:1.05rem;line-height:1.1;word-break:break-word}
+.ans{margin-top:8px;padding:6px 10px;border-radius:8px;white-space:pre-wrap;background:repeating-linear-gradient(#fff,#fff 1.48rem,#dbe7f3 1.5rem);line-height:1.5rem;font-size:.98rem;min-height:1.5rem}
+.ans.none{color:var(--muted);font-style:italic}
+.ticks{margin-top:6px;color:var(--pen);font-family:'Caveat',cursive;font-size:1.2rem;line-height:1.25}
+.pen{margin-top:6px;color:var(--pen);font-family:'Caveat',cursive;font-size:1.3rem;line-height:1.25}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:600px){.two{grid-template-columns:1fr}.sq{grid-template-columns:1fr 70px}}
+.two ul{margin:4px 0 0;padding-left:1.1rem}
+@media print{.top,.bar,.noprint{display:none!important}body{background:#fff}.card{box-shadow:none}}
+</style>
+</head>
+<body>
+<section id="login" class="login hidden">
+  <form class="card" id="loginForm">
+    <img src="/icons/cga-192.png" alt="">
+    <h2 style="margin-top:8px">Student Assignments</h2>
+    <p class="sub">{{SCHOOL}}</p>
+    <label>Parent's phone number<input name="phone" inputmode="tel" autocomplete="tel" placeholder="03xx xxxxxxx" required></label>
+    <label>6-digit PIN<input name="pin" inputmode="numeric" maxlength="6" autocomplete="current-password" placeholder="••••••" required></label>
+    <button class="btn" type="submit">Log in</button>
+    <p class="err" id="loginErr"></p>
+    <p class="sub">Use the same phone number and PIN as the parents' app. No PIN? Ask the school office.</p>
+  </form>
+</section>
+
+<div id="app" class="hidden">
+  <header class="top">
+    <img src="/icons/cga-192.png" alt="">
+    <div class="t"><b id="topTitle">Assignments</b><small id="topSub">{{SCHOOL}}</small></div>
+    <span class="timer hidden" id="timer"></span>
+    <button class="btn-o" id="backBtn" hidden>← Back</button>
+    <a class="btn-o" id="outBtn" href="/student/logout" style="text-decoration:none">Log out</a>
+  </header>
+  <main id="view"></main>
+</div>
+
+<script>
+"use strict";
+const $ = (s, r = document) => r.querySelector(s);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const fmtD = (d) => d ? new Date(d + "T00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "";
+const grade = (p) => p >= 90 ? "A*" : p >= 80 ? "A" : p >= 70 ? "B" : p >= 60 ? "C" : p >= 50 ? "D" : p >= 40 ? "E" : "U";
+const view = $("#view");
+let me = null, kidId = "", cur = null, offset = 0, tick = null, saveT = null, poll = null, dirty = false, submitting = false;
+
+async function api(path, body, raw) {
+  const opts = body === undefined ? {} : raw
+    ? { method: "POST", headers: { "Content-Type": raw.type }, body: raw.blob }
+    : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) };
+  const r = await fetch(path, { credentials: "same-origin", ...opts });
+  const d = await r.json().catch(() => ({}));
+  if (r.status === 401) { showLogin(); throw new Error("Please log in again."); }
+  if (!r.ok) throw new Error(d.error || "Something went wrong — try again.");
+  return d;
+}
+function stopTimers() { clearInterval(tick); clearTimeout(saveT); clearInterval(poll); tick = saveT = poll = null; $("#timer").classList.add("hidden"); }
+function header(title, sub, back) {
+  $("#topTitle").textContent = title; $("#topSub").textContent = sub || me.school;
+  $("#backBtn").hidden = !back; $("#outBtn").hidden = !!back;
+}
+$("#backBtn").addEventListener("click", async () => { if (cur && cur.sub && cur.sub.status === "in_progress") await saveNow(); stopTimers(); cur = null; list(); });
+
+/* ------------------------------ login ------------------------------ */
+function showLogin() { stopTimers(); $("#app").classList.add("hidden"); $("#login").classList.remove("hidden"); }
+$("#loginForm").addEventListener("submit", async (e) => {
+  e.preventDefault(); $("#loginErr").textContent = "";
+  try { await api("/student/login", { phone: e.target.phone.value, pin: e.target.pin.value }); e.target.reset(); boot(); }
+  catch (err) { $("#loginErr").textContent = err.message; }
+});
+
+async function boot() {
+  try { me = await api("/student/api/me"); } catch { return; }
+  $("#login").classList.add("hidden"); $("#app").classList.remove("hidden");
+  try { kidId = localStorage.getItem("cgaKid") || ""; } catch {}
+  if (!me.children.some((k) => k.id === kidId)) kidId = (me.children[0] || {}).id || "";
+  list();
+}
+
+/* ------------------------------ list ------------------------------ */
+async function list() {
+  stopTimers(); header("Assignments", me.school, false);
+  const kids = me.children.length > 1 ? `<div class="kids">${me.children.map((k) => `<button data-k="${k.id}" class="${k.id === kidId ? "on" : ""}">${esc(k.name)}</button>`).join("")}</div>` : "";
+  if (!kidId) { view.innerHTML = `<div class="card center">No student is linked to this phone number. Please contact the school office.</div>`; return; }
+  view.innerHTML = kids + `<div class="center"><div class="spin"></div></div>`;
+  bindKids();
+  let rows;
+  try { rows = await api("/student/api/list?studentId=" + encodeURIComponent(kidId)); }
+  catch (e) { view.innerHTML = kids + `<div class="card err">${esc(e.message)}</div>`; bindKids(); return; }
+  const kid = me.children.find((k) => k.id === kidId);
+  view.innerHTML = kids + `<h2>${esc(kid.name)}'s assignments</h2><p class="sub" style="margin-top:0">${esc(kid.course)} · ${esc(kid.shift)}</p>` + (rows.length ? rows.map((a) => {
+    const st = { new: `<span class="tag new">New</span>`, in_progress: `<span class="tag prog">In progress</span>`, submitted: `<span class="tag prog">Checking…</span>`,
+      checking: `<span class="tag prog">Checking…</span>`, marked: `<span class="tag done">Marked</span>`, error: `<span class="tag prog">With teacher</span>` }[a.state] || "";
+    return `<div class="item" data-a="${a.id}"><div class="i"><b>${esc(a.title)}</b><div class="sub">${esc(a.subject)}${a.code ? " (" + esc(a.code) + ")" : ""} · ${a.questions} questions · ${a.total} marks${a.teacherName ? " · " + esc(a.teacherName) : ""}</div>
+      ${st}${a.timed ? `<span class="tag time">⏱ ${a.minutes} min</span>` : ""}${a.dueDate ? `<span class="tag ${a.late && a.state === "new" ? "time" : ""}">Due ${fmtD(a.dueDate)}</span>` : ""}</div>
+      ${a.score !== null ? `<div class="score">${a.score}/${a.total}</div>` : `<div style="font-size:1.4rem;color:var(--muted)">›</div>`}</div>`;
+  }).join("") : `<div class="card center">No assignments yet 🎉</div>`);
+  bindKids();
+  view.querySelectorAll("[data-a]").forEach((el) => el.addEventListener("click", () => openAsg(el.dataset.a)));
+}
+function bindKids() {
+  view.querySelectorAll("[data-k]").forEach((b) => b.addEventListener("click", () => { kidId = b.dataset.k; try { localStorage.setItem("cgaKid", kidId); } catch {} list(); }));
+}
+
+/* ------------------------------ open / start ------------------------------ */
+async function openAsg(id, start) {
+  stopTimers();
+  view.innerHTML = `<div class="center"><div class="spin"></div></div>`;
+  let d;
+  try { d = await api("/student/api/open", { studentId: kidId, assignmentId: id, start: !!start }); }
+  catch (e) { view.innerHTML = `<div class="card err">${esc(e.message)}</div>`; header("Assignment", "", true); return; }
+  cur = { a: d.assignment, sub: d.submission, late: d.late };
+  if (cur.sub) offset = cur.sub.now - Date.now();
+  header(cur.a.title, `${cur.a.subject}${cur.a.code ? " · " + cur.a.code : ""} · ${cur.a.total} marks`, true);
+  if (!cur.sub) return intro();
+  if (cur.sub.status === "in_progress") return work();
+  return result();
+}
+function intro() {
+  const a = cur.a;
+  view.innerHTML = `<div class="card"><h2>${esc(a.title)}</h2>
+    <p class="sub">${esc(a.subject)}${a.code ? " · Cambridge " + esc(a.level || "") + " " + esc(a.code) : ""} · ${a.total} marks${a.teacherName ? " · " + esc(a.teacherName) : ""}${a.dueDate ? " · due " + fmtD(a.dueDate) : ""}</p>
+    ${a.instructions ? `<div class="note" style="white-space:pre-wrap">${esc(a.instructions)}</div>` : ""}
+    ${a.timed ? `<div class="note" style="border-left-color:var(--red);background:#FDECEA"><b>⏱ This is a timed assignment — ${a.minutes} minutes.</b><br>The timer starts as soon as you press Start and keeps running even if you close the page. When time is up, whatever you have written is submitted automatically.</div>`
+             : `<p>Not timed — you can come back to it${a.dueDate ? " until " + fmtD(a.dueDate) : ""}. Your answers are saved as you type.</p>`}
+    <p class="sub">You can type your answers and/or upload clear photos of your written work. It will be marked straight away against the Cambridge mark scheme.</p>
+    ${cur.late ? `<p class="err">The due date has passed — ask your teacher.</p>` : `<button class="btn" id="startBtn" style="width:100%;margin-top:6px">${a.timed ? "▶ Start — timer begins" : "▶ Start"}</button>`}</div>`;
+  const b = $("#startBtn");
+  if (b) b.addEventListener("click", () => openAsg(a.id, true));
+}
+
+/* ------------------------------ answering ------------------------------ */
+const fileUrl = (f) => `/student/file/${f.file}?s=${encodeURIComponent(kidId)}`;
+function collect() {
+  const out = {};
+  cur.a.questions.forEach((q, i) => {
+    if (q.type === "mcq") { const c = view.querySelector(`input[name="q${i}"]:checked`); const t = view.querySelector(`[data-q="${i}"]`); out[q.number] = [c ? c.value : "", t && t.value.trim() ? t.value.trim() : ""].filter(Boolean).join(" — "); }
+    else out[q.number] = (view.querySelector(`[data-q="${i}"]`) || {}).value || "";
+  });
+  return out;
+}
+function work() {
+  const a = cur.a, s = cur.sub;
+  view.innerHTML = `
+    ${a.instructions ? `<div class="card note" style="white-space:pre-wrap;margin-top:0">${esc(a.instructions)}</div>` : ""}
+    ${a.files.length ? `<div class="card paper"><h3>Question paper</h3>${a.files.map((f) => f.type === "application/pdf"
+        ? `<a class="btn line" href="${fileUrl(f)}" target="_blank" rel="noopener">📄 Open ${esc(f.name)}</a>` : `<img src="${fileUrl(f)}" alt="${esc(f.name)}" loading="lazy">`).join("")}</div>` : ""}
+    <div class="card">${a.questions.map((q, i) => {
+      const val = s.answers[q.number] || "";
+      if (q.type === "mcq") {
+        const pick = val.split(" — ")[0];
+        return `<div class="q"><div class="qh"><span class="qn">${esc(q.number)}</span><div class="qt">${esc(q.text)}</div><span class="qm">[${q.marks}]</span></div>
+          <div class="opts">${q.options.map((o, j) => { const L = "ABCDEF"[j]; return `<label><input type="radio" name="q${i}" value="${L}" ${pick === L ? "checked" : ""}><span><b>${L}</b> ${esc(o)}</span></label>`; }).join("")}</div></div>`;
+      }
+      return `<div class="q"><div class="qh"><span class="qn">${esc(q.number)}</span><div class="qt">${esc(q.text)}</div><span class="qm">[${q.marks}]</span></div>
+        <textarea data-q="${i}" placeholder="Type your answer${q.type === "calculation" ? " — show your working" : ""}…">${esc(val)}</textarea></div>`;
+    }).join("")}</div>
+    <div class="card"><h3>📷 Photos of written work <span class="sub">(optional)</span></h3>
+      <p class="sub" style="margin:0">For diagrams, working or handwritten answers — write the question number on the page. Clear, well-lit photos please.</p>
+      <div class="photos" id="photos"></div>
+      <input type="file" id="pic" accept="image/*,application/pdf" multiple hidden>
+      <button class="btn line" id="addPic" style="margin-top:10px">+ Add photo</button> <span class="sub" id="upMsg"></span></div>
+    <div class="bar"><button class="btn" id="submitBtn">✔ Submit for marking</button></div>
+    <div class="saved" id="saved">Your answers are saved automatically.</div>`;
+  drawPhotos();
+  $("#addPic").addEventListener("click", () => $("#pic").click());
+  $("#pic").addEventListener("change", (e) => { upload([...e.target.files]); e.target.value = ""; });
+  $("#submitBtn").addEventListener("click", () => {
+    const empty = Object.values(collect()).filter((v) => !v.trim()).length;
+    if (!confirm(empty && !s.files.length ? `${empty} question(s) have no answer. Submit anyway?` : "Submit now? You cannot change your answers after this.")) return;
+    submit(false);
+  });
+  if (s.deadline) {
+    $("#timer").classList.remove("hidden");
+    const run = () => {
+      const left = s.deadline - (Date.now() + offset);
+      if (left <= 0) { $("#timer").textContent = "0:00"; clearInterval(tick); submit(true); return; }
+      const m = Math.floor(left / 60000), sec = Math.floor(left / 1000) % 60, h = Math.floor(m / 60);
+      $("#timer").textContent = h ? `${h}:${String(m % 60).padStart(2, "0")}:${String(sec).padStart(2, "0")}` : `${m}:${String(sec).padStart(2, "0")}`;
+      $("#timer").classList.toggle("low", left < 5 * 60e3 && cur.a.timed);
+    };
+    run(); tick = setInterval(run, 1000);
+  }
+}
+function markDirty() { dirty = true; $("#saved").textContent = "Saving…"; clearTimeout(saveT); saveT = setTimeout(saveNow, 2500); }
+async function saveNow() {
+  if (!cur || !cur.sub || cur.sub.status !== "in_progress" || !dirty) return;
+  dirty = false;
+  try { const r = await api("/student/api/save", { studentId: kidId, subId: cur.sub.id, answers: collect() });
+        if (r.now) offset = r.now - Date.now();
+        if (r.status && r.status !== "in_progress") { cur.sub = r; stopTimers(); return result(); }
+        if ($("#saved")) $("#saved").textContent = "✓ Saved " + new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); }
+  catch (e) { dirty = true; if ($("#saved")) $("#saved").textContent = "⚠ Not saved — check your internet. Retrying…"; saveT = setTimeout(saveNow, 5000); }
+}
+function drawPhotos() {
+  $("#photos").innerHTML = cur.sub.files.map((f) => `<div>${f.type === "application/pdf" ? `<div class="pdf">📄 ${esc(f.name)}</div>` : `<img src="${fileUrl(f)}" alt="">`}<button data-rm="${f.file}" aria-label="Remove">✕</button></div>`).join("");
+  $("#photos").querySelectorAll("[data-rm]").forEach((b) => b.addEventListener("click", async () => {
+    try { cur.sub = await api("/student/api/remove-file", { studentId: kidId, subId: cur.sub.id, file: b.dataset.rm }); drawPhotos(); } catch (e) { alert(e.message); }
+  }));
+}
+/* phone ki badi photo ko ≤1800px JPEG kar ke bhejo */
+function shrink(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image(), url = URL.createObjectURL(file);
+    img.onload = () => { const k = Math.min(1, 1800 / Math.max(img.width, img.height)), c = document.createElement("canvas");
+      c.width = Math.round(img.width * k); c.height = Math.round(img.height * k); c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url); c.toBlob((b) => b ? resolve(b) : reject(new Error("Could not read the photo")), "image/jpeg", 0.85); };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Could not read the photo")); };
+    img.src = url;
+  });
+}
+async function upload(files) {
+  for (const f of files) {
+    $("#upMsg").textContent = "Uploading " + f.name + "…";
+    try {
+      const isPdf = f.type === "application/pdf";
+      const blob = isPdf ? f : await shrink(f);
+      cur.sub = await api(`/student/api/upload?studentId=${encodeURIComponent(kidId)}&subId=${cur.sub.id}&name=${encodeURIComponent(f.name)}`, null, { type: isPdf ? "application/pdf" : "image/jpeg", blob });
+      drawPhotos();
+    } catch (e) { alert(e.message); }
+  }
+  $("#upMsg").textContent = "";
+}
+async function submit(auto) {
+  if (submitting) return;
+  submitting = true;
+  clearTimeout(saveT);
+  const answers = collect();
+  view.innerHTML = `<div class="card center"><div class="spin"></div><h3>${auto ? "⏱ Time is up — submitting your work…" : "Submitting…"}</h3></div>`;
+  $("#timer").classList.add("hidden"); clearInterval(tick);
+  try { cur.sub = await api("/student/api/submit", { studentId: kidId, subId: cur.sub.id, answers }); }
+  catch (e) { view.innerHTML = `<div class="card"><p class="err">${esc(e.message)}</p><button class="btn" id="retry">Try again</button></div>`; $("#retry").addEventListener("click", () => { submitting = false; openAsg(cur.a.id); }); return; }
+  submitting = false;
+  result();
+}
+
+/* ------------------------------ marked script ------------------------------ */
+function result() {
+  stopTimers();
+  const a = cur.a, s = cur.sub, r = s.result;
+  if (!r) {
+    view.innerHTML = `<div class="card center">${s.status === "error" ? `<h3>Submitted ✓</h3><p>Your teacher will mark this one and the result will appear here.</p>`
+      : `<div class="spin"></div><h3>Checking your work…</h3><p class="sub">The examiner is marking every answer against the Cambridge mark scheme. This usually takes under a minute — keep this page open.</p>`}</div>`;
+    if (s.status !== "error") poll = setInterval(async () => {
+      try { const d = await api("/student/api/open", { studentId: kidId, assignmentId: a.id }); if (d.submission && d.submission.result) { cur.sub = d.submission; cur.a = d.assignment; result(); } } catch {}
+    }, 4000);
+    return;
+  }
+  const pct = r.total_available ? Math.round(r.total_awarded / r.total_available * 100) : 0;
+  const byNum = new Map(r.questions.map((q) => [String(q.number), q]));
+  view.innerHTML = `<div class="card">
+    <div class="cover"><div class="tot"><b>${r.total_awarded}</b><span>/ ${r.total_available}</span></div>
+      <div style="flex:1;min-width:160px"><h2 style="margin:0">${esc(a.title)}</h2><div class="sub">${esc((me.children.find((k) => k.id === kidId) || {}).name || "")} · ${esc(a.subject)}${a.code ? " " + esc(a.code) : ""} · ${pct}%${s.auto ? " · auto-submitted when time ran out" : ""}</div></div>
+      <div style="text-align:center"><div class="grade">${grade(pct)}</div><div class="sub">indicative grade</div></div></div>
+    ${a.questions.map((q) => { const m = byNum.get(String(q.number)) || { awarded: 0, available: q.marks, points_credited: [], examiner_comment: "", marks_annotation: "", student_answer: "" };
+      const typed = (s.answers[q.number] || "").trim(), shown = typed || m.student_answer;
+      return `<div class="sq"><div class="body"><div class="qh"><span class="qn">${esc(q.number)}</span><div class="qt">${esc(q.text)}</div></div>
+          ${q.options.length ? `<div class="sub" style="margin:4px 0 0 2.4rem">${q.options.map((o, j) => `<b>${"ABCDEF"[j]}</b> ${esc(o)}`).join(" · ")}</div>` : ""}
+          <div class="ans ${shown ? "" : "none"}">${shown ? esc(shown) : "No answer"}${!typed && m.student_answer ? `<div class="sub">(read from your photos)</div>` : ""}</div>
+          ${m.points_credited.length ? `<div class="ticks">${m.points_credited.map((x) => "✓ " + esc(x)).join("<br>")}</div>` : ""}
+          ${m.examiner_comment ? `<div class="pen">${esc(m.examiner_comment)}</div>` : ""}</div>
+        <div class="margin"><b>${m.awarded}/${m.available}</b><small>${esc(m.marks_annotation || "")}</small></div></div>`; }).join("")}
+    ${r.overall_feedback ? `<h3 style="margin-top:16px">Examiner's comment</h3><div class="pen" style="white-space:pre-wrap">${esc(r.overall_feedback)}</div>` : ""}
+    <div class="two" style="margin-top:12px"><div><h3>Strengths</h3><ul>${(r.strengths || []).map((x) => `<li>${esc(x)}</li>`).join("") || "<li>—</li>"}</ul></div>
+      <div><h3>To improve</h3><ul>${(r.improvements || []).map((x) => `<li>${esc(x)}</li>`).join("") || "<li>—</li>"}</ul></div></div>
+    ${s.files.length ? `<h3 style="margin-top:16px">Your written work</h3><div class="photos">${s.files.map((f) => f.type === "application/pdf" ? `<a class="pdf" href="${fileUrl(f)}" target="_blank" rel="noopener">📄 ${esc(f.name)}</a>` : `<a href="${fileUrl(f)}" target="_blank" rel="noopener"><img src="${fileUrl(f)}" alt=""></a>`).join("")}</div>` : ""}
+  </div>
+  <div class="noprint" style="display:flex;gap:10px"><button class="btn line" onclick="window.print()">🖨 Print</button><button class="btn" id="toList">All assignments</button></div>`;
+  $("#toList").addEventListener("click", () => { cur = null; list(); });
+}
+
+window.addEventListener("pagehide", () => { if (cur && cur.sub && cur.sub.status === "in_progress" && dirty)
+  navigator.sendBeacon && navigator.sendBeacon("/student/api/save", new Blob([JSON.stringify({ studentId: kidId, subId: cur.sub.id, answers: collect() })], { type: "application/json" })); });
+const typing = (e) => { if (cur && cur.sub && cur.sub.status === "in_progress" && e.target.matches("textarea[data-q], input[type=radio]")) markDirty(); };
+view.addEventListener("input", typing);
+view.addEventListener("change", typing);
+boot().catch(() => showLogin());
+</script>
+</body>
+</html>

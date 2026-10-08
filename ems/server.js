@@ -1,11 +1,12 @@
 /* CGA EMS — online server.
    Aik office password se login, aur sara data aik jagah (DATA_DIR/db.json) taake har browser
-   par wahi data nazar aaye. Koi npm package nahi chahiye — sirf Node 18+.
+   par wahi data nazar aaye. Sirf aik npm package: @anthropic-ai/sdk (v61, AI assignments) — Node 18+.
 
    Environment:
      EMS_PASSWORD  (zaroori) office ka password, kam az kam 8 characters
      DATA_DIR      data ka folder (Render disk: /var/data). Default: ./data
      PORT          default 3000
+     ANTHROPIC_API_KEY  (v61, optional) AI assignments — iske baghair assignments khud likh kar haath se mark hote hain
 */
 const http = require("http");
 const fs = require("fs");
@@ -476,6 +477,20 @@ const schoolName = (db) => (db && db.settings && db.settings.name) || "Cambridge
 const childView = (st) => ({ id: st.id, name: st.name, course: st.course, shift: st.shift, regNo: st.regNo });
 const escHtml = (x) => String(x).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
+/* v61: assignments — AI generator / checker aur student portal (/student). Data DATA_DIR/asg mein, db.json se alag. */
+const asg = require("./assignments")({
+  DATA_DIR, send: (...a) => send(...a), sendJson: (...a) => sendJson(...a), readBody: (r) => readBody(r), readRaw: (r, l) => readRaw(r, l),
+  sameOrigin: (r) => sameOrigin(r), dbNow, logAct, actWho, accessFor, pinOk, childrenOf: bot.childrenOf, phoneKey: bot.phoneKey,
+  clientIp, blocked, failed, fails, isHttps, escHtml, schoolName, teacherClasses,
+});
+async function asgRoute(fn, res) {
+  try { return await fn(); }
+  catch (e) {
+    if (e && e.status && e.status < 500) return sendJson(res, e.status, { error: e.message });
+    throw e;
+  }
+}
+
 /* ---------- pages ---------- */
 const APP_HTML = fs.readFileSync(path.join(__dirname, "index.html"), "utf8");
 if (!APP_HTML.includes("<!--EMS_SERVER_BOOT-->")) throw new Error("<!--EMS_SERVER_BOOT--> not found in index.html");
@@ -717,6 +732,8 @@ const server = http.createServer(async (req, res) => {
       return send(res, 404, "Not found");
     }
 
+    if (p === "/student" || p.startsWith("/student/")) return await asgRoute(() => asg.student(req, res, url), res);
+
     if (p === "/teacher" && req.method === "GET") {
       if (authed(req)) return redirect(res, "/");
       return send(res, 200, loginPage("", true), "text/html; charset=utf-8");
@@ -771,6 +788,8 @@ const server = http.createServer(async (req, res) => {
 
     if ((p === "/" || p === "/index.html") && req.method === "GET")
       return send(res, 200, appPage(role, tid, view, ul), "text/html; charset=utf-8");
+
+    if (p.startsWith("/api/asg/")) return await asgRoute(() => asg.staff(req, res, url, auth), res);
 
     if (p === "/api/parent-logins" && req.method === "GET")
       return role === "teacher" ? sendJson(res, 403, { error: "Teacher" }) : sendJson(res, 200, parentLogins);
