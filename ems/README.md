@@ -45,6 +45,13 @@ Education Management System for Cambridge Grads Academy.
   - Present / Late in main attendance but Absent in class = **class bunk** → shown automatically in the parents'
     chat under "Attendance" and "Teacher Remarks".
 
+## Activity log (v58)
+
+- Executive Dashboard → **🕵 Activity log**: who logged in (and failed logins), which sections they opened, and what
+  they added / changed / deleted (e.g. `Students: ~1 changed: Ali [phone: 0300… → 0301…]`), with device and IP.
+- Written by the server to `DATA_DIR/activity.jsonl` (kept 180 days) — cannot be edited from a browser; only the
+  Executive can read it (`/api/activity`). Admins show as "Admin as <name>" using the "👤 Who are you?" name.
+
 ## Parents chat (`/parent`)
 
 - Parents' link: `https://<your-render-link>/parent` — completely separate from the staff login.

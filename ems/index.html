@@ -379,7 +379,8 @@ label.chk input{width:auto}
 
 <!-- ================= DASHBOARD ================= -->
 <section class="page show" id="page-dashboard">
-  <div class="page-head"><div><h2>Dashboard</h2><div class="sub" id="todayLine"></div></div></div>
+  <div class="page-head"><div><h2>Dashboard</h2><div class="sub" id="todayLine"></div></div>
+    <button class="btn-line" id="actJump" style="display:none" onclick="document.getElementById('actPanel').scrollIntoView({behavior:'smooth'})">🕵 Activity log</button></div>
   <div class="mchips" id="dChips"></div>
   <div class="cards">
     <div class="card"><div class="k">Active Students</div><div class="v" id="dActive">0</div><div class="hint" id="dTotal"></div></div>
@@ -442,6 +443,22 @@ label.chk input{width:auto}
       <button class="btn-red" onclick="exportAllZip()">⬇ Download all (ZIP)</button>
     </div>
     <div class="exp-grid" id="dExportGrid"></div>
+  </div>
+  <div class="panel" id="actPanel" style="display:none;margin-top:16px">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+      <div><h3 style="margin-bottom:0">🕵 Activity log</h3><p class="sub" style="margin-top:6px">Who logged in, which sections they opened, and exactly what they added, changed or deleted — recorded by the server (cannot be edited from a browser). Kept for 180 days.</p></div>
+      <button class="btn-line btn-sm" onclick="loadActivity(true)">↻ Refresh</button>
+    </div>
+    <div class="toolbar" style="margin-top:8px">
+      <div class="field"><label>Who</label><select id="actRole" onchange="loadActivity(true)"><option value="">Everyone</option><option value="exec">Executive</option><option value="admin">Admin</option><option value="feeadmin">Fee Admin</option><option value="teacher">Teachers</option><option value="parent">Parents</option></select></div>
+      <div class="field"><label>What</label><select id="actKind" onchange="loadActivity(true)"><option value="">Everything</option><option value="changes">Changes only</option><option value="logins">Logins / logouts</option></select></div>
+      <div class="field"><label>Date</label><input type="date" id="actDate" onchange="loadActivity(true)"></div>
+      <div class="field" style="flex:1;min-width:180px"><label>Search</label><input id="actQ" placeholder="name, student, challan, IP…" onkeydown="if(event.key==='Enter')loadActivity(true)"></div>
+      <button class="btn-black btn-sm" style="margin-bottom:10px" onclick="loadActivity(true)">Search</button>
+    </div>
+    <div id="actSum" class="sub" style="margin-bottom:8px"></div>
+    <div class="tbl-wrap" style="max-height:560px;overflow:auto"><table><thead><tr><th>When</th><th>Who</th><th>Action</th><th>Details</th><th>Device / IP</th></tr></thead><tbody id="actRows"></tbody></table></div>
+    <div style="text-align:center;margin-top:8px"><button class="btn-line btn-sm" id="actMore" onclick="loadActivity(false)">Load more</button></div>
   </div>
 </section>
 
@@ -1146,7 +1163,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v57 · 8 Oct 2026";
+const BUILD = "v58 · 8 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -1505,8 +1522,14 @@ document.querySelectorAll("#nav button").forEach(b=>{
     $("page-"+b.dataset.page).classList.add("show");
     syncWMFilters();
     renderPage(b.dataset.page);
+    actPing(b.textContent.trim());
   };
 });
+/* v58: activity log — kaunsa hissa khola (server 10 min mein aik dafa likhta hai) */
+function actPing(page){
+  if(!SERVER) return;
+  try{ fetch("/api/act", {method:"POST", credentials:"same-origin", headers:{"Content-Type":"application/json", "X-EMS-Me":encodeURIComponent(myName()||"")}, body:JSON.stringify({page})}).catch(()=>{}); }catch(e){}
+}
 function renderPage(p){
   if(IS_ADMIN && ADMIN_HIDDEN.includes(p)) p = IS_TEACHER ? "mydash" : "students";
   if(ROLE === "feeadmin") document.querySelectorAll(".page").forEach(x=>x.classList.remove("locked"));
@@ -1700,7 +1723,33 @@ function drawEarnings(cur){
   });
 }
 
+let ACT = {off:0, rows:[]};
+async function loadActivity(reset){
+  const box = $("actRows"); if(!box) return;
+  if(reset){ ACT = {off:0, rows:[]}; box.innerHTML = `<tr><td colspan="5" class="empty">Loading…</td></tr>`; }
+  const q = new URLSearchParams({role:$("actRole").value, kind:$("actKind").value, date:$("actDate").value, q:$("actQ").value.trim(), offset:ACT.off, limit:100});
+  try{
+    const r = await fetch("/api/activity?" + q, {credentials:"same-origin", cache:"no-store"});
+    if(!r.ok) throw new Error(r.status);
+    const j = await r.json();
+    ACT.rows = ACT.rows.concat(j.rows); ACT.off += j.rows.length; ACT.total = j.total;
+  }catch(e){ box.innerHTML = `<tr><td colspan="5" class="empty">Could not load the activity log (${esc(String(e.message||e))})</td></tr>`; return; }
+  const icon = a => /Failed/.test(a) ? "⛔" : /Login/.test(a) ? "🔑" : /Logout/.test(a) ? "🚪" : /Saved/.test(a) ? "✏️" : /Import/.test(a) ? "⚠️" : /Viewed/.test(a) ? "👁" : /Unlock/.test(a) ? "🔓" : /receipt|Message|Uploaded/.test(a) ? "📎" : "•";
+  const roleCls = {exec:"b-paid", admin:"b-freeze", feeadmin:"b-freeze", teacher:"b-L", parent:"b-E"};
+  box.innerHTML = ACT.rows.length ? ACT.rows.map(x=>{ const dt = new Date(x.t);
+    return `<tr${/Failed|Import/.test(x.action) ? ' style="background:#fdecea"' : ""}><td style="white-space:nowrap">${fmtD(new Date(dt.getTime() - dt.getTimezoneOffset()*60e3).toISOString().slice(0,10))}<br><span class="sub">${dt.toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"})}</span></td>
+      <td><span class="badge ${roleCls[x.role]||""}">${esc(x.name || "—")}</span>${x.as ? `<br><span class="sub">as "${esc(x.as)}"</span>` : ""}</td>
+      <td style="white-space:nowrap">${icon(x.action)} <b>${esc(x.action)}</b></td>
+      <td style="font-size:.8rem;max-width:560px">${esc(x.detail||"").replace(/\n/g,"<br>")}</td>
+      <td class="sub" style="white-space:nowrap">${esc(x.dev||"")}<br>${esc(x.ip||"")}</td></tr>`; }).join("")
+    : `<tr><td colspan="5" class="empty">No activity found</td></tr>`;
+  $("actMore").style.display = ACT.off < (ACT.total||0) ? "" : "none";
+  const today = ACT.rows.filter(x=>new Date(x.t).toDateString() === new Date().toDateString());
+  const people = [...new Set(today.filter(x=>x.action==="Login").map(x=>x.name))];
+  $("actSum").innerHTML = `Showing ${ACT.rows.length} of ${ACT.total||0} entries · Today: ${today.filter(x=>x.action==="Saved changes").length} saves, ${today.filter(x=>/Failed/.test(x.action)).length} failed logins${people.length ? ` · logged in today: ${people.map(esc).join(", ")}` : ""}`;
+}
 function renderDashboard(){
+  if(SERVER && ROLE === "exec" && $("actPanel")){ $("actPanel").style.display = ""; $("actJump").style.display = ""; if(!ACT.rows.length) loadActivity(true); }
   if(IS_ADMIN) return;
   syncSalaries();
   const m = dashMonth(), isNow = m === thisMonth();
@@ -9796,7 +9845,7 @@ async function pushNow(force){
     for(let tries=0; tries<5; tries++){
       if(!force && !syncDirty()){ ok = true; break; }
       const text = JSON.stringify(DB);
-      const r = await fetch("/api/db", {method:"PUT", headers:{"Content-Type":"application/json"}, credentials:"same-origin",
+      const r = await fetch("/api/db", {method:"PUT", headers:{"Content-Type":"application/json", "X-EMS-Me":encodeURIComponent(myName()||"")}, credentials:"same-origin",
         body:`{"baseVersion":${SYNC.version},"force":${!!force},"data":${text}}`});
       if(r.status===401){ location.href = "/login"; return false; }
       if(r.status===409){
