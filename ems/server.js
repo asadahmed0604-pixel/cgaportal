@@ -185,6 +185,9 @@ const subjHit = (set, name) => { const n = keyOf(name); for (const k of set) if 
 const testSeen = (t, tid, cls) => !!t && cls.has(t.shift + "|" + t.course) && (!t.teacherId || t.teacherId === tid);
 const testOwn = (t, tid, cls) => !!t && t.by === "teacher" && t.teacherId === tid && t.shift === "Evening" && cls.has("Evening|" + t.course);
 const catOwn = (c, tid, cls) => !!c && c.teacherId === tid && c.shift === "Evening" && cls.has("Evening|" + c.course);
+/* v69: homework — teacher apni classes ka homework dekhta hai; apna banaya poora badal sakta hai,
+   admin wale (bina teacher) mein sirf receival (done) update kar sakta hai, kisi aur teacher ka nahi chhoo sakta */
+const hwSeen = (h, tid, cls) => !!h && cls.has(h.shift + "|" + h.course) && (!h.teacherId || h.teacherId === tid);
 function teacherView(d, tid) {
   const cls = teacherClasses(d, tid);
   const tests = (d.tests || []).filter((t) => testSeen(t, tid, cls));
@@ -212,7 +215,7 @@ function teacherView(d, tid) {
     tests, exams: (d.exams || []).filter((e) => ids.has(e.testId)),
     classAtt: (d.classAtt || []).filter((c) => catOwn(c, tid, cls)),
     subjects: d.subjects || [],
-    inquiries: [], fees: [], txns: [], homework: [], inventory: [], issues: [], attendance: {},
+    inquiries: [], fees: [], txns: [], homework: (d.homework || []).filter((h) => hwSeen(h, tid, cls)), inventory: [], issues: [], attendance: {},
     /* v41: sirf apni staff attendance — dekhne ke liye; teacherMerge ise kabhi nahi leta */
     empAttendance: Object.fromEntries(Object.entries(d.empAttendance || {}).filter(([, day]) => day && day[tid]).map(([dt, day]) => [dt, { [tid]: day[tid] }])),
     classCosts: {}, parentAccess: [], studentAccess: [], parentMsgs: [], audits: (d.audits || []).filter((a) => a.teacherId === tid), counters: d.counters || {},
@@ -239,7 +242,23 @@ function teacherMerge(data, tid) {
   const curCa = arr(cur.classAtt), curCaById = new Map(curCa.map((c) => [c.id, c]));
   const classAtt = curCa.filter((c) => !catOwn(c, tid, cls))
     .concat(arr(data.classAtt).filter((c) => catOwn(c, tid, cls) && (!curCaById.has(c.id) || catOwn(curCaById.get(c.id), tid, cls))));
-  return Object.assign(cur, { tests, exams, classAtt });
+  /* v69: homework */
+  const inCls = (h) => new Set((cur.students || []).filter((st) => stuIn(st, h.shift, h.course)).map((st) => st.id));
+  const cleanDone = (h, done) => { const ok = inCls(h), out = {};
+    if (done && typeof done === "object") for (const k of Object.keys(done)) if (ok.has(k) && done[k]) out[k] = typeof done[k] === "string" ? done[k].slice(0, 10) : true;
+    return out; };
+  const curHw = arr(cur.homework), newHw = new Map(arr(data.homework).map((h) => [h.id, h]));
+  const homework = [];
+  curHw.forEach((h) => {
+    if (!hwSeen(h, tid, cls)) return homework.push(h);
+    const n = newHw.get(h.id);
+    if (!n) { if (h.teacherId !== tid) homework.push(h); return; }               // apna hi delete ho sakta hai
+    if (h.teacherId === tid && hwSeen(n, tid, cls)) return homework.push({ ...n, teacherId: tid, by: "teacher", done: cleanDone(n, n.done) });
+    homework.push({ ...h, done: cleanDone(h, n.done), checkedOn: n.checkedOn || h.checkedOn });   // sirf receival
+  });
+  const curIds = new Set(curHw.map((h) => h.id));
+  newHw.forEach((n) => { if (!curIds.has(n.id) && hwSeen({ ...n, teacherId: tid }, tid, cls)) homework.push({ ...n, teacherId: tid, by: "teacher", done: cleanDone(n, n.done) }); });
+  return Object.assign(cur, { tests, exams, classAtt, homework });
 }
 /* Admin ke save mein chhupaye hue hisse server wale hi rehte hain */
 const SALARY_CAT = "Salary & Wages";

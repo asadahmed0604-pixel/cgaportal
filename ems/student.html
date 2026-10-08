@@ -287,6 +287,10 @@ async function report(quiet) {
           <td><b>${esc(e.exam)}</b>${e.subject ? ` <span class="sub">· ${esc(e.subject)}</span>` : ""}${e.by ? `<div class="sub">${esc(e.by)}</div>` : ""}${e.comment ? `<div class="sub" style="font-style:italic">“${esc(e.comment)}”</div>` : ""}</td>
           <td class="r">${e.absent ? `<span class="pill A">Absent</span>` : `<b>${e.obtained}/${e.total}</b><div class="sub">${e.pct}% · ${grade(e.pct)}</div>`}</td></tr>`).join("")}</tbody></table>` : `<p class="sub" style="margin:0">No marks entered yet — they appear here as soon as your teacher saves them.</p>`}
     </div>
+    <div class="card"><h3>📚 Homework</h3>${(r.homework || []).length ? `<table class="rt"><tbody>${r.homework.map((h) => `<tr><td style="white-space:nowrap">${esc(fmtD(h.given))}</td>
+        <td><b>${esc(h.title)}</b>${h.subject ? ` <span class="sub">· ${esc(h.subject)}</span>` : ""}${h.teacher ? `<div class="sub">${esc(h.teacher)}</div>` : ""}${h.detail ? `<div class="sub">${esc(h.detail)}</div>` : ""}${h.due ? `<div class="sub">Due ${esc(fmtD(h.due))}</div>` : ""}</td>
+        <td class="r">${{ done: `<span class="pill P">Submitted</span>`, late: `<span class="pill L">Late</span>`, missed: `<span class="pill A">Not submitted</span>`, pending: `<span class="pill E">Pending</span>` }[h.state]}</td></tr>`).join("")}</tbody></table>`
+      : `<p class="sub" style="margin:0">No homework given yet.</p>`}</div>
     ${r.remarks.length ? `<div class="card"><h3>💬 Teacher remarks</h3><table class="rt"><tbody>${r.remarks.map((x) => `<tr><td style="white-space:nowrap">${esc(fmtD(x.d))}</td><td><b>${esc(x.type)}</b>${x.by ? ` <span class="sub">· ${esc(x.by)}</span>` : ""}<div>${esc(x.note)}</div></td></tr>`).join("")}</tbody></table></div>` : ""}`;
   bindKids();
   if (quiet) window.scrollTo(0, y);
