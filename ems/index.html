@@ -317,6 +317,29 @@ label.chk input{width:auto}
 .card.click{cursor:pointer;transition:box-shadow .15s,border-color .15s}
 .card.click:hover{box-shadow:0 4px 14px rgba(21,150,112,.18);border-color:var(--red)}
 
+/* ================= v61: ASSIGNMENTS ================= */
+.asg-busy{position:fixed;inset:0;background:rgba(23,75,96,.6);display:none;place-items:center;z-index:9999;color:#fff;text-align:center;padding:20px}
+.asg-busy.show{display:grid}
+.asg-spin{width:52px;height:52px;border:5px solid rgba(255,255,255,.3);border-top-color:#FFCC68;border-radius:50%;animation:asgspin 1s linear infinite;margin:0 auto 12px}
+@keyframes asgspin{to{transform:rotate(360deg)}}
+.asg-q{border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:12px;background:var(--soft)}
+.asg-q textarea,#page-assign textarea{width:100%}
+.asg-stu{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:2px 12px;max-height:320px;overflow:auto;border:1px solid var(--line);border-radius:10px;padding:10px}
+.asg-stu label.chk{white-space:normal;margin:0;padding:4px 0}
+.asg-cover{display:flex;gap:16px;align-items:center;margin:14px 0;padding:10px 14px;border:2px solid var(--line);border-radius:12px}
+.asg-tot{color:#C62828;border:3px solid #C62828;border-radius:12px;padding:4px 12px;font-size:1.2rem;transform:rotate(-3deg)}
+.asg-tot b{font-size:1.8rem}
+.asg-sq{display:grid;grid-template-columns:1fr 96px;border-bottom:1px solid var(--line)}
+.asg-sq .b{padding:12px 12px 12px 0;min-width:0}
+.asg-sq .m{border-left:2px solid #f3a6a6;padding:10px 6px;text-align:center;color:#C62828;display:flex;flex-direction:column;gap:4px;align-items:center}
+.asg-sq .m input{width:64px;text-align:center;font-weight:800;color:#C62828}
+.asg-sq .m small{font-size:.78rem;word-break:break-word}
+.asg-ans{margin-top:6px;padding:6px 10px;white-space:pre-wrap;background:repeating-linear-gradient(#fff,#fff 1.43rem,#dbe7f3 1.45rem);line-height:1.45rem;border-radius:6px;border:1px solid var(--line)}
+.asg-pen{color:#C62828;margin-top:6px;font-size:.9rem}
+.asg-sq textarea.as_cm{margin-top:6px;color:#C62828}
+.asg-photos{display:flex;gap:8px;flex-wrap:wrap}.asg-photos img{height:140px;border-radius:8px;border:1px solid var(--line)}
+@media (max-width:640px){.asg-sq{grid-template-columns:1fr 76px}}
+
 /* ================= v59: MOBILE APP SHELL ================= */
 .mtop,.mtabs,.mdim,.ibanner{display:none}
 .daypick{display:flex;gap:4px;flex-wrap:wrap}
@@ -437,6 +460,7 @@ label.chk input{width:auto}
     <button data-page="exams"><span class="ico">📝</span> Exams</button>
     <button data-page="tests"><span class="ico">🧪</span> Tests & Marks</button>
     <button data-page="classatt"><span class="ico">🧑‍🏫</span> Class Attendance</button>
+    <button data-page="assign"><span class="ico">✍</span> Assignments</button>
     <button data-page="audit"><span class="ico">🔍</span> Class Audit</button>
     <button data-page="employees"><span class="ico">👥</span> Employees</button>
     <button data-page="inventory"><span class="ico">📦</span> Inventory</button>
@@ -766,6 +790,20 @@ label.chk input{width:auto}
   </div>
 </section>
 
+<!-- ================= v61: ASSIGNMENTS (AI generator + checker) ================= -->
+<section class="page" id="page-assign">
+  <div class="page-head">
+    <div><h2>Assignments</h2><div class="sub">Make Cambridge-style assignments with AI (or upload your own paper), give them to your class with or without a timer — students' work is marked by AI the moment they submit.</div></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn-red" onclick="asgNew('ai')">✨ Generate with AI</button>
+      <button class="btn-black" onclick="asgNew('upload')">⬆ Upload paper</button>
+      <button class="btn-line" onclick="asgNew('manual')">✍ Write my own</button>
+    </div>
+  </div>
+  <div id="asgAiNote"></div>
+  <div id="asgBody"></div>
+</section>
+
 <!-- ================= v36: TESTS & MARKS ENTRY ================= -->
 <section class="page" id="page-tests">
   <div class="page-head">
@@ -858,6 +896,14 @@ label.chk input{width:auto}
       <div class="field"><label>Access</label><select id="parAccF" onchange="renderParents()"><option value="">All</option><option value="yes">PIN given</option><option value="no">No PIN yet</option></select></div></div>
     <div class="tbl-wrap"><table><thead><tr><th>Phone</th><th>Children</th><th>Whose number</th><th>Access</th><th>Last login</th><th>Actions</th></tr></thead><tbody id="parFams"></tbody></table></div>
     <div id="parNoPhone" style="margin-top:10px"></div></div>
+  <div class="panel"><h3>🎓 Student logins — Evening</h3>
+    <p class="sub" style="margin:4px 0 10px">Evening students log in to <b id="slLink"></b> themselves with their <b>Reg No + 6-digit PIN</b> (assignments). Morning students use their parent's phone + PIN (above). The PIN is shown only once — creating a new one stops the old one.</p>
+    <div class="toolbar"><div class="field"><label>Class</label><select id="slCls" onchange="renderStudentLogins()"></select></div>
+      <div class="field"><label>Search</label><input id="slQ" placeholder="Name / Reg No" oninput="renderStudentLogins()"></div>
+      <div class="field"><label>Login</label><select id="slF" onchange="renderStudentLogins()"><option value="">All</option><option value="yes">PIN given</option><option value="no">No PIN yet</option></select></div>
+      <button class="btn-red" style="margin-bottom:10px" onclick="bulkStudentPins()">🔑 Create PINs for all without one (this list)</button></div>
+    <p class="sub" id="slHint" style="margin:0 0 8px"></p>
+    <div class="tbl-wrap"><table><thead><tr><th>Reg No</th><th>Student</th><th>Class</th><th>Login</th><th>Actions</th></tr></thead><tbody id="slRows"></tbody></table></div></div>
 </section>
 
 <section class="page" id="page-audit">
@@ -1248,7 +1294,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v60 · 8 Oct 2026";
+const BUILD = "v62 · 8 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -1363,6 +1409,7 @@ const DEFAULT_DB = {
   attendance:{},           // { "2026-07-07": { studentId: {s:"P|A|L", t:"08:05", shift:"Morning"} } }
   empAttendance:{},        // { "2026-07-07": { empId: {s:"P|A|L", t:"09:00"} } }
   classCosts:{},           // { "Morning|O1": [{id, teacherId, subject, amount}] } — teacher pay per class
+  studentAccess:[],        // v62: [{id, studentId, salt, hash, iter, active, pinSetOn}] — Evening students ka apna login (Reg No + PIN)
   parentAccess:[],         // v28: [{id, phone(10 digit key), salt, hash, iter, active, pinSetOn}] — parents chat login
   feeReceipts:[],          // v43: parents ki app se fee receipts — [{id,studentId,feeId,chNo,amount,paidOn,method,ref,file,d,status:"Pending|Approved|Rejected",note}]
   parentMsgs:[],           // v28: [{id, studentId, studentName, phone, d, text, status, reply, repliedOn, repliedBy}]
@@ -1386,8 +1433,8 @@ const IS_ADMIN = ROLE !== "exec";                    // admin, feeadmin ya teach
 const IS_TEACHER = ROLE === "teacher";               // v36: sirf apni classes ke tests / marks aur Evening class attendance
 const MY_TID = (SERVER && SERVER.tid) || "";
 const CAN_FEES = ROLE === "exec" || ROLE === "feeadmin";   // v32: Fee / Billing sirf Executive aur Fee Admin
-const TEACHER_PAGES = ["mydash","tests","classatt"];
-const ALL_PAGES = ["dashboard","mydash","students","gallery","attendance","fees","homework","parents","inquiries","exams","tests","classatt",
+const TEACHER_PAGES = ["mydash","assign","tests","classatt"];
+const ALL_PAGES = ["dashboard","mydash","students","gallery","attendance","fees","homework","parents","inquiries","exams","tests","classatt","assign",
                    "audit","employees","inventory","issuance","finance","reports","biz","settings"];
 const ADMIN_HIDDEN = IS_TEACHER ? ALL_PAGES.filter(p=>!TEACHER_PAGES.includes(p))
   : ["dashboard","reports","biz"].concat(ROLE === "feeadmin" ? [] : ["finance"]).concat(CAN_FEES ? [] : ["fees"]);
@@ -1618,7 +1665,7 @@ const APP_LOGO = SERVER ? "/icons/cga-192.png" : "icons/icon-192.png";
 const isStandalone = () => (window.matchMedia && matchMedia("(display-mode: standalone)").matches) || navigator.standalone === true;
 function drawer(open){ document.querySelector(".sidebar").classList.toggle("open", !!open); document.body.classList.toggle("drawer", !!open); }
 const TAB_PICK = {exec:["dashboard","students","attendance","fees"], feeadmin:["students","attendance","fees","inquiries"],
-                  admin:["students","attendance","inquiries","homework"], teacher:["mydash","tests","classatt","exams"]};
+                  admin:["students","attendance","inquiries","homework"], teacher:["mydash","assign","tests","classatt"]};
 function buildTabs(){
   const box = $("mtabs"); if(!box) return;
   const vis = [...document.querySelectorAll("#nav button[data-page]")].filter(b=>b.style.display !== "none");
@@ -1680,7 +1727,7 @@ function renderPage(p){
     fees:renderFees, homework:renderHomework, inquiries:renderInquiries, exams:renderExams,
     employees:renderEmployees, inventory:renderInventory, issuance:renderIssuance,
     finance:renderFinance, reports:renderReport, biz:renderBiz, audit:renderAudit, parents:renderParents,
-    tests:renderTests, classatt:loadClassAtt, mydash:renderMyDash,
+    tests:renderTests, classatt:loadClassAtt, mydash:renderMyDash, assign:()=>{ if(SERVER) renderAssign(); },
     settings:loadSettings}[p]||(()=>{}))();
 }
 
@@ -4477,10 +4524,94 @@ function renderParents(){
       <td style="white-space:nowrap">${f.kids.length ? `<button class="btn-red btn-sm" onclick="genParentPin('${f.key}')">${has ? "New PIN" : "Create PIN"}</button>` : ""}
         ${has ? `<button class="btn-line btn-sm" onclick="blockParent('${f.key}')">Close</button>` : ""}</td></tr>`;
   }).join("") : `<tr><td colspan="6" class="empty">No families found — add Father / Mother phone in student profiles</td></tr>`;
+  renderStudentLogins();
   $("parNoPhone").innerHTML = noPhone.length
     ? `<div class="note"><b>${noPhone.length} active students have no phone number</b> — their parents cannot be given access: ` +
       noPhone.slice(0, 30).map(st=>`<a href="#" class="chip" onclick="openStudentForm('${st.id}');return false">${esc(st.name)} · ${esc(st.course)}</a>`).join(" ") + (noPhone.length > 30 ? ` +${noPhone.length-30}` : "") + `</div>` : "";
 }
+/* ================= v62: STUDENT LOGINS (Evening) =================
+   Parent PIN jaisa: PIN browser mein banta hai, DB mein sirf PBKDF2 hash (DB.studentAccess). Server /student par Reg No + PIN check karta hai. */
+const stuAccOf = sid => (DB.studentAccess||[]).find(a=>a.studentId===sid);
+const stuHasPin = sid => { const a = stuAccOf(sid); return !!(a && a.active !== false && a.hash); };
+const regK = r => String(r||"").trim().toLowerCase().replace(/\s+/g,"");
+function eveStudents(){ return DB.students.filter(st=>st.shift === "Evening" && st.status !== "Left"); }
+function eveRegDupes(){
+  const n = {}; eveStudents().forEach(st=>{ const k = regK(st.regNo); if(k) n[k] = (n[k]||0) + 1; });
+  return k => n[regK(k)] > 1;
+}
+function slFiltered(){
+  const c = $("slCls").value, q = ($("slQ").value||"").toLowerCase(), f = $("slF").value;
+  return eveStudents().filter(st=>(!c || inClass(st, c)) && (!q || (st.name + " " + (st.regNo||"")).toLowerCase().includes(q))
+    && (!f || (f === "yes") === stuHasPin(st.id))).sort((a,b)=>a.course.localeCompare(b.course) || a.name.localeCompare(b.name));
+}
+function renderStudentLogins(){
+  if(!$("slRows")) return;
+  if(!DB.studentAccess) DB.studentAccess = [];
+  $("slLink").textContent = SERVER ? location.origin + "/student" : "/student";
+  const sel = $("slCls"), keep = sel.value, eve = eveStudents();
+  sel.innerHTML = `<option value="">All Evening classes</option>` + [...new Set(eve.flatMap(classesOf))].sort().map(c=>`<option ${c===keep?"selected":""}>${esc(c)}</option>`).join("");
+  const dup = eveRegDupes(), rows = slFiltered();
+  $("slHint").textContent = `${eve.filter(st=>stuHasPin(st.id)).length} of ${eve.length} Evening students have a login`;
+  $("slRows").innerHTML = rows.length ? rows.map(st=>{ const a = stuAccOf(st.id), has = stuHasPin(st.id), bad = !st.regNo ? "no Reg No" : dup(st.regNo) ? "Reg No used twice" : "";
+    return `<tr><td><b>${esc(st.regNo||"—")}</b></td><td>${esc(st.name)}</td><td>${esc(classesOf(st).join(" + "))}</td>
+      <td>${has ? `<span class="badge b-paid">PIN ✓</span> <span class="sub">${fmtD(a.pinSetOn)}</span>` : a ? `<span class="badge b-left">Closed</span>` : `<span class="sub">—</span>`}</td>
+      <td style="white-space:nowrap">${bad ? `<a href="#" class="sub" onclick="openStudentForm('${st.id}');return false">⚠ ${bad} — fix first</a>`
+        : `<button class="btn-red btn-sm" onclick="genStudentPin('${st.id}')">${has ? "New PIN" : "Create PIN"}</button>${has ? ` <button class="btn-line btn-sm" onclick="closeStudentLogin('${st.id}')">Close</button>` : ""}`}</td></tr>`; }).join("")
+    : `<tr><td colspan="5" class="empty">No Evening students found</td></tr>`;
+}
+async function newStudentPin(st){
+  const pin = String(crypto.getRandomValues(new Uint32Array(1))[0] % 1000000).padStart(6, "0"), h = await pinHash(pin);
+  DB.studentAccess = DB.studentAccess || [];
+  const a = stuAccOf(st.id);
+  if(a) Object.assign(a, h, {active:true, pinSetOn:todayStr()}); else DB.studentAccess.push({id:uid(), studentId:st.id, ...h, active:true, pinSetOn:todayStr()});
+  return pin;
+}
+const studentPinMsg = (st, pin) => `Dear ${st.name},\n${DB.settings.name||"Cambridge Grads Academy"} — Student Assignments:\n${location.origin}/student\n\nChoose "Evening student" and log in with\nReg No: ${st.regNo}\nPIN: ${pin}\n\nKeep your PIN private.`;
+async function genStudentPin(sid){
+  if(!SERVER){ toast("Student logins only work on the online version"); return; }
+  if(!window.crypto || !crypto.subtle){ toast("This browser cannot create PINs — use Chrome / Edge"); return; }
+  const st = stuById(sid); if(!st || !st.regNo){ toast("Add the Reg No first"); return; }
+  const had = stuHasPin(sid), pin = await newStudentPin(st);
+  save(); renderStudentLogins();
+  const msg = studentPinMsg(st, pin), ph = st.phone || st.fatherPhone || st.motherPhone;
+  openModal(`<h3>🔑 Student PIN — ${esc(st.name)}</h3>
+    <div class="note">Reg No <b>${esc(st.regNo)}</b> · PIN <b style="font-size:1.6rem;letter-spacing:.2em;font-family:monospace">${pin}</b><br>Shown only now. ${had ? "The old PIN no longer works." : ""}</div>
+    <div class="field"><label>Message</label><textarea id="pinMsg" rows="7">${esc(msg)}</textarea></div>
+    <div class="modal-foot"><button class="btn-line" onclick="navigator.clipboard&&navigator.clipboard.writeText($('pinMsg').value).then(()=>toast('Copied'))">📋 Copy</button>
+      ${ph ? `<a class="btn-red" style="padding:9px 14px" target="_blank" rel="noopener" href="${waLink(ph)}?text=${encodeURIComponent(msg)}">Send on WhatsApp</a>` : ""}
+      <button class="btn-line" onclick="closeModal()">Close</button></div>`, true);
+}
+async function bulkStudentPins(){
+  if(!SERVER){ toast("Student logins only work on the online version"); return; }
+  if(!window.crypto || !crypto.subtle){ toast("This browser cannot create PINs — use Chrome / Edge"); return; }
+  const dup = eveRegDupes(), list = slFiltered().filter(st=>!stuHasPin(st.id) && st.regNo && !dup(st.regNo));
+  if(!list.length){ toast("Everyone in this list already has a PIN (or needs a Reg No)"); return; }
+  askConfirm(`Create PINs for ${list.length} students?`, "You will get a list of Reg No + PIN to print or share. PINs are shown only once.", async ()=>{
+    toast("Creating PINs…");
+    const out = [];
+    for(const st of list) out.push([st, await newStudentPin(st)]);
+    save(); renderStudentLogins();
+    const text = out.map(([st, pin])=>`${st.regNo}\t${st.name}\t${classesOf(st).join("+")}\tPIN ${pin}`).join("\n");
+    openModal(`<h3>🔑 ${out.length} student PINs created</h3><div class="note">Shown only now — print or copy before closing. Students log in at <b>${esc(location.origin)}/student</b> → "Evening student".</div>
+      <div class="tbl-wrap" style="max-height:340px;overflow:auto"><table><thead><tr><th>Reg No</th><th>Student</th><th>Class</th><th>PIN</th></tr></thead><tbody>
+      ${out.map(([st, pin])=>`<tr><td>${esc(st.regNo)}</td><td>${esc(st.name)}</td><td>${esc(classesOf(st).join(" + "))}</td><td style="font-family:monospace;font-weight:700;letter-spacing:.15em">${pin}</td></tr>`).join("")}</tbody></table></div>
+      <textarea id="pinMsg" style="position:absolute;left:-9999px">${esc(text)}</textarea>
+      <div class="modal-foot"><button class="btn-line" onclick="navigator.clipboard&&navigator.clipboard.writeText($('pinMsg').value).then(()=>toast('Copied'))">📋 Copy all</button>
+        <button class="btn-line" onclick="printPinSlips()">🖨 Print slips</button><button class="btn-line" onclick="closeModal()">Close</button></div>`, true);
+    window.__pinSlips = out.map(([st, pin])=>({name:st.name, reg:st.regNo, cls:classesOf(st).join(" + "), pin}));
+  }, "Create PINs");
+}
+function printPinSlips(){
+  const w = window.open("", "_blank"); if(!w){ toast("Allow pop-ups to print"); return; }
+  w.document.write(`<!doctype html><title>Student PINs</title><style>body{font-family:Arial,sans-serif;margin:16px}.s{display:inline-block;width:46%;border:1px dashed #999;margin:6px;padding:10px;vertical-align:top}b{font-size:18px}</style>
+    ${(window.__pinSlips||[]).map(x=>`<div class="s">${esc(DB.settings.name||"Cambridge Grads Academy")} — Assignments<br>${esc(location.origin)}/student → Evening student<br><br>${esc(x.name)} · ${esc(x.cls)}<br>Reg No: <b>${esc(x.reg)}</b> &nbsp; PIN: <b>${x.pin}</b></div>`).join("")}`);
+  w.document.close(); setTimeout(()=>w.print(), 300);
+}
+function closeStudentLogin(sid){
+  const a = stuAccOf(sid), st = stuById(sid); if(!a) return;
+  askConfirm("Close this student's login?", `${esc(st ? st.name : "")} will no longer be able to log in with their PIN.`, ()=>{ a.active = false; save(); renderStudentLogins(); toast("Login closed"); }, "Close login");
+}
+
 function drawParentLogins(){
   document.querySelectorAll("#parFams [data-login]").forEach(td=>{ const v = parentLogins[td.dataset.login]; td.textContent = v ? fmtD(v) : "—"; });
   const wk = new Date(Date.now() - 7*864e5).toISOString();
@@ -4931,6 +5062,39 @@ function myClassKeys(){                       // teacher ki classes: "Shift|Clas
   DB.students.forEach(st=>(st.subjects||[]).forEach(x=>{ if(x.teacherId===MY_TID) classesOf(st).forEach(c=>set.add(st.shift+"|"+c)); }));
   return set;
 }
+/* v60: teacher ke bache — Morning class = poori class khud; Evening = usi class ke sirf wo bache jin ke subjects
+   mein is teacher ka subject ho (bache ke subject par koi aur teacher laga ho to wo us ka bacha hai). */
+function mySubjMap(){                         // "Shift|Class" → [subjects] ya null (poori class)
+  const me = empById(MY_TID) || {}, map = new Map(), whole = new Set();
+  /* server har class mein teacher ke subjects khud bhejta hai (me.scope; null = maloom nahi → poori class) */
+  if(me.scope) return k => (Array.isArray(me.scope[k]) && me.scope[k].length ? me.scope[k] : null);
+  const add = (k, x) => { if(!x) return; if(!map.has(k)) map.set(k, new Set()); map.get(k).add(x); };
+  (me.assignments||[]).forEach(a=>{ const k = a.shift+"|"+a.course; if(a.subject) add(k, a.subject); else whole.add(k); });
+  DB.students.forEach(st=>(st.subjects||[]).forEach(x=>{ if(x.teacherId===MY_TID) classesOf(st).forEach(c=>add(st.shift+"|"+c, x.name)); }));
+  return k => whole.has(k) || !map.has(k) ? null : [...map.get(k)];
+}
+function teachesStu(st, k, subjOf){           // k = "Shift|Class"
+  const [sh, c] = k.split("|");
+  if(st.shift !== sh || !inClass(st, c)) return false;
+  if(sh === "Morning") return true;
+  const subs = subjOf(k);
+  if(!subs) return true;
+  return (st.subjects||[]).some(x=>x.teacherId ? x.teacherId===MY_TID : subs.some(y=>subjLike(x.name, y)));
+}
+/* Wohi bacha do records mein (maslan Morning + Evening) → aik hi gina jaye: same Reg No, ya same naam magar alag shift */
+function uniqueStudents(list){
+  const groups = [], byReg = new Map(), byName = new Map();
+  list.forEach(st=>{
+    const reg = String(st.regNo||"").trim().toLowerCase(), nm = String(st.name||"").trim().toLowerCase().replace(/\s+/g," ");
+    let g = (reg && byReg.get(reg)) || (byName.get(nm) || []).find(x=>!x.recs.some(r=>r.shift===st.shift));
+    if(!g){ g = {recs:[]}; groups.push(g); }
+    g.recs.push(st);
+    if(reg) byReg.set(reg, g);
+    if(!byName.has(nm)) byName.set(nm, []);
+    if(!byName.get(nm).includes(g)) byName.get(nm).push(g);
+  });
+  return groups.map(g=>g.recs);
+}
 function classKeysFor(shift){
   if(IS_TEACHER) return [...myClassKeys()].filter(k=>!shift || k.startsWith(shift+"|"));
   return (shift ? [shift] : ["Morning","Evening"]).flatMap(x=>(CLASSES_BY_SHIFT[x]||[]).map(c=>x+"|"+c));
@@ -4976,7 +5140,7 @@ function renderTests(){
       <td>${t.total}</td>
       <td><span class="badge ${n && d>=n ? "b-paid" : d ? "b-freeze" : "b-unpaid"}">${d} / ${n}</span></td>
       <td>${av===null ? "—" : `<b>${av}%</b>`}</td>
-      <td class="sub">${t.by==="teacher" ? "Teacher" : "Admin"}</td>
+      <td class="sub">${t.by==="teacher" ? "Teacher" : t.by==="assignment" ? "✍ Assignment" : "Admin"}</td>
       <td style="white-space:nowrap">
         <button class="btn-red btn-sm" onclick="openMarks('${t.id}')">✍ Marks</button>
         ${canEditTest(t) ? `<button class="btn-line btn-sm" onclick="openTestForm('${t.id}')">Edit</button>
@@ -5906,13 +6070,15 @@ function renderMyDash(){
   }
   const me = empById(MY_TID) || {name:"", assignments:[]};
   const m = wm(), RM = rosterMonths(), keys = [...myClassKeys()];
-  /* v60: sirf wo students jo is teacher ke subjects parhte hain (server teacher ko sirf us ke subjects bhejta hai) */
-  const scope = me.scope || {}, wholeCls = keys.filter(k=>scope[k] === null || scope[k] === undefined);
-  const stus = DB.students.filter(st=>activeIn(st, m, RM) && classesOf(st).some(c=>{ const k = st.shift+"|"+c;
-    return keys.includes(k) && (wholeCls.includes(k) || (st.subjects||[]).length); }));
+  const subjOf = mySubjMap();
+  const stus = DB.students.filter(st=>activeIn(st, m, RM) && keys.some(k=>teachesStu(st, k, subjOf)));
+  const people = uniqueStudents(stus);
+  /* Evening class jis ka subject maloom nahi — poori class ginti mein (admin subject set kare) */
+  const wholeCls = keys.filter(k=>k.startsWith("Evening|") && !subjOf(k));
   const asg = (me.assignments||[]).slice().sort((a,b)=>(a.from||"99").localeCompare(b.from||"99") || a.course.localeCompare(b.course));
   const today = new Date().getDay(), nowT = new Date().toTimeString().slice(0,5);
-  const forAsg = a => stus.filter(st=>st.shift===a.shift && inClass(st, a.course) && (!a.subject || !(st.subjects||[]).length || st.subjects.some(x=>subjLike(x.name, a.subject))));
+  const forAsg = a => stus.filter(st=>st.shift===a.shift && inClass(st, a.course)
+    && (a.shift === "Morning" || (a.subject ? (st.subjects||[]).some(x=>x.teacherId ? x.teacherId===MY_TID : subjLike(x.name, a.subject)) : teachesStu(st, a.shift+"|"+a.course, subjOf))));
   const todays = asg.filter(a=>(a.from || a.dayList) && asgDays(a).includes(today));
   /* attendance (sirf parhne ke liye) */
   const att = DB.empAttendance || {}, days = Object.keys(att).filter(d=>d.startsWith(m) && empRecs(att[d], MY_TID).length).sort();
@@ -5924,7 +6090,7 @@ function renderMyDash(){
   $("mdSub").textContent = `${new Date().toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long",year:"numeric"})}${me.online ? " · 🟢 Online teacher" : ""}`;
   $("mdCards").innerHTML = `
     <div class="card"><div class="k">My classes</div><div class="v">${keys.length}</div><div class="hint">${keys.map(k=>k.split("|").reverse().join(" · ")).join(", ") || "Ask the admin to assign"}</div></div>
-    <div class="card"><div class="k">My students</div><div class="v">${stus.length}</div><div class="hint">taking your subjects · ${fmtM(m)} list${wholeCls.length && SERVER ? `<br><span style="color:var(--danger)">Subject not set for ${wholeCls.map(k=>k.split("|").reverse().join(" · ")).join(", ")} — whole class counted. Ask the admin to set your subject (Employees → Edit → Assign).</span>` : ""}</div></div>
+    <div class="card"><div class="k">My students</div><div class="v">${people.length}</div><div class="hint">${fmtM(m)} · Morning: whole class · Evening: your subject only${people.length < stus.length ? ` · ${stus.length - people.length} repeated counted once` : ""}${wholeCls.length && SERVER ? `<br><span style="color:var(--danger)">Subject not set for ${wholeCls.map(k=>k.split("|").reverse().join(" · ")).join(", ")} — whole class counted. Ask the admin to set your subject (Employees → Edit → Assign).</span>` : ""}</div></div>
     <div class="card"><div class="k">Today's classes</div><div class="v">${todays.length}</div><div class="hint">${todays.length ? todays.map(a=>`${fmtT(a.from)} ${a.course}`).join(", ") : "No class times set for today"}</div></div>
     <div class="card"><div class="k">My attendance (${fmtM(m)})</div><div class="v ${pct >= 90 || !marked ? "green" : "red"}">${marked ? pct + "%" : "—"}</div><div class="hint">${c.P} present · ${c.L} late · ${c.A} absent · ${c.E} informed leave · ${c.U} uninformed · leaves ${empLeaveDays(MY_TID, m).length}/${EMP_LEAVE_LIMIT} · late ${empLateMonth(MY_TID, m).tot}/${latePolicy().allow} min${empLateMonth(MY_TID, m).ded ? ` · <b style="color:var(--danger)">fine Rs ${empLateMonth(MY_TID, m).ded.toLocaleString("en-US")}</b>` : ""}</div></div>
     <div class="card click" onclick="document.querySelector('#nav button[data-page=tests]').click()"><div class="k">Marks pending</div><div class="v ${pend.length ? "red" : "green"}">${pend.length}</div><div class="hint">papers with incomplete marks</div></div>`;
@@ -5952,11 +6118,377 @@ function renderMyDash(){
   cs.innerHTML = `<option value="">All classes</option>` + keys.map(k=>`<option value="${esc(k)}" ${k===keep?"selected":""}>${esc(k.split("|").reverse().join(" · "))}</option>`).join("");
   const fc = cs.value, q = ($("mdQ").value||"").toLowerCase();
   const myS = new Set(asg.filter(a=>a.subject).map(a=>keyify(a.subject)));
-  const L = stus.filter(st=>(!fc || classesOf(st).some(c=>st.shift+"|"+c===fc)) && (!q || (st.name+" "+(st.regNo||"")).toLowerCase().includes(q)))
-    .sort((a,b)=>a.course.localeCompare(b.course) || a.name.localeCompare(b.name));
-  $("mdStu").innerHTML = L.length ? L.map((st,i)=>`<tr><td>${i+1}</td><td>${esc(st.regNo||"")}</td><td><b>${esc(st.name)}</b></td><td>${esc(st.course)}</td><td>${esc(st.shift)}</td>
-    <td class="sub">${(st.subjects||[]).map(x=>myS.has(keyify(x.name)) || x.teacherId===MY_TID ? `<b style="color:var(--ink)">${esc(x.name)}</b>` : esc(x.name)).join(", ") || "—"}</td></tr>`).join("")
+  /* aik bacha = aik row; agar wo Morning aur Evening dono mein hai to dono classes isi row mein */
+  const L = uniqueStudents(stus.filter(st=>(!fc || teachesStu(st, fc, subjOf)) && (!q || (st.name+" "+(st.regNo||"")).toLowerCase().includes(q))))
+    .map(recs=>({st:recs[0], recs})).sort((a,b)=>a.st.course.localeCompare(b.st.course) || a.st.name.localeCompare(b.st.name));
+  const subjTxt = st => (st.subjects||[]).map(x=>myS.has(keyify(x.name)) || x.teacherId===MY_TID ? `<b style="color:var(--ink)">${esc(x.name)}</b>` : esc(x.name)).join(", ");
+  $("mdStu").innerHTML = L.length ? L.map(({st, recs},i)=>`<tr><td>${i+1}</td><td>${[...new Set(recs.map(r=>r.regNo).filter(Boolean))].map(esc).join(" / ")}</td><td><b>${esc(st.name)}</b></td>
+    <td>${recs.map(r=>esc(classesOf(r).join(" + "))).join("<br>")}</td><td>${recs.map(r=>esc(r.shift)).join("<br>")}</td>
+    <td class="sub">${recs.map(r=>subjTxt(r) || "—").join("<br>")}</td></tr>`).join("")
     : `<tr><td colspan="6" class="empty">No students</td></tr>`;
+}
+
+/* ================= v61: ASSIGNMENTS — AI generator + checker =================
+   Teacher apni class ke liye assignment banata hai: Claude se (subject + topic + Cambridge syllabus code), apna paper
+   upload kar ke (Claude parh kar sawal + mark scheme bana deta hai), ya khud likh kar. Phir bache chunta hai, timed ya
+   nahi, aur publish. Bache /student par karte hain; jama hote hi Claude Cambridge mark scheme se check karta hai.
+   Sab data server par (DATA_DIR/asg) — DB sync se alag, is liye har cheez /api/asg/* se aati hai. */
+const SYLLABUS = {
+  "O Level": {"mathematics":"4024","additional mathematics":"4037","physics":"5054","chemistry":"5070","biology":"5090","combined science":"5129",
+    "english":"1123","english language":"1123","literature in english":"2010","islamiyat":"2058","pakistan studies":"2059","urdu":"3248",
+    "computer science":"2210","economics":"2281","accounting":"7707","business studies":"7115","commerce":"7100","sociology":"2251",
+    "statistics":"4040","geography":"2217","history":"2147","global perspectives":"2069","arabic":"3180","french":"3015"},
+  "A Level": {"mathematics":"9709","further mathematics":"9231","physics":"9702","chemistry":"9701","biology":"9700","computer science":"9618",
+    "economics":"9708","accounting":"9706","business":"9609","business studies":"9609","sociology":"9699","psychology":"9990",
+    "english general paper":"8021","general paper":"8021","english language":"9093","law":"9084","urdu":"9676","islamic studies":"9488",
+    "history":"9489","geography":"9696","thinking skills":"9694","media studies":"9607","information technology":"9626","marine science":"9693"},
+  "IGCSE": {"mathematics":"0580","additional mathematics":"0606","physics":"0625","chemistry":"0620","biology":"0610","english":"0500",
+    "english as a second language":"0510","computer science":"0478","economics":"0455","accounting":"0452","business studies":"0450","sociology":"0495"}
+};
+const CODE_LEVELS = ["O Level","A Level","AS Level","IGCSE"];
+function syllabusCode(level, subject){
+  const t = SYLLABUS[level === "AS Level" ? "A Level" : level] || {}, k = String(subject||"").toLowerCase().replace(/\s*\(.*?\)\s*/g," ").replace(/[^a-z ]/g,"").trim();
+  if(t[k]) return t[k];
+  const hit = Object.keys(t).sort((a,b)=>b.length-a.length).find(n=>k.includes(n) || (k.length > 3 && n.includes(k)));
+  return hit ? t[hit] : "";
+}
+const ASG_LEVEL = c => ({"O Level":"O Level","A Level":"A Level","Foundation":"O Level","Junior":"Lower Secondary"}[levelOfClass(c)] || "O Level");
+const ASG_TYPES = [["short","Short answer"],["structured","Structured"],["calculation","Calculation"],["mcq","MCQ"],["essay","Essay / extended"]];
+let ASG = {list:[], aiReady:false, aiWhy:"", view:"list", cur:null, poll:null};
+
+async function asgApi(path, body, raw){
+  const opts = body === undefined ? {} : raw ? {method:"POST", headers:{"Content-Type":raw.type}, body:raw.blob}
+    : {method:"POST", headers:{"Content-Type":"application/json", "X-EMS-Me":encodeURIComponent(myName()||"")}, body:JSON.stringify(body)};
+  const r = await fetch(path, {credentials:"same-origin", ...opts});
+  const d = await r.json().catch(()=>({}));
+  if(!r.ok) throw new Error(d.error || `Request failed (${r.status})`);
+  return d;
+}
+function asgBusy(on, msg){
+  let o = $("asgBusy");
+  if(!o){ o = document.createElement("div"); o.id = "asgBusy"; o.className = "asg-busy"; document.body.appendChild(o); }
+  o.innerHTML = `<div><div class="asg-spin"></div><b>${esc(msg||"Working…")}</b></div>`;
+  o.classList.toggle("show", !!on);
+}
+const asgClassKeys = () => IS_TEACHER ? [...myClassKeys()].sort() : classKeysFor("");
+const asgKeyLabel = k => k.split("|").reverse().join(" · ");
+function asgSubjSuggest(k){
+  const [sh, c] = String(k||"").split("|"), set = new Set();
+  if(IS_TEACHER){ const s = mySubjMap()(k); (s||[]).forEach(x=>set.add(x)); }
+  subjectsForClass(c).forEach(x=>set.add(x.name));
+  DB.students.filter(st=>st.shift===sh && inClass(st, c)).forEach(st=>(st.subjects||[]).forEach(x=>{ if(!IS_TEACHER || !x.teacherId || x.teacherId===MY_TID) set.add(x.name); }));
+  return [...set].sort();
+}
+function asgStop(){ clearInterval(ASG.poll); ASG.poll = null; }
+
+/* ------------------------------- list ------------------------------- */
+async function renderAssign(){
+  asgStop(); ASG.view = "list";
+  const box = $("asgBody");
+  box.innerHTML = `<div class="empty" style="padding:30px">Loading…</div>`;
+  try{ const d = await asgApi("/api/asg/list"); ASG.list = d.list; ASG.aiReady = d.aiReady; ASG.aiWhy = d.aiWhy; }
+  catch(e){ box.innerHTML = `<div class="note">${esc(e.message)}</div>`; return; }
+  $("asgAiNote").innerHTML = ASG.aiReady ? "" : `<div class="note"><b>AI is off:</b> ${esc(ASG.aiWhy)} You can still write assignments yourself and mark them by hand.</div>`;
+  const L = ASG.list;
+  box.innerHTML = `<div class="tbl-wrap"><table><thead><tr><th>Assignment</th><th>Class</th><th>Subject</th><th>Timer</th><th>Due</th><th>Status</th><th style="text-align:right">Done</th><th style="text-align:right">Avg</th><th></th></tr></thead><tbody>
+    ${L.length ? L.map(a=>`<tr><td><b>${esc(a.title)}</b><br><span class="sub">${a.questions} questions · ${a.total} marks · ${a.source === "ai" ? "✨ AI" : a.source === "upload" ? "⬆ uploaded" : "✍ own"}${IS_TEACHER ? "" : " · " + esc(a.teacherName||"")}</span></td>
+      <td>${esc(a.course)}<br><span class="sub">${esc(a.shift)}</span></td><td>${esc(a.subject)}${a.code ? `<br><span class="sub">${esc(a.code)}</span>` : ""}</td>
+      <td>${a.timed ? `⏱ ${a.minutes} min` : "—"}</td><td>${a.dueDate ? fmtD(a.dueDate) : "—"}</td>
+      <td><span class="badge ${a.status === "published" ? "b-paid" : "b-freeze"}">${a.status === "published" ? "Published" : "Draft"}</span></td>
+      <td style="text-align:right">${a.submitted}/${a.recipients}</td><td style="text-align:right">${a.avg === null ? "—" : a.avg + "%"}</td>
+      <td><button class="btn-black btn-sm" onclick="asgDetail('${a.id}')">Open</button></td></tr>`).join("")
+    : `<tr><td colspan="9" class="empty">No assignments yet — generate one with AI, upload a paper or write your own.</td></tr>`}</tbody></table></div>`;
+}
+
+/* ------------------------------- create ------------------------------- */
+function asgNew(mode){
+  asgStop(); ASG.view = "new";
+  const keys = asgClassKeys();
+  if(!keys.length){ toast(IS_TEACHER ? "No class is assigned to you — ask the admin (Employees → Edit → Assign)" : "No classes found"); return; }
+  if(mode !== "manual" && !ASG.aiReady){ toast("AI is off on the server — use “Write my own”"); return; }
+  const title = {ai:"✨ Generate an assignment with AI", upload:"⬆ Upload a question paper", manual:"✍ Write your own assignment"}[mode];
+  $("asgBody").innerHTML = `<div class="panel"><h3>${title}</h3>
+    <div class="toolbar" style="margin-top:10px">
+      <div class="field"><label>Class</label><select id="an_cls" onchange="asgClsChanged()">${keys.map(k=>`<option value="${esc(k)}">${esc(asgKeyLabel(k))}</option>`).join("")}</select></div>
+      <div class="field" style="flex:1;min-width:160px"><label>Subject</label><input id="an_subj" list="an_subjL" placeholder="e.g. Physics" oninput="asgCode()"><datalist id="an_subjL"></datalist></div>
+      <div class="field"><label>Level</label><select id="an_lvl" onchange="asgCode(true)">${["O Level","AS Level","A Level","IGCSE","Lower Secondary"].map(x=>`<option>${x}</option>`).join("")}</select></div>
+      <div class="field" id="an_codeF"><label>Syllabus code</label><input id="an_code" placeholder="e.g. 5054" style="width:110px" oninput="this.dataset.manual=1"></div>
+    </div>
+    ${mode === "ai" ? `
+    <div class="field"><label>Topic(s)</label><input id="an_topic" placeholder="e.g. Moments, centre of gravity and stability"></div>
+    <div class="toolbar">
+      <div class="field"><label>Questions</label><input id="an_count" type="number" min="1" max="40" value="6" style="width:90px"></div>
+      <div class="field"><label>Total marks</label><input id="an_total" type="number" min="1" max="300" value="30" style="width:100px"></div>
+      <div class="field"><label>Difficulty</label><select id="an_diff"><option>Mixed</option><option>Easy</option><option>Medium</option><option>Hard (A* stretch)</option><option>Past-paper standard</option></select></div>
+    </div>
+    <div class="field"><label>Question types</label><div style="display:flex;gap:12px;flex-wrap:wrap">${ASG_TYPES.map(([v,l])=>`<label class="chk"><input type="checkbox" class="an_type" value="${v}" ${v==="short"||v==="structured"?"checked":""}> ${l}</label>`).join("")}</div></div>` : ""}
+    ${mode === "upload" ? `
+    <div class="grid2">
+      <div class="field"><label>Question paper — PDF or photos of each page</label><input type="file" id="an_paper" accept="image/*,application/pdf" multiple onchange="asgPick('paper', this)"><div id="an_paperL" class="sub"></div></div>
+      <div class="field"><label>Mark scheme (optional — otherwise AI writes one)</label><input type="file" id="an_scheme" accept="image/*,application/pdf" multiple onchange="asgPick('scheme', this)"><div id="an_schemeL" class="sub"></div></div>
+    </div>` : ""}
+    ${mode !== "manual" ? `<div class="field"><label>Notes for the AI (optional)</label><textarea id="an_notes" rows="2" placeholder="${mode === "ai" ? "e.g. Include one data-analysis question; use Pakistani context" : "e.g. Only Section B; ignore question 5"}"></textarea></div>` : ""}
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">
+      <button class="btn-red" onclick="asgCreate('${mode}')">${mode === "ai" ? "✨ Generate" : mode === "upload" ? "📖 Read paper with AI" : "Continue →"}</button>
+      <button class="btn-line" onclick="renderAssign()">Cancel</button></div>
+    <p class="sub" style="margin-top:8px">Cambridge style: command words, mark allocations, and a mark scheme with M/A/B marks or level descriptors as the subject needs.</p></div>`;
+  ASG.upl = {paper:[], scheme:[]};
+  asgClsChanged();
+}
+function asgClsChanged(){
+  const k = $("an_cls").value, c = k.split("|")[1], subs = asgSubjSuggest(k);
+  $("an_subjL").innerHTML = subs.map(n=>`<option value="${esc(n)}">`).join("");
+  if(!$("an_subj").value && subs.length === 1) $("an_subj").value = subs[0];
+  $("an_lvl").value = ASG_LEVEL(c);
+  asgCode(true);
+}
+function asgCode(force){
+  const lvl = $("an_lvl").value, f = $("an_codeF"), inp = $("an_code");
+  f.style.display = CODE_LEVELS.includes(lvl) ? "" : "none";
+  if(!CODE_LEVELS.includes(lvl)){ inp.value = ""; return; }
+  if(force || !inp.dataset.manual){ const c = syllabusCode(lvl, $("an_subj").value); if(c || force) inp.value = c; }
+}
+function shrinkImg(file, max){
+  return new Promise((resolve, reject)=>{
+    const img = new Image(), url = URL.createObjectURL(file);
+    img.onload = ()=>{ const k = Math.min(1, max / Math.max(img.width, img.height)), c = document.createElement("canvas");
+      c.width = Math.round(img.width*k); c.height = Math.round(img.height*k); c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url); c.toBlob(b=>b ? resolve(b) : reject(new Error("Could not read " + file.name)), "image/jpeg", 0.88); };
+    img.onerror = ()=>{ URL.revokeObjectURL(url); reject(new Error("Could not read " + file.name)); };
+    img.src = url;
+  });
+}
+async function asgUploadFiles(files){
+  const out = [];
+  for(const f of files){
+    const pdf = f.type === "application/pdf";
+    if(!pdf && !f.type.startsWith("image/")){ toast("Skipped " + f.name + " — photos or PDF only"); continue; }
+    const blob = pdf ? f : await shrinkImg(f, 2200);
+    out.push(await asgApi(`/api/asg/upload?name=${encodeURIComponent(f.name)}`, null, {type: pdf ? "application/pdf" : "image/jpeg", blob}));
+  }
+  return out;
+}
+async function asgPick(kind, input){
+  const files = [...input.files]; input.value = "";
+  if(!files.length) return;
+  asgBusy(true, "Uploading…");
+  try{ ASG.upl[kind] = ASG.upl[kind].concat(await asgUploadFiles(files)); }
+  catch(e){ toast(e.message); }
+  finally{ asgBusy(false); }
+  asgDrawUpl(kind);
+}
+function asgDrawUpl(kind){
+  $(kind === "paper" ? "an_paperL" : "an_schemeL").innerHTML = ASG.upl[kind].map((f,i)=>`<div>📎 <a href="/api/asg/file/${f.file}" target="_blank" rel="noopener">${esc(f.name)}</a> <a href="#" onclick="ASG.upl.${kind}.splice(${i},1);asgDrawUpl('${kind}');return false">✕</a></div>`).join("");
+}
+async function asgCreate(mode){
+  const [shift, course] = $("an_cls").value.split("|");
+  const spec = {shift, course, subject:$("an_subj").value.trim(), level:$("an_lvl").value, code:$("an_code").value.trim()};
+  if(!spec.subject){ toast("Write the subject"); return; }
+  if(mode === "manual"){
+    return asgEdit({...spec, id:"", title:"", instructions:"Answer all questions. Show your working.", source:"manual", files:[], status:"draft",
+      questions:[{number:"1", type:"short", text:"", options:[], marks:2, mark_scheme:[""], model_answer:""}], timed:false, minutes:30, openFrom:wmDate(), dueDate:"", studentIds:null});
+  }
+  let body;
+  if(mode === "ai"){
+    body = {...spec, topic:$("an_topic").value.trim(), count:$("an_count").value, total:$("an_total").value, difficulty:$("an_diff").value,
+      types:[...document.querySelectorAll(".an_type:checked")].map(x=>x.value), notes:$("an_notes").value};
+    if(!body.topic){ toast("Write the topic"); return; }
+  } else {
+    if(!ASG.upl.paper.length){ toast("Upload the question paper first"); return; }
+    body = {...spec, files:ASG.upl.paper, scheme:ASG.upl.scheme, notes:$("an_notes").value};
+  }
+  asgBusy(true, mode === "ai" ? "Writing your assignment and Cambridge mark scheme… (about a minute)" : "Reading the paper and preparing the mark scheme… (about a minute)");
+  try{ const a = await asgApi(mode === "ai" ? "/api/asg/generate" : "/api/asg/extract", body); a.studentIds = null; asgEdit(a); toast("Draft ready — check it, choose students and publish"); }
+  catch(e){ toast(e.message); }
+  finally{ asgBusy(false); }
+}
+
+/* ------------------------------- editor ------------------------------- */
+async function asgEdit(a){
+  asgStop(); ASG.view = "edit"; ASG.cur = structuredClone(a);
+  const x = ASG.cur, started = x.id ? (ASG.list.find(l=>l.id===x.id)||{}).started || 0 : 0;
+  $("asgBody").innerHTML = `<div class="panel"><h3>${x.id && x.status === "published" ? "Edit assignment" : "Check the draft, then publish"}</h3>
+    <p class="sub">${esc(asgKeyLabel(x.shift + "|" + x.course))} · ${esc(x.subject)}${x.code ? " · " + esc(x.level) + " " + esc(x.code) : ""}</p>
+    ${started ? `<div class="note">${started} student(s) have started — you can fix wording and the mark scheme, but not add / remove questions or change marks.</div>` : ""}
+    <div class="field"><label>Title</label><input id="ae_title" value="${esc(x.title)}"></div>
+    <div class="field"><label>Instructions for students</label><textarea id="ae_instr" rows="2">${esc(x.instructions)}</textarea></div>
+    ${(x.files||[]).length ? `<div class="field"><label>Question paper (students see this)</label>${x.files.map(f=>`<div>📎 <a href="/api/asg/file/${f.file}" target="_blank" rel="noopener">${esc(f.name)}</a></div>`).join("")}</div>` : ""}
+    <div id="ae_qs"></div>
+    <button class="btn-line btn-sm" onclick="asgAddQ()" ${started ? "disabled" : ""}>+ Add question</button> <span class="sub" id="ae_tot"></span></div>
+  <div class="panel"><h3>Give to students</h3>
+    <div class="toolbar">
+      <label class="chk"><input type="checkbox" id="ae_timed" ${x.timed ? "checked" : ""} onchange="$('ae_minF').style.display=this.checked?'':'none'"> ⏱ Timed</label>
+      <div class="field" id="ae_minF" style="${x.timed ? "" : "display:none"}"><label>Minutes</label><input type="number" id="ae_min" min="1" max="600" value="${x.minutes || 30}" style="width:90px"></div>
+      <div class="field"><label>Opens on</label><input type="date" id="ae_open" value="${esc(x.openFrom || wmDate())}"></div>
+      <div class="field"><label>Due date (optional)</label><input type="date" id="ae_due" value="${esc(x.dueDate || "")}"></div>
+    </div>
+    <p class="sub" style="margin-top:0">Timed: the timer starts when the student presses Start; when it runs out their answers are submitted and marked automatically.</p>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><b>Students</b>
+      <span><a href="#" onclick="document.querySelectorAll('.ae_st').forEach(c=>c.checked=true);return false">All</a> · <a href="#" onclick="document.querySelectorAll('.ae_st').forEach(c=>c.checked=false);return false">None</a></span></div>
+    <p class="sub" style="margin:2px 0 8px">${x.shift === "Morning" ? "Morning: the whole class." : "Evening: only students of this class who take " + esc(x.subject) + "."}</p>
+    <div id="ae_stu" class="asg-stu">Loading…</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
+      <button class="btn-red" onclick="asgSave('published')">📤 ${x.status === "published" ? "Save" : "Publish to students"}</button>
+      ${x.status === "published" ? "" : `<button class="btn-black" onclick="asgSave('draft')">Save draft</button>`}
+      <button class="btn-line" onclick="${x.id ? `asgDetail('${x.id}')` : "renderAssign()"}">Cancel</button></div></div>`;
+  asgDrawQs(started);
+  try{
+    const st = await asgApi(`/api/asg/eligible?shift=${encodeURIComponent(x.shift)}&course=${encodeURIComponent(x.course)}&subject=${encodeURIComponent(x.subject)}`);
+    const pick = x.studentIds ? new Set(x.studentIds) : new Set(st.map(s=>s.id));
+    $("ae_stu").innerHTML = st.length ? st.map(s=>`<label class="chk"><input type="checkbox" class="ae_st" value="${s.id}" ${pick.has(s.id) ? "checked" : ""}> ${esc(s.name)} <span class="sub">${esc(s.regNo)}</span></label>`).join("")
+      : `<div class="note">No students found in ${esc(x.course)} (${esc(x.shift)})${x.shift === "Evening" ? " taking " + esc(x.subject) + " — check the subject name matches the students' subjects" : ""}.</div>`;
+  }catch(e){ $("ae_stu").innerHTML = `<div class="note">${esc(e.message)}</div>`; }
+}
+function asgDrawQs(locked){
+  const x = ASG.cur;
+  $("ae_qs").innerHTML = x.questions.map((q,i)=>`<div class="asg-q" data-i="${i}">
+    <div class="toolbar">
+      <div class="field"><label>No.</label><input data-k="number" value="${esc(q.number)}" style="width:70px"></div>
+      <div class="field"><label>Type</label><select data-k="type">${ASG_TYPES.map(([v,l])=>`<option value="${v}" ${v===q.type?"selected":""}>${l}</option>`).join("")}</select></div>
+      <div class="field"><label>Marks</label><input data-k="marks" type="number" min="0" max="100" value="${q.marks}" style="width:80px" ${locked ? "disabled" : ""}></div>
+      ${locked ? "" : `<button class="btn-line btn-sm" style="margin-bottom:10px" onclick="ASG.cur.questions.splice(${i},1);asgDrawQs()">✕ Remove</button>`}
+    </div>
+    <div class="field"><label>Question</label><textarea data-k="text" rows="3">${esc(q.text)}</textarea></div>
+    ${q.type === "mcq" ? `<div class="field"><label>Options (one per line, A–D)</label><textarea data-k="options" rows="4">${esc(q.options.join("\n"))}</textarea></div>` : ""}
+    <div class="grid2"><div class="field"><label>Mark scheme (one point per line)</label><textarea data-k="mark_scheme" rows="4">${esc(q.mark_scheme.join("\n"))}</textarea></div>
+      <div class="field"><label>Model answer</label><textarea data-k="model_answer" rows="4">${esc(q.model_answer)}</textarea></div></div></div>`).join("");
+  $("ae_qs").querySelectorAll("[data-k]").forEach(el=>el.addEventListener("input", ()=>{
+    const q = ASG.cur.questions[el.closest(".asg-q").dataset.i], k = el.dataset.k;
+    q[k] = k === "options" || k === "mark_scheme" ? el.value.split("\n") : k === "marks" ? (+el.value || 0) : el.value;
+    if(k === "type") asgDrawQs(locked);
+    asgTot();
+  }));
+  asgTot();
+}
+const asgTot = () => { $("ae_tot").textContent = `Total: ${ASG.cur.questions.reduce((s,q)=>s + (+q.marks||0), 0)} marks · ${ASG.cur.questions.length} questions`; };
+function asgAddQ(){ ASG.cur.questions.push({number:String(ASG.cur.questions.length + 1), type:"short", text:"", options:[], marks:2, mark_scheme:[""], model_answer:""}); asgDrawQs(); }
+async function asgSave(status){
+  const x = ASG.cur;
+  const body = {id:x.id || undefined, shift:x.shift, course:x.course, subject:x.subject, level:x.level, code:x.code, files:x.files || [],
+    title:$("ae_title").value, instructions:$("ae_instr").value, status,
+    questions:x.questions.map(q=>({...q, options:q.type === "mcq" ? q.options.filter(o=>o.trim()) : [], mark_scheme:q.mark_scheme.filter(p=>p.trim())})),
+    timed:$("ae_timed").checked, minutes:$("ae_min").value, openFrom:$("ae_open").value, dueDate:$("ae_due").value,
+    studentIds:[...document.querySelectorAll(".ae_st:checked")].map(c=>c.value)};
+  try{ const a = await asgApi("/api/asg/save", body); toast(status === "published" ? `Published to ${a.studentIds.length} student(s)` : "Draft saved"); asgDetail(a.id); }
+  catch(e){ toast(e.message); }
+}
+
+/* ------------------------------- detail + results ------------------------------- */
+const ASG_ST = {not_started:["Not started","b-freeze"], in_progress:["Working…","b-freeze"], submitted:["Checking…","b-freeze"], checking:["Checking…","b-freeze"], marked:["Marked","b-paid"], error:["Mark by hand","b-unpaid"]};
+async function asgDetail(id, quiet){
+  if(!quiet) asgStop();
+  ASG.view = "detail";
+  let a;
+  try{ a = await asgApi("/api/asg/get?id=" + encodeURIComponent(id)); }
+  catch(e){ toast(e.message); return renderAssign(); }
+  if(ASG.view !== "detail") return;
+  ASG.cur = a;
+  const r = a.roster, done = r.filter(x=>x.score !== null), avg = done.length ? Math.round(done.reduce((s,x)=>s + x.score/a.total*100, 0)/done.length) : null;
+  $("asgBody").innerHTML = `<div class="panel">
+    <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:flex-start">
+      <div><h3 style="margin:0">${esc(a.title)}</h3><div class="sub">${esc(asgKeyLabel(a.shift + "|" + a.course))} · ${esc(a.subject)}${a.code ? " · " + esc(a.level) + " " + esc(a.code) : ""} · ${a.total} marks · ${a.questions.length} questions${a.timed ? ` · ⏱ ${a.minutes} min` : " · not timed"}${a.dueDate ? " · due " + fmtD(a.dueDate) : ""}
+        · <span class="badge ${a.status === "published" ? "b-paid" : "b-freeze"}">${a.status === "published" ? "Published" : "Draft"}</span></div></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn-line btn-sm" onclick="renderAssign()">← All</button><button class="btn-line btn-sm" onclick="asgPrint(false)">🖨 Paper</button>
+        <button class="btn-line btn-sm" onclick="asgPrint(true)">🖨 Mark scheme</button><button class="btn-black btn-sm" onclick="asgEdit(ASG.cur)">✎ Edit</button>
+        <button class="btn-line btn-sm" style="color:var(--red)" onclick="asgDelete()">Delete</button></div></div>
+    ${a.status === "published" ? `<p class="sub" style="margin:10px 0 0">Students open it at <b>${esc(location.origin)}/student</b> with their parent's phone number and PIN (from the 👪 Parents page).</p>` : ""}</div>
+  <div class="cards" style="margin-bottom:14px">
+    <div class="card"><div class="k">Students</div><div class="v">${r.length}</div></div>
+    <div class="card"><div class="k">Submitted</div><div class="v">${r.filter(x=>!["not_started","in_progress"].includes(x.status)).length}</div><div class="hint">${r.filter(x=>x.status==="in_progress").length} working now</div></div>
+    <div class="card"><div class="k">Class average</div><div class="v">${avg === null ? "—" : avg + "%"}</div></div>
+    <div class="card"><div class="k">Need your check</div><div class="v ${r.some(x=>x.review || x.status === "error") ? "red" : "green"}">${r.filter(x=>x.review || x.status === "error").length}</div><div class="hint">AI unsure / not marked</div></div></div>
+  <div class="panel"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><h3 style="margin:0">Results</h3>
+      ${(()=>{ const n = r.filter(x=>x.status === "marked" && (!x.approved || x.approvedScore !== x.score)).length;
+        return n ? `<button class="btn-red btn-sm" onclick="asgApprove()">✅ Approve ${n} & send to Tests & Marks</button>`
+          : r.some(x=>x.approved) ? `<span class="sub">✓ Approved marks are in Tests & Marks</span>` : ""; })()}</div>
+    <p class="sub" style="margin:6px 0 10px">Check the scripts (especially "⚠ check"), then approve — the marks go to <b>Tests & Marks</b> as “Assignment: ${esc(a.title)}”, and from there to class results, report cards and the parents' chat.</p>
+    <div class="tbl-wrap"><table><thead><tr><th>Student</th><th>Status</th><th>Submitted</th><th style="text-align:right">Marks</th><th>Tests & Marks</th><th></th></tr></thead><tbody>
+    ${r.length ? r.map(x=>{ const [l,c] = ASG_ST[x.status] || [x.status,""]; return `<tr><td><b>${esc(x.name)}</b> <span class="sub">${esc(x.regNo)}</span></td>
+      <td><span class="badge ${c}">${l}</span>${x.review ? ` <span class="badge b-unpaid">⚠ check</span>` : ""}${x.teacherEdited ? ` <span class="sub">edited</span>` : ""}</td>
+      <td>${x.submittedAt ? new Date(x.submittedAt).toLocaleString("en-GB",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"}) + (x.auto ? " <span class='sub'>(time up)</span>" : "") : "—"}</td>
+      <td style="text-align:right">${x.score === null ? "—" : `<b>${x.score}</b>/${a.total}`}</td>
+      <td>${x.approved ? (x.approvedScore === x.score ? `<span class="badge b-paid">✓ Sent</span>` : `<span class="badge b-unpaid">Changed — approve again</span>`) : x.status === "marked" ? `<span class="sub">Not approved</span>` : "—"}</td>
+      <td>${x.subId && !["in_progress"].includes(x.status) ? `<button class="btn-black btn-sm" onclick="asgScript('${x.subId}')">View script</button>` : ""}</td></tr>`; }).join("")
+    : `<tr><td colspan="6" class="empty">No students chosen yet — Edit → Give to students.</td></tr>`}</tbody></table></div></div>`;
+  if(!ASG.poll && r.some(x=>["in_progress","submitted","checking"].includes(x.status))) ASG.poll = setInterval(()=>{ if(ASG.view === "detail" && !document.hidden) asgDetail(id, true); }, 12000);
+}
+function asgApprove(){
+  const a = ASG.cur, r = a.roster, n = r.filter(x=>x.status === "marked" && (!x.approved || x.approvedScore !== x.score)).length;
+  const missing = r.filter(x=>x.status === "not_started").length, review = r.filter(x=>x.status === "marked" && x.review && !x.teacherEdited).length;
+  askConfirm(`Send ${n} student(s)' marks to Tests & Marks?`,
+    `${review ? `<div class="note">⚠ ${review} script(s) were flagged by the AI and you have not opened them yet.</div>` : ""}
+     The marks are saved as the test <b>Assignment: ${esc(a.title)}</b> (${esc(a.course)} · ${esc(a.subject)} · ${a.total} marks).
+     ${missing ? `<label class="chk" style="margin-top:10px"><input type="checkbox" id="apAbs"> Also mark the ${missing} student(s) who never started as <b>absent</b></label>` : ""}`,
+    async ()=>{
+      try{ const d = await asgApi("/api/asg/approve", {id:a.id, absent:!!($("apAbs") && $("apAbs").checked)});
+        toast(`✓ ${d.approved} sent to Tests & Marks${d.absent ? ` · ${d.absent} absent` : ""}`); asgDetail(a.id); }
+      catch(e){ toast(e.message); }
+    }, "✅ Approve");
+}
+function asgDelete(){
+  const a = ASG.cur;
+  askConfirm("Delete this assignment?", `<b>${esc(a.title)}</b> and every student's answers will be removed.${a.testId ? " Marks already sent to Tests & Marks stay there." : ""}`, async ()=>{
+    try{ await asgApi("/api/asg/delete", {id:a.id}); toast("Deleted"); renderAssign(); }catch(e){ toast(e.message); }
+  }, "Delete");
+}
+function asgPrint(scheme){
+  const a = ASG.cur, w = window.open("", "_blank");
+  if(!w){ toast("Allow pop-ups to print"); return; }
+  w.document.write(`<!doctype html><title>${esc(a.title)}</title><style>body{font-family:Arial,sans-serif;margin:28px;color:#111;line-height:1.45}h1{font-size:20px;margin:0}
+    .m{float:right;font-weight:bold}.q{margin:16px 0;page-break-inside:avoid}.ms{background:#eef7f3;border-left:3px solid #159670;padding:6px 10px;margin-top:6px}.lines{height:${scheme ? 0 : 90}px;border-bottom:1px dotted #999}</style>
+    <h1>${esc(DB.settings.name || "Cambridge Grads Academy")}</h1><p><b>${esc(a.title)}</b> — ${esc(a.subject)}${a.code ? " (" + esc(a.code) + ")" : ""} · ${esc(a.course)} · ${a.total} marks${a.timed ? " · " + a.minutes + " minutes" : ""}${scheme ? " · <b>MARK SCHEME</b>" : ""}</p>
+    ${scheme ? "" : "<p>Name: ______________________ &nbsp; Date: __________</p>"}<p style="white-space:pre-wrap">${esc(a.instructions)}</p>
+    ${a.questions.map(q=>`<div class="q"><span class="m">[${q.marks}]</span><b>${esc(q.number)}</b> <span style="white-space:pre-wrap">${esc(q.text)}</span>
+      ${q.options.length ? `<div>${q.options.map((o,j)=>`<div>${"ABCDEF"[j]}. ${esc(o)}</div>`).join("")}</div>` : ""}
+      ${scheme ? `<div class="ms">${q.mark_scheme.map(p=>"• " + esc(p)).join("<br>")}${q.model_answer ? `<br><i>Model answer:</i> ${esc(q.model_answer)}` : ""}</div>` : q.type === "mcq" ? "" : '<div class="lines"></div>'}</div>`).join("")}`);
+  w.document.close(); setTimeout(()=>w.print(), 300);
+}
+
+/* ------------------------------- one student's script ------------------------------- */
+async function asgScript(id){
+  asgStop(); ASG.view = "script";
+  let s;
+  try{ s = await asgApi("/api/asg/sub?id=" + encodeURIComponent(id)); }catch(e){ toast(e.message); return; }
+  const a = s.assignment, r = s.result || {questions:[], total_awarded:0, total_available:a.total, needs_teacher_review:[], strengths:[], improvements:[], overall_feedback:""};
+  const byNum = new Map(r.questions.map(q=>[String(q.number), q])), pct = a.total ? Math.round(r.total_awarded/a.total*100) : 0;
+  const stName = (DB.students.find(x=>x.id===s.studentId)||{}).name || s.studentName;
+  $("asgBody").innerHTML = `<div class="panel">
+    <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap">
+      <div><h3 style="margin:0">${esc(stName)} — ${esc(a.title)}</h3><div class="sub">${s.submittedAt ? "Submitted " + new Date(s.submittedAt).toLocaleString("en-GB") : ""}${s.auto ? " (time ran out)" : ""} · started ${new Date(s.startedAt).toLocaleString("en-GB",{hour:"2-digit",minute:"2-digit",day:"numeric",month:"short"})}</div></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn-line btn-sm" onclick="asgDetail('${a.id}')">← Results</button>
+        ${ASG.aiReady || s.status === "error" ? `<button class="btn-line btn-sm" onclick="asgRecheck('${s.id}','${a.id}')">↻ Re-check with AI</button>` : ""}
+        <button class="btn-line btn-sm" style="color:var(--red)" onclick="asgReset('${s.id}')">Let student redo</button></div></div>
+    ${s.status === "checking" || s.status === "submitted" ? `<div class="note" style="margin-top:10px">AI is checking this right now — refresh in a minute.</div>` : ""}
+    ${s.checkError ? `<div class="note" style="margin-top:10px">${esc(s.checkError)} Enter the marks yourself below.</div>` : ""}
+    ${(r.needs_teacher_review||[]).length ? `<div class="note" style="margin-top:10px;border-left-color:#E0A800;background:#FFF6E0"><b>AI asks you to double-check:</b><br>${r.needs_teacher_review.map(esc).join("<br>")}</div>` : ""}
+    <div class="asg-cover"><div class="asg-tot"><b id="as_tot">${r.total_awarded}</b>/ ${a.total}</div><div><b>${pct}%</b> · indicative grade <b>${pct>=90?"A*":pct>=80?"A":pct>=70?"B":pct>=60?"C":pct>=50?"D":pct>=40?"E":"U"}</b></div></div>
+    ${a.questions.map(q=>{ const m = byNum.get(String(q.number)) || {awarded:0, points_credited:[], examiner_comment:"", marks_annotation:"", student_answer:""};
+      const typed = (s.answers||{})[q.number] || "";
+      return `<div class="asg-sq" data-n="${esc(q.number)}"><div class="b"><b>${esc(q.number)}</b> <span style="white-space:pre-wrap">${esc(q.text)}</span>
+          <div class="asg-ans">${typed ? esc(typed) : m.student_answer ? esc(m.student_answer) + ' <span class="sub">(read from photos)</span>' : '<span class="sub">No typed answer</span>'}</div>
+          ${(m.points_credited||[]).length ? `<div class="asg-pen">${m.points_credited.map(x=>"✓ " + esc(x)).join("<br>")}</div>` : ""}
+          <details class="sub" style="margin-top:4px"><summary>Mark scheme</summary>${q.mark_scheme.map(p=>"• " + esc(p)).join("<br>")}</details>
+          <textarea class="as_cm" rows="2" placeholder="Examiner comment">${esc(m.examiner_comment)}</textarea></div>
+        <div class="m"><input class="as_aw" type="number" min="0" max="${q.marks}" step="0.5" value="${m.awarded}" oninput="asgSum()"><span>/ ${q.marks}</span><small>${esc(m.marks_annotation||"")}</small></div></div>`; }).join("")}
+    <div class="field" style="margin-top:12px"><label>Overall comment</label><textarea id="as_over" rows="3">${esc(r.overall_feedback||"")}</textarea></div>
+    ${(s.files||[]).length ? `<h3>Written work</h3><div class="asg-photos">${s.files.map(f=>f.type === "application/pdf" ? `<a href="/api/asg/file/${f.file}" target="_blank" rel="noopener">📄 ${esc(f.name)}</a>` : `<a href="/api/asg/file/${f.file}" target="_blank" rel="noopener"><img src="/api/asg/file/${f.file}" alt=""></a>`).join("")}</div>` : ""}
+    <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;align-items:center"><button class="btn-red" onclick="asgSaveMarks('${s.id}', true)">✅ Approve & send to Tests & Marks</button>
+      <button class="btn-line" onclick="asgSaveMarks('${s.id}')">💾 Save only</button>
+      <span class="sub">${s.approved ? `In Tests & Marks: <b>${s.approvedScore}/${a.total}</b> (approved by ${esc(s.approvedBy||"")}). Saving updates it.` : "The student sees your marks and comments straight away."}</span></div></div>`;
+}
+function asgSum(){ $("as_tot").textContent = [...document.querySelectorAll(".as_aw")].reduce((t,i)=>t + Math.min(+i.max, Math.max(0, +i.value||0)), 0); }
+async function asgSaveMarks(id, approve){
+  const questions = [...document.querySelectorAll(".asg-sq")].map(el=>({number:el.dataset.n, awarded:+el.querySelector(".as_aw").value, examiner_comment:el.querySelector(".as_cm").value}));
+  try{ const s = await asgApi("/api/asg/mark", {id, questions, overall_feedback:$("as_over").value, approve:!!approve});
+    toast(approve || s.approved ? "✓ Saved and sent to Tests & Marks" : "Marks saved"); asgScript(id); }catch(e){ toast(e.message); }
+}
+async function asgRecheck(id, aid){
+  try{ await asgApi("/api/asg/recheck", {id}); toast("Checking again — results in about a minute"); asgDetail(aid); }catch(e){ toast(e.message); }
+}
+function asgReset(id){
+  askConfirm("Let the student do it again?", "Their answers and marks for this assignment will be deleted and the timer restarts when they open it.", async ()=>{
+    try{ const s = await asgApi("/api/asg/sub?id=" + encodeURIComponent(id)); await asgApi("/api/asg/reset", {id}); toast("Reset — the student can start again"); asgDetail(s.assignmentId); }catch(e){ toast(e.message); }
+  }, "Reset");
 }
 
 /* ================= v36: CLASS ATTENDANCE (Evening) =================
@@ -10077,6 +10609,7 @@ if(IS_ADMIN){
     setTimeout(()=>{ const ev = eveTestStatus(wm()).filter(x=>x.need); if(ev.length) toast(`⏰ This month ${ev.map(x=>`${x.c}: ${x.n}/${EVE_TEST_TARGET} tests`).join(", ")} — take 2 tests in every Evening class`); }, 1200); }
   document.querySelector(`#nav button[data-page="${IS_TEACHER ? "mydash" : "students"}"]`).click();
 }
+if(!SERVER){ const b = document.querySelector('#nav button[data-page="assign"]'); if(b) b.style.display = "none"; }   // v61: assignments sirf online
 renderDashboard();
 buildTabs();
 if($("mtSub")) $("mtSub").textContent = (DB.settings.name || "Cambridge Grads Academy");

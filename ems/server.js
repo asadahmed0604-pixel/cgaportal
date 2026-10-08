@@ -1,11 +1,12 @@
 /* CGA EMS — online server.
    Aik office password se login, aur sara data aik jagah (DATA_DIR/db.json) taake har browser
-   par wahi data nazar aaye. Koi npm package nahi chahiye — sirf Node 18+.
+   par wahi data nazar aaye. Sirf aik npm package: @anthropic-ai/sdk (v61, AI assignments) — Node 18+.
 
    Environment:
      EMS_PASSWORD  (zaroori) office ka password, kam az kam 8 characters
      DATA_DIR      data ka folder (Render disk: /var/data). Default: ./data
      PORT          default 3000
+     ANTHROPIC_API_KEY  (v61, optional) AI assignments — iske baghair assignments khud likh kar haath se mark hote hain
 */
 const http = require("http");
 const fs = require("fs");
@@ -196,7 +197,8 @@ function teacherView(d, tid) {
   const mine = (st) => { const sets = keys(st).map(subjOf); if (!sets.length || sets.some((x) => !x)) return st.subjects || [];
     return (st.subjects || []).filter((x) => sets.some((set) => subjHit(set, x.name))); };
   return {
-    students: (d.students || []).filter((st) => keys(st).length && (marked.has(st.id) || keys(st).some((k) => !subjOf(k)) || mine(st).length)).map((st) => ({
+    /* v60: Morning class ke sab bache khud (class se); Evening mein sirf apne subject wale (client wahi hisaab lagata hai) */
+    students: (d.students || []).filter((st) => keys(st).length && (marked.has(st.id) || keys(st).some((k) => k.startsWith("Morning|") || !subjOf(k)) || mine(st).length)).map((st) => ({
       id: st.id, name: st.name, regNo: st.regNo, course: st.course, course2: st.course2, shift: st.shift, status: st.status, mode: st.mode,
       statusSince: st.statusSince, doj: st.doj, joinMonth: st.joinMonth, roster: st.roster, group: st.group,
       subjects: mine(st).map((x) => ({ name: x.name, teacherId: x.teacherId || "" })) })),
@@ -213,7 +215,7 @@ function teacherView(d, tid) {
     inquiries: [], fees: [], txns: [], homework: [], inventory: [], issues: [], attendance: {},
     /* v41: sirf apni staff attendance — dekhne ke liye; teacherMerge ise kabhi nahi leta */
     empAttendance: Object.fromEntries(Object.entries(d.empAttendance || {}).filter(([, day]) => day && day[tid]).map(([dt, day]) => [dt, { [tid]: day[tid] }])),
-    classCosts: {}, parentAccess: [], parentMsgs: [], audits: (d.audits || []).filter((a) => a.teacherId === tid), counters: d.counters || {},
+    classCosts: {}, parentAccess: [], studentAccess: [], parentMsgs: [], audits: (d.audits || []).filter((a) => a.teacherId === tid), counters: d.counters || {},
     settings: { name: s.name, addr: s.addr, phone: s.phone, logo: s.logo, latePolicy: s.latePolicy },
   };
 }
@@ -371,13 +373,14 @@ const canon = (v) => JSON.stringify(v, (k, x) => x && typeof x === "object" && !
 /* Save se pehle aur baad ka data — kya badla, insaani zabaan mein */
 const ACT_COLS = { students: "Students", fees: "Fee challans", employees: "Employees", txns: "Income / Expense", inquiries: "Inquiries",
   exams: "Exam marks", tests: "Tests", homework: "Homework", inventory: "Inventory", issues: "Issuance", audits: "Class audits", kpis: "KPI checklists",
-  subjects: "Subjects", feeReceipts: "Fee receipts (app)", parentAccess: "Parent access", parentMsgs: "Parent messages", classAtt: "Class attendance" };
+  subjects: "Subjects", feeReceipts: "Fee receipts (app)", parentAccess: "Parent access", studentAccess: "Student logins (Evening)", parentMsgs: "Parent messages", classAtt: "Class attendance" };
 const ACT_SKIP_FIELDS = new Set(["hash", "salt", "iter"]);
 const recLabel = (r, col) => {
   if (!r || typeof r !== "object") return "?";
   if (col === "fees") return [r.chNo, r.month].filter(Boolean).join(" ") || r.id;
   if (col === "exams") return [r.exam, r.subject].filter(Boolean).join(" · ") || r.id;
   if (col === "txns") return `${r.type || ""} ${r.desc || ""} Rs ${r.amount || 0}`.trim();
+  if (col === "studentAccess") return "login" + (r.active === false ? " (closed)" : "");
   return r.name || r.studentName || r.title || r.chNo || r.desc || r.subject || r.phone || r.id || "?";
 };
 const shortVal = (v) => { if (v === undefined || v === null || v === "") return "—";
@@ -478,6 +481,20 @@ const pktToday = () => new Date(Date.now() + 5 * 3600e3).toISOString().slice(0, 
 const schoolName = (db) => (db && db.settings && db.settings.name) || "Cambridge Grads Academy";
 const childView = (st) => ({ id: st.id, name: st.name, course: st.course, shift: st.shift, regNo: st.regNo });
 const escHtml = (x) => String(x).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+/* v61: assignments — AI generator / checker aur student portal (/student). Data DATA_DIR/asg mein, db.json se alag. */
+const asg = require("./assignments")({
+  DATA_DIR, send: (...a) => send(...a), sendJson: (...a) => sendJson(...a), readBody: (r) => readBody(r), readRaw: (r, l) => readRaw(r, l),
+  sameOrigin: (r) => sameOrigin(r), dbNow, logAct, actWho, accessFor, pinOk, childrenOf: bot.childrenOf, phoneKey: bot.phoneKey,
+  clientIp, blocked, failed, fails, isHttps, escHtml, schoolName, teacherClasses, mutateDb: (fn) => mutateDb(fn),
+});
+async function asgRoute(fn, res) {
+  try { return await fn(); }
+  catch (e) {
+    if (e && e.status && e.status < 500) return sendJson(res, e.status, { error: e.message });
+    throw e;
+  }
+}
 
 /* ---------- pages ---------- */
 const APP_HTML = fs.readFileSync(path.join(__dirname, "index.html"), "utf8");
@@ -720,6 +737,8 @@ const server = http.createServer(async (req, res) => {
       return send(res, 404, "Not found");
     }
 
+    if (p === "/student" || p.startsWith("/student/")) return await asgRoute(() => asg.student(req, res, url), res);
+
     if (p === "/teacher" && req.method === "GET") {
       if (authed(req)) return redirect(res, "/");
       return send(res, 200, loginPage("", true), "text/html; charset=utf-8");
@@ -774,6 +793,8 @@ const server = http.createServer(async (req, res) => {
 
     if ((p === "/" || p === "/index.html") && req.method === "GET")
       return send(res, 200, appPage(role, tid, view, ul), "text/html; charset=utf-8");
+
+    if (p.startsWith("/api/asg/")) return await asgRoute(() => asg.staff(req, res, url, auth), res);
 
     if (p === "/api/parent-logins" && req.method === "GET")
       return role === "teacher" ? sendJson(res, 403, { error: "Teacher" }) : sendJson(res, 200, parentLogins);
