@@ -1297,8 +1297,9 @@ label.chk input{width:auto}
 /* v46: "A Levels" ab AS aur A2 mein — aur Grade 5–8 sab "Pre O Levels" mein */
 const CLASSES_BY_SHIFT = {
   Morning: ["FT1", "FT2", "O1", "O2", "AS", "A2"],
-  Evening: ["Pre O Levels", "O1", "O2", "O3 (Appearing Batch)", "AS", "A2", "SAT"]
+  Evening: ["Pre O Levels", "O1/O2", "O3 (Appearing Batch)", "AS", "A2", "SAT"]     // v77: Evening O1 + O2 = aik class
 };
+const EVE_O12 = "O1/O2";
 const LEGACY_CLASS = {"Grade 5":"Pre O Levels", "Grade 6":"Pre O Levels", "Grade 7":"Pre O Levels", "Grade 8":"Pre O Levels"};
 const COURSES = [...new Set([...CLASSES_BY_SHIFT.Morning, ...CLASSES_BY_SHIFT.Evening])];
 const SHIFTS = {Morning:"School System", Evening:"Academy"};
@@ -1316,7 +1317,7 @@ const attPresent = c => c === "P" || c === "L";
 
 /* ---------- Class → level (subject list isi se filter hoti hai) ---------- */
 const CLASS_LEVEL = {
-  "FT1":"Foundation", "FT2":"Foundation", "O1":"O Level", "O2":"O Level", "O3 (Appearing Batch)":"O Level",
+  "FT1":"Foundation", "FT2":"Foundation", "O1":"O Level", "O2":"O Level", "O1/O2":"O Level", "O3 (Appearing Batch)":"O Level",
   "A Levels":"A Level", "AS":"A Level", "A2":"A Level", "AS & A2 (Composite)":"A Level", "SAT":"A Level",
   "Pre O Levels":"Junior", "Grade 5":"Junior", "Grade 6":"Junior", "Grade 7":"Junior", "Grade 8":"Junior"
 };
@@ -1362,7 +1363,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v76 · 9 Oct 2026";
+const BUILD = "v77 · 9 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -1407,8 +1408,8 @@ const ELECTIVE_LIMIT = {"O Level":3, "A Level":4, "Junior":0, "Foundation":0};
 
 /* Sirf us class/grade ke subjects. classes[] khali ho to us poore level ke subjects. */
 function subjectsForClass(cls){
-  const lvl = levelOfClass(cls);
-  return DB.subjects.filter(x => (x.classes && x.classes.length) ? x.classes.includes(cls) : x.level===lvl);
+  const lvl = levelOfClass(cls), parts = cls === EVE_O12 ? ["O1","O2",EVE_O12] : [cls];      // v77: O1/O2 = dono ke subjects
+  return DB.subjects.filter(x => (x.classes && x.classes.length) ? parts.some(c=>x.classes.includes(c)) : x.level===lvl);
 }
 const compulsoryForClass = cls => subjectsForClass(cls).filter(x=>x.kind==="Compulsory");
 const electiveLimitFor   = cls => ELECTIVE_LIMIT[levelOfClass(cls)] || 0;
@@ -8736,6 +8737,10 @@ const CLASS_ALIASES = {
   grade5:"Pre O Levels", grade6:"Pre O Levels", grade7:"Pre O Levels", grade8:"Pre O Levels"
 };
 function matchClass(v, shift){
+  const r = matchClass0(v, shift);
+  return shift === "Evening" && (r === "O1" || r === "O2" || keyify(v) === "o1o2") ? EVE_O12 : r;     // v77
+}
+function matchClass0(v, shift){
   let k = keyify(v); if(!k) return "";
   k = k.replace(/(19|20)\d{2}\d*$/, "");            // "A Levels-2026-27" → "alevels"
   const ord = k.replace(/(st|nd|rd|th)$/, "");       // "Grade 7th" → "grade7"
@@ -11334,6 +11339,28 @@ if(ROLE !== "teacher" && !DB.settings.classMigV49){
     e.assignments = out;
   });
   DB.settings.classMigV49 = todayStr();
+  save();
+}
+/* v77: Evening mein O1 aur O2 ab aik class "O1/O2" — students, teachers ki assignments, tests / marks, homework,
+   class attendance, classes taken aur subject-teacher yaad sab nayi class mein */
+if(ROLE !== "teacher" && !DB.settings.classMigV77){
+  const isO = c => c === "O1" || c === "O2";
+  DB.students.forEach(st=>{ if(st.shift !== "Evening") return;
+    if(isO(st.course)){ st.prevClass = st.prevClass || st.course; st.course = EVE_O12; }
+    if(isO(st.course2) || st.course2 === EVE_O12){ if(st.course === EVE_O12) st.course2 = ""; else st.course2 = EVE_O12; } });
+  DB.employees.forEach(e=>{ const out = [];
+    (e.assignments||[]).forEach(a=>{ const c = a.shift === "Evening" && isO(a.course) ? EVE_O12 : a.course;
+      const dup = out.find(o=>o.course===c && o.shift===a.shift && keyify(o.subject||"")===keyify(a.subject||""));
+      if(!dup) out.push({...a, course:c});
+      else if(!dup.from && a.from) Object.assign(dup, {...a, course:c}); });            // waqt wali assignment rakho
+    e.assignments = out; });
+  [DB.tests, DB.homework, DB.classAtt, DB.fees].forEach(L=>(L||[]).forEach(r=>{ if(r && r.shift === "Evening" && isO(r.course)) r.course = EVE_O12; }));
+  (DB.fees||[]).forEach(f=>{ const st = stuById(f.studentId); if(st && st.shift === "Evening" && isO(f.course)) f.course = EVE_O12; });
+  Object.values(DB.classLog||{}).forEach(day=>Object.keys(day).forEach(k=>{ const p = k.split("|");
+    if(p[0] === "Evening" && isO(p[1])){ const nk = ["Evening", EVE_O12, ...p.slice(2)].join("|"); if(!day[nk]) day[nk] = day[k]; delete day[k]; } }));
+  const mem = DB.settings.subjTeacher || {};
+  Object.keys(mem).forEach(k=>{ const p = k.split("|"); if(p[0] === "Evening" && isO(p[1])){ const nk = ["Evening", EVE_O12, ...p.slice(2)].join("|"); if(!mem[nk]) mem[nk] = mem[k]; delete mem[k]; } });
+  DB.settings.classMigV77 = todayStr();
   save();
 }
 if(SERVER){ setSyncState(); if(syncDirty()) queuePush(); }

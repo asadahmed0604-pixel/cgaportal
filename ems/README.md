@@ -211,6 +211,13 @@ Only **✨ Generate with AI** is locked: the admin approves the teacher (Assignm
 - Parents app / student report: only classes and subjects assigned in Employees → Assign are shown (no guessed subjects),
   duplicates are merged and invalid times are ignored, so the timetable is always clean.
 
+## Evening O1/O2 (v77)
+
+In the Evening (Academy) O1 and O2 are one class, **O1/O2** (Morning keeps O1 and O2). On the first load after the update
+(Executive / Admin / Fee Admin) every Evening O1 or O2 student, teacher assignment, test, homework, class-attendance,
+classes-taken entry and Evening challan is moved to O1/O2 once (old class kept in `prevClass`). Imports that say O1 or O2
+for an Evening student go to O1/O2.
+
 ## Install as an app (v41)
 
 Staff (`/`), Teachers (`/teacher`) and Parents (`/parent`) — all three links can be installed as an app on a phone / computer
