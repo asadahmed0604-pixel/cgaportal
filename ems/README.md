@@ -165,6 +165,15 @@ shift), so attendance, late minutes and the teacher's timetable all follow the c
 - **📊 Monthly submission report** (Homework page): per student — given, submitted, late, not submitted, % and the missing
   homework titles, by month (due date) and class, with CSV.
 
+## Demo classes, late alerts, teacher scope (v70)
+
+- Inquiries → stage **Demo Scheduled**: choose the teacher, subject, date and time (in the inquiry form or the Log).
+  The teacher sees it under **🎓 Demo classes** on their portal dashboard (name, class, subject, time — no phone number).
+- Late: the teacher's dashboard shows a red banner when they were late today or went over the 45-minute monthly limit
+  (with the salary deduction); the Executive Dashboard has **⏰ Late teachers & staff** (late today / over the limit highlighted).
+- Teacher login receives only **this month's active students** of their own classes, only their own subjects (subjects
+  taught by another teacher are never sent), and only their own employee record.
+
 ## Install as an app (v41)
 
 Staff (`/`), Teachers (`/teacher`) and Parents (`/parent`) — all three links can be installed as an app on a phone / computer

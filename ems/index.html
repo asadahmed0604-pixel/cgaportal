@@ -54,6 +54,10 @@ h3{font-size:1.02rem;font-weight:700}
 .dchart svg{display:block;width:100%;height:auto}
 .dchart .tip{position:absolute;pointer-events:none;background:var(--ink);color:#fff;font-size:.78rem;padding:6px 9px;border-radius:6px;white-space:nowrap;transform:translate(-50%,-100%);margin-top:-8px;display:none;z-index:3}
 .rcpt-thumb{width:34px;height:34px;object-fit:cover;border-radius:6px;border:1px solid var(--line);cursor:pointer;vertical-align:middle}
+.late-alert{display:flex;gap:12px;align-items:flex-start;background:#FDECEA;border:2px solid var(--danger);color:#7a1d1d;border-radius:14px;padding:12px 16px;margin-bottom:14px;font-size:.95rem;line-height:1.5}
+.late-alert>:first-child{font-size:1.4rem}.late-alert.warn{background:#FFF6E0;border-color:#E0A800;color:#5c4300}
+.card.late-card{border:2px solid var(--danger);background:#FFF5F5}
+tr.late-row td{background:#FDECEA}
 .mchips{display:flex;gap:6px;flex-wrap:wrap;margin:-6px 0 16px}
 .mchips button{border:1px solid var(--line);background:#fff;border-radius:999px;padding:6px 13px;font-size:.84rem;font-weight:600;color:var(--ink)}
 .mchips button.on{background:var(--black);border-color:var(--black);color:#fff}
@@ -525,6 +529,10 @@ label.chk input{width:auto}
     <p class="sub" style="margin:4px 0 8px" id="ernSub"></p>
     <div class="dchart" id="ernChart"></div>
   </div>
+  <div class="panel" id="lateTPanel">
+    <h3>⏰ Late teachers & staff</h3><p class="sub" style="margin:4px 0 10px" id="ltSub"></p>
+    <div class="tbl-wrap"><table><thead><tr><th>Name</th><th>Today</th><th style="text-align:right">Late days</th><th style="text-align:right">Late minutes</th><th style="text-align:right">Over limit</th><th style="text-align:right">Deduction</th></tr></thead><tbody id="ltRows"></tbody></table></div>
+  </div>
   <div class="panel" id="topStuPanel">
     <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
       <div><h3 style="margin-bottom:0">🏆 Best students & ⚠ needs attention</h3><p class="sub" style="margin-top:6px" id="tsSub"></p></div>
@@ -787,8 +795,10 @@ label.chk input{width:auto}
 <!-- ================= v41: TEACHER KA DASHBOARD ================= -->
 <section class="page" id="page-mydash">
   <div class="page-head"><div><h2 id="mdTitle">My Dashboard</h2><div class="sub" id="mdSub"></div></div></div>
+  <div id="mdLate"></div>
   <div id="mdRemind"></div>
   <div class="cards" id="mdCards"></div>
+  <div id="mdDemo"></div>
   <div class="panel" style="margin-bottom:16px"><h3>📈 My live KPI — <span id="mdKpiM"></span></h3><p class="sub" style="margin:4px 0 10px">All from current data — tests, marks, remarks, attendance, class audit and the coordinator's monthly checklist.</p><div id="mdKpi"></div></div>
   <div class="panel"><h3>⏰ My classes and timings</h3><p class="sub" style="margin:4px 0 10px" id="mdToday"></p><div id="mdTT"></div></div>
   <div class="grid2" style="margin-top:16px">
@@ -1308,7 +1318,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v69 · 8 Oct 2026";
+const BUILD = "v70 · 9 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -2036,6 +2046,7 @@ function renderDashboard(){
   drawMonthRows(m);
   drawEarnings(m);
   drawTopStudents();
+  drawLateTeachers(m);
   if(DASH_ALL) dashAllMonths();
   drawExportGrid();
   $("dInqRows").innerHTML = inq.length? inq.map(i=>`<tr><td>${esc(i.name)}</td><td>${esc(i.course)}</td><td>${inqStageBadge(i.stage)}</td><td>${fmtD(i.date)}</td></tr>`).join("") : `<tr><td colspan="4" class="empty">No inquiries yet</td></tr>`;
@@ -2077,6 +2088,21 @@ function drawTopStudents(){
     <td style="text-align:right"><span class="badge ${good ? "b-paid" : r.score < 50 ? "b-left" : "b-unpaid"}">${Math.round(r.score)}</span></td></tr>`;
   $("tsBest").innerHTML = best.length ? best.map((r,i)=>row(r,i,true)).join("") : `<tr><td class="empty">No marks or attendance yet for ${fmtM(m)}</td></tr>`;
   $("tsWorst").innerHTML = worst.length ? worst.map((r,i)=>row(r,i,false)).join("") : `<tr><td class="empty">Not enough students to compare</td></tr>`;
+}
+/* v70: dashboard — kaun late hai: aaj late (laal) aur mahine ki 45 min hadd se upar (laal + jurmana) */
+function drawLateTeachers(m){
+  if(!$("lateTPanel")) return;
+  const t0 = todayStr(), p = latePolicy(), day = (DB.empAttendance||{})[t0] || {};
+  const L = DB.employees.map(e=>({e, lt:empLateMonth(e.id, m), today:m === thisMonth() ? empRecs(day, e.id).filter(x=>+x.lm > 0) : []}))
+    .filter(r=>r.lt.tot > 0 || r.today.length).sort((a,b)=>b.lt.over - a.lt.over || b.today.length - a.today.length || b.lt.tot - a.lt.tot);
+  const over = L.filter(r=>r.lt.over).length, lateToday = L.filter(r=>r.today.length).length;
+  $("ltSub").innerHTML = `${fmtM(m)} · ${p.allow} late minutes a month allowed, then Rs ${p.rate} per minute · <b style="color:var(--danger)">${over} over the limit</b>${m === thisMonth() ? ` · <b>${lateToday} late today</b>` : ""}`;
+  $("ltRows").innerHTML = L.length ? L.map(r=>`<tr class="${r.lt.over || r.today.length ? "late-row" : ""}"><td><b>${esc(r.e.name)}</b><br><span class="sub">${esc(r.e.category||"")}</span></td>
+    <td>${r.today.length ? r.today.map(x=>`<b style="color:var(--danger)">+${x.lm} min</b> <span class="sub">${x.shift}${x.t ? " · " + fmtT(x.t) : ""}</span>`).join("<br>") : "—"}</td>
+    <td style="text-align:right">${r.lt.n}</td><td style="text-align:right"><b>${r.lt.tot}</b> / ${r.lt.allow}</td>
+    <td style="text-align:right">${r.lt.over ? `<b style="color:var(--danger)">${r.lt.over} min</b>` : "—"}</td>
+    <td style="text-align:right">${r.lt.ded ? `<b style="color:var(--danger)">Rs ${r.lt.ded.toLocaleString("en-US")}</b>` : "—"}</td></tr>`).join("")
+    : `<tr><td colspan="6" class="empty">Nobody late in ${fmtM(m)} ✓</td></tr>`;
 }
 function topStudentsCSV(){
   const m = dashMonth(), {rows} = studentScores(m);
@@ -3146,7 +3172,13 @@ function hwSubjects(sh, c){
   if(IS_TEACHER){ const x = mySubjMap()(sh+"|"+c); (x||[]).forEach(v=>set.add(v)); (empById(MY_TID)||{}).assignments?.forEach(a=>{ if(a.shift===sh && a.course===c && a.subject) set.add(a.subject); }); }
   else DB.employees.forEach(e=>(e.assignments||[]).forEach(a=>{ if(a.shift===sh && a.course===c && a.subject) set.add(a.subject); }));
   DB.students.filter(st=>st.shift===sh && inClass(st, c)).forEach(st=>(st.subjects||[]).forEach(x=>{ if(!IS_TEACHER || !x.teacherId || x.teacherId===MY_TID) set.add(x.name); }));
-  return [...set].sort();
+  return dedupeSubj(set);
+}
+/* v70: scope ke subject keys chhote huroof mein aate hain — "physics" aur "Physics" do dafa na hon */
+function dedupeSubj(set){
+  const m = new Map();
+  [...set].sort((a,b)=>(a === a.toLowerCase()) - (b === b.toLowerCase())).forEach(x=>{ const k = keyify(x); if(k && !m.has(k)) m.set(k, x === x.toLowerCase() ? x.replace(/\b\w/g, c=>c.toUpperCase()) : x); });
+  return [...m.values()].sort();
 }
 function hwFormSync(){
   const sh = $("h_shift").value;
@@ -4408,7 +4440,8 @@ async function runChallanZip(single){
 /* ================= v27: INQUIRIES → ADMISSIONS =================
    Har inquiry ki stage, source, agla follow-up aur poora log (kab, kis ne, kya baat hui).
    "Enroll" se student banta hai aur inquiry khud "Converted" ho jati hai. */
-const INQ_STAGES  = ["New","Contacted","Visit / Test Scheduled","Visited / Test Done","Follow-up","Converted","Lost"];
+const INQ_STAGES  = ["New","Contacted","Visit / Test Scheduled","Demo Scheduled","Visited / Test Done","Follow-up","Converted","Lost"];
+const INQ_DEMO = "Demo Scheduled";
 const INQ_SOURCES = ["Walk-in","Phone Call","WhatsApp","Facebook / Instagram","Referral","Website","Banner / Flyer","Other"];
 const INQ_OPEN = st => st !== "Converted" && st !== "Lost";
 const inqStageBadge = st => `<span class="badge ${st==="Converted"?"b-paid":st==="Lost"?"b-left":st==="New"?"b-unpaid":"b-freeze"}">${esc(st)}</span>`;
@@ -4417,6 +4450,23 @@ function inqNorm(i){
   if(!Array.isArray(i.log)) i.log = [];
   if(!i.source) i.source = "";
   return i;
+}
+/* v70: demo class — kis teacher ke saath, kab. Teacher ko us ke portal dashboard par nazar aati hai. */
+const demoText = d => d && d.teacherId ? `🎓 Demo: ${teacherName(d.teacherId)} · ${fmtD(d.date)}${d.time ? " " + fmtT(d.time) : ""}${d.subject ? " · " + d.subject : ""}` : "";
+function demoFields(pfx, i, show){
+  const d = i.demo || {}, T = DB.employees.filter(e=>e.category==="Teacher").sort((a,b)=>a.name.localeCompare(b.name));
+  return `<div id="${pfx}_demoWrap" class="note" style="display:${show?"block":"none"};margin:4px 0 10px"><b>🎓 Demo class</b> — the teacher sees it on their portal dashboard.
+    <div class="grid2" style="margin-top:8px">
+      <div class="field"><label>Teacher *</label><select id="${pfx}_dT"><option value="">— choose —</option>${T.map(e=>`<option value="${e.id}" ${d.teacherId===e.id?"selected":""}>${esc(e.name)}${(e.assignments||[]).length ? " — " + esc([...new Set(e.assignments.map(a=>a.subject||a.course))].slice(0,3).join(", ")) : ""}</option>`).join("")}</select></div>
+      <div class="field"><label>Subject</label><input id="${pfx}_dS" value="${esc(d.subject||"")}" placeholder="e.g. Mathematics"></div>
+      <div class="field"><label>Date *</label><input type="date" id="${pfx}_dD" value="${d.date||""}"></div>
+      <div class="field"><label>Time *</label><input type="time" id="${pfx}_dH" value="${d.time||""}"></div>
+    </div></div>`;
+}
+function readDemo(pfx){
+  const d = {teacherId:$(pfx+"_dT").value, subject:$(pfx+"_dS").value.trim(), date:$(pfx+"_dD").value, time:$(pfx+"_dH").value};
+  if(!d.teacherId || !d.date || !d.time){ toast("Demo class: choose the teacher, date and time"); return null; }
+  return {...d, setOn:todayStr(), by:myName() || staffName() || ROLE_LABEL};
 }
 /* v67: "Online" can be picked as the shift — stored as mode:"Online" (shift stays Morning/Evening or empty) */
 const inqShift = i => i.mode === "Online" && !i.shift ? "Online" : (i.shift || "");
@@ -4484,7 +4534,7 @@ function renderInquiries(){
       <td><b>${esc(i.name)}</b><br><span class="sub">${esc(i.phone)}${i.city||i.area?` · ${esc(i.city||"")}${i.area?", "+esc(i.area):""}`:""}</span></td>
       <td>${esc(i.course||"—")}${inqShiftTxt(i)?`<br><span class="sub">${esc(inqShiftTxt(i))}</span>`:""}${i.fee?`<br><span class="sub">Fee ${money(i.fee)}</span>`:""}</td>
       <td>${esc(i.source||"—")}${i.assignedTo ? `<br><span class="sub">👤 ${esc(i.assignedTo)}</span>` : ""}</td>
-      <td>${inqStageBadge(i.stage)}${i.stage==="Converted"&&i.studentId&&stuById(i.studentId)?`<br><span class="sub">${esc(stuById(i.studentId).regNo)}</span>`:""}${i.stage==="Lost"&&i.lostReason?`<br><span class="sub">${esc(i.lostReason)}</span>`:""}</td>
+      <td>${inqStageBadge(i.stage)}${i.stage==="Converted"&&i.studentId&&stuById(i.studentId)?`<br><span class="sub">${esc(stuById(i.studentId).regNo)}</span>`:""}${i.stage==="Lost"&&i.lostReason?`<br><span class="sub">${esc(i.lostReason)}</span>`:""}${i.stage===INQ_DEMO&&i.demo?`<br><span class="sub" style="color:var(--ink)">${esc(demoText(i.demo))}</span>`:""}</td>
       <td>${INQ_OPEN(i.stage) && i.nextFollow ? `<span style="${i.nextFollow<t?"color:var(--danger);font-weight:700":i.nextFollow===t?"font-weight:700":""}">${i.nextFollow<t?"⚠ ":""}${fmtD(i.nextFollow)}</span>` : "—"}</td>
       <td class="sub" style="max-width:240px">${last ? `${fmtD(last.d)}${last.by?` · ${esc(last.by)}`:""}: ${esc(last.note||last.stage)}` : esc(i.detail||"—")}<br>${i.log.length?`<a href="#" onclick="openInqLog('${i.id}');return false">${i.log.length} entries</a>`:""}</td>
       <td style="white-space:nowrap">
@@ -4541,10 +4591,11 @@ function openInqForm(id){
       <div class="field"><label>Inquiry Date</label><input type="date" id="i_date" value="${i.date||wmDate()}"></div>
       <div class="field"><label>Next Follow-up</label><input type="date" id="i_next" value="${i.nextFollow || (id ? "" : wmDate())}"></div>
       <div class="field"><label>Assigned to (staff)</label><input id="i_assigned" list="i_staffList" value="${esc(i.assignedTo || (id ? "" : staffName()))}"><datalist id="i_staffList">${staff.map(n=>`<option value="${esc(n)}">`).join("")}</datalist></div>
-      <div class="field"><label>Stage</label><select id="i_stage">${INQ_STAGES.filter(x=>x!=="Converted").map(x=>`<option ${(i.stage||"New")===x?"selected":""}>${x}</option>`).join("")}${i.stage==="Converted"?`<option selected>Converted</option>`:""}</select></div>
+      <div class="field"><label>Stage</label><select id="i_stage" onchange="$('i_demoWrap').style.display=this.value===INQ_DEMO?'block':'none'">${INQ_STAGES.filter(x=>x!=="Converted").map(x=>`<option ${(i.stage||"New")===x?"selected":""}>${x}</option>`).join("")}${i.stage==="Converted"?`<option selected>Converted</option>`:""}</select></div>
       <div class="field"><label>City</label><input id="i_city" value="${esc(i.city||"")}"></div>
       <div class="field"><label>Area</label><input id="i_area" value="${esc(i.area||"")}"></div>
     </div>
+    ${demoFields("i", i, i.stage === INQ_DEMO)}
     <div class="field"><label>Detail (what was discussed?)</label><textarea id="i_detail" rows="3">${esc(i.detail||"")}</textarea></div>
     <div class="modal-foot">
       <button class="btn-line" onclick="closeModal()">Cancel</button>
@@ -4559,6 +4610,7 @@ function saveInq(id){
     fee:$("i_fee").value||"", date:$("i_date").value||wmDate(), nextFollow:$("i_next").value||"",
     assignedTo:$("i_assigned").value.trim(), stage:$("i_stage").value||"New",
     city:$("i_city").value.trim(), area:$("i_area").value.trim(), detail:$("i_detail").value.trim()};
+  if(data.stage === INQ_DEMO){ const dm = readDemo("i"); if(!dm) return; data.demo = dm; if(!data.nextFollow || data.nextFollow > dm.date) data.nextFollow = dm.date; }
   setStaffName(data.assignedTo);
   /* Pehle se isi number ki khuli inquiry ho to bata dein (double entry na ho) */
   if(!id){
@@ -4568,6 +4620,8 @@ function saveInq(id){
   if(id){
     const i = inqNorm(DB.inquiries.find(x=>x.id===id));
     if(i.stage !== data.stage) i.log.push({id:uid(), d:wmDate(), stage:data.stage, note:"Stage changed: " + i.stage + " → " + data.stage, by:staffName()});
+    if(data.demo && JSON.stringify([data.demo.teacherId, data.demo.date, data.demo.time]) !== JSON.stringify([(i.demo||{}).teacherId, (i.demo||{}).date, (i.demo||{}).time]))
+      i.log.push({id:uid(), d:wmDate(), stage:data.stage, note:demoText(data.demo).replace("🎓 ", "") + " scheduled", by:staffName()});
     if((i.assignedTo||"").trim() !== data.assignedTo){ data.assignedOn = new Date().toISOString(); data.assignedBy = myName() || ROLE_LABEL;
       if(data.assignedTo) i.log.push({id:uid(), d:wmDate(), stage:data.stage, note:`Assigned to: ${data.assignedTo}`, by:myName() || staffName()}); }
     Object.assign(i, data);
@@ -4583,7 +4637,7 @@ function openInqLog(id){
   const i = inqNorm(DB.inquiries.find(x=>x.id===id));
   openModal(`
     <h3>📞 ${esc(i.name)} — ${esc(i.phone)}</h3>
-    <p class="sub" style="margin-bottom:10px">${esc(i.course||"")} ${inqShiftTxt(i)?"· "+esc(inqShiftTxt(i)):""} ${i.source?"· "+esc(i.source):""} · Inquiry ${fmtD(i.date)} · ${inqStageBadge(i.stage)}
+    <p class="sub" style="margin-bottom:10px">${esc(i.course||"")} ${inqShiftTxt(i)?"· "+esc(inqShiftTxt(i)):""} ${i.source?"· "+esc(i.source):""} · Inquiry ${fmtD(i.date)} · ${inqStageBadge(i.stage)}${i.demo&&i.stage===INQ_DEMO?` · <b>${esc(demoText(i.demo))}</b>`:""}
       &nbsp;<a href="${telLink(i.phone)}">Call</a> · <a target="_blank" rel="noopener" href="${waLink(i.phone)}">WhatsApp</a></p>
     <div class="tbl-wrap" style="max-height:220px;overflow:auto"><table><thead><tr><th>Date</th><th>Stage</th><th>Note</th><th>By</th><th></th></tr></thead><tbody>
       ${i.log.length ? i.log.slice().reverse().map(l=>`<tr id="ilr_${l.id}"><td>${fmtD(l.d)}</td><td>${esc(l.stage||"")}</td><td>${esc(l.note||"")}${l.edited?`<br><span class="sub" title="Before: ${esc(fmtD(l.edited.prev.d)+" · "+(l.edited.prev.note||"")+(l.edited.prev.by?" · "+l.edited.prev.by:""))}">✎ edited ${fmtD(l.edited.on.slice(0,10))}${l.edited.by?" by "+esc(l.edited.by):""}</span>`:""}</td><td>${esc(l.by||"")}</td>
@@ -4594,10 +4648,11 @@ function openInqLog(id){
     <h3 style="margin:16px 0 8px">Add a follow-up</h3>
     <div class="grid2">
       <div class="field"><label>Date</label><input type="date" id="l_date" value="${wmDate()}"></div>
-      <div class="field"><label>Stage</label><select id="l_stage" onchange="$('l_lostWrap').style.display=this.value==='Lost'?'block':'none'">${INQ_STAGES.filter(x=>x!=="Converted").map(x=>`<option ${x===(i.stage==="New"?"Contacted":i.stage)?"selected":""}>${x}</option>`).join("")}</select></div>
+      <div class="field"><label>Stage</label><select id="l_stage" onchange="$('l_lostWrap').style.display=this.value==='Lost'?'block':'none';$('l_demoWrap').style.display=this.value===INQ_DEMO?'block':'none'">${INQ_STAGES.filter(x=>x!=="Converted").map(x=>`<option ${x===(i.stage==="New"?"Contacted":i.stage)?"selected":""}>${x}</option>`).join("")}</select></div>
       <div class="field"><label>Next Follow-up</label><input type="date" id="l_next" value=""></div>
       <div class="field"><label>Spoken to by</label><input id="l_by" value="${esc(staffName())}"></div>
     </div>
+    ${demoFields("l", i, false)}
     <div class="field" id="l_lostWrap" style="display:none"><label>Why was it lost?</label>
       <select id="l_lost">${["Fee too high","Joined another school/academy","Location too far","Timing does not suit","No response","Class / subject not available","Other"].map(x=>`<option>${x}</option>`).join("")}</select></div>
     <div class="field"><label>What was discussed? *</label><textarea id="l_note" rows="2" placeholder="e.g. Spoke to father, they will come for the test on Saturday"></textarea></div>
@@ -4630,9 +4685,12 @@ function saveInqLog(id){
   const i = inqNorm(DB.inquiries.find(x=>x.id===id));
   const note = $("l_note").value.trim(), stage = $("l_stage").value, by = $("l_by").value.trim();
   if(!note){ toast("Write what was discussed"); return; }
+  let demo = null;
+  if(stage === INQ_DEMO){ demo = readDemo("l"); if(!demo) return; if(!$("l_next").value) $("l_next").value = demo.date; }
   if(stage !== "Lost" && INQ_OPEN(stage) && !$("l_next").value){ toast("Enter the next follow-up date (or set the stage to Lost)"); return; }
   setStaffName(by);
-  i.log.push({id:uid(), d:$("l_date").value||wmDate(), stage, note, by});
+  i.log.push({id:uid(), d:$("l_date").value||wmDate(), stage, note: demo ? `${note} — ${demoText(demo).replace("🎓 ", "")}` : note, by});
+  if(demo) i.demo = demo;
   i.stage = stage;
   i.nextFollow = stage === "Lost" ? "" : $("l_next").value;
   if(stage === "Lost") i.lostReason = $("l_lost").value;
@@ -6291,13 +6349,30 @@ function renderMyDash(){
   const uninf = Object.keys(att).filter(d=>empRecs(att[d], MY_TID).some(x=>x.s==="U")).sort().reverse();
   const pend = DB.tests.filter(t=>keys.includes(t.shift+"|"+t.course) && (!t.teacherId || t.teacherId===MY_TID))
     .map(t=>({t, n:testStudents(t).length, d:testMarks(t).length})).filter(x=>x.d < x.n).sort((a,b)=>String(a.t.date).localeCompare(String(b.t.date)));
+  /* v70: late — aaj late ya mahine ki 45 min se upar → upar laal patti */
+  { const t0 = todayStr(), lt = empLateMonth(MY_TID, m), todayL = empRecs(att[t0] || {}, MY_TID).filter(x=>+x.lm > 0);
+    const near = !lt.over && lt.tot >= lt.allow * .75;
+    $("mdLate").innerHTML = todayL.length || lt.over || near ? `<div class="late-alert ${lt.over ? "" : "warn"}">⏰ <div>${todayL.length ? `<b>You were late today</b> — ${todayL.map(x=>`${x.shift} shift +${x.lm} min${x.t ? ` (arrived ${fmtT(x.t)})` : ""}`).join(", ")}.<br>` : ""}
+      ${lt.over ? `<b>Late limit exceeded:</b> ${lt.tot} min this month (allowed ${lt.allow}) — <b>${lt.over} min × Rs ${lt.rate} = Rs ${lt.ded.toLocaleString("en-US")}</b> will be deducted from your salary.`
+        : `This month: ${lt.tot} of ${lt.allow} allowed late minutes used${near ? " — <b>almost at the limit</b>" : ""}.`}</div></div>` : ""; }
+  /* v70: demo classes (Inquiries → Demo Scheduled) */
+  { const t0 = todayStr(), D = DB.inquiries.filter(i=>i.demo && i.demo.teacherId===MY_TID).sort((a,b)=>(a.demo.date+(a.demo.time||"")).localeCompare(b.demo.date+(b.demo.time||"")));
+    const up = D.filter(i=>i.demo.date >= t0), past = D.filter(i=>i.demo.date < t0).reverse().slice(0, 3);
+    $("mdDemo").innerHTML = D.length ? `<div class="panel" style="margin-bottom:16px;${up.some(i=>i.demo.date===t0) ? "border:2px solid var(--ok)" : ""}"><h3>🎓 Demo classes${up.length ? ` — ${up.length} upcoming` : ""}</h3>
+      <p class="sub" style="margin:4px 0 10px">New students the office has booked for a demo class with you.</p>
+      <div class="tbl-wrap"><table><thead><tr><th>When</th><th>Student</th><th>Class</th><th>Subject</th><th>Status</th></tr></thead><tbody>
+      ${up.concat(past).map(i=>{ const td = i.demo.date === t0, ps = i.demo.date < t0;
+        return `<tr${td ? ' style="background:#e8f7f0"' : ps ? ' style="opacity:.6"' : ""}><td><b>${td ? "Today" : fmtD(i.demo.date)}</b> ${i.demo.time ? fmtT(i.demo.time) : ""}${td ? ` <span class="badge b-paid">Today</span>` : ""}</td>
+          <td><b>${esc(i.name)}</b></td><td>${esc(i.course||"—")}${i.shift ? ` · ${esc(i.shift)}` : ""}${i.mode === "Online" ? " · 🌐 Online" : ""}</td><td>${esc(i.demo.subject||"—")}</td>
+          <td>${i.stage === "Converted" ? `<span class="badge b-paid">Admitted ✓</span>` : i.stage === "Lost" ? `<span class="badge b-left">Not joined</span>` : ps ? `<span class="sub">done</span>` : `<span class="badge b-freeze">Scheduled</span>`}</td></tr>`; }).join("")}
+      </tbody></table></div></div>` : ""; }
   $("mdTitle").textContent = `Welcome, ${me.name || "Teacher"}`;
   $("mdSub").textContent = `${new Date().toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long",year:"numeric"})}${me.online ? " · 🟢 Online teacher" : ""}`;
   $("mdCards").innerHTML = `
     <div class="card"><div class="k">My classes</div><div class="v">${keys.length}</div><div class="hint">${keys.map(k=>k.split("|").reverse().join(" · ")).join(", ") || "Ask the admin to assign"}</div></div>
     <div class="card"><div class="k">My students</div><div class="v">${people.length}</div><div class="hint">${fmtM(m)} · Morning: whole class · Evening: your subject only${people.length < stus.length ? ` · ${stus.length - people.length} repeated counted once` : ""}${wholeCls.length && SERVER ? `<br><span style="color:var(--danger)">Subject not set for ${wholeCls.map(k=>k.split("|").reverse().join(" · ")).join(", ")} — whole class counted. Ask the admin to set your subject (Employees → Edit → Assign).</span>` : ""}</div></div>
     <div class="card"><div class="k">Today's classes</div><div class="v">${todays.length}</div><div class="hint">${todays.length ? todays.map(a=>`${fmtT(a.from)} ${a.course}`).join(", ") : "No class times set for today"}</div></div>
-    <div class="card"><div class="k">My attendance (${fmtM(m)})</div><div class="v ${pct >= 90 || !marked ? "green" : "red"}">${marked ? pct + "%" : "—"}</div><div class="hint">${c.P} present · ${c.L} late · ${c.A} absent · ${c.E} informed leave · ${c.U} uninformed · leaves ${empLeaveDays(MY_TID, m).length}/${EMP_LEAVE_LIMIT} · late ${empLateMonth(MY_TID, m).tot}/${latePolicy().allow} min${empLateMonth(MY_TID, m).ded ? ` · <b style="color:var(--danger)">fine Rs ${empLateMonth(MY_TID, m).ded.toLocaleString("en-US")}</b>` : ""}</div></div>
+    <div class="card${empLateMonth(MY_TID, m).over ? " late-card" : ""}"><div class="k">My attendance (${fmtM(m)})</div><div class="v ${pct >= 90 || !marked ? "green" : "red"}">${marked ? pct + "%" : "—"}</div><div class="hint">${c.P} present · ${c.L} late · ${c.A} absent · ${c.E} informed leave · ${c.U} uninformed · leaves ${empLeaveDays(MY_TID, m).length}/${EMP_LEAVE_LIMIT} · late ${empLateMonth(MY_TID, m).tot}/${latePolicy().allow} min${empLateMonth(MY_TID, m).ded ? ` · <b style="color:var(--danger)">fine Rs ${empLateMonth(MY_TID, m).ded.toLocaleString("en-US")}</b>` : ""}</div></div>
     <div class="card click" onclick="document.querySelector('#nav button[data-page=tests]').click()"><div class="k">Marks pending</div><div class="v ${pend.length ? "red" : "green"}">${pend.length}</div><div class="hint">papers with incomplete marks</div></div>`;
   $("mdToday").innerHTML = todays.length ? `<b>Today:</b> ${todays.map(a=>`${fmtT(a.from)}–${fmtT(a.to)} ${esc(a.course)}${a.subject ? " (" + esc(a.subject) + ")" : ""}`).join(" · ")}` : "No class times set for today.";
   $("mdTT").innerHTML = asg.length ? `<div class="tbl-wrap"><table><thead><tr><th>Class</th><th>Shift</th><th>Subject</th><th>Days</th><th>Time</th><th style="text-align:right">Students</th></tr></thead><tbody>
@@ -6382,7 +6457,7 @@ function asgSubjSuggest(k){
   if(IS_TEACHER){ const s = mySubjMap()(k); (s||[]).forEach(x=>set.add(x)); }
   subjectsForClass(c).forEach(x=>set.add(x.name));
   DB.students.filter(st=>st.shift===sh && inClass(st, c)).forEach(st=>(st.subjects||[]).forEach(x=>{ if(!IS_TEACHER || !x.teacherId || x.teacherId===MY_TID) set.add(x.name); }));
-  return [...set].sort();
+  return dedupeSubj(set);
 }
 function asgStop(){ clearInterval(ASG.poll); ASG.poll = null; }
 
