@@ -728,6 +728,10 @@ const server = http.createServer(async (req, res) => {
           .map((r) => ({ d: r.d, chNo: r.chNo, amount: r.amount, status: r.status, note: r.note || "" }));
         return sendJson(res, 200, { fees, receipts });
       }
+      if (p === "/parent/api/student-session" && req.method === "GET") {   // v72: My Report / Assignments pages
+        asg.parentBridge(req, res, who.key, who.acc);
+        return sendJson(res, 200, { ok: true });
+      }
       if (p === "/parent/api/me" && req.method === "GET") {
         const replies = (who.db.parentMsgs || []).filter((m) => m.phone === who.key && m.reply).length;
         return sendJson(res, 200, { school: schoolName(who.db), children: kids.map(childView), menu: bot.MENU, replies });

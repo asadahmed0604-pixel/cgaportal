@@ -51,6 +51,14 @@ button{cursor:pointer}
 .kid.on{border-color:var(--green);background:var(--tint)}
 .kid.on .av{background:var(--green);color:#fff}
 
+/* ---------- v72: pages — Chat | My Report | Assignments ---------- */
+.ptabs{display:flex;gap:6px;padding:8px 10px;background:#fff;border-bottom:1px solid var(--line)}
+.ptabs button{flex:1;border:1.5px solid var(--line);background:#fff;border-radius:12px;padding:9px 4px;font-weight:700;font-size:.88rem;color:var(--muted);white-space:nowrap}
+.ptabs button.on{background:var(--navy);border-color:var(--navy);color:#fff}
+.stuframe{flex:1;width:100%;border:0;background:var(--bg);min-height:0}
+.app.page-rep .msgs,.app.page-rep .quick,.app.page-rep .compose,.app.page-rep .mode,
+.app.page-asg .msgs,.app.page-asg .quick,.app.page-asg .compose,.app.page-asg .mode{display:none!important}
+
 /* ---------- messages ---------- */
 .msgs{flex:1;overflow-y:auto;padding:16px 12px 10px;display:flex;flex-direction:column;gap:8px;
   background-color:var(--bg);background-image:radial-gradient(rgba(23,75,96,.06) 1px,transparent 1px);background-size:18px 18px}
@@ -151,10 +159,11 @@ button{cursor:pointer}
     <img src="/icons/cga-192.png" alt="">
     <div class="t"><b>{{SCHOOL}}</b><small><i></i><span id="topKid">Parents</span></small></div>
     <button type="button" class="tinst" id="tinst" style="display:none" aria-label="Install app">📲 Install</button>
-    <a href="/student" title="Assignments — log in with this same phone number and PIN">📝 Assignments</a>
     <a href="/parent/logout" onclick="return confirm('Log out of the Parents App?')">⎋ Logout</a>
   </div>
+  <div class="ptabs" id="ptabs" role="tablist"><button type="button" data-p="chat" class="on">💬 Chat</button><button type="button" data-p="rep">📊 My Report</button><button type="button" data-p="asg">📝 Assignments</button></div>
   <div class="kids" id="kids"></div>
+  <iframe id="stuFrame" class="stuframe" title="Student report" hidden></iframe>
   <div class="msgs" id="msgs" aria-live="polite"></div>
   <div class="mode" id="mode"><span>✉️ This message will go to the school — about <b id="modeKid"></b></span><button type="button" id="modeCancel">Cancel</button></div>
   <div class="quick" id="quick"></div>
@@ -263,7 +272,7 @@ function drawKids(){
   ME.children.forEach(k=>{
     const b = el("button", "kid" + (k.id === KID.id ? " on" : "")); b.type = "button";
     b.append(el("span", "av", (k.name || "?").trim().charAt(0).toUpperCase()), document.createTextNode(k.name + " "), el("small", "", k.course));
-    b.onclick = ()=>{ KID = k; drawKids(); setMode("chat"); $("msgs").appendChild(el("div", "day", `${k.name} · ${k.course}`)); ask("menu", true); };
+    b.onclick = ()=>{ KID = k; drawKids(); if(PAGE !== "chat"){ showPage(PAGE, true); return; } setMode("chat"); $("msgs").appendChild(el("div", "day", `${k.name} · ${k.course}`)); ask("menu", true); };
     box.appendChild(b);
   });
   $("topKid").textContent = `${KID.name} · ${KID.course} · ${KID.shift}`;
@@ -284,6 +293,25 @@ function setMode(m){
   $("text").placeholder = m === "message" ? "Write your message…" : "Type: attendance, test, fee…";
 }
 $("modeCancel").onclick = ()=> setMode("chat");
+
+/* v72: My Report / Assignments — student portal isi login se (server parent ka session student portal ko de deta hai) */
+let PAGE = "chat", BRIDGED = 0;
+async function showPage(p, reload){
+  PAGE = p;
+  document.querySelectorAll("#ptabs button").forEach(b=>b.classList.toggle("on", b.dataset.p === p));
+  const app = $("app"); app.classList.remove("page-rep", "page-asg"); if(p !== "chat") app.classList.add("page-" + p);
+  const fr = $("stuFrame");
+  if(p === "chat"){ fr.hidden = true; return; }
+  fr.hidden = false;
+  const src = `/student?embed=1&tab=${p}&kid=${encodeURIComponent(KID.id)}`;
+  if(!reload && fr.dataset.src === src) return;
+  try{ if(Date.now() - BRIDGED > 6 * 3600e3){ await api("/parent/api/student-session"); BRIDGED = Date.now(); } }
+  catch(err){ if(err.message === "login") return; }
+  fr.dataset.src = src; fr.src = src;
+}
+document.querySelectorAll("#ptabs button").forEach(b=>b.addEventListener("click", ()=>showPage(b.dataset.p)));
+window.addEventListener("message", e=>{ if(e.origin === location.origin && e.data && e.data.ems === "relogin" && Date.now() - RELOG > 60e3){ RELOG = Date.now(); BRIDGED = 0; showPage(PAGE, true); } });
+let RELOG = 0;
 
 async function ask(text, silent){
   const label = (ME.menu.find(m=>m.id === text) || {}).label;
