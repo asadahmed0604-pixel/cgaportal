@@ -197,6 +197,16 @@ Every teacher can now upload a paper, write their own assignments / tests, publi
 Only **✨ Generate with AI** is locked: the admin approves the teacher (Assignments → 🔐 Teacher AI access) and gives the
 6-digit code; the server refuses AI generation until the teacher enters it. The monthly limit (2 tests + 3 assignments) still applies.
 
+## Timetable & clashes (v75)
+
+- **🗓 Timetable** page (Admin / Executive), Evening (Academy) by default, Morning too: the weekly timetable from Employees →
+  Assign (classes with active students this month). Clashes are highlighted in red: a teacher booked twice, the same class
+  with two lessons at the same time that some students share (or with unknown subjects), or an Evening student whose two
+  classes overlap. Same class + same time + different subjects with no shared students is shown as a harmless parallel
+  lesson (amber). Assignments without a time are listed below.
+- Parents app / student report: only classes and subjects assigned in Employees → Assign are shown (no guessed subjects),
+  duplicates are merged and invalid times are ignored, so the timetable is always clean.
+
 ## Install as an app (v41)
 
 Staff (`/`), Teachers (`/teacher`) and Parents (`/parent`) — all three links can be installed as an app on a phone / computer
