@@ -301,16 +301,12 @@ module.exports = function setup(ctx) {
     }
 
     if (p === "/api/asg/list" && req.method === "GET") {
-      if (isT && !unlocked(auth.tid)) {
-        const t = tAcc(auth.tid);
-        return sendJson(res, 200, { locked: true, approved: !!(t && t.enabled), list: [], usage: usageView(auth.tid), limits: LIMITS });
-      }
+      /* v73: sirf "AI se banao" code ke peeche — baqi sab (upload, khud likhna, publish, marking) har teacher ke liye khula */
+      const t = isT ? tAcc(auth.tid) : null;
       const list = assignments.filter((a) => canAsg(auth, a)).map(summary).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
-      return sendJson(res, 200, { aiReady: ai.ready(), aiWhy: ai.whyNot(), list, usage: isT ? usageView(auth.tid) : null, limits: LIMITS });
+      return sendJson(res, 200, { aiReady: ai.ready(), aiWhy: ai.whyNot(), list, usage: isT ? usageView(auth.tid) : null, limits: LIMITS,
+        aiLocked: isT && !unlocked(auth.tid), approved: !isT || !!(t && t.enabled) });
     }
-
-    /* baqi sab kuch band jab tak teacher ka code nahi lagta */
-    if (isT && !unlocked(auth.tid)) return sendJson(res, 403, { error: "Assignments are locked — enter the access code from the admin.", locked: true });
 
     if (p === "/api/asg/eligible" && req.method === "GET") {
       const shift = url.searchParams.get("shift") === "Evening" ? "Evening" : "Morning", course = str(url.searchParams.get("course"), 60);
@@ -332,6 +328,8 @@ module.exports = function setup(ctx) {
       const spec = cleanSpec(body);
       if (!spec.course || !spec.subject) return sendJson(res, 400, { error: "Choose the class and subject." });
       if (!canClass(auth, db, spec.shift, spec.course)) return sendJson(res, 403, { error: "You can only make assignments for your own classes." });
+      if (p === "/api/asg/generate" && isT && !unlocked(auth.tid))
+        return sendJson(res, 403, { error: "AI generation is locked — enter the access code from the admin.", aiLocked: true });
       if (!ai.ready()) return sendJson(res, 503, { error: "AI is not switched on: " + ai.whyNot() });
       if (!slotLeft(auth, spec.kind)) return sendJson(res, 403, { error: limitMsg(spec.kind) });
       let out, files = [], scheme = [];

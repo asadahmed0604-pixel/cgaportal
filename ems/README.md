@@ -190,6 +190,12 @@ The parents' app (`/parent`) now has three pages at the top: **💬 Chat**, **�
 student portal opens inside the parents' app with the same phone + PIN (no second login). With more than one child, the
 child chips switch the report / assignments too. Evening students still have their own Reg No login at `/student`.
 
+## Assignments access (v73)
+
+Every teacher can now upload a paper, write their own assignments / tests, publish them and mark submissions without a code.
+Only **✨ Generate with AI** is locked: the admin approves the teacher (Assignments → 🔐 Teacher AI access) and gives the
+6-digit code; the server refuses AI generation until the teacher enters it. The monthly limit (2 tests + 3 assignments) still applies.
+
 ## Install as an app (v41)
 
 Staff (`/`), Teachers (`/teacher`) and Parents (`/parent`) — all three links can be installed as an app on a phone / computer

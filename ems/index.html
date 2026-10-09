@@ -823,7 +823,7 @@ label.chk input{width:auto}
   <div class="page-head">
     <div><h2>Assignments</h2><div class="sub">Make Cambridge-style assignments with AI (or upload your own paper), give them to your class with or without a timer — students' work is marked by AI the moment they submit.</div></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap" id="asgBtns">
-      <button class="btn-red" onclick="asgNew('ai')">✨ Generate with AI</button>
+      <button class="btn-red" id="asgAiBtn" onclick="asgNew('ai')">✨ Generate with AI</button>
       <button class="btn-black" onclick="asgNew('upload')">⬆ Upload paper</button>
       <button class="btn-line" onclick="asgNew('manual')">✍ Write my own</button>
     </div>
@@ -1340,7 +1340,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v72 · 9 Oct 2026";
+const BUILD = "v73 · 9 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -6604,19 +6604,12 @@ async function renderAssign(){
   const box = $("asgBody");
   box.innerHTML = `<div class="empty" style="padding:30px">Loading…</div>`;
   let d;
-  try{ d = await asgApi("/api/asg/list"); ASG.list = d.list; ASG.aiReady = d.aiReady; ASG.aiWhy = d.aiWhy; ASG.usage = d.usage; ASG.limits = d.limits; }
+  try{ d = await asgApi("/api/asg/list"); ASG.list = d.list; ASG.aiReady = d.aiReady; ASG.aiWhy = d.aiWhy; ASG.usage = d.usage; ASG.limits = d.limits; ASG.aiLocked = !!d.aiLocked; ASG.approved = d.approved !== false; }
   catch(e){ box.innerHTML = `<div class="note">${esc(e.message)}</div>`; return; }
-  $("asgBtns").style.display = d.locked ? "none" : "";
   $("asgTrack").innerHTML = d.usage ? asgTracker(d.usage) : "";
-  if(d.locked){
-    $("asgAiNote").innerHTML = ""; $("asgAccess").innerHTML = "";
-    box.innerHTML = `<div class="panel" style="max-width:460px;margin:10px auto;text-align:center"><div style="font-size:2.4rem">🔒</div><h3 style="border:0">Assignments are locked</h3>
-      ${d.approved ? `<p class="sub">Enter the 6-digit access code the admin gave you.</p>
-        <input id="asgCode" inputmode="numeric" maxlength="6" placeholder="••••••" style="font-size:1.6rem;letter-spacing:.3em;text-align:center;max-width:220px;margin:6px auto 10px;display:block" onkeydown="if(event.key==='Enter')asgUnlock()">
-        <button class="btn-red" onclick="asgUnlock()">🔓 Unlock</button>`
-      : `<p class="sub">AI assignments are given to approved teachers only. Ask the admin to approve you — they will give you an access code.</p>`}</div>`;
-    return;
-  }
+  /* v73: sirf AI generation code se khulti hai — upload / khud likhna / marking sab khula */
+  $("asgAiBtn").innerHTML = ASG.aiLocked ? "🔒 Generate with AI" : "✨ Generate with AI";
+  $("asgAiBtn").title = ASG.aiLocked ? "AI generation needs the access code from the admin" : "";
   if(!IS_TEACHER) asgAccessPanel();
   $("asgAiNote").innerHTML = ASG.aiReady ? "" : `<div class="note"><b>AI is off:</b> ${esc(ASG.aiWhy)} You can still write assignments yourself and mark them by hand.</div>`;
   const L = ASG.list;
@@ -6643,16 +6636,25 @@ async function asgRefreshTrack(){
   if(!IS_TEACHER) return;
   try{ const d = await asgApi("/api/asg/list"); ASG.usage = d.usage; if(d.usage) $("asgTrack").innerHTML = asgTracker(d.usage); }catch(e){}
 }
+function asgAiLockBox(){
+  $("asgBody").innerHTML = `<div class="panel" style="max-width:480px;margin:10px auto;text-align:center"><div style="font-size:2.4rem">🔒</div><h3 style="border:0">AI generation is locked</h3>
+    <p class="sub">You can still upload a paper, write your own assignments, publish them and mark your students' work.</p>
+    ${ASG.approved ? `<p class="sub" style="margin-top:10px">To generate with AI, enter the 6-digit access code the admin gave you.</p>
+      <input id="asgCode" inputmode="numeric" maxlength="6" placeholder="••••••" style="font-size:1.6rem;letter-spacing:.3em;text-align:center;max-width:220px;margin:6px auto 10px;display:block" onkeydown="if(event.key==='Enter')asgUnlock()">
+      <button class="btn-red" onclick="asgUnlock()">🔓 Unlock AI</button>`
+    : `<p class="sub" style="margin-top:10px">AI generation is given to approved teachers only — ask the admin to approve you; they will give you an access code.</p>`}
+    <div style="margin-top:14px"><button class="btn-line" onclick="renderAssign()">← Back to my assignments</button></div></div>`;
+}
 async function asgUnlock(){
   const code = ($("asgCode").value||"").trim();
   if(!/^\d{6}$/.test(code)){ toast("Enter the 6-digit code"); return; }
-  try{ await asgApi("/api/asg/unlock", {code}); toast("🔓 Unlocked"); renderAssign(); }catch(e){ toast(e.message); }
+  try{ await asgApi("/api/asg/unlock", {code}); toast("🔓 AI generation unlocked"); await renderAssign(); asgNew("ai"); }catch(e){ toast(e.message); }
 }
 /* v66: Admin / Executive — kaun se teachers assignments bana sakte hain */
 async function asgAccessPanel(){
   let d; try{ d = await asgApi("/api/asg/access"); }catch(e){ $("asgAccess").innerHTML = `<div class="note">${esc(e.message)}</div>`; return; }
   const st = {off:`<span class="sub">No access</span>`, code:`<span class="badge b-freeze">Code given — not entered yet</span>`, active:`<span class="badge b-paid">✓ Active</span>`};
-  $("asgAccess").innerHTML = `<details class="panel" ${d.list.some(t=>t.status !== "off") ? "" : "open"}><summary style="cursor:pointer"><b>🔐 Teacher access</b> <span class="sub">— approved teachers get a code; each can make ${d.limits.test} tests + ${d.limits.assignment} assignments a month (${esc(fmtM(d.month))})</span></summary>
+  $("asgAccess").innerHTML = `<details class="panel" ${d.list.some(t=>t.status !== "off") ? "" : "open"}><summary style="cursor:pointer"><b>🔐 Teacher AI access</b> <span class="sub">— uploading / writing assignments is open to every teacher; ✨ AI generation needs a code from here. Each teacher can make ${d.limits.test} tests + ${d.limits.assignment} assignments a month (${esc(fmtM(d.month))})</span></summary>
     <div class="tbl-wrap" style="margin-top:10px"><table><thead><tr><th>Teacher</th><th>Access</th><th>Tests</th><th>Assignments</th><th>Actions</th></tr></thead><tbody>
     ${d.list.length ? d.list.map(t=>`<tr><td><b>${esc(t.name)}</b><br><span class="sub">${t.hasLogin ? "" : "⚠ no teacher login yet"}</span></td><td>${st[t.status]}${t.setAt ? `<br><span class="sub">${fmtD(t.setAt.slice(0,10))} · ${esc(t.setBy)}</span>` : ""}</td>
       <td>${t.usage.test.used}/${t.usage.test.limit}</td><td>${t.usage.assignment.used}/${t.usage.assignment.limit}</td>
@@ -6685,6 +6687,7 @@ function asgNew(mode){
   asgStop(); ASG.view = "new";
   const keys = asgClassKeys();
   if(!keys.length){ toast(IS_TEACHER ? "No class is assigned to you — ask the admin (Employees → Edit → Assign)" : "No classes found"); return; }
+  if(mode === "ai" && IS_TEACHER && ASG.aiLocked){ asgAiLockBox(); return; }
   if(mode !== "manual" && !ASG.aiReady){ toast("AI is off on the server — use “Write my own”"); return; }
   const title = {ai:"✨ Generate an assignment with AI", upload:"⬆ Upload a question paper", manual:"✍ Write your own assignment"}[mode];
   const u = ASG.usage, left = k => !u ? 99 : u[k].limit - u[k].used;
