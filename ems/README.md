@@ -180,6 +180,7 @@ shift), so attendance, late minutes and the teacher's timetable all follow the c
   ✓ Taken / ✗ Not taken / Cancelled (cancelled is not counted), with a note (reason, substitute). **Subject-wise** view lists
   every class + subject + teacher by time; **Class-wise** groups by class with "Whole class taken / not taken" buttons.
   The list comes from Employees → Assign (days & times). Hints show if the teacher marked student attendance or was absent.
+- v74: **current month only** — only each teacher's classes from Employees → Assign, and only classes that have active students this month.
 - **📊 Monthly summary**: per teacher — scheduled, taken, not taken, cancelled, not marked, taken %, missed classes; CSV.
 - Teacher portal dashboard → **✅ Classes taken**: their own taken / not taken record for the month (the server sends only
   their own entries; teachers cannot change it).
@@ -189,6 +190,12 @@ shift), so attendance, late minutes and the teacher's timetable all follow the c
 The parents' app (`/parent`) now has three pages at the top: **💬 Chat**, **📊 My Report** and **📝 Assignments** — the
 student portal opens inside the parents' app with the same phone + PIN (no second login). With more than one child, the
 child chips switch the report / assignments too. Evening students still have their own Reg No login at `/student`.
+
+## Assignments access (v73)
+
+Every teacher can now upload a paper, write their own assignments / tests, publish them and mark submissions without a code.
+Only **✨ Generate with AI** is locked: the admin approves the teacher (Assignments → 🔐 Teacher AI access) and gives the
+6-digit code; the server refuses AI generation until the teacher enters it. The monthly limit (2 tests + 3 assignments) still applies.
 
 ## Install as an app (v41)
 
