@@ -249,7 +249,7 @@ function bindKids() {
 
 /* ------------------------------ v68: My Report (live) ------------------------------ */
 const ATT_N = { P: "Present", L: "Late", A: "Absent", E: "Leave" };
-const fmtT = (t) => { if (!t) return ""; const [h, m] = t.split(":").map(Number); return `${((h + 11) % 12) + 1}:${String(m).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`; };
+const fmtT = (t) => { const x = /^(\d{1,2}):(\d{2})$/.exec(String(t || "")); if (!x) return ""; const h = +x[1], m = +x[2]; return `${((h + 11) % 12) + 1}:${String(m).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`; };
 const span = (f, t) => f ? fmtT(f) + (t ? "–" + fmtT(t) : "") : "";
 const meter = (p) => p === null || p === undefined ? "" : `<div class="meter ${p < 60 ? "low" : p < 80 ? "mid" : ""}"><i style="width:${Math.max(3, p)}%"></i></div>`;
 async function report(quiet) {
@@ -287,7 +287,7 @@ async function report(quiet) {
     </div>
     <div class="card"><h3>🗓 My classes & teachers</h3>
       ${r.classes.length ? `<table class="rt"><thead><tr><th>Subject</th><th>Teacher</th><th>Days & time</th></tr></thead><tbody>${r.classes.map((c) => `<tr><td><b>${esc(c.subject || c.course)}</b>${c.subject ? `<div class="sub">${esc(c.course)}</div>` : ""}</td><td>${esc(c.teacher || "—")}</td>
-          <td>${c.times.length ? c.times.map((t) => `<div><b>${esc(t.day)}</b> ${esc(span(t.from, t.to)) || ""}</div>`).join("") : `<span class="sub">—</span>`}</td></tr>`).join("")}</tbody></table>` : `<p class="sub" style="margin:0">Your classes have not been set up yet.</p>`}
+          <td>${c.times.length ? c.times.map((t) => `<div><b>${esc(t.day)}</b> ${esc(span(t.from, t.to)) || ""}</div>`).join("") : `<span class="sub">Time not set yet</span>`}</td></tr>`).join("")}</tbody></table>` : `<p class="sub" style="margin:0">Your classes have not been set up yet.</p>`}
       ${order.length ? `<div class="sub" style="margin:14px 0 6px"><b>Weekly timetable</b></div><div class="tt">${order.map((d) => `<div class="day ${d === wd ? "now" : ""}"><b>${["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][d]}${d === wd ? " · today" : ""}</b>
           ${days[d].sort((x, z) => String(x.from).localeCompare(String(z.from))).map((t) => `<div class="slot"><span class="tm">${esc(span(t.from, t.to)) || "—"}</span><span>${esc(t.subject || t.course)}${t.teacher ? ` <span class="sub">· ${esc(t.teacher)}</span>` : ""}</span></div>`).join("")}</div>`).join("")}</div>` : ""}
     </div>

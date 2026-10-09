@@ -54,6 +54,13 @@ h3{font-size:1.02rem;font-weight:700}
 .dchart svg{display:block;width:100%;height:auto}
 .dchart .tip{position:absolute;pointer-events:none;background:var(--ink);color:#fff;font-size:.78rem;padding:6px 9px;border-radius:6px;white-space:nowrap;transform:translate(-50%,-100%);margin-top:-8px;display:none;z-index:3}
 .rcpt-thumb{width:34px;height:34px;object-fit:cover;border-radius:6px;border:1px solid var(--line);cursor:pointer;vertical-align:middle}
+.tt-grid{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
+.tt-day{background:var(--card,#fff);border:1px solid var(--line);border-radius:14px;padding:10px;min-width:0}
+.tt-day h4{margin:0 0 8px;font-size:.95rem;color:var(--ink)}
+.tt-slot{border:1.5px solid var(--line);border-left:4px solid var(--ok);border-radius:10px;padding:7px 9px;margin-bottom:7px;font-size:.84rem;line-height:1.35;background:#fff}
+.tt-slot b{display:block}.tt-slot .t{font-weight:700;color:var(--ink)}
+.tt-slot.clash{border-color:var(--danger);border-left-color:var(--danger);background:#FDECEA}
+.tt-slot.par{border-left-color:#E0A800;background:#FFF8E6}
 .cl-btns{display:inline-flex;gap:4px}.cl-btns button{border:1.5px solid var(--line);background:#fff;border-radius:8px;padding:5px 10px;font-weight:700;font-size:.82rem;cursor:pointer}
 .cl-btns button.on.T{background:var(--ok);border-color:var(--ok);color:#fff}.cl-btns button.on.N{background:var(--danger);border-color:var(--danger);color:#fff}.cl-btns button.on.C{background:#6b7c86;border-color:#6b7c86;color:#fff}
 tr.cl-T td{background:#eef9f3}tr.cl-N td{background:#FDECEA}tr.cl-C td{background:#f2f4f5}
@@ -469,6 +476,7 @@ label.chk input{width:auto}
     <button data-page="tests"><span class="ico">🧪</span> Tests & Marks</button>
     <button data-page="classatt"><span class="ico">🧑‍🏫</span> Class Attendance</button>
     <button data-page="classlog"><span class="ico">✅</span> Classes Taken</button>
+    <button data-page="timetable"><span class="ico">🗓</span> Timetable</button>
     <button data-page="assign"><span class="ico">✍</span> Assignments</button>
     <button data-page="audit"><span class="ico">🔍</span> Class Audit</button>
     <button data-page="employees"><span class="ico">👥</span> Employees</button>
@@ -859,6 +867,20 @@ label.chk input{width:auto}
 </section>
 
 <!-- ================= v36: CLASS ATTENDANCE (teacher, Evening) ================= -->
+<!-- ================= v75: TIMETABLE + CLASHES ================= -->
+<section class="page" id="page-timetable">
+  <div class="page-head">
+    <div><h2>Timetable</h2><div class="sub">Weekly timetable from Employees → Assign (classes with active students this month). Clashes are highlighted: the same class with two lessons at the same time that students share, a teacher booked twice, or an Evening student whose two classes overlap.</div></div>
+  </div>
+  <div class="toolbar">
+    <div class="field"><label>Shift</label><div class="mchips" id="ttShift" style="margin:0"></div></div>
+    <div class="field"><label>Class</label><select id="ttClass" onchange="renderTimetable()"></select></div>
+    <div class="field"><label>Only</label><label class="chk" style="margin-top:8px"><input type="checkbox" id="ttOnlyClash" onchange="renderTimetable()"> show clashes only</label></div>
+  </div>
+  <div id="ttClashes"></div>
+  <div id="ttGrid"></div>
+</section>
+
 <!-- ================= v71: CLASSES TAKEN ================= -->
 <section class="page" id="page-classlog">
   <div class="page-head">
@@ -1340,7 +1362,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v74 · 9 Oct 2026";
+const BUILD = "v75 · 9 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -1480,7 +1502,7 @@ const IS_TEACHER = ROLE === "teacher";               // v36: sirf apni classes k
 const MY_TID = (SERVER && SERVER.tid) || "";
 const CAN_FEES = ROLE === "exec" || ROLE === "feeadmin";   // v32: Fee / Billing sirf Executive aur Fee Admin
 const TEACHER_PAGES = ["mydash","assign","tests","classatt","homework"];
-const ALL_PAGES = ["dashboard","mydash","students","gallery","attendance","fees","homework","parents","inquiries","exams","tests","classatt","classlog","assign",
+const ALL_PAGES = ["dashboard","mydash","students","gallery","attendance","fees","homework","parents","inquiries","exams","tests","classatt","classlog","timetable","assign",
                    "audit","employees","inventory","issuance","finance","reports","biz","settings"];
 const ADMIN_HIDDEN = IS_TEACHER ? ALL_PAGES.filter(p=>!TEACHER_PAGES.includes(p))
   : ["dashboard","reports","biz"].concat(ROLE === "feeadmin" ? [] : ["finance"]).concat(CAN_FEES ? [] : ["fees"]);
@@ -1774,7 +1796,7 @@ function renderPage(p){
     fees:renderFees, homework:renderHomework, inquiries:renderInquiries, exams:renderExams,
     employees:renderEmployees, inventory:renderInventory, issuance:renderIssuance,
     finance:renderFinance, reports:renderReport, biz:renderBiz, audit:renderAudit, parents:renderParents,
-    tests:renderTests, classatt:loadClassAtt, classlog:renderClassLog, mydash:renderMyDash, assign:()=>{ if(SERVER) renderAssign(); },
+    tests:renderTests, classatt:loadClassAtt, classlog:renderClassLog, timetable:renderTimetable, mydash:renderMyDash, assign:()=>{ if(SERVER) renderAssign(); },
     settings:loadSettings}[p]||(()=>{}))();
 }
 
@@ -2112,6 +2134,71 @@ function drawTopStudents(){
   $("tsBest").innerHTML = best.length ? best.map((r,i)=>row(r,i,true)).join("") : `<tr><td class="empty">No marks or attendance yet for ${fmtM(m)}</td></tr>`;
   $("tsWorst").innerHTML = worst.length ? worst.map((r,i)=>row(r,i,false)).join("") : `<tr><td class="empty">Not enough students to compare</td></tr>`;
 }
+/* ================= v75: TIMETABLE + CLASHES =================
+   Har assignment (Employees → Assign) ke har din ka slot. Do slots ek waqt pe (overlap) hon to:
+   • wohi teacher → clash  • wohi class: jo bache dono subject lete hon (ya subject maloom na ho) → clash, warna "parallel" (alag bache)
+   • alag classes: Evening bacha jo dono classes (course + course2) mein dono subject le → clash */
+let TT = {shift:"Evening"};
+const ttMin = t => { const x = /^(\d{1,2}):(\d{2})$/.exec(String(t||"")); return x ? +x[1]*60 + +x[2] : null; };
+function ttSlots(shift){
+  const live = clLiveClasses(thisMonth()), out = [];
+  DB.employees.forEach(e=>(e.assignments||[]).forEach(a=>{
+    if(a.shift !== shift || !live.has(a.shift+"|"+a.course)) return;
+    asgDays(a).forEach(d=>{ const sl = slotOf(a, d); const f = sl && ttMin(sl.from); if(f === null || f === undefined) return;
+      let t = ttMin(sl.to); if(t === null || t <= f) t = f + 60;                // khatam ka waqt na ho to 1 ghanta
+      out.push({id:out.length, d, f, t, from:sl.from, to:sl.to||"", course:a.course, subject:a.subject||"", tid:e.id, teacher:e.name, clash:[], par:[]}); }); }));
+  return out;
+}
+function ttStudents(shift, course, subject){
+  const m = thisMonth(), RM = rosterMonths();
+  return DB.students.filter(st=>st.shift===shift && activeIn(st, m, RM) && inClass(st, course) &&
+    (!subject || !(st.subjects||[]).length || (st.subjects||[]).some(x=>subjLike(x.name, subject))));
+}
+function ttClashes(shift){
+  const S = ttSlots(shift), list = [], cache = new Map();
+  const stu = (c, sub) => { const k = c+"|"+keyify(sub); if(!cache.has(k)) cache.set(k, new Set(ttStudents(shift, c, sub).map(st=>st.id))); return cache.get(k); };
+  for(let i = 0; i < S.length; i++) for(let j = i + 1; j < S.length; j++){
+    const a = S[i], b = S[j];
+    if(a.d !== b.d || !(a.f < b.t && b.f < a.t)) continue;
+    let kind = "", n = 0, why = "";
+    if(a.tid === b.tid){ kind = "clash"; why = `${a.teacher} is booked in two classes at once`; }
+    else if(a.course === b.course){
+      if(!a.subject || !b.subject || keyify(a.subject) === keyify(b.subject)){ kind = "clash"; why = `${a.course} has two lessons at the same time`; }
+      else { const A = stu(a.course, a.subject), B = stu(b.course, b.subject); n = [...A].filter(x=>B.has(x)).length;
+        kind = n ? "clash" : "par"; why = n ? `${n} student${n>1?"s":""} of ${a.course} take both ${a.subject} and ${b.subject}` : `parallel lessons — no student takes both subjects`; }
+    } else if(shift === "Evening"){
+      const A = stu(a.course, a.subject), B = stu(b.course, b.subject); n = [...A].filter(x=>B.has(x)).length;
+      if(n){ kind = "clash"; why = `${n} student${n>1?"s":""} are in both ${a.course} and ${b.course}`; }
+    }
+    if(!kind) continue;
+    a[kind].push(b.id); b[kind].push(a.id);
+    list.push({kind, a, b, why});
+  }
+  return {S, list};
+}
+function renderTimetable(){
+  $("ttShift").innerHTML = ["Evening","Morning"].map(x=>`<button class="${TT.shift===x?"on":""}" onclick="TT.shift='${x}';$('ttClass').value='';renderTimetable()">${x==="Morning"?"🌅":"🌆"} ${x}${x==="Evening"?" — Academy":""}</button>`).join("");
+  const {S, list} = ttClashes(TT.shift), cs = $("ttClass"), cv = cs.value;
+  const classes = [...new Set(S.map(x=>x.course))].sort(classSort);
+  cs.innerHTML = `<option value="">All classes</option>` + classes.map(c=>`<option ${c===cv?"selected":""}>${esc(c)}</option>`).join("");
+  const fc = cs.value, only = $("ttOnlyClash").checked;
+  const hard = list.filter(x=>x.kind==="clash"), soft = list.filter(x=>x.kind==="par");
+  const show = x => (!fc || x.a.course===fc || x.b.course===fc);
+  const lbl = x => `${WEEK[x.d]} ${fmtT(x.from)}${x.to ? "–" + fmtT(x.to) : ""} · <b>${esc(x.course)}</b>${x.subject ? " " + esc(x.subject) : ""} · ${esc(x.teacher)}`;
+  const H = hard.filter(show), P = soft.filter(show);
+  $("ttClashes").innerHTML = (H.length ? `<div class="late-alert"><div>⚠</div><div><b>${H.length} clash${H.length>1?"es":""} in the ${esc(TT.shift)} timetable</b><br>${H.map(x=>`• ${lbl(x.a)} <b>↔</b> ${lbl(x.b)} — <i>${esc(x.why)}</i>`).join("<br>")}</div></div>`
+      : `<div class="note" style="margin-bottom:14px">✓ No clashes in the ${esc(TT.shift)} timetable${fc ? " for " + esc(fc) : ""}.</div>`)
+    + (P.length ? `<div class="late-alert warn"><div>ℹ</div><div><b>${P.length} parallel lesson${P.length>1?"s":""}</b> (same class, same time, different subjects — no student takes both, so this is fine)<br>${P.map(x=>`• ${lbl(x.a)} ∥ ${lbl(x.b)}`).join("<br>")}</div></div>` : "");
+  const days = [1,2,3,4,5,6,0].filter(d=>S.some(x=>x.d===d));
+  const L = S.filter(x=>(!fc || x.course===fc) && (!only || x.clash.length || x.par.length));
+  const noTime = DB.employees.flatMap(e=>(e.assignments||[]).filter(a=>a.shift===TT.shift && !a.from && !(a.slots && Object.keys(a.slots).length) && (!fc || a.course===fc)).map(a=>`${esc(a.course)}${a.subject?" "+esc(a.subject):""} (${esc(e.name)})`));
+  $("ttGrid").innerHTML = (days.length ? `<div class="tt-grid">${days.map(d=>{ const D = L.filter(x=>x.d===d).sort((a,b)=>a.f-b.f || a.course.localeCompare(b.course));
+      return `<div class="tt-day"><h4>${["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][d]} <span class="sub">· ${D.length}</span></h4>${D.length ? D.map(x=>`<div class="tt-slot ${x.clash.length ? "clash" : x.par.length ? "par" : ""}" title="${x.clash.length ? "Clash" : x.par.length ? "Parallel lesson" : ""}">
+        <span class="t">${fmtT(x.from)}${x.to ? "–" + fmtT(x.to) : ""}${x.clash.length ? " ⚠" : ""}</span><b>${esc(x.course)}${x.subject ? " · " + esc(x.subject) : ""}</b><span class="sub">${esc(x.teacher)}</span></div>`).join("") : `<span class="sub">—</span>`}</div>`; }).join("")}</div>`
+    : `<div class="empty" style="padding:20px">No ${esc(TT.shift)} class times set — add days & times in Employees → Edit → Assign.</div>`)
+    + (noTime.length ? `<p class="sub" style="margin-top:12px"><b>No time set (not in the timetable):</b> ${noTime.join(", ")}</p>` : "");
+}
+
 /* ================= v71: CLASSES TAKEN =================
    DB.classLog[date][key] = {s:"T"|"N"|"C", note, by, at}; key = shift|class|subjectKey|teacherId.
    Din ki list = jin assignments (Employees → Assign) ke din mein ye weekday ho. T = li, N = nahi li, C = cancel/chhutti (ginti mein nahi). */

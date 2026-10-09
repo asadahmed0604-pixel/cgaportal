@@ -8,6 +8,7 @@ const subjLike = (a, b) => { const x = keyOf(a), y = keyOf(b); return !!x && !!y
 const classesOf = (st) => [st.course, st.shift === "Evening" ? st.course2 : ""].filter(Boolean);
 const asgDays = (a) => (a.dayList && a.dayList.length ? a.dayList : DAY_SET[a.days] || (a.from ? DAY_SET["Mon–Fri"] : []));
 const slotOf = (a, wd) => (!asgDays(a).includes(wd) ? null : a.slots && a.slots[wd] ? a.slots[wd] : a.from ? { from: a.from, to: a.to || "" } : null);
+const okT = (t) => /^([01]?\d|2[0-3]):[0-5]\d$/.test(String(t || ""));        // "HH:MM" — ghalat waqt timetable mein nahi
 const pct = (n, d) => (d ? Math.round((n * 100) / d) : null);
 const ATT_KEYS = ["P", "L", "A", "E"];
 
@@ -22,7 +23,6 @@ function attCount(att, sid, dates) {
 /* Bache ki classes: Employees → Assign (shift + class + subject + din/waqt) aur student ke subject par laga teacher */
 function classesFor(db, st) {
   const emps = db.employees || [], cls = classesOf(st), mine = (st.subjects || []).filter((x) => x && x.name);
-  const empName = (id) => ((emps.find((e) => e.id === id) || {}).name || "");
   const out = [];
   emps.forEach((e) => (e.assignments || []).forEach((a) => {
     if (a.shift !== st.shift || !cls.includes(a.course)) return;
@@ -33,18 +33,15 @@ function classesFor(db, st) {
     /* is subject ka teacher student par koi aur laga ho to ye class us bache ki nahi */
     const own = a.subject && mine.find((x) => subjLike(x.name, a.subject));
     if (own && own.teacherId && own.teacherId !== e.id) return;
-    const times = [1, 2, 3, 4, 5, 6, 0].map((d) => { const s = slotOf(a, d); return s ? { d, day: WEEK[d], from: s.from || "", to: s.to || "" } : null; }).filter(Boolean);
+    const times = [1, 2, 3, 4, 5, 6, 0].map((d) => { const s = slotOf(a, d); return s && okT(s.from) ? { d, day: WEEK[d], from: s.from, to: okT(s.to) ? s.to : "" } : null; }).filter(Boolean);
+    /* v75: wohi class + subject + teacher do dafa assign ho to aik hi row (din / waqt jor kar) */
+    const same = out.find((c) => c.course === a.course && keyOf(c.subject) === keyOf(subject) && c.teacherId === e.id);
+    if (same) { times.forEach((t) => { if (!same.times.some((x) => x.d === t.d && x.from === t.from)) same.times.push(t); }); same.times.sort((x, y) => ((x.d + 6) % 7) - ((y.d + 6) % 7) || x.from.localeCompare(y.from)); return; }
     out.push({ subject, course: a.course, teacher: e.name || "", teacherId: e.id, times });
   }));
-  const setT = (db.settings || {}).subjTeacher || {};
-  mine.forEach((x) => {
-    if (out.some((c) => c.subject && subjLike(c.subject, x.name))) return;
-    let tid = x.teacherId || "";
-    if (!tid) cls.some((c) => { const t = setT[`${st.shift}|${c}|${keyOf(x.name)}`]; if (t) tid = t; return !!t; });
-    out.push({ subject: x.name, course: st.course, teacher: empName(tid), teacherId: tid, times: [] });
-  });
+  /* v75: sirf Employees → Assign wali classes / subjects — bina assignment ke subject (teacher / waqt maloom nahi) nahi dikhaye jate */
   return out.map(({ teacherId, ...c }) => c)
-    .sort((a, b) => (a.times.length ? 0 : 1) - (b.times.length ? 0 : 1) || a.subject.localeCompare(b.subject));
+    .sort((a, b) => (a.times.length ? 0 : 1) - (b.times.length ? 0 : 1) || a.subject.localeCompare(b.subject) || a.course.localeCompare(b.course));
 }
 
 const mine = (st) => (st.subjects || []).filter((x) => x && x.name);
