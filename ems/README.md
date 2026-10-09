@@ -180,6 +180,7 @@ shift), so attendance, late minutes and the teacher's timetable all follow the c
   ✓ Taken / ✗ Not taken / Cancelled (cancelled is not counted), with a note (reason, substitute). **Subject-wise** view lists
   every class + subject + teacher by time; **Class-wise** groups by class with "Whole class taken / not taken" buttons.
   The list comes from Employees → Assign (days & times). Hints show if the teacher marked student attendance or was absent.
+- v74: **current month only** — only each teacher's classes from Employees → Assign, and only classes that have active students this month.
 - **📊 Monthly summary**: per teacher — scheduled, taken, not taken, cancelled, not marked, taken %, missed classes; CSV.
 - Teacher portal dashboard → **✅ Classes taken**: their own taken / not taken record for the month (the server sends only
   their own entries; teachers cannot change it).

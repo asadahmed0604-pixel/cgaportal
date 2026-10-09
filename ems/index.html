@@ -862,7 +862,7 @@ label.chk input{width:auto}
 <!-- ================= v71: CLASSES TAKEN ================= -->
 <section class="page" id="page-classlog">
   <div class="page-head">
-    <div><h2>Classes Taken</h2><div class="sub">Mark whether each scheduled class was taken — subject-wise or class-wise, Morning and Evening separately. Teachers see their own record on their portal.</div></div>
+    <div><h2>Classes Taken</h2><div class="sub">Current month only · each teacher's classes from Employees → Assign (classes with active students this month). Mark taken / not taken — subject-wise or class-wise, Morning and Evening separately. Teachers see their own record on their portal.</div></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn-black" onclick="openClassLogMonth()">📊 Monthly summary</button></div>
   </div>
   <div class="toolbar">
@@ -1340,7 +1340,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v73 · 9 Oct 2026";
+const BUILD = "v74 · 9 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -2118,17 +2118,25 @@ function drawTopStudents(){
 const CL_LABEL = {T:"Taken", N:"Not taken", C:"Cancelled"};
 let CL = {shift:"Morning", view:"subject"};
 const clKey = (shift, course, subject, tid) => `${shift}|${course}|${keyify(subject||"")}|${tid}`;
+/* v74: sirf Employees → Assign wali classes, aur sirf wo jin mein is mahine active students hon; sirf current month */
+const CL_LIVE = {m:"", n:0, set:null};
+function clLiveClasses(m){
+  if(CL_LIVE.m === m && CL_LIVE.n === DB.students.length && CL_LIVE.set) return CL_LIVE.set;
+  const RM = rosterMonths(), set = new Set();
+  DB.students.forEach(st=>{ if(activeIn(st, m, RM)) classesOf(st).forEach(c=>set.add(st.shift + "|" + c)); });
+  Object.assign(CL_LIVE, {m, n:DB.students.length, set});
+  return set;
+}
 function clRowsFor(date, shift, tidOnly){
   const wd = new Date(date + "T00:00").getDay(), rows = [], seen = new Set(), day = (DB.classLog||{})[date] || {};
+  if(date.slice(0,7) !== thisMonth()) return rows;
+  const live = clLiveClasses(date.slice(0,7));
   DB.employees.forEach(e=>(e.assignments||[]).forEach(a=>{
-    if(a.shift !== shift || (tidOnly && e.id !== tidOnly) || !asgDays(a).includes(wd)) return;
+    if(a.shift !== shift || (tidOnly && e.id !== tidOnly) || !asgDays(a).includes(wd) || !live.has(a.shift + "|" + a.course)) return;
     const k = clKey(a.shift, a.course, a.subject, e.id); if(seen.has(k)) return; seen.add(k);
     const sl = slotOf(a, wd) || {};
     rows.push({k, tid:e.id, teacher:e.name, course:a.course, subject:a.subject||"", from:sl.from||"", to:sl.to||"", rec:day[k]||null});
   }));
-  /* jo pehle mark hua tha magar ab schedule mein nahi — wo bhi dikhe */
-  Object.keys(day).forEach(k=>{ if(seen.has(k)) return; const [sh, c, sk, tid] = k.split("|"); if(sh !== shift || (tidOnly && tid !== tidOnly)) return;
-    rows.push({k, tid, teacher:teacherName(tid), course:c, subject:sk, from:"", to:"", rec:day[k], extra:true}); });
   return rows.sort((a,b)=>(a.from||"99").localeCompare(b.from||"99") || a.course.localeCompare(b.course) || a.subject.localeCompare(b.subject));
 }
 /* hint: teacher ne class attendance lagayi → shayad li; teacher aaj absent / leave → shayad nahi li */
@@ -2138,11 +2146,13 @@ function clHint(r, date){
   return [ca ? "👥 student attendance marked" : "", ea ? (["A","E","U"].includes(ea.s) ? `<span style="color:var(--danger)">teacher ${EMP_ATT_LABEL[ea.s]||ea.s}</span>` : ea.s === "L" ? `teacher late +${ea.lm||0} min` : "teacher present") : ""].filter(Boolean).join(" · ");
 }
 function renderClassLog(){
-  if(!$("clDate").value) $("clDate").value = todayStr();
-  const date = $("clDate").value;
+  const m0 = thisMonth(), dI = $("clDate");
+  dI.min = m0 + "-01"; dI.max = todayStr();
+  if(!dI.value || dI.value.slice(0,7) !== m0 || dI.value > todayStr()) dI.value = todayStr();
+  const date = dI.value;
   $("clShift").innerHTML = ["Morning","Evening"].map(x=>`<button class="${CL.shift===x?"on":""}" onclick="CL.shift='${x}';renderClassLog()">${x==="Morning"?"🌅":"🌆"} ${x}</button>`).join("");
   $("clView").innerHTML = [["subject","Subject-wise"],["class","Class-wise"]].map(([k,l])=>`<button class="${CL.view===k?"on":""}" onclick="CL.view='${k}';renderClassLog()">${l}</button>`).join("");
-  const ts = $("clTeacher"), tv = ts.value, T = DB.employees.filter(e=>(e.assignments||[]).some(a=>a.shift===CL.shift)).sort((a,b)=>a.name.localeCompare(b.name));
+  const ts = $("clTeacher"), tv = ts.value, live = clLiveClasses(thisMonth()), T = DB.employees.filter(e=>(e.assignments||[]).some(a=>a.shift===CL.shift && live.has(a.shift+"|"+a.course))).sort((a,b)=>a.name.localeCompare(b.name));
   ts.innerHTML = `<option value="">All teachers</option>` + T.map(e=>`<option value="${e.id}" ${e.id===tv?"selected":""}>${esc(e.name)}</option>`).join("");
   const rows = clRowsFor(date, CL.shift, ts.value), c = {T:0,N:0,C:0,U:0};
   rows.forEach(r=>c[r.rec ? r.rec.s : "U"]++);
@@ -2189,14 +2199,14 @@ function classLogMonth(m, tidOnly){
 }
 function openClassLogMonth(){
   openModal(`<h3>📊 Classes taken — monthly summary</h3>
-    <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:10px"><div class="field" style="margin:0"><label>Month</label><input type="month" id="clm_m" value="${wm()}" onchange="drawClassLogMonth()"></div>
+    <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:10px"><div class="field" style="margin:0"><label>Month</label><input type="month" id="clm_m" value="${thisMonth()}" disabled></div>
       <button class="btn-line btn-sm" onclick="classLogCSV()">⬇ CSV</button></div>
     <div class="tbl-wrap" style="max-height:60vh;overflow:auto"><table><thead><tr><th>Teacher</th><th style="text-align:right">Scheduled</th><th style="text-align:right">Taken</th><th style="text-align:right">Not taken</th><th style="text-align:right">Cancelled</th><th style="text-align:right">Not marked</th><th style="text-align:right">Taken %</th><th>Missed classes</th></tr></thead><tbody id="clm_rows"></tbody></table></div>
     <div class="modal-foot"><button class="btn-line" onclick="closeModal()">Close</button></div>`, true);
   drawClassLogMonth();
 }
 function drawClassLogMonth(){
-  const m = $("clm_m").value || wm(), L = classLogMonth(m);
+  const m = thisMonth(), L = classLogMonth(m);
   $("clm_rows").innerHTML = L.length ? L.map(o=>{ const den = o.T + o.N, p = den ? Math.round(o.T*100/den) : null;
     return `<tr${o.N ? ' class="late-row"' : ""}><td><b>${esc(o.name)}</b></td><td style="text-align:right">${o.sch}</td><td style="text-align:right">${o.T}</td><td style="text-align:right">${o.N ? `<b style="color:var(--danger)">${o.N}</b>` : "—"}</td>
       <td style="text-align:right">${o.C || "—"}</td><td style="text-align:right">${o.U || "—"}</td><td style="text-align:right">${p === null ? "—" : `<span class="badge ${p>=90?"b-paid":p>=75?"b-freeze":"b-left"}">${p}%</span>`}</td>
@@ -2204,7 +2214,7 @@ function drawClassLogMonth(){
     : `<tr><td colspan="8" class="empty">No scheduled classes in ${fmtM(m)}</td></tr>`;
 }
 function classLogCSV(){
-  const m = $("clm_m").value || wm();
+  const m = thisMonth();
   downloadCSV(`Classes taken ${fmtM(m)}.csv`, [["Date","Shift","Class","Subject","Teacher","Time","Status","Note","Marked by"],
     ...classLogMonth(m).flatMap(o=>o.list.map(x=>[x.d, x.shift, x.course, x.subject, o.name, x.from ? fmtT(x.from) : "", x.rec ? CL_LABEL[x.rec.s] : "Not marked", (x.rec||{}).note||"", (x.rec||{}).by||""]))]);
 }
@@ -6502,7 +6512,7 @@ function renderMyDash(){
           <td><b>${esc(i.name)}</b></td><td>${esc(i.course||"—")}${i.shift ? ` · ${esc(i.shift)}` : ""}${i.mode === "Online" ? " · 🌐 Online" : ""}</td><td>${esc(i.demo.subject||"—")}</td>
           <td>${i.stage === "Converted" ? `<span class="badge b-paid">Admitted ✓</span>` : i.stage === "Lost" ? `<span class="badge b-left">Not joined</span>` : ps ? `<span class="sub">done</span>` : `<span class="badge b-freeze">Scheduled</span>`}</td></tr>`; }).join("")}
       </tbody></table></div></div>` : ""; }
-  drawMyClassLog(m);
+  drawMyClassLog(thisMonth());
   $("mdTitle").textContent = `Welcome, ${me.name || "Teacher"}`;
   $("mdSub").textContent = `${new Date().toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long",year:"numeric"})}${me.online ? " · 🟢 Online teacher" : ""}`;
   $("mdCards").innerHTML = `
