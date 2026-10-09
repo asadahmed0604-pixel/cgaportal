@@ -218,6 +218,15 @@ In the Evening (Academy) O1 and O2 are one class, **O1/O2** (Morning keeps O1 an
 classes-taken entry and Evening challan is moved to O1/O2 once (old class kept in `prevClass`). Imports that say O1 or O2
 for an Evening student go to O1/O2.
 
+## Teacher login fixes (v78)
+
+- Wrong attempts now lock only **that Login ID** (6 tries → 15 minutes), not the whole academy Wi-Fi. Staff password
+  mistakes no longer block teachers (40 teacher failures from one IP is the safety limit).
+- Clear messages: unknown Login ID / wrong password / login switched off (employee not in the Teacher category).
+  Login ID is case- and space-insensitive; a trailing space after the password is accepted.
+- Settings → 🔐 Logins → Teacher logins shows each teacher's **last login** and failed attempts since (Executive), and
+  warns about logins that cannot work because the employee is not set as a Teacher.
+
 ## Install as an app (v41)
 
 Staff (`/`), Teachers (`/teacher`) and Parents (`/parent`) — all three links can be installed as an app on a phone / computer
