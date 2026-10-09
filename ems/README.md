@@ -227,6 +227,14 @@ for an Evening student go to O1/O2.
 - Settings → 🔐 Logins → Teacher logins shows each teacher's **last login** and failed attempts since (Executive), and
   warns about logins that cannot work because the employee is not set as a Teacher.
 
+## Teacher shift & online teaching (v79)
+
+- A teacher gets only classes of **their own shift**: an Evening teacher never sees Morning classes (even if a Morning
+  student's subject or an old assignment names them), and a Morning teacher never sees Evening ones. **Both** and
+  **Online** see both. Enforced on the server (teacherClasses / teacherSubjects) and in the app.
+- Employees → Shift has **Online**, and a new **Teaching** field: Onsite / Online / **Onsite + Online**
+  (replaces the old "Takes online classes" tick; the Employees filter "Online" lists everyone who teaches online).
+
 ## Install as an app (v41)
 
 Staff (`/`), Teachers (`/teacher`) and Parents (`/parent`) — all three links can be installed as an app on a phone / computer

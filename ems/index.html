@@ -1024,7 +1024,7 @@ label.chk input{width:auto}
   </div>
   <div class="toolbar">
     <div class="field"><label>Category</label><select id="empFCat" onchange="renderEmployees()"><option value="">All</option><option>Admin</option><option>Teacher</option><option>Coordinator</option><option>Supportive Staff</option></select></div>
-    <div class="field"><label>Shift</label><select id="empFShift" onchange="renderEmployees()"><option value="">All Shifts</option><option>Morning</option><option>Evening</option><option>Both</option></select></div>
+    <div class="field"><label>Shift</label><select id="empFShift" onchange="renderEmployees()"><option value="">All Shifts</option><option>Morning</option><option>Evening</option><option>Both</option><option value="Online">Online (incl. onsite + online)</option></select></div>
     <div class="field" style="flex:1;min-width:170px"><label>Search</label><input id="empSearch" placeholder="Name" oninput="renderEmployees()"></div>
   </div>
   <div class="tbl-wrap"><table>
@@ -1363,7 +1363,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v78 · 9 Oct 2026";
+const BUILD = "v79 · 9 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -5567,9 +5567,9 @@ function delExam(id){
    Exams page, report cards, class result aur parents chat sab khud utha lete hain. Har bache ka remark zaroori. */
 const subjLike = (a, b) => { const x = keyify(a), y = keyify(b); return !!x && !!y && (x === y || x.includes(y) || y.includes(x)); };
 function myClassKeys(){                       // teacher ki classes: "Shift|Class"
-  const me = empById(MY_TID) || {};
-  const set = new Set((me.assignments||[]).map(a=>a.shift+"|"+a.course));
-  DB.students.forEach(st=>(st.subjects||[]).forEach(x=>{ if(x.teacherId===MY_TID) classesOf(st).forEach(c=>set.add(st.shift+"|"+c)); }));
+  const me = empById(MY_TID) || {}, ok = teachShifts(me);          // v79: sirf apni shift ki classes
+  const set = new Set((me.assignments||[]).filter(a=>ok.includes(a.shift)).map(a=>a.shift+"|"+a.course));
+  DB.students.forEach(st=>{ if(!ok.includes(st.shift)) return; (st.subjects||[]).forEach(x=>{ if(x.teacherId===MY_TID) classesOf(st).forEach(c=>set.add(st.shift+"|"+c)); }); });
   return set;
 }
 /* v60: teacher ke bache — Morning class = poori class khud; Evening = usi class ke sirf wo bache jin ke subjects
@@ -6586,7 +6586,7 @@ function renderMyDash(){
   /* Evening class jis ka subject maloom nahi — poori class ginti mein (admin subject set kare) */
   const wholeCls = keys.filter(k=>k.startsWith("Evening|") && !subjOf(k));
   const today0 = new Date().getDay();
-  const asg = (me.assignments||[]).slice().sort((a,b)=>((slotOf(a,today0)||a).from||"99").localeCompare((slotOf(b,today0)||b).from||"99") || a.course.localeCompare(b.course));
+  const asg = (me.assignments||[]).filter(a=>teachShifts(me).includes(a.shift)).sort((a,b)=>((slotOf(a,today0)||a).from||"99").localeCompare((slotOf(b,today0)||b).from||"99") || a.course.localeCompare(b.course));
   const today = new Date().getDay(), nowT = new Date().toTimeString().slice(0,5);
   const forAsg = a => stus.filter(st=>st.shift===a.shift && inClass(st, a.course)
     && (a.shift === "Morning" || (a.subject ? (st.subjects||[]).some(x=>x.teacherId ? x.teacherId===MY_TID : subjLike(x.name, a.subject)) : teachesStu(st, a.shift+"|"+a.course, subjOf))));
@@ -7469,7 +7469,8 @@ function renderEmployees(){
   const q = ($("empSearch") ? $("empSearch").value : "").toLowerCase();
   const rows = DB.employees.filter(e=>{
     if(fc && e.category !== fc) return false;
-    if(fs && e.shift !== fs && e.shift !== "Both") return false;
+    if(fs === "Online"){ if(teachMode(e) === "Onsite") return false; }
+    else if(fs && e.shift !== fs && e.shift !== "Both") return false;
     if(q && !String(e.name||"").toLowerCase().includes(q)) return false;
     return true;
   }).sort((a,b)=>a.name.localeCompare(b.name));
@@ -7479,7 +7480,7 @@ function renderEmployees(){
       <td>${avatarHTML(e)}</td>
       <td><b>${esc(e.name)}</b>${e.category==="Teacher" ? `<br><button class="btn-sm ${e.online?"btn-black":"btn-line"}" style="margin-top:4px" onclick="toggleOnline('${e.id}')" title="Takes online classes?">${e.online?`<span class="online-dot"></span>Online`:"Online?"}</button>` : ""}</td>
       <td><span class="badge ${e.category==="Teacher"?"b-active":"b-freeze"}">${e.category}</span></td>
-      <td><span class="chip">${esc(e.shift||"Morning")}</span>${e.schedule && Object.keys(e.schedule).length ? `<br><span class="sub" style="font-size:.7rem">${esc(schedText(e))}</span>` : ""}</td>
+      <td><span class="chip">${esc(e.shift||"Morning")}</span>${teachLabel(e) && e.shift !== "Online" ? ` <span class="chip">🟢 ${esc(teachLabel(e))}</span>` : ""}${e.schedule && Object.keys(e.schedule).length ? `<br><span class="sub" style="font-size:.7rem">${esc(schedText(e))}</span>` : ""}</td>
       <td>${esc(e.phone||"—")}</td>
       <td>${fmtD(e.doj)}</td>
       <td>${(e.assignments||[]).map(a=>`<span class="chip">${esc(asgLabel(a))}</span>`).join(" ")||"—"}</td>
@@ -7494,7 +7495,17 @@ function renderEmployees(){
 
 /* ---------- Staff / Employee Attendance ---------- */
 /* v56: record = {Morning:{s,t}, Evening:{s,t}} — purana record {s,t} employee ki apni shift (Both = Morning) ka maana jata hai */
-const empShiftsOf = e => e && e.shift === "Both" ? ["Morning","Evening"] : [e && e.shift === "Evening" ? "Evening" : "Morning"];
+/* v79: Online shift + parhane ka tareeqa (Onsite / Online / Onsite + Online) */
+const TEACH_MODES = [["Onsite","🏫 Onsite"],["Online","🟢 Online"],["Both","🏫 + 🟢 Onsite + Online"]];
+const teachMode = e => !e ? "Onsite" : e.shift === "Online" ? "Online" : (e.teach || (e.online ? "Both" : "Onsite"));
+const teachLabel = e => ({Onsite:"", Online:"Online", Both:"Onsite + Online"})[teachMode(e)];
+/* teacher kis shift ki classes le sakta hai — Evening teacher ko Morning ki classes kabhi nahi (aur ulta) */
+const teachShifts = e => !e || !e.shift ? ["Morning","Evening"] : e.shift === "Morning" ? ["Morning"] : e.shift === "Evening" ? ["Evening"] : ["Morning","Evening"];
+function empShiftsOf(e){
+  if(e && e.shift === "Both") return ["Morning","Evening"];
+  if(e && e.shift === "Online"){ const sh = ["Morning","Evening"].filter(x=>(e.assignments||[]).some(a=>a.shift === x)); return sh.length ? sh : ["Morning","Evening"]; }
+  return [e && e.shift === "Evening" ? "Evening" : "Morning"];
+}
 /* v57: Kaam ke din aur waqt — e.schedule = {Morning:{1:{from,to}, 3:{…}}, Evening:{…}} (0 = Sunday … 6 = Saturday).
    Kisi shift ka schedule na ho to purana qaida: Mon–Fri, waqt ke baghair (late minutes nahi ginte). */
 const WEEK = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"], WEEK_ORDER = [1,2,3,4,5,6,0];
@@ -7731,11 +7742,11 @@ function openEmpForm(id){
     <div class="grid2">
       <div class="field"><label>Name *</label><input id="m_name" value="${esc(e.name||"")}"></div>
       <div class="field"><label>Category *</label><select id="m_cat" onchange="toggleAsg()">${["Admin","Teacher","Coordinator","Supportive Staff"].map(c=>`<option ${e.category===c?"selected":""}>${c}</option>`).join("")}</select></div>
-      <div class="field"><label>Shift</label><select id="m_shift" onchange="schedShiftSync()">${["Morning","Evening","Both"].map(c=>`<option ${e.shift===c?"selected":""}>${c}</option>`).join("")}</select></div>
+      <div class="field"><label>Shift</label><select id="m_shift" onchange="schedShiftSync();if(this.value==='Online')$('m_teach').value='Online'">${[["Morning","Morning"],["Evening","Evening"],["Both","Both (Morning + Evening)"],["Online","Online"]].map(([v,l])=>`<option value="${v}" ${e.shift===v?"selected":""}>${l}</option>`).join("")}</select></div>
       <div class="field"><label>Phone</label><input id="m_phone" value="${esc(e.phone||"")}"></div>
       <div class="field"><label>Joining Date</label><input type="date" id="m_doj" value="${e.doj||wmDate()}"></div>
       <div class="field" ${IS_ADMIN?'style="display:none"':""}><label>Monthly Salary (Rs)</label><input type="number" id="m_sal" value="${e.salary||""}"></div>
-      <div class="field"><label>Online</label><label class="chk"><input type="checkbox" id="m_online" ${e.online?"checked":""}> 🟢 Takes online classes</label></div>
+      <div class="field"><label>Teaching</label><select id="m_teach" onchange="if(this.value!=='Online'&&$('m_shift').value==='Online')$('m_shift').value='Evening',schedShiftSync()">${TEACH_MODES.map(([v,l])=>`<option value="${v}" ${teachMode(e)===v?"selected":""}>${l}</option>`).join("")}</select></div>
       <div class="field"><label>Employee Photo</label><input type="file" id="m_photo" accept="image/*" onchange="pickPhoto(this)"><div id="photoPrev" style="margin-top:6px">${photoTemp?`<img class="avatar-lg" src="${photoTemp}">`:""}</div></div>
     </div>
     <div class="field"><label>Address</label><input id="m_addr" value="${esc(e.address||"")}"></div>
@@ -7786,7 +7797,7 @@ function schedFill(p){
 function schedShiftSync(){
   const sh = $("m_shift") ? $("m_shift").value : "Morning";
   document.querySelectorAll(".sc-Morning").forEach(x=>x.style.display = sh === "Evening" ? "none" : "");
-  document.querySelectorAll(".sc-Evening").forEach(x=>x.style.display = sh === "Morning" ? "none" : "");
+  document.querySelectorAll(".sc-Evening").forEach(x=>x.style.display = sh === "Morning" ? "none" : "");      // Online / Both → dono
 }
 function readSched(shift){
   const out = {};
@@ -7830,7 +7841,7 @@ function syncSchedFromAsg(){
     if(sl.from < w.from) w.from = sl.from; if((sl.to||"") > w.to) w.to = sl.to || w.to; }));
   const shs = new Set(asgDraft.filter(a=>Object.keys(want).some(k=>k[0] === (a.shift === "Evening" ? "E" : "M"))).map(a=>a.shift));
   if(shs.size && $("m_shift")){ const cur = $("m_shift").value, need = shs.size > 1 ? "Both" : [...shs][0];
-    if(cur !== "Both" && cur !== need){ $("m_shift").value = shs.size > 1 || asgDraft.some(x=>x.shift === cur) ? "Both" : need; schedShiftSync(); } }
+    if(cur !== "Both" && cur !== "Online" && cur !== need){ $("m_shift").value = shs.size > 1 || asgDraft.some(x=>x.shift === cur) ? "Both" : need; schedShiftSync(); } }
   ["M","E"].forEach(p=>WEEK_ORDER.forEach(d=>{ const k = p + d, cb = $("sc_"+k); if(!cb) return; const w = want[k];
     if(w){ cb.checked = true; schedRow(k); $("sc_"+k+"_f").value = w.from; $("sc_"+k+"_t").value = w.to; cb.dataset.auto = "1"; }
     else if(cb.dataset.auto === "1"){ cb.checked = false; schedRow(k); $("sc_"+k+"_f").value = ""; $("sc_"+k+"_t").value = ""; cb.dataset.auto = ""; } }));
@@ -7880,7 +7891,7 @@ function saveEmp(id){
   const cat = $("m_cat").value;
   const schedule = readSched($("m_shift").value);
   if(Object.values(schedule).some(sc=>Object.values(sc).some(x=>x.from && x.to && x.to <= x.from))){ toast("A work day's end time must be after its start time"); return; }
-  const data = {schedule, schedAuto: $("schedAuto") ? $("schedAuto").checked : true, name, category:cat, shift:$("m_shift").value, phone:$("m_phone").value.trim(), doj:$("m_doj").value||"", salary:$("m_sal").value||0, address:$("m_addr").value.trim(), photo:photoTemp, assignments: cat==="Teacher"? asgDraft : [], online: $("m_online").checked};
+  const data = {schedule, schedAuto: $("schedAuto") ? $("schedAuto").checked : true, name, category:cat, shift:$("m_shift").value, phone:$("m_phone").value.trim(), doj:$("m_doj").value||"", salary:$("m_sal").value||0, address:$("m_addr").value.trim(), photo:photoTemp, assignments: cat==="Teacher"? asgDraft : [], teach: $("m_teach").value, online: $("m_teach").value !== "Onsite"};
   if(id) Object.assign(empById(id), data);
   else { data.id=uid(); DB.employees.push(data); }
   save(); syncSalaries(); closeModal(); renderEmployees(); toast("Employee saved");
@@ -7912,7 +7923,7 @@ function openEmpProfile(id){
         <div class="kv">
           <span class="k">Name</span><span><b>${esc(e.name)}</b></span>
           <span class="k">Category</span><span>${e.category}</span>
-          <span class="k">Shift</span><span><b>${esc(e.shift||"Morning")}</b>${e.online?` · <span class="online-dot"></span>Online`:""}</span>
+          <span class="k">Shift</span><span><b>${esc(e.shift||"Morning")}</b>${teachLabel(e) && e.shift !== "Online" ?` · <span class="online-dot"></span>${esc(teachLabel(e))}`:""}</span>
           <span class="k">Phone</span><span>${esc(e.phone||"—")}</span>
           <span class="k">Joining Date</span><span>${fmtD(e.doj)}</span>
           ${IS_ADMIN ? "" : `<span class="k">Monthly Salary</span><span>${money(e.salary)}</span>`}
