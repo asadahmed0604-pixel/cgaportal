@@ -235,6 +235,9 @@ function teacherView(d, tid) {
       : { id: e.id, name: e.name, category: e.category, shift: e.shift, online: !!e.online }),
     tests, exams: (d.exams || []).filter((e) => ids.has(e.testId)),
     classAtt: (d.classAtt || []).filter((c) => catOwn(c, tid, cls)),
+    /* v71: admin ka "class li / nahi li" record — sirf is teacher ki entries (key = shift|class|subject|teacherId); teacherMerge ise nahi leta */
+    classLog: Object.fromEntries(Object.entries(d.classLog || {}).map(([dt, day]) => [dt, Object.fromEntries(Object.entries(day || {}).filter(([k]) => k.endsWith("|" + tid)))])
+      .filter(([, day]) => Object.keys(day).length)),
     subjects: (d.subjects || []).filter((x) => x && mySub.has(keyOf(x.name))),       // sirf wahi subject, milte-julte nahi
     /* v70: inquiry ki demo class jo is teacher ke saath rakhi gayi — sirf naam / class / waqt (phone nahi) */
     inquiries: (d.inquiries || []).filter((i) => i && i.demo && i.demo.teacherId === tid && String(i.demo.date || "") >= since)
@@ -454,13 +457,13 @@ function diffData(before, after) {
     if (del.length) bits.push(`−${del.length} deleted: ${del.slice(0, 5).map((k) => who(ma.get(k))).join(", ")}${del.length > 5 ? " …" : ""}`);
     parts.push(`${ACT_COLS[col]}: ${bits.join(" · ")}`);
   });
-  [["attendance", "Student attendance"], ["empAttendance", "Staff attendance"]].forEach(([col, label]) => {
+  [["attendance", "Student attendance"], ["empAttendance", "Staff attendance"], ["classLog", "Classes taken"]].forEach(([col, label]) => {
     const A = before[col] || {}, B = after[col] || {};
     const days = [...new Set([...Object.keys(A), ...Object.keys(B)])].filter((d) => canon(A[d]) !== canon(B[d])).sort();
     if (!days.length) return;
     parts.push(`${label}: ${days.slice(0, 4).map((d) => { const a = A[d] || {}, b = B[d] || {};
       const n = [...new Set([...Object.keys(a), ...Object.keys(b)])].filter((k) => canon(a[k]) !== canon(b[k])).length;
-      return `${d} (${n} ${col === "attendance" ? "students" : "staff"})`; }).join(", ")}${days.length > 4 ? " …" : ""}`);
+      return `${d} (${n} ${col === "attendance" ? "students" : col === "classLog" ? "classes" : "staff"})`; }).join(", ")}${days.length > 4 ? " …" : ""}`);
   });
   const sa = before.settings || {}, sb = after.settings || {};
   const sk = [...new Set([...Object.keys(sa), ...Object.keys(sb)])].filter((k) => canon(sa[k]) !== canon(sb[k]));
