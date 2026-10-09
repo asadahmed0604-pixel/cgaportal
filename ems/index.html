@@ -870,7 +870,7 @@ label.chk input{width:auto}
 <!-- ================= v75: TIMETABLE + CLASHES ================= -->
 <section class="page" id="page-timetable">
   <div class="page-head">
-    <div><h2>Timetable</h2><div class="sub">Weekly timetable from Employees → Assign (classes with active students this month). Clashes are highlighted: the same class with two lessons at the same time that students share, a teacher booked twice, or an Evening student whose two classes overlap.</div></div>
+    <div><h2>Timetable</h2><div class="sub">Timetable from Employees → Assign (classes with active students this month). <b>Morning:</b> a clash is the same subject at the same time (or a teacher booked twice) — classes can run together. <b>Evening:</b> a clash is two lessons at the same time that one student takes (e.g. AS Computer Science and AS Maths for a student who takes both; AS Maths with A2 Maths is fine), or a teacher booked twice. Evening is the same Mon–Fri, so clashes show the time only.</div></div>
   </div>
   <div class="toolbar">
     <div class="field"><label>Shift</label><div class="mchips" id="ttShift" style="margin:0"></div></div>
@@ -1362,7 +1362,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v75 · 9 Oct 2026";
+const BUILD = "v76 · 9 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -2149,30 +2149,37 @@ function ttSlots(shift){
       out.push({id:out.length, d, f, t, from:sl.from, to:sl.to||"", course:a.course, subject:a.subject||"", tid:e.id, teacher:e.name, clash:[], par:[]}); }); }));
   return out;
 }
+/* v76: Evening — sirf wo bache jin ke subjects mein ye subject likha ho (subject maloom na ho to ginti mein nahi, ghalat clash na bane) */
 function ttStudents(shift, course, subject){
   const m = thisMonth(), RM = rosterMonths();
   return DB.students.filter(st=>st.shift===shift && activeIn(st, m, RM) && inClass(st, course) &&
-    (!subject || !(st.subjects||[]).length || (st.subjects||[]).some(x=>subjLike(x.name, subject))));
+    (!subject || (st.subjects||[]).some(x=>subjLike(x.name, subject))));
 }
+/* v76: Morning — clash sirf jab ek hi waqt pe wohi subject ho (class ek waqt pe ho sakti hai) ya teacher do jagah ho.
+   Evening — bache ke hisaab se: jo bacha dono lessons (class + subject) leta ho, us ke liye clash; Mon–Fri ek jaisa, is liye sirf waqt. */
+const ttSig = x => `${x.course}|${keyify(x.subject)}|${x.tid}|${x.from}|${x.to}`;
 function ttClashes(shift){
-  const S = ttSlots(shift), list = [], cache = new Map();
+  const S = ttSlots(shift), list = [], seen = new Map(), cache = new Map();
   const stu = (c, sub) => { const k = c+"|"+keyify(sub); if(!cache.has(k)) cache.set(k, new Set(ttStudents(shift, c, sub).map(st=>st.id))); return cache.get(k); };
   for(let i = 0; i < S.length; i++) for(let j = i + 1; j < S.length; j++){
     const a = S[i], b = S[j];
     if(a.d !== b.d || !(a.f < b.t && b.f < a.t)) continue;
-    let kind = "", n = 0, why = "";
+    let kind = "", why = "";
     if(a.tid === b.tid){ kind = "clash"; why = `${a.teacher} is booked in two classes at once`; }
-    else if(a.course === b.course){
-      if(!a.subject || !b.subject || keyify(a.subject) === keyify(b.subject)){ kind = "clash"; why = `${a.course} has two lessons at the same time`; }
-      else { const A = stu(a.course, a.subject), B = stu(b.course, b.subject); n = [...A].filter(x=>B.has(x)).length;
-        kind = n ? "clash" : "par"; why = n ? `${n} student${n>1?"s":""} of ${a.course} take both ${a.subject} and ${b.subject}` : `parallel lessons — no student takes both subjects`; }
-    } else if(shift === "Evening"){
-      const A = stu(a.course, a.subject), B = stu(b.course, b.subject); n = [...A].filter(x=>B.has(x)).length;
-      if(n){ kind = "clash"; why = `${n} student${n>1?"s":""} are in both ${a.course} and ${b.course}`; }
+    else if(shift === "Morning"){
+      if(a.subject && keyify(a.subject) === keyify(b.subject)){ kind = "clash"; why = `${a.subject} is on at the same time in ${a.course === b.course ? a.course + " twice" : a.course + " and " + b.course}`; }
+    } else {
+      if(!a.subject || !b.subject){ if(a.course === b.course){ kind = "clash"; why = `${a.course}: a lesson without a subject overlaps another lesson`; } }
+      else { const A = stu(a.course, a.subject), B = stu(b.course, b.subject), sh = [...A].filter(x=>B.has(x));
+        if(sh.length){ kind = "clash"; why = `${sh.length} student${sh.length>1?"s take":" takes"} both ${a.course} ${a.subject} and ${b.course} ${b.subject}: ${sh.slice(0,4).map(id=>(stuById(id)||{}).name).filter(Boolean).join(", ")}${sh.length > 4 ? " …" : ""}`; }
+        else if(a.course === b.course){ kind = "par"; why = "parallel lessons — no student takes both subjects"; } }
     }
     if(!kind) continue;
     a[kind].push(b.id); b[kind].push(a.id);
-    list.push({kind, a, b, why});
+    /* wohi do lessons har din (Mon–Fri) — aik hi dafa likho, saath din jor do */
+    const key = kind + "|" + [ttSig(a), ttSig(b)].sort().join("~"), old = seen.get(key);
+    if(old){ if(!old.days.includes(a.d)) old.days.push(a.d); continue; }
+    const o = {kind, a, b, why, days:[a.d]}; seen.set(key, o); list.push(o);
   }
   return {S, list};
 }
@@ -2184,16 +2191,23 @@ function renderTimetable(){
   const fc = cs.value, only = $("ttOnlyClash").checked;
   const hard = list.filter(x=>x.kind==="clash"), soft = list.filter(x=>x.kind==="par");
   const show = x => (!fc || x.a.course===fc || x.b.course===fc);
-  const lbl = x => `${WEEK[x.d]} ${fmtT(x.from)}${x.to ? "–" + fmtT(x.to) : ""} · <b>${esc(x.course)}</b>${x.subject ? " " + esc(x.subject) : ""} · ${esc(x.teacher)}`;
+  const lbl = x => `${fmtT(x.from)}${x.to ? "–" + fmtT(x.to) : ""} · <b>${esc(x.course)}</b>${x.subject ? " " + esc(x.subject) : ""} · ${esc(x.teacher)}`;
+  /* Evening: Mon–Fri ek jaisa — din tabhi likho jab clash sirf kuch dino ka ho */
+  const allD = [...new Set(S.map(x=>x.d))], dayTxt = c => TT.shift === "Evening" && c.days.length === allD.length ? "" : `<span class="sub">${c.days.sort((p,q)=>((p+6)%7)-((q+6)%7)).map(d=>WEEK[d]).join(", ")}:</span> `;
   const H = hard.filter(show), P = soft.filter(show);
-  $("ttClashes").innerHTML = (H.length ? `<div class="late-alert"><div>⚠</div><div><b>${H.length} clash${H.length>1?"es":""} in the ${esc(TT.shift)} timetable</b><br>${H.map(x=>`• ${lbl(x.a)} <b>↔</b> ${lbl(x.b)} — <i>${esc(x.why)}</i>`).join("<br>")}</div></div>`
+  $("ttClashes").innerHTML = (H.length ? `<div class="late-alert"><div>⚠</div><div><b>${H.length} clash${H.length>1?"es":""} in the ${esc(TT.shift)} timetable</b><br>${H.map(x=>`• ${dayTxt(x)}${lbl(x.a)} <b>↔</b> ${lbl(x.b)} — <i>${esc(x.why)}</i>`).join("<br>")}</div></div>`
       : `<div class="note" style="margin-bottom:14px">✓ No clashes in the ${esc(TT.shift)} timetable${fc ? " for " + esc(fc) : ""}.</div>`)
-    + (P.length ? `<div class="late-alert warn"><div>ℹ</div><div><b>${P.length} parallel lesson${P.length>1?"s":""}</b> (same class, same time, different subjects — no student takes both, so this is fine)<br>${P.map(x=>`• ${lbl(x.a)} ∥ ${lbl(x.b)}`).join("<br>")}</div></div>` : "");
-  const days = [1,2,3,4,5,6,0].filter(d=>S.some(x=>x.d===d));
-  const L = S.filter(x=>(!fc || x.course===fc) && (!only || x.clash.length || x.par.length));
+    + (P.length ? `<div class="late-alert warn"><div>ℹ</div><div><b>${P.length} parallel lesson${P.length>1?"s":""}</b> (same class, same time, different subjects — no student takes both, so this is fine)<br>${P.map(x=>`• ${dayTxt(x)}${lbl(x.a)} ∥ ${lbl(x.b)}`).join("<br>")}</div></div>` : "");
+  let days = [1,2,3,4,5,6,0].filter(d=>S.some(x=>x.d===d));
+  let L = S.filter(x=>(!fc || x.course===fc) && (!only || x.clash.length || x.par.length));
+  /* v76: Evening — har din wohi lessons hon to aik hi "Daily" column (din ka zikr nahi) */
+  if(TT.shift === "Evening" && days.length > 1){
+    const per = d => S.filter(x=>x.d===d).map(ttSig).sort().join(";");
+    if(days.every(d=>per(d) === per(days[0]))){ const d0 = days[0]; L = L.filter(x=>x.d===d0); days = [d0]; TT.daily = true; } else TT.daily = false;
+  } else TT.daily = false;
   const noTime = DB.employees.flatMap(e=>(e.assignments||[]).filter(a=>a.shift===TT.shift && !a.from && !(a.slots && Object.keys(a.slots).length) && (!fc || a.course===fc)).map(a=>`${esc(a.course)}${a.subject?" "+esc(a.subject):""} (${esc(e.name)})`));
   $("ttGrid").innerHTML = (days.length ? `<div class="tt-grid">${days.map(d=>{ const D = L.filter(x=>x.d===d).sort((a,b)=>a.f-b.f || a.course.localeCompare(b.course));
-      return `<div class="tt-day"><h4>${["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][d]} <span class="sub">· ${D.length}</span></h4>${D.length ? D.map(x=>`<div class="tt-slot ${x.clash.length ? "clash" : x.par.length ? "par" : ""}" title="${x.clash.length ? "Clash" : x.par.length ? "Parallel lesson" : ""}">
+      return `<div class="tt-day" ${TT.daily ? 'style="grid-column:1/-1"' : ""}><h4>${TT.daily ? "Every day (same timetable each day)" : ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][d]} <span class="sub">· ${D.length}</span></h4>${D.length ? D.map(x=>`<div class="tt-slot ${x.clash.length ? "clash" : x.par.length ? "par" : ""}" title="${x.clash.length ? "Clash" : x.par.length ? "Parallel lesson" : ""}">
         <span class="t">${fmtT(x.from)}${x.to ? "–" + fmtT(x.to) : ""}${x.clash.length ? " ⚠" : ""}</span><b>${esc(x.course)}${x.subject ? " · " + esc(x.subject) : ""}</b><span class="sub">${esc(x.teacher)}</span></div>`).join("") : `<span class="sub">—</span>`}</div>`; }).join("")}</div>`
     : `<div class="empty" style="padding:20px">No ${esc(TT.shift)} class times set — add days & times in Employees → Edit → Assign.</div>`)
     + (noTime.length ? `<p class="sub" style="margin-top:12px"><b>No time set (not in the timetable):</b> ${noTime.join(", ")}</p>` : "");

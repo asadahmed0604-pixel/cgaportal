@@ -204,6 +204,10 @@ Only **✨ Generate with AI** is locked: the admin approves the teacher (Assignm
   with two lessons at the same time that some students share (or with unknown subjects), or an Evening student whose two
   classes overlap. Same class + same time + different subjects with no shared students is shown as a harmless parallel
   lesson (amber). Assignments without a time are listed below.
+- v76 rules: **Morning** — a clash is the same subject at the same time (or a teacher booked twice); a class can have
+  lessons together. **Evening** — a clash is two lessons at the same time that one student takes (AS Computer Science +
+  AS Maths for a student who takes both = clash; AS Maths with A2 Maths for an AS student = no clash), or a teacher booked
+  twice. Evening runs the same Mon–Fri, so clashes show the time only and the grid shows one "Every day" column.
 - Parents app / student report: only classes and subjects assigned in Employees → Assign are shown (no guessed subjects),
   duplicates are merged and invalid times are ignored, so the timetable is always clean.
 
