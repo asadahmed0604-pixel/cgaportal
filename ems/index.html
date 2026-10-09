@@ -1363,7 +1363,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v77 · 9 Oct 2026";
+const BUILD = "v78 · 9 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -10046,15 +10046,31 @@ function renderLogins(){
     <p class="sub" style="margin-bottom:10px">Each teacher has their own <b>Login ID + password</b>. Teachers see only <b>Tests & Marks</b> (their classes, remarks required) and <b>Evening class attendance</b> — no fees, phone numbers or accounts. Classes come from Employees → Edit → Assign.</p>
     <div class="note" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">Teachers' login link: <b><code>${esc(location.origin)}/teacher</code></b>
       <button class="btn-black btn-sm" onclick="copyTeacherLink()">📋 Link copy</button></div>
-    <div class="tbl-wrap"><table><thead><tr><th>Teacher</th><th>Classes</th><th>Login ID</th><th>Status</th><th></th></tr></thead><tbody>
+    <div class="tbl-wrap"><table><thead><tr><th>Teacher</th><th>Classes</th><th>Login ID</th><th>Status</th><th>Last login</th><th></th></tr></thead><tbody>
       ${DB.employees.filter(e=>e.category==="Teacher").sort((a,b)=>a.name.localeCompare(b.name)).map(e=>`<tr>
         <td><b>${esc(e.name)}</b>${e.online?` <span class="online-dot" title="Online"></span>`:""}</td>
         <td class="sub">${(e.assignments||[]).map(a=>esc(a.course)+" · "+a.shift).join(", ")||"—"}</td>
         <td>${e.login ? `<code>${esc(e.login.user)}</code>` : "—"}</td>
         <td>${e.login ? `<span class="badge b-paid">On</span> <span class="sub">${fmtD(e.login.setOn)}</span>` : `<span class="sub">Off</span>`}</td>
+        <td class="sub" id="tlLast_${e.id}">${e.login ? "…" : "—"}</td>
         <td style="white-space:nowrap"><button class="btn-black btn-sm" onclick="openTeacherLogin('${e.id}')">${e.login?"Change password":"Create login"}</button>
-          ${e.login?`<button class="btn-line btn-sm" onclick="copyTeacherLink('${e.id}')" title="Link + Login ID copy">📋</button> <button class="btn-line btn-sm" onclick="disableTeacherLogin('${e.id}')">Disable</button>`:""}</td></tr>`).join("") || `<tr><td colspan="5" class="empty">No teachers — set the category to "Teacher" in Employees</td></tr>`}
-    </tbody></table></div>`;
+          ${e.login?`<button class="btn-line btn-sm" onclick="copyTeacherLink('${e.id}')" title="Link + Login ID copy">📋</button> <button class="btn-line btn-sm" onclick="disableTeacherLogin('${e.id}')">Disable</button>`:""}</td></tr>`).join("") || `<tr><td colspan="6" class="empty">No teachers — set the category to "Teacher" in Employees</td></tr>`}
+    </tbody></table></div>
+    ${(()=>{ const off = DB.employees.filter(e=>e.login && e.category!=="Teacher"); return off.length ? `<div class="note" style="border-left-color:var(--danger);margin-top:10px">⚠ These people have a teacher login but their category is not <b>Teacher</b>, so they cannot log in: ${off.map(e=>`<b>${esc(e.name)}</b> (${esc(e.category||"no category")}, ID <code>${esc(e.login.user)}</code>)`).join(", ")} — set the category to Teacher in Employees.</div>` : ""; })()}`;
+  teacherLoginActivity();
+}
+/* v78: har teacher ka aakhri login aur ghalat koshishen (activity log se — sirf Executive) */
+async function teacherLoginActivity(){
+  if(!SERVER || ROLE !== "exec") { document.querySelectorAll('[id^="tlLast_"]').forEach(c=>{ if(c.textContent==="…") c.textContent = "—"; }); return; }
+  let rows = [];
+  try{ const r = await fetch("/api/activity?role=teacher&kind=logins&limit=500", {credentials:"same-origin"}); if(r.ok) rows = (await r.json()).rows || []; }catch(e){}
+  DB.employees.filter(e=>e.category==="Teacher" && e.login).forEach(e=>{
+    const c = $("tlLast_"+e.id); if(!c) return;
+    const mine = rows.filter(r=>r.name === "Teacher: " + e.name || r.name === "Login ID: " + e.login.user);
+    const ok = mine.find(r=>r.action === "Login"), bad = mine.filter(r=>r.action === "Failed login" && (!ok || r.t > ok.t));
+    const when = t => new Date(t).toLocaleString("en-GB", {day:"numeric", month:"short", hour:"2-digit", minute:"2-digit"});
+    c.innerHTML = (ok ? `✓ ${when(ok.t)}` : "Never logged in") + (bad.length ? `<br><span style="color:var(--danger)">✗ ${bad.length} failed since — ${esc(bad[0].detail || "")}</span>` : "");
+  });
 }
 function copyTeacherLink(id){
   const e = id && empById(id);

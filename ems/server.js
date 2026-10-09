@@ -70,13 +70,19 @@ function teacherToken(e) {
   return `teacher.${e.id}.${exp}.${tag}.${sign(`ems|teacher|${e.id}|${exp}|${tag}`)}`;
 }
 const teacherById = (id) => ((dbNow() || {}).employees || []).find((e) => e.id === id && e.category === "Teacher" && e.login && e.login.hash);
-function teacherPwOk(user, pw) {
-  const u = String(user || "").trim().toLowerCase();
-  const e = u && ((dbNow() || {}).employees || []).find((x) => x.category === "Teacher" && x.login && x.login.hash && x.login.user === u);
-  if (!e || String(pw).length < 8) return null;
-  const a = e.login;
-  const h = crypto.pbkdf2Sync(String(pw), Buffer.from(a.salt, "hex"), +a.iter || 100000, 32, "sha256").toString("hex");
-  return safeEq(h, a.hash) ? e : null;
+/* v78: → {e} ya {why} — "noid" (ye Login ID kisi ka nahi), "off" (employee Teacher category mein nahi), "pw" (password ghalat) */
+const teacherKey = (user) => String(user || "").trim().toLowerCase().replace(/\s+/g, "");
+function teacherLogin(user, pw) {
+  const u = teacherKey(user);
+  const any = u && ((dbNow() || {}).employees || []).find((x) => x.login && x.login.hash && x.login.user === u);
+  if (!any) return { why: "noid" };
+  if (any.category !== "Teacher") return { why: "off", e: any };
+  const a = any.login, p = String(pw || "");
+  const h = crypto.pbkdf2Sync(p, Buffer.from(a.salt, "hex"), +a.iter || 100000, 32, "sha256").toString("hex");
+  if (safeEq(h, a.hash)) return { ok: true, e: any };
+  /* phone keyboard ne aakhir mein space laga di ho */
+  if (p !== p.trim() && safeEq(crypto.pbkdf2Sync(p.trim(), Buffer.from(a.salt, "hex"), +a.iter || 100000, 32, "sha256").toString("hex"), a.hash)) return { ok: true, e: any };
+  return { why: "pw", e: any };
 }
 /* → {role, tid} ya null */
 function authed(req) {
@@ -328,9 +334,9 @@ function setSession(req, res, token, maxAge) {
 /* ---------- login ki ghalat koshishon par rok ---------- */
 const fails = new Map();                       // ip → {n, until}
 const clientIp = (req) => String(req.headers["x-forwarded-for"] || req.socket.remoteAddress || "").split(",")[0].trim();
-function blocked(ip) {
+function blocked(ip, max = 10) {
   const f = fails.get(ip);
-  return f && f.until > Date.now() && f.n >= 10;
+  return f && f.until > Date.now() && f.n >= max;
 }
 function failed(ip) {
   const f = fails.get(ip);
@@ -802,15 +808,28 @@ const server = http.createServer(async (req, res) => {
       const ip = clientIp(req);
       const form = new URLSearchParams(await readBody(req));
       const pw = form.get("password") || "", user = String(form.get("user") || "").trim();
-      if (blocked(ip)) return send(res, 429, loginPage("Too many wrong attempts — try again in 15 minutes.", !!user), "text/html; charset=utf-8");
+      /* v78: teacher ki ghalti sirf usi Login ID ko rokti hai (sab teachers aik hi Wi-Fi / IP par hote hain);
+         staff password ki ghaltiyan teachers ko nahi rokti */
       if (user) {
-        const t = teacherPwOk(user, pw);
-        if (!t) { failed(ip); logAct(req, { role: "teacher", name: "Login ID: " + user.slice(0, 30) }, "Failed login", "Wrong teacher Login ID or password"); return send(res, 401, loginPage("Wrong Login ID or password.", true), "text/html; charset=utf-8"); }
-        fails.delete(ip);
+        const k = "tl:" + teacherKey(user);
+        if (blocked(k, 6) || blocked("tip:" + ip, 40))
+          return send(res, 429, loginPage("Too many wrong attempts for this Login ID — try again in 15 minutes, or ask the office to reset the password.", true), "text/html; charset=utf-8");
+        const r = teacherLogin(user, pw), t = r.ok ? r.e : null;
+        if (!t) {
+          failed(k); failed("tip:" + ip);
+          const msg = { noid: `No teacher login with the ID “${teacherKey(user).slice(0, 30)}” — check the Login ID the office gave you (small letters, no spaces).`,
+                        off: "This login is switched off (the employee is not set as a Teacher) — please contact the office.",
+                        pw: "Wrong password for this Login ID — check capital letters, or ask the office to set a new password." }[r.why];
+          logAct(req, { role: "teacher", name: r.e ? "Teacher: " + r.e.name : "Login ID: " + user.slice(0, 30) }, "Failed login",
+            { noid: "Unknown teacher Login ID", off: "Login exists but employee category is not Teacher", pw: "Wrong teacher password" }[r.why]);
+          return send(res, 401, loginPage(msg, true), "text/html; charset=utf-8");
+        }
+        fails.delete(k);
         logAct(req, { role: "teacher", name: "Teacher: " + t.name }, "Login", "Teacher portal");
         setSession(req, res, teacherToken(t), SESSION_DAYS * 86400);
         return redirect(res, "/");
       }
+      if (blocked(ip)) return send(res, 429, loginPage("Too many wrong attempts — try again in 15 minutes."), "text/html; charset=utf-8");
       const isExec = safeEq(crypto.createHash("sha256").update(pw).digest("hex"), crypto.createHash("sha256").update(PASSWORD).digest("hex"));
       const who = isExec ? "exec" : rolePwOk("feeadmin", pw) ? "feeadmin" : rolePwOk("admin", pw) ? "admin" : null;
       if (!who) {
