@@ -174,6 +174,16 @@ shift), so attendance, late minutes and the teacher's timetable all follow the c
 - Teacher login receives only **this month's active students** of their own classes, only their own subjects (subjects
   taught by another teacher are never sent), and only their own employee record.
 
+## Classes taken (v71)
+
+- **✅ Classes Taken** page (Admin / Executive): pick a date and **Morning** or **Evening**, then mark each scheduled class
+  ✓ Taken / ✗ Not taken / Cancelled (cancelled is not counted), with a note (reason, substitute). **Subject-wise** view lists
+  every class + subject + teacher by time; **Class-wise** groups by class with "Whole class taken / not taken" buttons.
+  The list comes from Employees → Assign (days & times). Hints show if the teacher marked student attendance or was absent.
+- **📊 Monthly summary**: per teacher — scheduled, taken, not taken, cancelled, not marked, taken %, missed classes; CSV.
+- Teacher portal dashboard → **✅ Classes taken**: their own taken / not taken record for the month (the server sends only
+  their own entries; teachers cannot change it).
+
 ## Install as an app (v41)
 
 Staff (`/`), Teachers (`/teacher`) and Parents (`/parent`) — all three links can be installed as an app on a phone / computer
