@@ -167,10 +167,13 @@ function dataFor(role, tid) {
 /* v48: Evening bacha 2 classes mein (course + course2) */
 const stuClasses = (st) => [st.course, st.shift === "Evening" ? st.course2 : ""].filter(Boolean);
 const stuIn = (st, sh, c) => st.shift === sh && stuClasses(st).includes(c);
+/* v79: teacher sirf apni shift ki classes — Evening teacher ko Morning ki class kabhi nahi (chahe kisi Morning bache ke subject par
+   us ka naam laga ho), aur ulta. Both / Online → dono shifts. */
+const teachShifts = (e) => (!e || !e.shift ? ["Morning", "Evening"] : e.shift === "Morning" ? ["Morning"] : e.shift === "Evening" ? ["Evening"] : ["Morning", "Evening"]);
 function teacherClasses(d, tid) {
-  const me = (d.employees || []).find((e) => e.id === tid) || {};
-  const cls = new Set((me.assignments || []).map((a) => a.shift + "|" + a.course));
-  (d.students || []).forEach((st) => (st.subjects || []).forEach((x) => { if (x.teacherId === tid) stuClasses(st).forEach((c) => cls.add(st.shift + "|" + c)); }));
+  const me = (d.employees || []).find((e) => e.id === tid) || {}, ok = teachShifts(me);
+  const cls = new Set((me.assignments || []).filter((a) => ok.includes(a.shift)).map((a) => a.shift + "|" + a.course));
+  (d.students || []).forEach((st) => { if (!ok.includes(st.shift)) return; (st.subjects || []).forEach((x) => { if (x.teacherId === tid) stuClasses(st).forEach((c) => cls.add(st.shift + "|" + c)); }); });
   return cls;
 }
 /* v46: teacher ke subjects har class mein — assignment ka subject, student ke subject par laga teacher,
@@ -178,7 +181,7 @@ function teacherClasses(d, tid) {
 function teacherSubjects(d, tid, cls) {
   const me = (d.employees || []).find((e) => e.id === tid) || {};
   const map = new Map(), all = new Set();
-  const add = (k, subj) => { if (!subj) return; if (!map.has(k)) map.set(k, new Set()); map.get(k).add(keyOf(subj)); };
+  const add = (k, subj) => { if (!subj || (cls && !cls.has(k))) return; if (!map.has(k)) map.set(k, new Set()); map.get(k).add(keyOf(subj)); };
   (me.assignments || []).forEach((a) => { const k = a.shift + "|" + a.course; if (a.subject) add(k, a.subject); else all.add(k); });
   (d.students || []).forEach((st) => (st.subjects || []).forEach((x) => { if (x.teacherId === tid) stuClasses(st).forEach((c) => add(st.shift + "|" + c, x.name)); }));
   Object.entries((d.settings || {}).subjTeacher || {}).forEach(([key, t]) => { if (t !== tid) return; const [sh, c, sk] = key.split("|"); add(sh + "|" + c, sk); });
@@ -235,7 +238,7 @@ function teacherView(d, tid) {
     /* v46: apni KPI checklist aur class audits — live KPI ke liye (sirf parhne ko) */
     kpis: (d.kpis || []).filter((k) => k.teacherId === tid),
     employees: (d.employees || []).filter((e) => e.id === tid).map((e) => e.id === tid      // v70: sirf apna record
-      ? { id: e.id, name: e.name, category: e.category, shift: e.shift, assignments: e.assignments || [], online: !!e.online, schedule: e.schedule || {},
+      ? { id: e.id, name: e.name, category: e.category, shift: e.shift, teach: e.teach, assignments: (e.assignments || []).filter((a) => teachShifts(e).includes(a.shift)), online: !!e.online, schedule: e.schedule || {},
           /* v60: har class mein teacher ke subjects (null = subject maloom nahi, poori class) */
           scope: Object.fromEntries([...cls].map((k) => { const x = subjOf(k); return [k, x ? [...x] : null]; })) }
       : { id: e.id, name: e.name, category: e.category, shift: e.shift, online: !!e.online }),
