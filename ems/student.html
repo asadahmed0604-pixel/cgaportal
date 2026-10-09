@@ -120,6 +120,9 @@ label input{display:block;width:100%;margin-top:5px;border:1.5px solid var(--lin
 .pill.P{background:#E3F4EE;color:var(--green-d)}.pill.L{background:#FFF1D0;color:#7a5600}.pill.A{background:#FDECEA;color:var(--red)}.pill.E{background:#EEF1F3;color:#4F5F68}
 .tt{display:grid;gap:8px}.tt .day{border:1.5px solid var(--line);border-radius:12px;padding:10px 12px}.tt .day.now{border-color:var(--green);background:#F1FAF6}
 .tt .day b{color:var(--navy)}.tt .slot{display:flex;gap:10px;margin-top:4px;font-size:.93rem}.tt .slot .tm{min-width:84px;font-size:.86rem;color:var(--muted);font-variant-numeric:tabular-nums}
+/* v72: parents app ke andar — apna header / logout nahi (parents app ka hai) */
+.embed .top{display:none;position:sticky;padding:8px 12px}.embed .top:has(#backBtn:not([hidden])){display:flex}.embed .top img,.embed #outBtn{display:none}
+.embed body{background:#EEF3F2}.embed main{padding:12px}
 @media print{.top,.bar,.noprint{display:none!important}body{background:#fff}.card{box-shadow:none}}
 </style>
 </head>
@@ -157,6 +160,9 @@ const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "
 const fmtD = (d) => d ? new Date(d + "T00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "";
 const grade = (p) => p >= 90 ? "A*" : p >= 80 ? "A" : p >= 70 ? "B" : p >= 60 ? "C" : p >= 50 ? "D" : p >= 40 ? "E" : "U";
 const view = $("#view");
+/* v72: parents app (/parent) ke andar iframe mein — ?embed=1&tab=rep|asg&kid=<id> */
+const QS = new URLSearchParams(location.search), EMBED = QS.get("embed") === "1";
+if (EMBED) document.documentElement.classList.add("embed");
 let me = null, kidId = "", cur = null, offset = 0, tick = null, saveT = null, poll = null, dirty = false, submitting = false;
 
 async function api(path, body, raw) {
@@ -177,7 +183,9 @@ function header(title, sub, back) {
 $("#backBtn").addEventListener("click", async () => { if (cur && cur.sub && cur.sub.status === "in_progress") await saveNow(); stopTimers(); cur = null; list(); });
 
 /* ------------------------------ login ------------------------------ */
-function showLogin() { stopTimers(); $("#app").classList.add("hidden"); $("#login").classList.remove("hidden"); }
+function showLogin() {
+  if (EMBED) { stopTimers(); $("#login").classList.add("hidden"); $("#app").classList.remove("hidden"); view.innerHTML = `<div class="card center">Your session has ended — please open this page again from the menu.</div>`; try { parent.postMessage({ ems: "relogin" }, location.origin); } catch {} return; }
+  stopTimers(); $("#app").classList.add("hidden"); $("#login").classList.remove("hidden"); }
 /* v62: Evening ke bache apne Reg No + PIN se; Morning (aur koi bhi) parent ke phone + PIN se */
 let loginMode = "stu";
 function setMode(m) {
@@ -202,6 +210,7 @@ async function boot() {
   try { me = await api("/student/api/me"); } catch { return; }
   $("#login").classList.add("hidden"); $("#app").classList.remove("hidden");
   try { kidId = localStorage.getItem("cgaKid") || ""; } catch {}
+  if (EMBED && QS.get("kid")) kidId = QS.get("kid");
   if (!me.children.some((k) => k.id === kidId)) kidId = (me.children[0] || {}).id || "";
   list();
 }
@@ -209,7 +218,8 @@ async function boot() {
 /* ------------------------------ list ------------------------------ */
 let tab = "rep";
 try { tab = localStorage.getItem("cgaTab") === "asg" ? "asg" : "rep"; } catch {}
-const topBits = () => (me.children.length > 1 ? `<div class="kids">${me.children.map((k) => `<button data-k="${k.id}" class="${k.id === kidId ? "on" : ""}">${esc(k.name)}</button>`).join("")}</div>` : "")
+if (EMBED) tab = QS.get("tab") === "asg" ? "asg" : "rep";
+const topBits = () => EMBED ? "" : (me.children.length > 1 ? `<div class="kids">${me.children.map((k) => `<button data-k="${k.id}" class="${k.id === kidId ? "on" : ""}">${esc(k.name)}</button>`).join("")}</div>` : "")
   + `<div class="tabs"><button data-tab="rep" class="${tab === "rep" ? "on" : ""}">📊 My Report</button><button data-tab="asg" class="${tab === "asg" ? "on" : ""}">📝 Assignments</button></div>`;
 function list() { return tab === "rep" ? report() : asgList(); }
 async function asgList() {

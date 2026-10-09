@@ -528,7 +528,7 @@ module.exports = function setup(ctx) {
   async function student(req, res, url) {
     const p = url.pathname;
     if (p === "/student" && req.method === "GET")
-      return send(res, 200, STUDENT_HTML.replace(/\{\{SCHOOL\}\}/g, escHtml(schoolName(dbNow()))), "text/html; charset=utf-8");
+      return send(res, 200, STUDENT_HTML.replace(/\{\{SCHOOL\}\}/g, escHtml(schoolName(dbNow()))), "text/html; charset=utf-8", { "X-Frame-Options": "SAMEORIGIN" });   // v72: parents app ke andar
 
     if (p === "/student/login" && req.method === "POST") {
       if (!sameOrigin(req)) return sendJson(res, 403, { error: "origin" });
@@ -671,5 +671,8 @@ module.exports = function setup(ctx) {
     return sendJson(res, 404, { error: "Not found" });
   }
 
-  return { staff, student };
+  /* v72: parents app (/parent) ke andar My Report + Assignments — parent ka login hi student portal ka login ban jata hai */
+  function parentBridge(req, res, key, acc) { setCookie(req, res, studentToken(key, acc), 60 * 86400); }
+
+  return { staff, student, parentBridge };
 };

@@ -184,6 +184,12 @@ shift), so attendance, late minutes and the teacher's timetable all follow the c
 - Teacher portal dashboard → **✅ Classes taken**: their own taken / not taken record for the month (the server sends only
   their own entries; teachers cannot change it).
 
+## Parents app pages (v72)
+
+The parents' app (`/parent`) now has three pages at the top: **💬 Chat**, **📊 My Report** and **📝 Assignments** — the
+student portal opens inside the parents' app with the same phone + PIN (no second login). With more than one child, the
+child chips switch the report / assignments too. Evening students still have their own Reg No login at `/student`.
+
 ## Install as an app (v41)
 
 Staff (`/`), Teachers (`/teacher`) and Parents (`/parent`) — all three links can be installed as an app on a phone / computer
