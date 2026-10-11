@@ -123,6 +123,10 @@ label input{display:block;width:100%;margin-top:5px;border:1.5px solid var(--lin
 /* v72: parents app ke andar — apna header / logout nahi (parents app ka hai) */
 .embed .top{display:none;position:sticky;padding:8px 12px}.embed .top:has(#backBtn:not([hidden])){display:flex}.embed .top img,.embed #outBtn{display:none}
 .embed body{background:#EEF3F2}.embed main{padding:12px}
+/* v80: upload */
+.upcard{border:2px dashed var(--green)}.upcard.drag{background:#E9F6F1;border-color:var(--green-d)}
+.upbtns{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px}
+.photos .pg{position:absolute;left:4px;top:4px;background:var(--navy);color:#fff;border-radius:6px;padding:0 6px;font-size:.75rem;font-weight:700}
 @media print{.top,.bar,.noprint{display:none!important}body{background:#fff}.card{box-shadow:none}}
 </style>
 </head>
@@ -163,6 +167,8 @@ const view = $("#view");
 /* v72: parents app (/parent) ke andar iframe mein — ?embed=1&tab=rep|asg&kid=<id> */
 const QS = new URLSearchParams(location.search), EMBED = QS.get("embed") === "1";
 if (EMBED) document.documentElement.classList.add("embed");
+const MAX_FILES = 20;              // v80: server bhi 20 tak leta hai
+let UPMODE = false;
 let me = null, kidId = "", cur = null, offset = 0, tick = null, saveT = null, poll = null, dirty = false, submitting = false;
 
 async function api(path, body, raw) {
@@ -331,9 +337,12 @@ function intro() {
     ${a.timed ? `<div class="note" style="border-left-color:var(--red);background:#FDECEA"><b>⏱ This is a timed assignment — ${a.minutes} minutes.</b><br>The timer starts as soon as you press Start and keeps running even if you close the page. When time is up, whatever you have written is submitted automatically.</div>`
              : `<p>Not timed — you can come back to it${a.dueDate ? " until " + fmtD(a.dueDate) : ""}. Your answers are saved as you type.</p>`}
     <p class="sub">You can type your answers and/or upload clear photos of your written work. It will be marked straight away against the Cambridge mark scheme.</p>
-    ${cur.late ? `<p class="err">The due date has passed — ask your teacher.</p>` : `<button class="btn" id="startBtn" style="width:100%;margin-top:6px">${a.timed ? "▶ Start — timer begins" : "▶ Start"}</button>`}</div>`;
+    ${cur.late ? `<p class="err">The due date has passed — ask your teacher.</p>` : `<button class="btn" id="startBtn" style="width:100%;margin-top:6px">${a.timed ? "▶ Start — timer begins" : "▶ Start — type my answers"}</button>
+      <button class="btn line" id="startUp" style="width:100%;margin-top:8px">📤 Solved on paper? Upload a PDF or photos</button>`}</div>`;
   const b = $("#startBtn");
-  if (b) b.addEventListener("click", () => openAsg(a.id, true));
+  if (b) b.addEventListener("click", () => { UPMODE = false; openAsg(a.id, true); });
+  const u = $("#startUp");
+  if (u) u.addEventListener("click", () => { UPMODE = true; openAsg(a.id, true); });
 }
 
 /* ------------------------------ answering ------------------------------ */
@@ -350,11 +359,17 @@ function work() {
   const a = cur.a, s = cur.sub;
   view.innerHTML = `
     ${a.instructions ? `<div class="card note" style="white-space:pre-wrap;margin-top:0">${esc(a.instructions)}</div>` : ""}
-    <div class="card" style="border:2px dashed var(--green)"><h3>📄 Solve on paper?</h3>
-      <p class="sub" style="margin:0 0 10px">Download the paper as a PDF, solve it on paper (write each question number), then upload your solved PDF or photos — it is submitted and checked straight away.</p>
-      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn line" id="dlPdf">⬇ Download PDF</button>
-        <button class="btn" id="upSolved">📤 Upload solved PDF &amp; submit</button></div>
-      <input type="file" id="solvedIn" accept="application/pdf,image/*" multiple hidden></div>
+    <div class="card upcard" id="upCard"><h3>📤 Upload your work <span class="sub">(PDF or photos)</span></h3>
+      <p class="sub" style="margin:0 0 10px">Solved on paper? Write each question number on the page, then add a <b>PDF</b> or <b>photos</b> — as many pages as you need (up to ${MAX_FILES}). You can add more pages one by one, remove a wrong one, then press <b>Submit</b>.</p>
+      <div class="upbtns"><button class="btn line" id="upCam">📷 Take a photo</button><button class="btn line" id="upImgs">🖼 Choose photos</button><button class="btn line" id="upPdf">📄 Choose PDF</button><button class="btn line" id="dlPdf">⬇ Paper as PDF</button></div>
+      <input type="file" id="inCam" accept="image/*" capture="environment" hidden>
+      <input type="file" id="inImgs" accept="image/*" multiple hidden>
+      <input type="file" id="inPdf" accept="application/pdf" multiple hidden>
+      <div class="sub" id="upMsg" style="margin-top:8px"></div>
+      <div class="photos" id="photos"></div>
+      <div class="sub" id="upCount" style="margin-top:6px"></div>
+      <button class="btn" id="upSubmit" style="width:100%;margin-top:10px" hidden>✔ Submit uploaded work for checking</button>
+      <p class="sub" style="margin:8px 0 0;text-align:center">On a computer you can also drag &amp; drop files here.</p></div>
     ${a.files.length ? `<div class="card paper"><h3>Question paper</h3>${a.files.map((f) => f.type === "application/pdf"
         ? `<a class="btn line" href="${fileUrl(f)}" target="_blank" rel="noopener">📄 Open ${esc(f.name)}</a>` : `<img src="${fileUrl(f)}" alt="${esc(f.name)}" loading="lazy">`).join("")}</div>` : ""}
     <div class="card">${a.questions.map((q, i) => {
@@ -367,25 +382,25 @@ function work() {
       return `<div class="q"><div class="qh"><span class="qn">${esc(q.number)}</span><div class="qt">${esc(q.text)}</div><span class="qm">[${q.marks}]</span></div>
         <textarea data-q="${i}" placeholder="Type your answer${q.type === "calculation" ? " — show your working" : ""}…">${esc(val)}</textarea></div>`;
     }).join("")}</div>
-    <div class="card"><h3>📷 Photos of written work <span class="sub">(optional)</span></h3>
-      <p class="sub" style="margin:0">For diagrams, working or handwritten answers — write the question number on the page. Clear, well-lit photos please.</p>
-      <div class="photos" id="photos"></div>
-      <input type="file" id="pic" accept="image/*,application/pdf" multiple hidden>
-      <button class="btn line" id="addPic" style="margin-top:10px">+ Add photo</button> <span class="sub" id="upMsg"></span></div>
     <div class="bar"><button class="btn" id="submitBtn">✔ Submit for marking</button></div>
     <div class="saved" id="saved">Your answers are saved automatically.</div>`;
   drawPhotos();
-  $("#addPic").addEventListener("click", () => $("#pic").click());
   $("#dlPdf").addEventListener("click", downloadPdf);
-  $("#upSolved").addEventListener("click", () => $("#solvedIn").click());
-  $("#solvedIn").addEventListener("change", async (e) => {
-    const files = [...e.target.files]; e.target.value = "";
-    if (!files.length) return;
-    const ok = await upload(files);
-    if (!ok) return;
-    if (confirm(`${cur.sub.files.length} file(s) uploaded. Submit now for checking? You cannot change your work after this.`)) submit(false);
+  /* v80: PDF ya kai photos — ek ek kar ke bhi; phir alag "Submit" */
+  [["upCam", "inCam"], ["upImgs", "inImgs"], ["upPdf", "inPdf"]].forEach(([b, i]) => {
+    $("#" + b).addEventListener("click", () => $("#" + i).click());
+    $("#" + i).addEventListener("change", (e) => { const f = [...e.target.files]; e.target.value = ""; if (f.length) upload(f); });
   });
-  $("#pic").addEventListener("change", (e) => { upload([...e.target.files]); e.target.value = ""; });
+  const card = $("#upCard");
+  ["dragenter", "dragover"].forEach((ev) => card.addEventListener(ev, (e) => { e.preventDefault(); card.classList.add("drag"); }));
+  ["dragleave", "drop"].forEach((ev) => card.addEventListener(ev, (e) => { e.preventDefault(); card.classList.remove("drag"); }));
+  card.addEventListener("drop", (e) => { const f = [...(e.dataTransfer && e.dataTransfer.files || [])]; if (f.length) upload(f); });
+  $("#upSubmit").addEventListener("click", () => {
+    if (!cur.sub.files.length) return;
+    if (!confirm(`Submit ${cur.sub.files.length} page${cur.sub.files.length > 1 ? "s" : ""} for checking? You cannot change your work after this.`)) return;
+    submit(false);
+  });
+  if (UPMODE) { UPMODE = false; setTimeout(() => card.scrollIntoView({ behavior: "smooth", block: "start" }), 50); }
   $("#submitBtn").addEventListener("click", () => {
     const empty = Object.values(collect()).filter((v) => !v.trim()).length;
     if (!confirm(empty && !s.files.length ? `${empty} question(s) have no answer. Submit anyway?` : "Submit now? You cannot change your answers after this.")) return;
@@ -414,7 +429,10 @@ async function saveNow() {
   catch (e) { dirty = true; if ($("#saved")) $("#saved").textContent = "⚠ Not saved — check your internet. Retrying…"; saveT = setTimeout(saveNow, 5000); }
 }
 function drawPhotos() {
-  $("#photos").innerHTML = cur.sub.files.map((f) => `<div>${f.type === "application/pdf" ? `<div class="pdf">📄 ${esc(f.name)}</div>` : `<img src="${fileUrl(f)}" alt="">`}<button data-rm="${f.file}" aria-label="Remove">✕</button></div>`).join("");
+  const n = cur.sub.files.length;
+  $("#photos").innerHTML = cur.sub.files.map((f, i) => `<div>${f.type === "application/pdf" ? `<div class="pdf">📄 ${esc(f.name)}</div>` : `<img src="${fileUrl(f)}" alt="">`}<span class="pg">${i + 1}</span><button data-rm="${f.file}" aria-label="Remove">✕</button></div>`).join("");
+  if ($("#upCount")) $("#upCount").textContent = n ? `${n} file${n > 1 ? "s" : ""} added${n >= MAX_FILES ? " — maximum reached" : ` · you can add ${MAX_FILES - n} more`}` : "";
+  if ($("#upSubmit")) $("#upSubmit").hidden = !n;
   $("#photos").querySelectorAll("[data-rm]").forEach((b) => b.addEventListener("click", async () => {
     try { cur.sub = await api("/student/api/remove-file", { studentId: kidId, subId: cur.sub.id, file: b.dataset.rm }); drawPhotos(); } catch (e) { alert(e.message); }
   }));
@@ -432,8 +450,13 @@ function shrink(file) {
 }
 async function upload(files) {
   let ok = 0;
-  for (const f of files) {
-    $("#upMsg").textContent = "Uploading " + f.name + "…";
+  const room = MAX_FILES - cur.sub.files.length;
+  if (room <= 0) { alert(`You can upload up to ${MAX_FILES} files.`); return 0; }
+  if (files.length > room) { alert(`Only ${room} more file${room > 1 ? "s" : ""} can be added — the first ${room} will be uploaded.`); files = files.slice(0, room); }
+  const bad = files.filter((f) => f.type !== "application/pdf" && !/^image\//.test(f.type));
+  if (bad.length) { alert("Only PDF files and photos can be uploaded: " + bad.map((f) => f.name).join(", ")); files = files.filter((f) => !bad.includes(f)); }
+  for (const [i, f] of files.entries()) {
+    $("#upMsg").textContent = `Uploading ${i + 1} of ${files.length} — ${f.name}…`;
     try {
       const isPdf = f.type === "application/pdf";
       const blob = isPdf ? f : await shrink(f);
