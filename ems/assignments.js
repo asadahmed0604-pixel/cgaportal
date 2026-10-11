@@ -12,7 +12,7 @@ const ai = require("./ai");
 const { studentReport } = require("./student-report");
 
 const GRACE_MS = 90e3;                        // timer khatam hone ke baad network ke liye thori mohlat
-const MAX_WORK_FILES = 12;
+const MAX_WORK_FILES = 20;              // v80: PDF + kai photos
 const MAX_UPLOAD = 15 * 1024 * 1024;        // solved paper ki PDF bhi
 /* v66: har teacher har mahine — 2 tests + 3 assignments (Executive / Admin par koi had nahi) */
 const LIMITS = { test: 2, assignment: 3 };
@@ -611,7 +611,7 @@ module.exports = function setup(ctx) {
       const st = kid(url.searchParams.get("studentId")), s = settle(subs.get(url.searchParams.get("subId")));
       if (!st || !s || s.studentId !== st.id) return sendJson(res, 404, { error: "Not found" });
       if (s.status !== "in_progress") return sendJson(res, 409, { error: "This assignment is already submitted." });
-      if ((s.files || []).length >= MAX_WORK_FILES) return sendJson(res, 400, { error: `Maximum ${MAX_WORK_FILES} photos.` });
+      if ((s.files || []).length >= MAX_WORK_FILES) return sendJson(res, 400, { error: `Maximum ${MAX_WORK_FILES} files (PDF / photos).` });
       const type = String(req.headers["content-type"] || "").split(";")[0].trim().toLowerCase();
       let f;
       try { f = storeFile(await readRaw(req, MAX_UPLOAD + 1024), type, url.searchParams.get("name")); }

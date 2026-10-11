@@ -235,6 +235,13 @@ for an Evening student go to O1/O2.
 - Employees → Shift has **Online**, and a new **Teaching** field: Onsite / Online / **Onsite + Online**
   (replaces the old "Takes online classes" tick; the Employees filter "Online" lists everyone who teaches online).
 
+## Submitting assignments as PDF / photos (v80)
+
+Student portal and parents app → Assignments: **📤 Solved on paper? Upload a PDF or photos** on every assignment. The upload
+card has 📷 Take a photo (camera), 🖼 Choose photos (several at once), 📄 Choose PDF and ⬇ Paper as PDF; pages can be
+added one by one (up to 20 files), numbered and removed, then **✔ Submit uploaded work**. Drag & drop works on a computer.
+Photos are shrunk on the phone before upload; PDFs up to 15 MB. The AI checker and the teacher see every page.
+
 ## Install as an app (v41)
 
 Staff (`/`), Teachers (`/teacher`) and Parents (`/parent`) — all three links can be installed as an app on a phone / computer
