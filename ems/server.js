@@ -945,6 +945,23 @@ const server = http.createServer(async (req, res) => {
       logAct(req, actWho(auth), "Uploaded file", `Expense receipt (${ext}, ${Math.round(buf.length / 1024)} KB)`);
       return sendJson(res, 200, { url: `/files/${name}`, size: buf.length });
     }
+    /* v85: admin ki dali hui fee receipt (pehle /api/files se upload) — Claude se parho: raqam, date, tareeqa, TID, naam */
+    if (p === "/api/fee/read-receipt" && req.method === "POST") {
+      if (role !== "exec" && !(role === "feeadmin" && ul.on)) return sendJson(res, 403, { error: "Executive / Fee Admin only" });
+      if (!sameOrigin(req)) return sendJson(res, 403, { error: "origin" });
+      const body = JSON.parse((await readBody(req)) || "{}");
+      const m = String(body.file || "").match(/^\/files\/([a-f0-9]{24})\.(jpg|png|webp|pdf)$/);
+      if (!m) return sendJson(res, 400, { error: "Upload the receipt first." });
+      const ai = require("./ai");
+      if (!ai.ready()) return sendJson(res, 503, { error: "Auto-read is not available: " + ai.whyNot(), manual: true });
+      const fp = path.join(FILES_DIR, `${m[1]}.${m[2]}`);
+      if (!fs.existsSync(fp)) return sendJson(res, 404, { error: "File not found" });
+      try {
+        const out = await ai.readReceipt({ type: EXT_TYPES[m[2]], data: fs.readFileSync(fp).toString("base64") });
+        logAct(req, actWho(auth), "Read fee receipt", `${out.method || "?"} · Rs ${out.amount || 0} · ${out.date || "no date"}${out.reference ? " · " + out.reference : ""}`);
+        return sendJson(res, 200, out);
+      } catch (e) { return sendJson(res, 502, { error: ai.friendly(e), manual: true }); }
+    }
     /* v43: parents ki fee receipts — sirf Executive aur Fee Admin */
     const frm = p.match(/^\/fee-receipts\/([a-f0-9]{24})\.(jpg|png|webp|pdf)$/);
     if (frm && req.method === "GET") {
