@@ -1363,7 +1363,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v81 · 12 Oct 2026";
+const BUILD = "v82 · 12 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -4168,6 +4168,9 @@ function openLedger(sid){
           : `<button class="btn-line btn-sm" title="Edit this challan (amount, arrears, charges)" onclick="editChallan('${r.fid}')">✎ Challan</button>`}</td>` : ""}</tr>`).join("")
         : `<tr><td colspan="7" class="empty">No challans yet</td></tr>`}
     </tbody></table></div>
+    ${(()=>{ const fs = DB.fees.filter(f=>f.studentId===sid && !f.carriedTo), over = fs.filter(f=>feeReceived(f) > (+f.amount||0) + 1), due = fs.filter(f=>feeOutstanding(f) > 0);
+      return over.length && LEDGER_EDIT() ? `<div class="late-alert warn" style="margin-top:10px"><div>⚠</div><div>${over.map(f=>`<b>${esc(f.chNo)}</b> (${fmtM(f.month)}) has received <b>${money(feeReceived(f) - (+f.amount||0))}</b> more than its total`).join("; ")}${due.length ? ` while ${due.map(f=>`<b>${esc(f.chNo)}</b> (${fmtM(f.month)}) still shows ${money(feeOutstanding(f))} due`).join(", ")}` : ""}.
+        A payment was probably entered on the wrong challan — press <b>✎</b> on that payment and choose the right challan in <b>"This payment is for challan"</b>.</div></div>` : ""; })()}
     ${Math.abs(L.bal - L.due) > 1 ? `<p class="sub" style="margin-top:6px">Note: older imported challans have slightly different totals — the due amount shown above comes from the challans themselves (${money(L.due)}).</p>` : ""}
     <div class="modal-foot">${LEDGER_EDIT() ? `<button class="btn-line" onclick="ledgerAddPay('${sid}')">+ Add payment</button>` : ""}<button class="btn-black" onclick="downloadCSV('ledger-${fileSafe(st.name||"student")}.csv', window._ledgerCSV)">⬇ CSV</button><button class="btn-red" onclick="closeModal()">Close</button></div>`, true);
 }
@@ -4191,15 +4194,18 @@ function ledgerEditPay(fid, pid){
   const f = DB.fees.find(x=>x.id===fid); if(!f) return;
   const p = pid === "legacy" ? (feePays(f)[0] || {}) : (f.payments||[]).find(x=>x.id===pid) || {};
   const others = feePays(f).reduce((a,x)=>a + (+x.amt||0), 0) - (+p.amt||0), max = Math.max(0, (+f.amount||0) - others);
+  /* v82: payment ghalat challan par lagi ho (e.g. September ka baqaya October ke challan par) — yahan se sahi challan par */
+  const chs = DB.fees.filter(x=>x.studentId===f.studentId && (x.id===f.id || !x.carriedTo)).sort((a,b)=>String(a.month).localeCompare(String(b.month)));
   openModal(`<h3>✎ Edit payment — ${esc(f.chNo)}</h3>
     <p class="sub" style="margin-bottom:10px">${esc((stuById(f.studentId)||{}).name||"")} · ${fmtM(f.month)} challan · total ${money(f.amount)}${f.carriedTo ? " · balance carried to the next challan" : ""}</p>
     <div class="grid2">
-      <div class="field"><label>Amount (Rs)</label><input type="number" id="lp_amt" value="${+p.amt||0}" min="1" ${f.carriedTo ? "" : `max="${max}"`}></div>
+      <div class="field" style="grid-column:1/-1"><label>This payment is for challan</label><select id="lp_ch">${chs.map(x=>`<option value="${x.id}" ${x.id===f.id?"selected":""}>${esc(x.chNo)} · ${fmtM(x.month)} · total ${money(x.amount)}${x.id===f.id ? " (now)" : feeOutstanding(x) ? ` · ${money(feeOutstanding(x))} due` : " · paid"}</option>`).join("")}</select></div>
+      <div class="field"><label>Amount (Rs)</label><input type="number" id="lp_amt" value="${+p.amt||0}" min="1"></div>
       <div class="field"><label>Date paid</label><input type="date" id="lp_date" value="${esc(p.date||"")}"></div>
       <div class="field"><label>Mode of payment</label><select id="lp_method"><option value="">—</option>${PAY_METHODS.map(x=>`<option ${p.method===x?"selected":""}>${x}</option>`).join("")}</select></div>
       <div class="field"><label>Note</label><input id="lp_note" value="${esc(p.note && p.note !== "earlier" ? p.note : "")}" placeholder="e.g. arrears, online transfer ref…"></div>
     </div>
-    ${f.carriedTo ? "" : `<p class="sub">Most this payment can be: <b>${money(max)}</b> (challan total minus the other payments).</p>`}
+    <p class="sub">Pick another challan above to <b>move</b> this payment there (e.g. arrears paid for an older month).</p>
     <div class="modal-foot"><button class="btn-line" onclick="openLedger('${f.studentId}')">Cancel</button><button class="btn-red" onclick="ledgerSavePay('${fid}','${pid}')">Save payment</button></div>`);
 }
 function ledgerSavePay(fid, pid){
@@ -4207,13 +4213,23 @@ function ledgerSavePay(fid, pid){
   const amt = Math.round(+$("lp_amt").value || 0), date = $("lp_date").value;
   if(amt <= 0){ toast("Enter the amount"); return; }
   if(!date){ toast("Enter the date"); return; }
+  const t = DB.fees.find(x=>x.id===$("lp_ch").value) || f;
   const p = ledgerPay(f, pid); if(!p) return;
-  const others = f.payments.filter(x=>x !== p).reduce((a,x)=>a + (+x.amt||0), 0);
-  if(!f.carriedTo && others + amt > (+f.amount||0)){ toast(`Too much — this challan is ${money(f.amount)} and other payments are ${money(others)}`); return; }
-  const prev = {amt:p.amt, date:p.date, method:p.method||"", note:p.note||""};
+  const others = (t === f ? f.payments.filter(x=>x !== p) : feePays(t)).reduce((a,x)=>a + (+x.amt||0), 0);
+  /* sirf tab roko jab ye tabdeeli challan ko zyada bhar de (pehle se zyada bhara ho to kam karna / hatana chalta rahe) */
+  if(!t.carriedTo && others + amt > (+t.amount||0) && (t !== f || amt > (+p.amt||0))){ toast(`Too much — ${t.chNo} is ${money(t.amount)} and its other payments are ${money(others)}`); return; }
+  const prev = {amt:p.amt, date:p.date, method:p.method||"", note:p.note||"", ch:f.chNo};
   Object.assign(p, {amt, date, method:$("lp_method").value, note:$("lp_note").value.trim(), edited:{on:todayStr(), by:myName() || ROLE_LABEL, prev}});
+  if(t !== f){
+    f.payments = f.payments.filter(x=>x !== p);
+    if(!(t.payments && t.payments.length)) t.payments = feePays(t).map(x=>({id:uid(), amt:+x.amt, date:x.date, by:"", note:"earlier"}));
+    p.note = p.note || "Moved from " + f.chNo;
+    t.payments.push(p); feeRecalc(t);
+  }
   feeRecalc(f);
-  save(); renderFees(); renderDashboard(); toast(`Payment updated — ${f.chNo} ${feeOutstanding(f) ? money(feeOutstanding(f)) + " due" : "fully paid ✓"}`);
+  save(); renderFees(); renderDashboard();
+  toast(t !== f ? `Payment moved to ${t.chNo} — ${t.chNo} ${feeOutstanding(t) ? money(feeOutstanding(t)) + " due" : "paid ✓"} · ${f.chNo} ${feeOutstanding(f) ? money(feeOutstanding(f)) + " due" : "paid ✓"}`
+    : `Payment updated — ${f.chNo} ${feeOutstanding(f) ? money(feeOutstanding(f)) + " due" : "fully paid ✓"}`);
   openLedger(f.studentId);
 }
 function ledgerDelPay(fid, pid){
