@@ -283,6 +283,12 @@ Fee / Billing → **📂 Receipts** (Executive / Fee Admin) — every receipt th
 - Totals by mode (rejected parent receipts not counted), proof thumbnail / PDF, 🧾 receipt image, Ledger, and Review for
   parents' app receipts. **CSV** downloads the filtered list.
 
+## Teacher papers follow Employees → Assign (v87)
+
+A teacher always sees (and can enter marks for) the papers and homework of every class + subject given to them in
+Employees → Assign, even when the paper or the students' subject still names another (old) teacher — e.g. Arabic for FT1 and
+FT2. Create Exam now pre-fills each paper's teacher from Employees → Assign first.
+
 ## Install as an app (v41)
 
 Staff (`/`), Teachers (`/teacher`) and Parents (`/parent`) — all three links can be installed as an app on a phone / computer

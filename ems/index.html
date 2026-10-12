@@ -1365,7 +1365,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v86 · 12 Oct 2026";
+const BUILD = "v87 · 12 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -5932,6 +5932,9 @@ function classKeysFor(shift){
   if(IS_TEACHER) return [...myClassKeys()].filter(k=>!shift || k.startsWith(shift+"|"));
   return (shift ? [shift] : ["Morning","Evening"]).flatMap(x=>(CLASSES_BY_SHIFT[x]||[]).map(c=>x+"|"+c));
 }
+/* v87: paper / homework mera? — bina teacher, mere naam ka, ya Employees → Assign mein ye class + subject mujhe diya hai */
+const asgMine = (sh, c, subj) => ((empById(MY_TID)||{}).assignments||[]).some(a=>a.shift===sh && a.course===c && a.subject && (!subj || subjLike(a.subject, subj)));
+const testMine = t => !t.teacherId || t.teacherId===MY_TID || asgMine(t.shift, t.course, t.subject);
 const canEditTest = t => !IS_TEACHER || (t.by==="teacher" && t.teacherId===MY_TID && t.shift==="Evening");
 const testMarks = t => DB.exams.filter(e=>e.testId===t.id);
 /* v84: paper ka subject bacha leta hai? — wohi naam, ya aik doosre ka shuru (English ↔ English Language, Mathematics ↔ Mathematics (D),
@@ -6075,6 +6078,9 @@ function classSubjects(sh, c){
   return [...set].sort((a,b)=>(comp.has(b)-comp.has(a)) || a.localeCompare(b));
 }
 function guessTeacher(sh, c, subj){
+  /* v87: pehle Employees → Assign (is class + subject ka teacher) — purani yaad (subjTeacher) baad mein */
+  const asg = DB.employees.filter(e=>e.category==="Teacher" && (e.assignments||[]).some(a=>a.shift===sh && a.course===c && a.subject && subjLike(a.subject, subj)));
+  if(asg.length === 1) return asg[0].id;
   const mem = (DB.settings.subjTeacher||{})[subjTeacherKey(sh, c, subj)];
   if(mem && empById(mem)) return mem;
   const st = DB.students.find(x=>x.shift===sh && inClass(x, c) && (x.subjects||[]).some(y=>y.name===subj && y.teacherId));
@@ -6875,7 +6881,7 @@ function eveTestStatus(m){
 }
 function myLiveKpi(m){
   const keys = [...myClassKeys()];
-  const tests = DB.tests.filter(t=>String(t.date).startsWith(m) && keys.includes(t.shift+"|"+t.course) && (!t.teacherId || t.teacherId===MY_TID));
+  const tests = DB.tests.filter(t=>String(t.date).startsWith(m) && keys.includes(t.shift+"|"+t.course) && testMine(t));
   let n = 0, d = 0; tests.forEach(t=>{ n += testStudents(t).length; d += testMarks(t).length; });
   const recs = DB.exams.filter(e=>tests.some(t=>t.id===e.testId));
   const ac = empAttCount(MY_TID, x=>x.startsWith(m)), days = {length: ac.marked};
@@ -6929,7 +6935,7 @@ function renderMyDash(){
   const att = DB.empAttendance || {}, days = Object.keys(att).filter(d=>d.startsWith(m) && empRecs(att[d], MY_TID).length).sort();
   const c = empAttCount(MY_TID, d=>d.startsWith(m)), marked = c.marked, pct = c.pct;
   const uninf = Object.keys(att).filter(d=>empRecs(att[d], MY_TID).some(x=>x.s==="U")).sort().reverse();
-  const pend = DB.tests.filter(t=>keys.includes(t.shift+"|"+t.course) && (!t.teacherId || t.teacherId===MY_TID))
+  const pend = DB.tests.filter(t=>keys.includes(t.shift+"|"+t.course) && testMine(t))
     .map(t=>({t, n:testStudents(t).length, d:testMarks(t).length})).filter(x=>x.d < x.n).sort((a,b)=>String(a.t.date).localeCompare(String(b.t.date)));
   /* v70: late — aaj late ya mahine ki 45 min se upar → upar laal patti */
   { const t0 = todayStr(), lt = empLateMonth(MY_TID, m), todayL = empRecs(att[t0] || {}, MY_TID).filter(x=>+x.lm > 0);

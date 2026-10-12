@@ -191,7 +191,12 @@ function teacherSubjects(d, tid, cls) {
   return (k) => (map.has(k) ? map.get(k) : null);      // null = poori class
 }
 const subjHit = (set, name) => { const n = keyOf(name); for (const k of set) if (n === k || n.includes(k) || k.includes(n)) return true; return false; };
-const testSeen = (t, tid, cls) => !!t && cls.has(t.shift + "|" + t.course) && (!t.teacherId || t.teacherId === tid);
+/* v87: Employees → Assign mein jo class + subject teacher ko diya hai us ka paper / homework us teacher ko hamesha — chahe paper par
+   koi aur (purana / ghalat yaad rakha) teacher laga ho. Bina subject wali assignment par sirf bina-teacher papers (pehle jaisa). */
+const asgCovers = (me, sh, c, subj) => !!me && (me.assignments || []).some((a) => a.shift === sh && a.course === c
+  && teachShifts(me).includes(a.shift) && !!a.subject && (!subj || subjHit(new Set([keyOf(a.subject)]), subj)));
+const meOf = (d, tid) => (d.employees || []).find((e) => e.id === tid) || null;
+const testSeen = (t, tid, cls, me) => !!t && cls.has(t.shift + "|" + t.course) && (!t.teacherId || t.teacherId === tid || asgCovers(me, t.shift, t.course, t.subject));
 const testOwn = (t, tid, cls) => !!t && t.by === "teacher" && t.teacherId === tid && t.shift === "Evening" && cls.has("Evening|" + t.course);
 const catOwn = (c, tid, cls) => !!c && c.teacherId === tid && c.shift === "Evening" && cls.has("Evening|" + c.course);
 /* v69: homework — teacher apni classes ka homework dekhta hai; apna banaya poora badal sakta hai,
@@ -209,17 +214,19 @@ function activeNow(d) {
     return s.status === "Active" || !!(s.statusSince && s.statusSince.slice(0, 7) > m);
   };
 }
-const hwSeen = (h, tid, cls) => !!h && cls.has(h.shift + "|" + h.course) && (!h.teacherId || h.teacherId === tid);
+const hwSeen = (h, tid, cls, me) => !!h && cls.has(h.shift + "|" + h.course) && (!h.teacherId || h.teacherId === tid || asgCovers(me, h.shift, h.course, h.subject));
 function teacherView(d, tid) {
-  const cls = teacherClasses(d, tid);
-  const tests = (d.tests || []).filter((t) => testSeen(t, tid, cls));
+  const cls = teacherClasses(d, tid), me = meOf(d, tid);
+  const tests = (d.tests || []).filter((t) => testSeen(t, tid, cls, me));
   const ids = new Set(tests.map((t) => t.id));
   const s = d.settings || {}, subjOf = teacherSubjects(d, tid, cls);
   /* sirf apne subjects ke students — aur un ke subjects mein se sirf apne */
   /* jin classes mein teacher hai un mein se kisi mein bhi — aur un ke subjects mein se sirf apne */
   const keys = (st) => stuClasses(st).map((c) => st.shift + "|" + c).filter((k) => cls.has(k));
   /* v70: subject jis par koi aur teacher laga ho wo kabhi nahi; bina-subject class mein baqi sab, warna sirf apne */
-  const mine = (st) => { const sets = keys(st).map(subjOf), L = (st.subjects || []).filter((x) => !x.teacherId || x.teacherId === tid);
+  /* v87: bache ke subject par koi aur teacher laga ho magar Employees → Assign mein ye class + subject is teacher ka hai → is ka bhi */
+  const mine = (st) => { const sets = keys(st).map(subjOf), L = (st.subjects || []).filter((x) => !x.teacherId || x.teacherId === tid
+      || keys(st).some((k) => { const [sh, c] = k.split("|"); return asgCovers(me, sh, c, x.name); }));
     if (!sets.length || sets.some((x) => !x)) return L;
     return L.filter((x) => x.teacherId === tid || sets.some((set) => subjHit(set, x.name))); };
   const act = activeNow(d), today = pktToday(), since = new Date(Date.now() + 5 * 3600e3 - 7 * 864e5).toISOString().slice(0, 10);
@@ -252,7 +259,7 @@ function teacherView(d, tid) {
     /* v70: inquiry ki demo class jo is teacher ke saath rakhi gayi — sirf naam / class / waqt (phone nahi) */
     inquiries: (d.inquiries || []).filter((i) => i && i.demo && i.demo.teacherId === tid && String(i.demo.date || "") >= since)
       .map((i) => ({ id: i.id, name: i.name, course: i.course, shift: i.shift, mode: i.mode, stage: i.stage, date: i.date, log: [], demo: i.demo })),
-    fees: [], txns: [], homework: (d.homework || []).filter((h) => hwSeen(h, tid, cls)), inventory: [], issues: [], attendance: {},
+    fees: [], txns: [], homework: (d.homework || []).filter((h) => hwSeen(h, tid, cls, me)), inventory: [], issues: [], attendance: {},
     /* v41: sirf apni staff attendance — dekhne ke liye; teacherMerge ise kabhi nahi leta */
     empAttendance: Object.fromEntries(Object.entries(d.empAttendance || {}).filter(([, day]) => day && day[tid]).map(([dt, day]) => [dt, { [tid]: day[tid] }])),
     classCosts: {}, parentAccess: [], studentAccess: [], parentMsgs: [], audits: (d.audits || []).filter((a) => a.teacherId === tid), counters: d.counters || {},
@@ -262,7 +269,7 @@ function teacherView(d, tid) {
 /* Teacher ke save se sirf us ke apne hisse badalte hain — baaki sab server wala hi rehta hai */
 function teacherMerge(data, tid) {
   const cur = JSON.parse(state.dataText) || {};
-  const cls = teacherClasses(cur, tid);
+  const cls = teacherClasses(cur, tid), me = meOf(cur, tid);
   const arr = (x) => (Array.isArray(x) ? x.filter((y) => y && typeof y === "object" && y.id) : []);
   const curTests = arr(cur.tests), curById = new Map(curTests.map((t) => [t.id, t]));
   const tests = curTests.filter((t) => !testOwn(t, tid, cls))
@@ -271,7 +278,7 @@ function teacherMerge(data, tid) {
   const gone = new Set(curTests.filter((t) => !outIds.has(t.id)).map((t) => t.id));        // teacher ne apna test hataya
   const testOf = new Map(tests.map((t) => [t.id, t]));
   const stu = new Map((cur.students || []).map((st) => [st.id, st]));
-  const vis = (e) => { const t = e && testOf.get(e.testId); return !!t && testSeen(t, tid, cls); };
+  const vis = (e) => { const t = e && testOf.get(e.testId); return !!t && testSeen(t, tid, cls, me); };
   const fits = (e) => { const t = testOf.get(e.testId), st = stu.get(e.studentId); return !!st && stuIn(st, t.shift, t.course); };
   const curEx = arr(cur.exams), curExById = new Map(curEx.map((e) => [e.id, e]));
   const exams = curEx.filter((e) => !gone.has(e.testId) && !vis(e))
@@ -287,7 +294,7 @@ function teacherMerge(data, tid) {
   const curHw = arr(cur.homework), newHw = new Map(arr(data.homework).map((h) => [h.id, h]));
   const homework = [];
   curHw.forEach((h) => {
-    if (!hwSeen(h, tid, cls)) return homework.push(h);
+    if (!hwSeen(h, tid, cls, me)) return homework.push(h);
     const n = newHw.get(h.id);
     if (!n) { if (h.teacherId !== tid) homework.push(h); return; }               // apna hi delete ho sakta hai
     if (h.teacherId === tid && hwSeen(n, tid, cls)) return homework.push({ ...n, teacherId: tid, by: "teacher", done: cleanDone(n, n.done) });
