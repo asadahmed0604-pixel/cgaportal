@@ -249,6 +249,14 @@ note) and **✕ Remove**, challan rows have **✎ Challan**, and **+ Add payment
 v82: ✎ on a payment can also **move it to another challan** ("This payment is for challan") — e.g. arrears entered on October's challan that belong to September's; the ledger warns when one challan is over-paid while another still shows a balance. After every change the challan's received / balance / Paid status is recalculated, so the dashboard, income, reports and the
 parents app all show the corrected figures. Edited payments keep the old values (marked ✎).
 
+## Parents' fees & teacher exams (v83)
+
+- Parents app: **💳 Fees** at the top of My Report (parents only — not on a student's own login) and the chat "fee" reply
+  now come from one shared, live calculation (`feeSummary` in parent-bot.js): total due, last payment, and every challan with
+  its total, status (Paid / Partly paid / Unpaid / moved to next challan), amount due and every payment (date, amount, mode).
+  Any change in the EMS (Mark Paid, ledger edit / move / remove, challan edit) shows on the parents' side at the next refresh.
+- Teachers' Tests & Marks shows **all exams** (exam papers, any month) and only **this month's** ordinary tests.
+
 ## Install as an app (v41)
 
 Staff (`/`), Teachers (`/teacher`) and Parents (`/parent`) — all three links can be installed as an app on a phone / computer

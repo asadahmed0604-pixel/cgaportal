@@ -1363,7 +1363,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v82 · 12 Oct 2026";
+const BUILD = "v83 · 12 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -5725,18 +5725,21 @@ function renderTests(){
   const courses = [...new Set(keys.map(k=>k.split("|")[1]))];
   cSel.innerHTML = `<option value="">All classes</option>` + courses.map(c=>`<option ${c===keep?"selected":""}>${esc(c)}</option>`).join("");
   const fc = cSel.value;
-  const exAll = examGroups(fm, fs, keys), eSel = $("testFExam"), keepE = eSel.value;
+  /* v83: teacher — exams (exam papers) har mahine ke nazar aate hain; aam tests sirf is mahine ke */
+  if(IS_TEACHER && $("testFMonth").closest(".field")) $("testFMonth").closest(".field").style.display = "none";
+  const exAll = examGroups(IS_TEACHER ? "" : fm, fs, keys), eSel = $("testFExam"), keepE = eSel.value;
   eSel.innerHTML = `<option value="">All</option>` + exAll.map(g=>`<option value="${g.id}" ${g.id===keepE?"selected":""}>${esc(g.name)}</option>`).join("");
   const fe = eSel.value;
   drawExamGroups(exAll);
-  const rows = DB.tests.filter(t=>(!fm || String(t.date).startsWith(fm)) && (!fs || t.shift===fs) && (!fc || t.course===fc)
+  const monthOk = t => IS_TEACHER ? (!!t.examId || String(t.date).startsWith(thisMonth())) : (!fm || String(t.date).startsWith(fm));
+  const rows = DB.tests.filter(t=>monthOk(t) && (!fs || t.shift===fs) && (!fc || t.course===fc)
       && (!fe || t.examId===fe) && (!IS_TEACHER || keys.includes(t.shift+"|"+t.course)))
     .map(t=>({t, n:testStudents(t).length, d:testMarks(t).length}))
     .filter(r=>!fst || (fst==="due" ? r.d < r.n : r.n && r.d >= r.n))
     .sort((a,b)=>String(b.t.date).localeCompare(String(a.t.date)) || a.t.course.localeCompare(b.t.course));
   $("testsNote").innerHTML = IS_TEACHER && !keys.length
     ? `<div class="note">No class is assigned to you yet — ask the admin: Employees → your name → Edit → assign class.</div>`
-    : IS_TEACHER ? `<div class="sub" style="margin-bottom:10px">Your classes: ${[...myClassKeys()].map(k=>{ const [sh,c]=k.split("|"); return `<span class="chip">${esc(c)} · ${sh}</span>`; }).join(" ")}</div>` : "";
+    : IS_TEACHER ? `<div class="sub" style="margin-bottom:10px">Showing <b>all exams</b> (any month) and <b>${fmtM(thisMonth())}</b> tests. Your classes: ${[...myClassKeys()].map(k=>{ const [sh,c]=k.split("|"); return `<span class="chip">${esc(c)} · ${sh}</span>`; }).join(" ")}</div>` : "";
   $("testRows").innerHTML = rows.length ? rows.map(({t,n,d})=>{ const av = testAvg(t), te = empById(t.teacherId);
     return `<tr>
       <td>${fmtD(t.date)}</td>

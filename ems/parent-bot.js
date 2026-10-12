@@ -136,17 +136,36 @@ function homework(db, s, today) {
   ];
 }
 
-function fee(db, s) {
+/* v83: aik hi hisaab — parents chat aur parents app (My Report) dono yahi istemal karte hain, live DB se.
+   Har challan: kul raqam, kitna mila, kitna baqi, status, aur har payment (tareekh, raqam, tareeqa). */
+function feeSummary(db, s) {
   const fs = (db.fees || []).filter((f) => f.studentId === s.id).sort((a, b) => String(b.month).localeCompare(String(a.month)));
-  if (!fs.length) return [H(`💳 ${s.name} — Fee`), P("No challans issued yet.")];
-  const due = fs.reduce((a, f) => a + feeOutstanding(f), 0);
+  const recv = (f) => (hasVal(f.paidAmount) ? +f.paidAmount || 0 : f.status === "Paid" ? +f.amount || 0 : 0);
+  const pays = (f) => (f.payments && f.payments.length ? f.payments : recv(f) > 0 ? [{ amt: recv(f), date: f.paidDate || (f.month || "") + "-01" }] : [])
+    .map((p) => ({ amt: +p.amt || 0, date: p.date || "", method: p.method || "", note: p.note && p.note !== "earlier" ? p.note : "" }))
+    .sort((a, b) => String(a.date).localeCompare(String(b.date)));
+  const list = fs.map((f) => {
+    const due = feeOutstanding(f), got = recv(f);
+    const status = f.carriedTo ? "carried" : due <= 0 ? "paid" : got > 0 ? "partial" : "unpaid";
+    return { chNo: f.chNo || "", month: f.month || "", amount: +f.amount || 0, arrears: +f.arrears || 0, received: got, due, status,
+      dueDate: f.dueDate || "", carriedChNo: f.carriedChNo || "", payments: pays(f) };
+  });
+  const allPays = list.flatMap((c) => c.payments.map((p) => ({ ...p, chNo: c.chNo, month: c.month }))).sort((a, b) => String(b.date).localeCompare(String(a.date)));
+  return { totalDue: list.reduce((a, c) => a + c.due, 0), lastPayment: allPays[0] || null, challans: list };
+}
+const payLine = (p) => `${money(p.amt)}${p.method ? ` · ${p.method}` : ""} on ${fmtD(p.date)}${p.note ? ` (${p.note})` : ""}`;
+
+function fee(db, s) {
+  const F = feeSummary(db, s);
+  if (!F.challans.length) return [H(`💳 ${s.name} — Fee`), P("No challans issued yet.")];
   const out = [H(`💳 ${s.name} — Fee`)];
-  out.push(P(due ? `Total due: ${money(due)}` : "Nothing due ✓ — thank you!"));
-  out.push(LI(fs.slice(0, 4).map((f) => {
-    const o = feeOutstanding(f);
-    const st = f.carriedTo ? `included in next challan (${f.carriedChNo || ""})` : o ? `due ${money(o)}${f.dueDate ? ` · due ${fmtD(f.dueDate)}` : ""}` : `paid${f.paidDate ? ` ${fmtD(f.paidDate)}` : ""} ✓`;
-    const pays = (f.payments || []).length > 1 || (o && (f.payments || []).length) ? ` · payments: ${f.payments.map((p) => `${money(p.amt)}${p.method ? ` (${p.method})` : ""} on ${fmtD(p.date)}`).join(", ")}` : "";   // v53: qisten
-    return `${fmtM(f.month)} · ${f.chNo || ""} · ${money(f.amount)}${+f.arrears ? ` (incl. ${money(f.arrears)} arrears)` : ""} — ${st}${pays}`;
+  out.push(P(F.totalDue ? `Total due now: ${money(F.totalDue)}` : "Nothing due ✓ — thank you!"));
+  if (F.lastPayment) out.push(P(`Last payment received: ${payLine(F.lastPayment)} — ${F.lastPayment.chNo} (${fmtM(F.lastPayment.month)})`));
+  out.push(LI(F.challans.slice(0, 6).map((c) => {
+    const st = c.status === "carried" ? `balance moved to the next challan${c.carriedChNo ? ` (${c.carriedChNo})` : ""}`
+      : c.status === "paid" ? "paid ✓" : c.status === "partial" ? `partly paid — ${money(c.received)} received, ${money(c.due)} due${c.dueDate ? ` by ${fmtD(c.dueDate)}` : ""}`
+      : `unpaid — ${money(c.due)} due${c.dueDate ? ` by ${fmtD(c.dueDate)}` : ""}`;
+    return `${fmtM(c.month)} · ${c.chNo} · ${money(c.amount)}${c.arrears ? ` (incl. ${money(c.arrears)} arrears)` : ""} — ${st}${c.payments.length ? ` · payments: ${c.payments.map(payLine).join(", ")}` : ""}`;
   })));
   const rc = (db.feeReceipts || []).filter((r) => r.studentId === s.id).sort((a, b) => String(b.d).localeCompare(String(a.d))).slice(0, 3);
   if (rc.length) {
@@ -197,4 +216,4 @@ function reply(db, s, text, key, todayStr) {
   }
 }
 
-module.exports = { phoneKey, childrenOf, intentOf, reply, MENU, feeOutstanding, bunksOf };
+module.exports = { phoneKey, childrenOf, intentOf, reply, MENU, feeOutstanding, bunksOf, feeSummary };

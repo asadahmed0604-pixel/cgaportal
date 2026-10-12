@@ -10,6 +10,7 @@ const path = require("path");
 const crypto = require("crypto");
 const ai = require("./ai");
 const { studentReport } = require("./student-report");
+const { feeSummary } = require("./parent-bot");
 
 const GRACE_MS = 90e3;                        // timer khatam hone ke baad network ke liye thori mohlat
 const MAX_WORK_FILES = 20;              // v80: PDF + kai photos
@@ -582,6 +583,7 @@ module.exports = function setup(ctx) {
       const st = kid(url.searchParams.get("studentId"));
       if (!st) return sendJson(res, 400, { error: "Choose a student." });
       const r = studentReport(fam.db, st, pktDate());
+      if (!fam.self) r.fees = feeSummary(fam.db, st);        // v83: parents app — fees (bacha khud login kare to nahi)
       r.assignments = assignments.filter((a) => open(a, pktDate()) && (a.studentIds || []).includes(st.id)).map((a) => {
         const s = settle(subFor(a.id, st.id));
         return { title: a.title, subject: a.subject, total: a.total, state: s ? s.status : "new", dueDate: a.dueDate || "",
