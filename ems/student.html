@@ -348,6 +348,9 @@ async function report(quiet) {
   const days = {}; r.classes.forEach((c) => c.times.forEach((t) => { (days[t.d] = days[t.d] || []).push({ ...t, subject: c.subject, course: c.course, teacher: c.teacher }); }));
   const order = [1, 2, 3, 4, 5, 6, 0].filter((d) => days[d]);
   const pend = (r.assignments || []).filter((x) => x.state === "new" || x.state === "in_progress");
+  /* v91: homework bhi — jo abhi jama nahi hua (pending / due nikal gayi) */
+  const hwPend = (r.homework || []).filter((h) => h.state === "pending" || h.state === "missed"), todo = pend.length + hwPend.length;
+  const todoTxt = [hwPend.length ? `${hwPend.length} homework` : "", pend.length ? `${pend.length} assignment${pend.length > 1 ? "s" : ""}` : ""].filter(Boolean).join(" · ");
   const y = window.scrollY;
   view.innerHTML = topBits() + `
     <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:10px;flex-wrap:wrap;margin-bottom:10px">
@@ -357,7 +360,7 @@ async function report(quiet) {
       <div class="stat"><small>Today</small><b>${a.today ? `<span class="pill ${a.today.s}">${ATT_N[a.today.s] || a.today.s}</span>` : "—"}</b><span>${a.today ? (a.today.t ? "at " + esc(a.today.t) : "attendance marked") : "not marked yet"}</span></div>
       <div class="stat"><small>Attendance · ${esc(new Date(a.month + "-01T12:00").toLocaleDateString("en-GB", { month: "short" }))}</small><b>${mc.pct === null ? "—" : mc.pct + "%"}</b><span>${mc.P + mc.L} present · ${mc.A} absent</span>${meter(mc.pct)}</div>
       <div class="stat"><small>Average marks</small><b>${mk.average === null ? "—" : mk.average + "%"}</b><span>${mk.count ? (mk.count > 10 ? `last 10 of ${mk.count} tests` : `${mk.count} test${mk.count === 1 ? "" : "s"}`) : "no marks yet"}</span>${meter(mk.average)}</div>
-      <div class="stat"><small>Assignments</small><b>${pend.length}</b><span>${pend.length ? "to do" : "nothing pending ✓"}</span></div>
+      <div class="stat" id="todoStat" style="cursor:pointer"><small>Homework &amp; assignments</small><b>${todo}</b><span>${todo ? todoTxt + " to do ›" : "nothing pending ✓"}</span></div>
     </div>
     ${r.fees ? (() => { const F = r.fees, money = (n) => "Rs " + Math.round(+n || 0).toLocaleString("en-US"), M = (m) => m ? new Date(m + "-01T12:00").toLocaleDateString("en-GB", { month: "long", year: "numeric" }) : "";
       const pill = { paid: `<span class="pill P">Paid</span>`, partial: `<span class="pill L">Partly paid</span>`, unpaid: `<span class="pill A">Unpaid</span>`, carried: `<span class="pill E">Moved to next challan</span>` };
@@ -396,6 +399,7 @@ async function report(quiet) {
       : `<p class="sub" style="margin:0">No homework given yet.</p>`}</div>
     ${r.remarks.length ? `<div class="card"><h3>💬 Teacher remarks</h3><table class="rt"><tbody>${r.remarks.map((x) => `<tr><td style="white-space:nowrap">${esc(fmtD(x.d))}</td><td><b>${esc(x.type)}</b>${x.by ? ` <span class="sub">· ${esc(x.by)}</span>` : ""}<div>${esc(x.note)}</div></td></tr>`).join("")}</tbody></table></div>` : ""}`;
   bindKids();
+  const ts = $("#todoStat"); if (ts) ts.addEventListener("click", () => { tab = "asg"; try { localStorage.setItem("cgaTab", tab); } catch {} window.scrollTo(0, 0); list(); });
   if (quiet) window.scrollTo(0, y);
   if (!poll) poll = setInterval(() => { if (document.visibilityState === "visible" && tab === "rep" && !cur) report(true); }, 30e3);
 }
