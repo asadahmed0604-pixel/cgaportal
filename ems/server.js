@@ -234,7 +234,8 @@ function teacherView(d, tid) {
     students: students.map((st) => ({
       id: st.id, name: st.name, regNo: st.regNo, course: st.course, course2: st.course2, shift: st.shift, status: st.status, mode: st.mode,
       statusSince: st.statusSince, doj: st.doj, joinMonth: st.joinMonth, roster: st.roster, group: st.group,
-      subjects: mine(st).map((x) => ({ name: x.name, teacherId: x.teacherId || "" })) })),
+      subjects: mine(st).map((x) => ({ name: x.name, teacherId: x.teacherId || "" })),
+      hasSubj: (st.subjects || []).length > 0 })),      // v84: bache ke subjects maloom hain (teacher ko sirf apne wale bheje jate hain)
     /* v46: apni KPI checklist aur class audits — live KPI ke liye (sirf parhne ko) */
     kpis: (d.kpis || []).filter((k) => k.teacherId === tid),
     employees: (d.employees || []).filter((e) => e.id === tid).map((e) => e.id === tid      // v70: sirf apna record

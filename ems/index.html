@@ -1363,7 +1363,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v83 · 12 Oct 2026";
+const BUILD = "v84 · 12 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -5708,11 +5708,19 @@ function classKeysFor(shift){
 }
 const canEditTest = t => !IS_TEACHER || (t.by==="teacher" && t.teacherId===MY_TID && t.shift==="Evening");
 const testMarks = t => DB.exams.filter(e=>e.testId===t.id);
+/* v84: paper ka subject bacha leta hai? — wohi naam, ya aik doosre ka shuru (English ↔ English Language, Mathematics ↔ Mathematics (D),
+   Pakistan Studies ↔ Pakistan Studies P1) — magar "Mathematics" ↔ "Additional Mathematics" nahi. Subjects maloom hi na hon to bacha shamil. */
+function takesSubject(st, subject){
+  const t = keyify(subject); if(!t) return true;
+  const L = (st.subjects||[]).map(x=>keyify(x.name)).filter(Boolean);
+  if(!L.length) return st.hasSubj !== true;                     // teacher ko sirf apne subjects aate hain — hasSubj = bache ke subjects darj hain
+  return L.some(k=>k === t || k.startsWith(t) || t.startsWith(k));
+}
 function testStudents(t){
   const m = String(t.date||wm()).slice(0,7), RM = rosterMonths();
   const has = new Set(testMarks(t).map(e=>e.studentId));
   return DB.students.filter(st=>has.has(st.id) || (st.shift===t.shift && inClass(st, t.course) && st.status!=="Left" && inMonth(st, m, RM)
-      && (!t.subject || !(st.subjects||[]).length || st.subjects.some(x=>subjLike(x.name, t.subject)))))
+      && takesSubject(st, t.subject)))
     .sort((a,b)=>a.name.localeCompare(b.name));
 }
 function testAvg(t){
