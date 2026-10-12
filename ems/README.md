@@ -242,6 +242,13 @@ card has 📷 Take a photo (camera), 🖼 Choose photos (several at once), 📄 
 added one by one (up to 20 files), numbered and removed, then **✔ Submit uploaded work**. Drag & drop works on a computer.
 Photos are shrunk on the phone before upload; PDFs up to 15 MB. The AI checker and the teacher see every page.
 
+## Editing the fee ledger (v81)
+
+Student fee ledger (📒 Ledger on any challan; Executive / Fee Admin): every payment row has **✎ Edit** (amount, date, mode,
+note) and **✕ Remove**, challan rows have **✎ Challan**, and **+ Add payment** records a payment on any challan with a balance.
+After every change the challan's received / balance / Paid status is recalculated, so the dashboard, income, reports and the
+parents app all show the corrected figures. Edited payments keep the old values (marked ✎).
+
 ## Install as an app (v41)
 
 Staff (`/`), Teachers (`/teacher`) and Parents (`/parent`) — all three links can be installed as an app on a phone / computer
