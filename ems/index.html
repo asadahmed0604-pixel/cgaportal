@@ -709,6 +709,7 @@ label.chk input{width:auto}
     <div><h2>Fee / Billing</h2><div class="sub">Challans, paid & unpaid record</div></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn-red" onclick="openAddReceipt()">🧾 Add receipt</button>
+      <button class="btn-black" onclick="openReceiptRegister()">📂 Receipts</button>
       <button class="btn-black" onclick="openImport('fees')">⬆ Import CSV</button>
       <button class="btn-black" onclick="openDefaulters()">⚠ Defaulter List</button>
       <button class="btn-black" onclick="openBulkChallan()">⚡ Generate All Challans</button>
@@ -1364,7 +1365,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v85 · 12 Oct 2026";
+const BUILD = "v86 · 12 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -4290,6 +4291,66 @@ function saveReceipt(){
   toast(`✓ ${money(amt)} recorded on ${f.chNo} (${rcptNo})`);
   if(method === "Cash") cashReceipt(f.id, pid); else closeModal();
 }
+/* ================= v86: RECEIPTS REGISTER =================
+   Office ki darj ki hui receipts (proof + receipt no) aur parents app se aayi receipts — aik jagah, filter, total, CSV. */
+let RR = {src:"entered", m:"", mode:"", q:""};
+function receiptRows(){
+  const rows = [];
+  DB.fees.forEach(f=>{ const st = stuById(f.studentId) || {};
+    feePays(f).forEach(p=>{ if(RR.src !== "all" && !(p.rcptNo || p.receipt)) return;
+      rows.push({src:"office", d:p.legacy ? (f.paidDate || f.month + "-01") : p.date, no:p.rcptNo || "", st, name:st.name || "", f, amt:+p.amt || 0, mode:p.method || "",
+        ref:p.ref || "", by:p.by || "", proof:p.receipt || "", pid:p.legacy ? "legacy" : p.id, status:"Recorded"}); }); });
+  if(RR.src === "entered" || RR.src === "parents" || RR.src === "all")
+    (DB.feeReceipts||[]).forEach(r=>{ const st = stuById(r.studentId) || {};
+      rows.push({src:"parent", d:r.paidOn || String(r.d).slice(0,10), no:"", st, name:r.studentName || st.name || "", f:DB.fees.find(x=>x.id===r.feeId) || {chNo:r.chNo, month:r.month},
+        amt:+r.amount || 0, mode:r.method || "", ref:r.ref || "", by:"Parent app", proof:r.file || "", pdf:r.fileType === "pdf", rid:r.id, status:r.status || "Pending"}); });
+  const q = RR.q.trim().toLowerCase();
+  return rows.filter(r=>(RR.src !== "parents" || r.src === "parent") && (RR.src !== "office" || r.src === "office")
+      && (!RR.m || String(r.d).startsWith(RR.m)) && (!RR.mode || r.mode === RR.mode)
+      && (!q || [r.name, r.st.regNo, r.f.chNo, r.no, r.ref].some(x=>String(x||"").toLowerCase().includes(q))))
+    .sort((a,b)=>String(b.d).localeCompare(String(a.d)) || String(b.no).localeCompare(String(a.no)));
+}
+function openReceiptRegister(){
+  if(!LEDGER_EDIT()){ toast("Fee access needed"); return; }
+  RR.m = RR.m || wm();
+  openModal(`<h3>📂 Receipts</h3>
+    <div class="mchips" id="rr_src" style="margin:4px 0 10px"></div>
+    <div class="toolbar" style="align-items:flex-end;margin-bottom:6px">
+      <div class="field"><label>Month paid</label><input type="month" id="rr_m" value="${RR.m}" onchange="RR.m=this.value;drawReceiptRegister()"></div>
+      <button class="btn-line btn-sm" style="margin-bottom:10px" onclick="RR.m='';$('rr_m').value='';drawReceiptRegister()">All months</button>
+      <div class="field"><label>Mode</label><select id="rr_mode" onchange="RR.mode=this.value;drawReceiptRegister()"><option value="">All</option>${PAY_METHODS.map(x=>`<option ${RR.mode===x?"selected":""}>${x}</option>`).join("")}</select></div>
+      <div class="field" style="flex:1"><label>Search</label><input id="rr_q" value="${esc(RR.q)}" placeholder="Name, Reg No, challan, receipt no, TID" oninput="RR.q=this.value;drawReceiptRegister()"></div>
+    </div>
+    <p class="sub" id="rr_sum" style="margin-bottom:8px"></p>
+    <div class="tbl-wrap" style="max-height:56vh;overflow:auto"><table><thead><tr><th>Date</th><th>Receipt</th><th>Student</th><th>Challan</th><th style="text-align:right">Amount</th><th>Mode / ref</th><th>Proof</th><th></th></tr></thead><tbody id="rr_rows"></tbody></table></div>
+    <div class="modal-foot"><button class="btn-line" onclick="openAddReceipt()">🧾 Add receipt</button><button class="btn-black" onclick="receiptRegisterCSV()">⬇ CSV</button><button class="btn-red" onclick="closeModal()">Close</button></div>`, true);
+  drawReceiptRegister();
+}
+function drawReceiptRegister(){
+  $("rr_src").innerHTML = [["entered","Entered receipts"],["office","Office (Add receipt)"],["parents","From parents' app"],["all","All payments"]]
+    .map(([k,l])=>`<button class="${RR.src===k?"on":""}" onclick="RR.src='${k}';drawReceiptRegister()">${l}</button>`).join("");
+  const L = receiptRows(), tot = L.filter(r=>r.status !== "Rejected").reduce((a,r)=>a + r.amt, 0), by = {};
+  L.filter(r=>r.status !== "Rejected").forEach(r=>{ const k = r.mode || "Not set"; by[k] = (by[k]||0) + r.amt; });
+  $("rr_sum").innerHTML = `<b>${L.length}</b> receipt${L.length===1?"":"s"}${RR.m ? " · " + fmtM(RR.m) : ""} · total <b>${money(tot)}</b>${Object.keys(by).length ? " · " + Object.entries(by).map(([k,v])=>`${esc(k)} ${money(v)}`).join(" · ") : ""}`;
+  const stB = r => r.src === "office" ? "" : `<br>${r.status==="Approved" ? `<span class="badge b-paid">Approved</span>` : r.status==="Rejected" ? `<span class="badge b-left">Rejected</span>` : `<span class="badge b-unpaid">Pending</span>`}`;
+  $("rr_rows").innerHTML = L.length ? L.slice(0, 400).map(r=>`<tr>
+      <td style="white-space:nowrap">${fmtD(r.d)}</td>
+      <td>${r.no ? `<b>${esc(r.no)}</b>` : r.src === "parent" ? `<span class="sub">Parent app</span>` : "—"}${stB(r)}</td>
+      <td><b>${esc(r.name || "—")}</b><br><span class="sub">${esc(r.st.regNo||"")}${r.st.course ? " · " + esc(classLabelOf(r.st)) : ""}</span></td>
+      <td>${esc(r.f.chNo || "—")}${r.f.month ? `<br><span class="sub">${fmtM(r.f.month)}</span>` : ""}</td>
+      <td style="text-align:right"><b>${money(r.amt)}</b></td>
+      <td>${esc(r.mode || "—")}${r.ref ? `<br><span class="sub">${esc(r.ref)}</span>` : ""}${r.by ? `<br><span class="sub">by ${esc(r.by)}</span>` : ""}</td>
+      <td>${r.proof ? (r.pdf || /\.pdf$/.test(r.proof) ? `<a href="${esc(r.proof)}" target="_blank" rel="noopener">📄 PDF</a>` : `<a href="${esc(r.proof)}" target="_blank" rel="noopener"><img class="rcpt-thumb" src="${esc(r.proof)}" alt="" style="width:56px;height:56px;object-fit:cover;border-radius:8px;border:1px solid var(--line)"></a>`) : `<span class="sub">${r.mode === "Cash" ? "cash" : "—"}</span>`}</td>
+      <td style="white-space:nowrap">${r.src === "office" ? `<button class="btn-line btn-sm" title="Receipt image" onclick="cashReceipt('${r.f.id}','${r.pid}')">🧾</button> <button class="btn-line btn-sm" onclick="openLedger('${r.f.studentId}')">Ledger</button>`
+        : `<button class="${r.status==="Pending" ? "btn-red" : "btn-line"} btn-sm" onclick="openFeeReceipt('${r.rid}')">${r.status==="Pending" ? "Review" : "View"}</button>`}</td></tr>`).join("")
+    : `<tr><td colspan="8" class="empty">No receipts${RR.m ? " in " + fmtM(RR.m) : ""} — use 🧾 Add receipt to enter one.</td></tr>`;
+}
+function receiptRegisterCSV(){
+  const L = receiptRows();
+  downloadCSV(`Receipts ${RR.m ? fmtM(RR.m) : "all"}.csv`, [["Date","Receipt No","Source","Student","Reg No","Class","Challan","Fee month","Amount","Mode","Reference","Entered by","Status","Proof"],
+    ...L.map(r=>[r.d, r.no, r.src === "office" ? "Office" : "Parent app", r.name, r.st.regNo||"", classLabelOf(r.st)||"", r.f.chNo||"", r.f.month||"", r.amt, r.mode, r.ref, r.by, r.status, r.proof ? location.origin + r.proof : ""])]);
+}
+
 /* rupees in words */
 function amountWords(n){
   n = Math.round(+n || 0); if(!n) return "Zero";

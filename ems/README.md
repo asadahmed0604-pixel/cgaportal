@@ -275,6 +275,14 @@ Fee / Billing → **🧾 Add receipt** (Executive / Fee Admin):
   with logo, receipt no (R-YYYY-####), student, challan, amount in figures and words, mode and balance — download or share.
   Any payment's receipt image can be made again from the ledger (🧾).
 
+## Receipts register (v86)
+
+Fee / Billing → **📂 Receipts** (Executive / Fee Admin) — every receipt that was entered, in one place:
+- Tabs: **Entered** (office receipts with a receipt no / proof + parents' app receipts), **Office**, **Parents' app**, **All payments**.
+- Filters: month, mode (Cash / Bank / JazzCash / EasyPaisa …) and search (name, Reg No, challan no, receipt no, transaction ID).
+- Totals by mode (rejected parent receipts not counted), proof thumbnail / PDF, 🧾 receipt image, Ledger, and Review for
+  parents' app receipts. **CSV** downloads the filtered list.
+
 ## Install as an app (v41)
 
 Staff (`/`), Teachers (`/teacher`) and Parents (`/parent`) — all three links can be installed as an app on a phone / computer
