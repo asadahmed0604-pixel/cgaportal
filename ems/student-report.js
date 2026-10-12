@@ -45,6 +45,10 @@ function classesFor(db, st) {
 }
 
 const mine = (st) => (st.subjects || []).filter((x) => x && x.name);
+/* v69 / v90: bache ka homework (uski class + shift; subject wala sirf us subject ke bachon ko) — naya pehle */
+const homeworkOf = (db, st) => (db.homework || []).filter((h) => h && h.shift === st.shift && classesOf(st).includes(h.course)
+    && (!h.subject || !mine(st).length || mine(st).some((x) => subjLike(x.name, h.subject))))
+  .sort((a, b) => String(b.dateGiven).localeCompare(String(a.dateGiven)));
 function studentReport(db, st, today) {
   const att = db.attendance || {}, month = today.slice(0, 7);
   const since = new Date(Date.parse(today + "T00:00:00Z") - 30 * 864e5).toISOString().slice(0, 10);
@@ -91,11 +95,9 @@ function studentReport(db, st, today) {
       bySubject: Object.entries(bySub).map(([k, l]) => ({ subject: k, avg: avg(l), n: l.length, last: l[0] })).sort((a, b) => a.subject.localeCompare(b.subject)),
     },
     /* v69: homework — subject wala sirf us subject ke bachon ko */
-    homework: (db.homework || []).filter((h) => h.shift === st.shift && classesOf(st).includes(h.course)
-        && (!h.subject || !mine(st).length || mine(st).some((x) => subjLike(x.name, h.subject))))
-      .sort((a, b) => String(b.dateGiven).localeCompare(String(a.dateGiven))).slice(0, 12).map((h) => {
+    homework: homeworkOf(db, st).slice(0, 12).map((h) => {
         const d = (h.done || {})[st.id], due = h.dueDate || "";
-        return { title: h.title || "", subject: h.subject || "", detail: h.detail || "", given: h.dateGiven || "", due,
+        return { id: h.id, title: h.title || "", subject: h.subject || "", detail: h.detail || "", given: h.dateGiven || "", due,
           teacher: h.teacherId ? ((db.employees || []).find((e) => e.id === h.teacherId) || {}).name || "" : "",
           state: d ? (typeof d === "string" && due && d > due ? "late" : "done") : due && due < today ? "missed" : "pending", on: typeof d === "string" ? d : "" };
       }),
@@ -104,4 +106,4 @@ function studentReport(db, st, today) {
   };
 }
 
-module.exports = { studentReport, classesFor };
+module.exports = { studentReport, classesFor, homeworkOf };

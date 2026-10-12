@@ -296,6 +296,18 @@ the Parents page and either one can log in to the parents' app. Searching a stud
 are missing (status Left, no phone, or a number that is too short / mistyped). The "no valid phone" list now covers every
 student who has not left (Freeze too) and shows the saved number on hover.
 
+## Homework in the student / parents' app — send photos, teacher confirms (v90)
+
+Every homework given to a child (Morning or Evening, by a teacher or the admin) now shows in **Assignments** in the student
+portal and the parents' app, above the AI assignments: To do / Sent — awaiting teacher / ✓ Checked / Not submitted.
+- Open a homework → **Take a photo**, **Choose photos** or **Choose PDF** (up to 20 files). Each page goes to the teacher
+  straight away; pages can be added or removed until the teacher checks it.
+- Teacher / admin: Homework shows **📥 n sent — confirm**. **✓ Receival** has a **Sent work** column (thumbnails, PDF, by
+  student or parent) and **✓ Confirm all who sent work**; ticking uses the day the work was sent (late is counted right).
+  After **Save receival** the app shows **✓ Checked by teacher** and the work is locked.
+- Files are stored on the server in `DATA_DIR/asg/files`, the list in `DATA_DIR/asg/hwsubs.json` (outside db.json). Teachers
+  only see the work of homework in their own classes.
+
 ## Install as an app (v41)
 
 Staff (`/`), Teachers (`/teacher`) and Parents (`/parent`) — all three links can be installed as an app on a phone / computer
