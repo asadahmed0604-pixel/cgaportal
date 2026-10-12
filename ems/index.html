@@ -430,8 +430,9 @@ label.chk input{width:auto}
   .grid2,.grid3,.grid4{grid-template-columns:minmax(0,1fr)}
   .grid2 > *,.grid3 > *,.grid4 > *,.cards > *{min-width:0}
   .wmbar #meBtn{display:none}
-  .modal.sheet{min-height:0;border-radius:22px 22px 0 0;animation:sheetUp .22s ease}
-  .overlay{padding:0;align-items:flex-end}
+  /* v89: flex-end par lamba form upar se kat jata tha (scroll nahi hota tha) — overlay upar se shuru, sheet margin-top:auto se neeche */
+  .modal.sheet{min-height:0;margin-top:auto;border-radius:22px 22px 0 0;animation:sheetUp .22s ease}
+  .overlay{padding:0;align-items:flex-start;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
   .modal,.modal.wide{max-width:100%;min-height:100%;border-radius:0;padding:16px 14px calc(16px + env(safe-area-inset-bottom))}
   .modal h3{padding-right:40px;font-size:1.08rem}
   .modal-foot{position:sticky;bottom:calc(-16px - env(safe-area-inset-bottom));background:#fff;margin:14px -14px calc(-16px - env(safe-area-inset-bottom));padding:12px 14px calc(12px + env(safe-area-inset-bottom));flex-wrap:wrap;box-shadow:0 -4px 12px rgba(0,0,0,.06)}
@@ -1365,7 +1366,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v88 · 12 Oct 2026";
+const BUILD = "v89 · 12 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
