@@ -289,6 +289,13 @@ A teacher always sees (and can enter marks for) the papers and homework of every
 Employees → Assign, even when the paper or the students' subject still names another (old) teacher — e.g. Arabic for FT1 and
 FT2. Create Exam now pre-fills each paper's teacher from Employees → Assign first.
 
+## Parent logins — two numbers in one field (v88)
+
+A phone field may hold two numbers ("0300-1234567 / 0321-7654321", "… , …", "… or …"): each number is now its own family on
+the Parents page and either one can log in to the parents' app. Searching a student by name on the Parents page tells why they
+are missing (status Left, no phone, or a number that is too short / mistyped). The "no valid phone" list now covers every
+student who has not left (Freeze too) and shows the saved number on hover.
+
 ## Install as an app (v41)
 
 Staff (`/`), Teachers (`/teacher`) and Parents (`/parent`) — all three links can be installed as an app on a phone / computer
