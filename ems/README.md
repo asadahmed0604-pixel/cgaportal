@@ -246,7 +246,7 @@ Photos are shrunk on the phone before upload; PDFs up to 15 MB. The AI checker a
 
 Student fee ledger (📒 Ledger on any challan; Executive / Fee Admin): every payment row has **✎ Edit** (amount, date, mode,
 note) and **✕ Remove**, challan rows have **✎ Challan**, and **+ Add payment** records a payment on any challan with a balance.
-After every change the challan's received / balance / Paid status is recalculated, so the dashboard, income, reports and the
+v82: ✎ on a payment can also **move it to another challan** ("This payment is for challan") — e.g. arrears entered on October's challan that belong to September's; the ledger warns when one challan is over-paid while another still shows a balance. After every change the challan's received / balance / Paid status is recalculated, so the dashboard, income, reports and the
 parents app all show the corrected figures. Edited payments keep the old values (marked ✎).
 
 ## Install as an app (v41)
