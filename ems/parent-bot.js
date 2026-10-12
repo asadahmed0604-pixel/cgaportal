@@ -10,11 +10,22 @@ function phoneKey(v) {
   return d.length >= 10 ? d.slice(-10) : "";
 }
 
+/* v88: aik khane mein do number ("0300-1234567 / 0321-7654321", "…, …", "… or …") — har number alag key */
+function phoneKeys(v) {
+  const out = [];
+  String(v || "").split(/[,\/;|&\n]+|\s+(?:or|and|aur)\s+/i).forEach((part) => {
+    const d = part.replace(/\D/g, "");
+    if (d.length > 13) (d.match(/(?:92|0)?3\d{9}/g) || []).forEach((m) => { const k = phoneKey(m); if (k && !out.includes(k)) out.push(k); });
+    else { const k = phoneKey(part); if (k && !out.includes(k)) out.push(k); }
+  });
+  return out;
+}
+
 /* Is phone number wale parent ke bache (father / mother / student phone mein se kisi par bhi) */
 function childrenOf(db, key) {
   if (!key) return [];
   return (db.students || []).filter((s) =>
-    s.status !== "Left" && [s.fatherPhone, s.motherPhone, s.phone].some((p) => phoneKey(p) === key));
+    s.status !== "Left" && [s.fatherPhone, s.motherPhone, s.phone].some((p) => phoneKeys(p).includes(key)));
 }
 
 const pad = (n) => String(n).padStart(2, "0");
@@ -216,4 +227,4 @@ function reply(db, s, text, key, todayStr) {
   }
 }
 
-module.exports = { phoneKey, childrenOf, intentOf, reply, MENU, feeOutstanding, bunksOf, feeSummary };
+module.exports = { phoneKey, phoneKeys, childrenOf, intentOf, reply, MENU, feeOutstanding, bunksOf, feeSummary };

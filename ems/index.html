@@ -1365,7 +1365,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v87 · 12 Oct 2026";
+const BUILD = "v88 · 12 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -5290,6 +5290,16 @@ function inqConverted(st){
    PIN yahan browser mein banta hai aur sirf us ka PBKDF2 hash DB mein jata hai (server login par check karta hai).
    PIN sirf aik dafa dikhaya jata hai — bhool jayein to naya banayein (purana khud band). */
 const pKey = v => { let d = String(v||"").replace(/\D/g,""); if(d.startsWith("92") && d.length >= 12) d = d.slice(2); if(d.startsWith("0")) d = d.slice(1); return d.length >= 10 ? d.slice(-10) : ""; };
+/* v88: aik khane mein do number ho sakte hain — har number ki alag key (server ka phoneKeys bhi yehi karta hai) */
+function pKeys(v){
+  const out = [];
+  String(v||"").split(/[,\/;|&\n]+|\s+(?:or|and|aur)\s+/i).forEach(part=>{
+    const d = part.replace(/\D/g,"");
+    if(d.length > 13) (d.match(/(?:92|0)?3\d{9}/g)||[]).forEach(m=>{ const k = pKey(m); if(k && !out.includes(k)) out.push(k); });
+    else { const k = pKey(part); if(k && !out.includes(k)) out.push(k); }
+  });
+  return out;
+}
 const pDisplay = k => k ? "0" + k.slice(0,3) + "-" + k.slice(3) : "";
 const parentLink = () => location.origin + "/parent";
 let parentLogins = {};
@@ -5297,9 +5307,10 @@ function families(){
   const map = {};
   DB.students.filter(st=>st.status !== "Left").forEach(st=>{
     [["Father", st.fatherPhone], ["Mother", st.motherPhone], ["Student", st.phone]].forEach(([rel, ph])=>{
-      const k = pKey(ph); if(!k) return;
-      const f = map[k] = map[k] || {key:k, rels:new Set(), kids:[]};
-      f.rels.add(rel); if(!f.kids.includes(st)) f.kids.push(st);
+      pKeys(ph).forEach(k=>{
+        const f = map[k] = map[k] || {key:k, rels:new Set(), kids:[]};
+        f.rels.add(rel); if(!f.kids.includes(st)) f.kids.push(st);
+      });
     });
   });
   (DB.parentAccess||[]).forEach(a=>{ if(!map[a.phone]) map[a.phone] = {key:a.phone, rels:new Set(), kids:[]}; });
@@ -5315,9 +5326,10 @@ function renderParents(){
   const fams = families();
   const withKids = fams.filter(f=>f.kids.length);
   const act = (DB.parentAccess||[]).filter(a=>a.active !== false && a.hash);
-  const noPhone = DB.students.filter(st=>st.status === "Active" && ![st.fatherPhone, st.motherPhone, st.phone].some(pKey));
+  /* v88: Left ke ilawa har bacha (Freeze waghera bhi) jis ka koi sahi number nahi — adhoora / ghalat number bhi yahan */
+  const noPhone = DB.students.filter(st=>st.status !== "Left" && ![st.fatherPhone, st.motherPhone, st.phone].some(p=>pKeys(p).length));
   $("parFam").textContent = withKids.length;
-  $("parFamHint").textContent = `${withKids.reduce((a,f)=>a+f.kids.length,0)} children · ${noPhone.length} active students without phone`;
+  $("parFamHint").textContent = `${withKids.reduce((a,f)=>a+f.kids.length,0)} children · ${noPhone.length} students without a valid phone`;
   $("parAcc").textContent = act.length;
   $("parAccHint").textContent = withKids.length ? `${Math.round(act.filter(a=>fams.some(f=>f.key===a.phone && f.kids.length)).length*100/withKids.length)}% of families have a PIN` : "";
   const open = DB.parentMsgs.filter(m=>m.status === "Open");
@@ -5357,10 +5369,21 @@ function renderParents(){
       <td style="white-space:nowrap">${f.kids.length ? `<button class="btn-red btn-sm" onclick="genParentPin('${f.key}')">${has ? "New PIN" : "Create PIN"}</button>` : ""}
         ${has ? `<button class="btn-line btn-sm" onclick="blockParent('${f.key}')">Close</button>` : ""}</td></tr>`;
   }).join("") : `<tr><td colspan="6" class="empty">No families found — add Father / Mother phone in student profiles</td></tr>`;
+  /* v88: naam se dhoonda bacha list mein nahi — wajah batayein (Left / sahi number nahi) */
+  if(q && !/^\d+$/.test(q.replace(/[\s-]/g,""))){
+    const miss = DB.students.filter(st=>st.name.toLowerCase().includes(q) && !rows.some(f=>f.kids.includes(st)));
+    if(miss.length) $("parFams").innerHTML += `<tr><td colspan="6"><div class="note">${miss.slice(0,8).map(st=>{
+      const nums = [st.fatherPhone, st.motherPhone, st.phone].filter(Boolean);
+      const why = st.status === "Left" ? "status is <b>Left</b> — parents' access is closed"
+        : ![st.fatherPhone, st.motherPhone, st.phone].some(p=>pKeys(p).length) ? (nums.length ? `phone number is not valid (${esc(nums.join(" · "))}) — fix it in the profile` : "no Father / Mother / Student phone in the profile")
+        : af === "yes" ? "no PIN yet — set the filter to All" : af === "no" ? "already has a PIN — set the filter to All" : "";
+      return why ? `<b>${esc(st.name)}</b> <span class="sub">${esc(st.course)} · ${esc(st.shift)}</span> — ${why} <a href="#" onclick="openStudentForm('${st.id}');return false">Open profile</a>` : "";
+    }).filter(Boolean).join("<br>")}</div></td></tr>`;
+  }
   renderStudentLogins();
   $("parNoPhone").innerHTML = noPhone.length
-    ? `<div class="note"><b>${noPhone.length} active students have no phone number</b> — their parents cannot be given access: ` +
-      noPhone.slice(0, 30).map(st=>`<a href="#" class="chip" onclick="openStudentForm('${st.id}');return false">${esc(st.name)} · ${esc(st.course)}</a>`).join(" ") + (noPhone.length > 30 ? ` +${noPhone.length-30}` : "") + `</div>` : "";
+    ? `<div class="note"><b>${noPhone.length} students have no valid phone number</b> (empty, too short or mistyped) — their parents cannot be given access: ` +
+      noPhone.slice(0, 30).map(st=>`<a href="#" class="chip" title="${esc([st.fatherPhone, st.motherPhone, st.phone].filter(Boolean).join(" · ") || "no number")}" onclick="openStudentForm('${st.id}');return false">${esc(st.name)} · ${esc(st.course)}</a>`).join(" ") + (noPhone.length > 30 ? ` +${noPhone.length-30}` : "") + `</div>` : "";
 }
 /* ================= v62: STUDENT LOGINS (Evening) =================
    Parent PIN jaisa: PIN browser mein banta hai, DB mein sirf PBKDF2 hash (DB.studentAccess). Server /student par Reg No + PIN check karta hai. */
@@ -5499,7 +5522,7 @@ function bulkPlan(){
   const fams = new Map(families().map(f=>[f.key, f]));
   const byKey = new Map(), noPhone = [];
   stus.forEach(st=>{
-    const key = pKey(st.fatherPhone) || pKey(st.motherPhone) || (useStu ? pKey(st.phone) : "");
+    const key = pKeys(st.fatherPhone)[0] || pKeys(st.motherPhone)[0] || (useStu ? pKeys(st.phone)[0] || "" : "");
     if(!key){ noPhone.push(st); return; }
     if(!byKey.has(key)) byKey.set(key, {key, kids:(fams.get(key)||{kids:[st]}).kids, picked:[]});
     byKey.get(key).picked.push(st);
