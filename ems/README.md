@@ -257,6 +257,24 @@ parents app all show the corrected figures. Edited payments keep the old values 
   Any change in the EMS (Mark Paid, ledger edit / move / remove, challan edit) shows on the parents' side at the next refresh.
 - Teachers' Tests & Marks shows **all exams** (exam papers, any month) and only **this month's** ordinary tests.
 
+## Subject-wise marks entry (v84)
+
+Entering marks for a paper (Morning and Evening, teacher and admin) lists only the students who take that paper's subject
+(from the student's subjects). "Mathematics" no longer pulls in "Additional Mathematics"; English ↔ English Language,
+Mathematics ↔ Mathematics (D) and Pakistan Studies ↔ P1/P2 still match. A student with no subjects recorded is still listed
+(set subjects in the student profile to hide them). Students who already have marks always stay on the list.
+
+## Add a fee receipt (v85)
+
+Fee / Billing → **🧾 Add receipt** (Executive / Fee Admin):
+- **Bank / JazzCash / EasyPaisa**: upload the screenshot / deposit slip / PDF. The server reads it with Claude (amount, date,
+  mode, transaction ID, payer / student name, challan no) and the form fills itself: the student is matched by Reg No,
+  challan no or name (also the father's name as payer) and the challan by challan no or exact amount. Check, then **Save
+  payment** — the proof is attached to the payment (📎 in the ledger). Without an API key the form is filled by hand.
+- **Cash**: pick the student (name or Reg No), challan and amount → **Save & make cash receipt** creates a receipt image (PNG)
+  with logo, receipt no (R-YYYY-####), student, challan, amount in figures and words, mode and balance — download or share.
+  Any payment's receipt image can be made again from the ledger (🧾).
+
 ## Install as an app (v41)
 
 Staff (`/`), Teachers (`/teacher`) and Parents (`/parent`) — all three links can be installed as an app on a phone / computer

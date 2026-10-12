@@ -708,6 +708,7 @@ label.chk input{width:auto}
   <div class="page-head">
     <div><h2>Fee / Billing</h2><div class="sub">Challans, paid & unpaid record</div></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn-red" onclick="openAddReceipt()">🧾 Add receipt</button>
       <button class="btn-black" onclick="openImport('fees')">⬆ Import CSV</button>
       <button class="btn-black" onclick="openDefaulters()">⚠ Defaulter List</button>
       <button class="btn-black" onclick="openBulkChallan()">⚡ Generate All Challans</button>
@@ -1363,7 +1364,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v83 · 12 Oct 2026";
+const BUILD = "v85 · 12 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -4142,7 +4143,7 @@ function studentLedger(sid){
   fees.forEach(f=>{
     const linked = DB.fees.filter(x=>x.carriedTo===f.id).reduce((a,x)=>a+(+x.carriedAmt||0),0);
     rows.push({date:(f.month||"") + "-01", kind:"charge", ch:f.chNo, fid:f.id, desc:`Challan ${f.chNo} — ${fmtM(f.month)} fee${(f.items||[]).filter(i=>!i.arrears).length ? " + charges" : ""}${linked ? "" : (+f.arrears ? " (incl. arrears)" : "")}`, dr:Math.max(0, (+f.amount||0) - linked), cr:0});
-    feePays(f).forEach((pm, i)=>rows.push({date:pm.legacy ? (f.paidDate || (f.month||"") + "-01") : pm.date, kind:"pay", ch:f.chNo, fid:f.id, pid:pm.legacy ? "legacy" : pm.id, edited:!!pm.edited,
+    feePays(f).forEach((pm, i)=>rows.push({date:pm.legacy ? (f.paidDate || (f.month||"") + "-01") : pm.date, kind:"pay", ch:f.chNo, fid:f.id, pid:pm.legacy ? "legacy" : pm.id, edited:!!pm.edited, proof:pm.receipt || "", rcpt:pm.rcptNo || "",
       desc:`Payment — ${f.chNo}${pm.note && pm.note !== "earlier" ? " · " + pm.note : ""}`, mode:pm.method || "", by:pm.by || "", dr:0, cr:+pm.amt||0}));
   });
   rows.sort((a,b)=>String(a.date).localeCompare(String(b.date)) || (a.kind === "charge" ? -1 : 1));
@@ -4164,7 +4165,7 @@ function openLedger(sid){
     <div class="tbl-wrap" style="max-height:52vh;overflow:auto"><table><thead><tr><th>Date</th><th>Particulars</th><th>Mode</th><th style="text-align:right">Charged</th><th style="text-align:right">Received</th><th style="text-align:right">Balance</th>${LEDGER_EDIT() ? "<th></th>" : ""}</tr></thead><tbody>
       ${L.rows.length ? L.rows.map(r=>`<tr${r.kind==="pay" ? ' style="background:var(--soft)"' : ""}><td style="white-space:nowrap">${fmtD(r.date)}</td><td>${esc(r.desc)}${r.edited ? ` <span class="sub" title="Edited from the ledger">✎</span>` : ""}</td><td class="sub">${esc(r.mode||"")}</td>
         <td style="text-align:right">${r.dr ? money(r.dr) : ""}</td><td style="text-align:right;color:var(--ok)">${r.cr ? money(r.cr) : ""}</td><td style="text-align:right"><b>${money(r.bal)}</b></td>
-        ${LEDGER_EDIT() ? `<td style="white-space:nowrap">${r.kind === "pay" ? `<button class="btn-line btn-sm" title="Edit this payment" onclick="ledgerEditPay('${r.fid}','${r.pid}')">✎</button> <button class="btn-line btn-sm" title="Remove this payment" onclick="ledgerDelPay('${r.fid}','${r.pid}')">✕</button>`
+        ${LEDGER_EDIT() ? `<td style="white-space:nowrap">${r.kind === "pay" ? `${r.proof ? `<a class="btn-line btn-sm" href="${esc(r.proof)}" target="_blank" rel="noopener" title="Payment proof">📎</a> ` : ""}<button class="btn-line btn-sm" title="Receipt image for this payment" onclick="cashReceipt('${r.fid}','${r.pid}')">🧾</button> <button class="btn-line btn-sm" title="Edit this payment" onclick="ledgerEditPay('${r.fid}','${r.pid}')">✎</button> <button class="btn-line btn-sm" title="Remove this payment" onclick="ledgerDelPay('${r.fid}','${r.pid}')">✕</button>`
           : `<button class="btn-line btn-sm" title="Edit this challan (amount, arrears, charges)" onclick="editChallan('${r.fid}')">✎ Challan</button>`}</td>` : ""}</tr>`).join("")
         : `<tr><td colspan="7" class="empty">No challans yet</td></tr>`}
     </tbody></table></div>
@@ -4174,6 +4175,170 @@ function openLedger(sid){
     ${Math.abs(L.bal - L.due) > 1 ? `<p class="sub" style="margin-top:6px">Note: older imported challans have slightly different totals — the due amount shown above comes from the challans themselves (${money(L.due)}).</p>` : ""}
     <div class="modal-foot">${LEDGER_EDIT() ? `<button class="btn-line" onclick="ledgerAddPay('${sid}')">+ Add payment</button>` : ""}<button class="btn-black" onclick="downloadCSV('ledger-${fileSafe(st.name||"student")}.csv', window._ledgerCSV)">⬇ CSV</button><button class="btn-red" onclick="closeModal()">Close</button></div>`, true);
 }
+/* ================= v85: ADD RECEIPT (auto-read) + CASH RECEIPT IMAGE =================
+   Admin bank / JazzCash / EasyPaisa receipt ki photo daale → server Claude se raqam, date, TID, naam parhta hai →
+   bacha aur challan khud dhoond kar form bhar deta hai; admin dekh kar Save. Cash ho to receipt ki tasveer (PNG) ban jati hai. */
+let RC = null;
+function openAddReceipt(sid){
+  if(!LEDGER_EDIT()){ toast("Fee access needed"); return; }
+  RC = {file:"", read:null};
+  openModal(`<h3>🧾 Add fee receipt</h3>
+    <div class="mchips" id="rc_kind" style="margin:4px 0 12px"><button class="on" data-k="bank" onclick="rcKind('bank')">🏦 Bank / JazzCash / EasyPaisa — upload proof</button><button data-k="cash" onclick="rcKind('cash')">💵 Cash</button></div>
+    <div id="rc_up">
+      <label class="drop" for="rc_file" style="display:block;border:2px dashed var(--line);border-radius:12px;padding:16px;text-align:center;cursor:pointer">📷 <b>Choose the receipt / screenshot</b><br><span class="sub">JPG, PNG or PDF — the details are filled in automatically</span></label>
+      <input type="file" id="rc_file" accept="image/*,application/pdf" style="display:none" onchange="rcUpload(this.files[0])">
+      <div id="rc_prev" style="margin-top:8px"></div>
+    </div>
+    <div class="note" id="rc_msg" style="display:none;margin:10px 0"></div>
+    <div class="grid2" style="margin-top:8px">
+      <div class="field" style="grid-column:1/-1"><label>Student *</label><input id="rc_q" placeholder="Type name or Reg No…" oninput="rcStuList()" autocomplete="off"><select id="rc_st" size="4" style="margin-top:6px" onchange="rcPickStu()"></select></div>
+      <div class="field" style="grid-column:1/-1"><label>Challan *</label><select id="rc_ch" onchange="rcChPicked()"></select></div>
+      <div class="field"><label>Amount (Rs) *</label><input type="number" id="rc_amt" min="1"></div>
+      <div class="field"><label>Date paid *</label><input type="date" id="rc_date" value="${todayStr()}"></div>
+      <div class="field"><label>Mode of payment</label><select id="rc_method">${PAY_METHODS.map(x=>`<option>${x}</option>`).join("")}</select></div>
+      <div class="field"><label>Transaction ID / reference</label><input id="rc_ref" placeholder="TID, cheque no…"></div>
+      <div class="field" style="grid-column:1/-1"><label>Note</label><input id="rc_note" placeholder="optional — e.g. paid by father"></div>
+    </div>
+    <div class="modal-foot"><button class="btn-line" onclick="closeModal()">Cancel</button><button class="btn-red" id="rc_save" onclick="saveReceipt()">Save payment</button></div>`, true);
+  $("rc_method").value = "Bank transfer";
+  if(sid){ const st = stuById(sid); if(st){ $("rc_q").value = st.name; } }
+  rcStuList(sid);
+}
+function rcKind(k){
+  document.querySelectorAll("#rc_kind button").forEach(b=>b.classList.toggle("on", b.dataset.k === k));
+  $("rc_up").style.display = k === "cash" ? "none" : "";
+  $("rc_method").value = k === "cash" ? "Cash" : ($("rc_method").value === "Cash" ? "Bank transfer" : $("rc_method").value);
+  $("rc_save").textContent = k === "cash" ? "Save & make cash receipt" : "Save payment";
+}
+const rcDue = st => DB.fees.filter(f=>f.studentId===st.id && !f.carriedTo && feeOutstanding(f) > 0).sort((a,b)=>String(a.month).localeCompare(String(b.month)));
+function rcStuList(pick){
+  const q = ($("rc_q").value||"").trim().toLowerCase(), sel = $("rc_st");
+  let L = DB.students.filter(st=>st.status !== "Left");
+  if(q) L = L.map(st=>({st, sc:(String(st.regNo||"").toLowerCase() === q ? 2 : 0) + (String(st.name||"").toLowerCase().includes(q) || String(st.regNo||"").toLowerCase().includes(q) ? 1 : nameScore(st.name, q))})).filter(x=>x.sc > .5).sort((a,b)=>b.sc - a.sc).map(x=>x.st);
+  else L = L.filter(st=>rcDue(st).length).sort((a,b)=>a.name.localeCompare(b.name));
+  sel.innerHTML = L.slice(0, 40).map(st=>`<option value="${st.id}">${esc(st.name)} · ${esc(st.regNo||"")} · ${esc(classLabelOf(st))} ${st.shift === "Evening" ? "(E)" : "(M)"}${rcDue(st).length ? ` · due ${money(rcDue(st).reduce((a,f)=>a+feeOutstanding(f),0))}` : ""}</option>`).join("");
+  if(pick && L.some(s=>s.id===pick)) sel.value = pick; else if(L.length === 1 || (q && L.length)) sel.selectedIndex = 0;
+  rcPickStu();
+}
+function rcPickStu(){
+  const st = stuById($("rc_st").value), ch = $("rc_ch");
+  if(!st){ ch.innerHTML = `<option value="">— choose a student —</option>`; return; }
+  const L = rcDue(st);
+  ch.innerHTML = L.length ? L.map(f=>`<option value="${f.id}" data-due="${feeOutstanding(f)}">${esc(f.chNo)} · ${fmtM(f.month)} · ${money(feeOutstanding(f))} due</option>`).join("") : `<option value="">Nothing due for ${esc(st.name)}</option>`;
+  rcAutoChallan(); rcChPicked(true);
+}
+/* raqam / challan no se sahi challan */
+function rcAutoChallan(){
+  const r = RC && RC.read, ch = $("rc_ch"); if(!r || !ch.options.length) return;
+  const opts = [...ch.options].filter(o=>o.value);
+  const byNo = r.challan_no && opts.find(o=>keyify(o.text).startsWith(keyify(r.challan_no)));
+  const byAmt = +r.amount && opts.find(o=>+o.dataset.due === Math.round(+r.amount));
+  const o = byNo || byAmt; if(o) ch.value = o.value;
+}
+function rcChPicked(keepAmt){
+  const o = $("rc_ch").selectedOptions[0]; if(!o || !o.value) return;
+  if(!keepAmt || !$("rc_amt").value) $("rc_amt").value = (RC && RC.read && +RC.read.amount) ? Math.min(+RC.read.amount, +o.dataset.due) : o.dataset.due;
+}
+async function rcUpload(file){
+  if(!file) return;
+  const msg = $("rc_msg"); msg.style.display = ""; msg.innerHTML = "⏳ Uploading…";
+  try{ RC.file = await storeReceipt(file); }
+  catch(e){ msg.innerHTML = "⚠ " + esc(e.message); return; }
+  $("rc_prev").innerHTML = /\.pdf$/.test(RC.file) || /^data:application\/pdf/.test(RC.file) ? `<a href="${esc(RC.file)}" target="_blank">📄 Receipt PDF</a>` : `<img src="${esc(RC.file)}" style="max-height:220px;max-width:100%;border-radius:10px;border:1px solid var(--line)">`;
+  if(!SERVER){ msg.innerHTML = "Receipt attached — enter the details below."; return; }
+  msg.innerHTML = "✨ Reading the receipt…";
+  try{
+    const r = await fetch("/api/fee/read-receipt", {method:"POST", headers:{"Content-Type":"application/json"}, credentials:"same-origin", body:JSON.stringify({file:RC.file})});
+    const d = await r.json().catch(()=>({}));
+    if(!r.ok){ msg.innerHTML = `Receipt attached. ${esc(d.error || "Could not read it automatically")} — enter the details below.`; return; }
+    rcFill(d);
+  }catch(e){ msg.innerHTML = "Receipt attached — enter the details below."; }
+}
+function rcFill(d){
+  RC.read = d; const msg = $("rc_msg");
+  if(!d.is_receipt){ msg.innerHTML = "⚠ This does not look like a payment receipt — check the image, or enter the details yourself."; return; }
+  if(+d.amount) $("rc_amt").value = Math.round(+d.amount);
+  if(/^\d{4}-\d{2}-\d{2}$/.test(d.date||"")) $("rc_date").value = d.date;
+  if(d.method && PAY_METHODS.includes(d.method)) $("rc_method").value = d.method;
+  if(d.reference) $("rc_ref").value = d.reference;
+  /* bacha: reg no → challan no → naam (student / payer) */
+  let st = null, how = "";
+  if(d.reg_no) st = DB.students.find(x=>keyify(x.regNo) === keyify(d.reg_no)), how = st ? "Reg No" : "";
+  if(!st && d.challan_no){ const f = DB.fees.find(x=>keyify(x.chNo) === keyify(d.challan_no)); if(f) st = stuById(f.studentId), how = "challan no"; }
+  if(!st){ const cand = [[d.student_name, "student name"], [d.payer_name, "payer / father name"]].filter(c=>c[0]); let best = null;
+    DB.students.filter(x=>x.status !== "Left").forEach(x=>cand.forEach(([n, by])=>{
+      const sc = Math.max(nameScore(x.name, n), by === "student name" ? 0 : nameScore(x.fatherName||"", n));
+      const due = rcDue(x).length ? .1 : 0, exact = rcDue(x).some(f=>Math.round(feeOutstanding(f)) === Math.round(+d.amount)) ? .15 : 0;
+      if(sc >= .6 && (!best || sc + due + exact > best.sc)) best = {st:x, sc:sc + due + exact, by}; }));
+    if(best) st = best.st, how = best.by; }
+  if(st){ $("rc_q").value = st.name; rcStuList(st.id); }
+  else rcPickStu();
+  msg.innerHTML = `✓ Read from the receipt: <b>${money(d.amount||0)}</b>${d.date ? " · " + fmtD(d.date) : ""}${d.method ? " · " + esc(d.method) : ""}${d.reference ? " · ref " + esc(d.reference) : ""}${d.payer_name ? " · from " + esc(d.payer_name) : ""}.<br>`
+    + (st ? `Student matched by ${how}: <b>${esc(st.name)}</b> — please check before saving.` : `<b>Student not found automatically</b> — type the name above.`) + (d.notes ? `<br><span class="sub">${esc(d.notes)}</span>` : "");
+}
+function saveReceipt(){
+  const f = DB.fees.find(x=>x.id===$("rc_ch").value), amt = Math.round(+$("rc_amt").value || 0), date = $("rc_date").value, method = $("rc_method").value;
+  if(!f){ toast("Choose the student and challan"); return; }
+  if(amt <= 0 || !date){ toast("Enter the amount and date"); return; }
+  if(amt > feeOutstanding(f)){ toast(`Only ${money(feeOutstanding(f))} is due on ${f.chNo} — record the rest on the next challan`); return; }
+  const ref = $("rc_ref").value.trim();
+  DB.counters.rcpt = (+DB.counters.rcpt || 0) + 1;
+  const rcptNo = "R-" + todayStr().slice(0,4) + "-" + String(DB.counters.rcpt).padStart(4,"0");
+  applyFeePayment(f, amt, date, {method, note:[$("rc_note").value.trim(), ref ? "Ref " + ref : ""].filter(Boolean).join(" · "), ref, receipt:RC && RC.file || "", rcptNo});
+  save(); renderFees(); renderDashboard();
+  const pid = f.payments[f.payments.length - 1].id;
+  toast(`✓ ${money(amt)} recorded on ${f.chNo} (${rcptNo})`);
+  if(method === "Cash") cashReceipt(f.id, pid); else closeModal();
+}
+/* rupees in words */
+function amountWords(n){
+  n = Math.round(+n || 0); if(!n) return "Zero";
+  const a = ["","One","Two","Three","Four","Five","Six","Seven","Eight","Nine","Ten","Eleven","Twelve","Thirteen","Fourteen","Fifteen","Sixteen","Seventeen","Eighteen","Nineteen"],
+        b = ["","","Twenty","Thirty","Forty","Fifty","Sixty","Seventy","Eighty","Ninety"];
+  const two = x => x < 20 ? a[x] : b[Math.floor(x/10)] + (x%10 ? " " + a[x%10] : ""), three = x => (x >= 100 ? a[Math.floor(x/100)] + " Hundred" + (x%100 ? " " : "") : "") + (x%100 ? two(x%100) : "");
+  const parts = []; [[1e7,"Crore"],[1e5,"Lakh"],[1e3,"Thousand"]].forEach(([v,w])=>{ if(n >= v){ parts.push(two(Math.floor(n/v)) + " " + w); n %= v; } });
+  if(n) parts.push(three(n));
+  return parts.join(" ");
+}
+/* payment ki receipt tasveer (PNG) — cash ke liye, ya kisi bhi payment ke liye ledger se */
+async function cashReceipt(fid, pid){
+  const f = DB.fees.find(x=>x.id===fid); if(!f) return;
+  const p = pid === "legacy" ? feePays(f)[0] : (f.payments||[]).find(x=>x.id===pid); if(!p) return;
+  const st = stuById(f.studentId) || {}, S = DB.settings || {};
+  const W = 1000, H = 640, c = document.createElement("canvas"); c.width = W; c.height = H; const g = c.getContext("2d");
+  g.fillStyle = "#fff"; g.fillRect(0, 0, W, H);
+  g.fillStyle = "#174B60"; g.fillRect(0, 0, W, 120);
+  const logo = await new Promise(res=>{ const im = new Image(); im.onload = ()=>res(im); im.onerror = ()=>res(null); im.src = logoSrc() || APP_LOGO; });
+  if(logo){ g.fillStyle = "#fff"; g.beginPath(); g.arc(80, 60, 44, 0, Math.PI*2); g.fill(); g.drawImage(logo, 44, 24, 72, 72); }
+  g.fillStyle = "#fff"; g.font = "bold 30px Arial"; g.fillText(S.name || "Cambridge Grads Academy", 145, 55);
+  g.font = "17px Arial"; g.fillStyle = "#cfe3ea"; g.fillText([S.addr, S.phone].filter(Boolean).join("  ·  ").slice(0, 80), 145, 88);
+  g.fillStyle = "#159670"; g.font = "bold 26px Arial"; g.textAlign = "right"; g.fillText(p.method === "Cash" ? "CASH RECEIPT" : "PAYMENT RECEIPT", W - 40, 175); g.textAlign = "left";
+  g.fillStyle = "#16303B"; g.font = "bold 20px Arial"; g.fillText(`Receipt No: ${p.rcptNo || "—"}`, 40, 175);
+  const rows = [["Date", fmtD(p.date)], ["Student", `${st.name || ""}${st.regNo ? "  (" + st.regNo + ")" : ""}`], ["Class", `${classLabelOf(st) || f.course || ""} · ${st.shift || ""}`],
+    ["Challan", `${f.chNo} · ${fmtM(f.month)} fee`], ["Mode", (p.method || "—") + (p.ref ? `  ·  Ref ${p.ref}` : "")], ["Received by", p.by || ROLE_LABEL]];
+  g.font = "19px Arial"; rows.forEach(([k, v], i)=>{ const y = 225 + i * 40; g.fillStyle = "#5F7480"; g.fillText(k, 40, y); g.fillStyle = "#16303B"; g.font = "bold 19px Arial"; g.fillText(String(v).slice(0, 70), 210, y); g.font = "19px Arial";
+    g.strokeStyle = "#E3EBEE"; g.beginPath(); g.moveTo(40, y + 14); g.lineTo(W - 40, y + 14); g.stroke(); });
+  g.fillStyle = "#E9F6F1"; g.fillRect(40, 480, W - 80, 80); g.strokeStyle = "#159670"; g.lineWidth = 2; g.strokeRect(40, 480, W - 80, 80); g.lineWidth = 1;
+  g.fillStyle = "#0f7356"; g.font = "bold 34px Arial"; g.fillText(money(p.amt), 60, 532);
+  g.font = "17px Arial"; g.fillStyle = "#16303B"; g.fillText(`Rupees ${amountWords(p.amt)} only`.slice(0, 70), 300, 528);
+  g.fillStyle = "#5F7480"; g.font = "16px Arial"; const bal = feeOutstanding(f);
+  g.fillText(bal ? `Balance still due on this challan: ${money(bal)}` : "This challan is fully paid ✓", 40, 600);
+  g.textAlign = "right"; g.fillText("Computer generated receipt — CGA EMS", W - 40, 600); g.textAlign = "left";
+  const url = c.toDataURL("image/png"), name = fileSafe(`Receipt ${p.rcptNo || f.chNo} ${st.name || ""}`) + ".png";
+  window._rcptBlob = await new Promise(r=>c.toBlob(r, "image/png"));
+  openModal(`<h3>🧾 Receipt — ${esc(st.name||"")}</h3>
+    <img src="${url}" style="width:100%;border:1px solid var(--line);border-radius:10px">
+    <div class="modal-foot"><button class="btn-line" onclick="openLedger('${f.studentId}')">📒 Ledger</button>
+      ${navigator.canShare ? `<button class="btn-black" onclick="shareReceipt('${esc(name)}')">📲 Share (WhatsApp…)</button>` : ""}
+      <button class="btn-red" onclick="downloadFile('${esc(name)}', window._rcptBlob)">⬇ Download image</button></div>`, true);
+}
+async function shareReceipt(name){
+  try{ const file = new File([window._rcptBlob], name, {type:"image/png"});
+    if(navigator.canShare && navigator.canShare({files:[file]})) await navigator.share({files:[file], title:name});
+    else downloadFile(name, window._rcptBlob);
+  }catch(e){ if(e && e.name !== "AbortError") downloadFile(name, window._rcptBlob); }
+}
+
 /* ================= v81: LEDGER EDIT =================
    Ledger se hi payment ki date / raqam / mode / note theek karna, payment hatana ya nayi payment dalna.
    Har tabdeeli ke baad challan ka received / balance / status dobara banta hai — is liye dashboard, income, parent app sab theek. */
@@ -5708,11 +5873,19 @@ function classKeysFor(shift){
 }
 const canEditTest = t => !IS_TEACHER || (t.by==="teacher" && t.teacherId===MY_TID && t.shift==="Evening");
 const testMarks = t => DB.exams.filter(e=>e.testId===t.id);
+/* v84: paper ka subject bacha leta hai? — wohi naam, ya aik doosre ka shuru (English ↔ English Language, Mathematics ↔ Mathematics (D),
+   Pakistan Studies ↔ Pakistan Studies P1) — magar "Mathematics" ↔ "Additional Mathematics" nahi. Subjects maloom hi na hon to bacha shamil. */
+function takesSubject(st, subject){
+  const t = keyify(subject); if(!t) return true;
+  const L = (st.subjects||[]).map(x=>keyify(x.name)).filter(Boolean);
+  if(!L.length) return st.hasSubj !== true;                     // teacher ko sirf apne subjects aate hain — hasSubj = bache ke subjects darj hain
+  return L.some(k=>k === t || k.startsWith(t) || t.startsWith(k));
+}
 function testStudents(t){
   const m = String(t.date||wm()).slice(0,7), RM = rosterMonths();
   const has = new Set(testMarks(t).map(e=>e.studentId));
   return DB.students.filter(st=>has.has(st.id) || (st.shift===t.shift && inClass(st, t.course) && st.status!=="Left" && inMonth(st, m, RM)
-      && (!t.subject || !(st.subjects||[]).length || st.subjects.some(x=>subjLike(x.name, t.subject)))))
+      && takesSubject(st, t.subject)))
     .sort((a,b)=>a.name.localeCompare(b.name));
 }
 function testAvg(t){

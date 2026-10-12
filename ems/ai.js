@@ -188,4 +188,37 @@ async function check(a, sub, paperFiles, workFiles) {
   return callJSON(CHECK_SYSTEM, content, CHECK);
 }
 
-module.exports = { ready, whyNot, generate, extract, check, friendly, MODEL };
+/* v85: fee receipt / bank transfer screenshot / deposit slip parho — admin ke form ke liye */
+const RECEIPT = {
+  type: "object", additionalProperties: false,
+  required: ["is_receipt", "amount", "date", "method", "reference", "payer_name", "payee", "student_name", "reg_no", "challan_no", "fee_month", "notes"],
+  properties: {
+    is_receipt: { type: "boolean" },
+    amount: { type: "number" },
+    date: { type: "string" },
+    method: { type: "string", enum: ["Bank transfer", "JazzCash", "EasyPaisa", "Cash", "Cheque", "Other", ""] },
+    reference: { type: "string" },
+    payer_name: { type: "string" },
+    payee: { type: "string" },
+    student_name: { type: "string" },
+    reg_no: { type: "string" },
+    challan_no: { type: "string" },
+    fee_month: { type: "string" },
+    notes: { type: "string" },
+  },
+};
+const RECEIPT_SYSTEM = `You read payment proofs for a school's fee office in Pakistan: bank / IBFT transfer screenshots, JazzCash / EasyPaisa / Raast receipts, bank deposit slips, cheque images and school fee challans with a paid stamp.
+Return only what is actually visible — never guess.
+- amount: the amount paid in PKR as a number (no commas). 0 if not visible.
+- date: the payment / transaction date as YYYY-MM-DD (convert from any format; Pakistani dates are day-first). "" if not visible.
+- method: Bank transfer (IBFT, Raast, bank app, online transfer, deposit slip), JazzCash, EasyPaisa, Cash, Cheque, Other, or "" if unclear.
+- reference: transaction ID / TID / reference / cheque number, exactly as printed. "" if none.
+- payer_name: the sender / account holder / depositor name. payee: the receiving account / school name.
+- student_name, reg_no, challan_no (e.g. CH-00473), fee_month (YYYY-MM): only if written somewhere on the proof (e.g. in the transfer purpose / comments). "" otherwise.
+- is_receipt: false if the image is not a payment proof at all.
+- notes: one short line about anything unclear (e.g. "amount partly hidden").`;
+function readReceipt(file) {
+  return callJSON(RECEIPT_SYSTEM, [block(file), { type: "text", text: "Read this payment proof." }], RECEIPT);
+}
+
+module.exports = { ready, whyNot, generate, extract, check, friendly, readReceipt, MODEL };
