@@ -550,6 +550,7 @@ const asg = require("./assignments")({
   DATA_DIR, send: (...a) => send(...a), sendJson: (...a) => sendJson(...a), readBody: (r) => readBody(r), readRaw: (r, l) => readRaw(r, l),
   sameOrigin: (r) => sameOrigin(r), dbNow, logAct, actWho, accessFor, pinOk, childrenOf: bot.childrenOf, phoneKey: bot.phoneKey,
   clientIp, blocked, failed, fails, isHttps, escHtml, schoolName, teacherClasses, mutateDb: (fn) => mutateDb(fn),
+  hwSeenBy: (d, h, tid) => hwSeen(h, tid, teacherClasses(d, tid), meOf(d, tid)),       // v90: homework submissions
 });
 async function asgRoute(fn, res) {
   try { return await fn(); }

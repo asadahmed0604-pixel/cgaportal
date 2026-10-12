@@ -1366,7 +1366,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v89 · 12 Oct 2026";
+const BUILD = "v90 · 12 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -3395,7 +3395,16 @@ function hwStudents(h){
 const hwDue = h => h.dueDate || h.dateGiven || "";
 const hwState = (h, sid) => { const d = (h.done||{})[sid];
   return d ? (typeof d === "string" && h.dueDate && d > h.dueDate ? "late" : "ok") : (hwDue(h) && hwDue(h) < todayStr() ? "miss" : "pending"); };
+/* v90: portal se bheja hua kaam (photos / PDF) — {hwId: [studentIds]}; server se, 30 second mein dobara */
+let HW_SENT = {}, HW_SENT_AT = 0;
+function loadHwSent(force){
+  if(!SERVER || (!force && Date.now() - HW_SENT_AT < 30e3)) return;
+  HW_SENT_AT = Date.now();
+  asgApi("/api/asg/hw-sent").then(d=>{ const was = JSON.stringify(HW_SENT); HW_SENT = d || {}; if(JSON.stringify(HW_SENT) !== was && $("hwRows") && $("hwRows").offsetParent) renderHomework(); }).catch(()=>{});
+}
+const hwSentWaiting = (h, L) => (HW_SENT[h.id]||[]).filter(sid=>!(h.done||{})[sid] && (!L || L.some(st=>st.id===sid))).length;
 function renderHomework(){
+  loadHwSent();
   const fc=$("hwFCourse").value, fs=$("hwFShift").value, fm=$("hwFMonth").value, keys = hwKeys();
   if(IS_TEACHER){ const cs = [...new Set(keys.map(k=>k.split("|")[1]))].sort(classSort);
     if($("hwFCourse").dataset.t !== "1"){ $("hwFCourse").innerHTML = `<option value="">All my classes</option>` + cs.map(c=>`<option>${esc(c)}</option>`).join(""); $("hwFCourse").dataset.t = "1"; } }
@@ -3409,7 +3418,7 @@ function renderHomework(){
       <td>${h.shift}</td>
       <td>${fmtD(h.dueDate)}</td>
       <td style="max-width:240px">${esc(h.detail||"—")}</td>
-      <td><b>${sub}</b> / ${L.length}${miss?`<br><span class="sub" style="color:var(--danger)">${miss} not submitted</span>`:""}</td>
+      <td><b>${sub}</b> / ${L.length}${miss?`<br><span class="sub" style="color:var(--danger)">${miss} not submitted</span>`:""}${hwSentWaiting(h, L) ? `<br><span class="badge b-freeze" title="Sent from the student / parents' app — open Receival to check and confirm">📥 ${hwSentWaiting(h, L)} sent — confirm</span>` : ""}</td>
       <td style="white-space:nowrap">
         <button class="btn-black btn-sm" onclick="openHwRcv('${h.id}')">✓ Receival</button>
         ${hwMine(h) ? `<button class="btn-line btn-sm" onclick="openHwForm('${h.id}')">Edit</button>
@@ -3494,25 +3503,46 @@ let HW_RCV = null;
 function openHwRcv(id){
   const h = DB.homework.find(x=>x.id===id); if(!h) return;
   const L = hwStudents(h);
-  HW_RCV = {id, done:{...(h.done||{})}};
+  HW_RCV = {id, done:{...(h.done||{})}, subs:{}};
   openModal(`
     <h3>✓ Homework receival — ${esc(h.title)}</h3>
-    <p class="sub" style="margin-bottom:10px">${esc(h.course)} · ${h.shift}${h.subject?" · "+esc(h.subject):""} · given ${fmtD(h.dateGiven)}${h.dueDate?` · due <b>${fmtD(h.dueDate)}</b>`:""}. Tick the students who handed it in — the date is saved (after the due date = late).</p>
+    <p class="sub" style="margin-bottom:10px">${esc(h.course)} · ${h.shift}${h.subject?" · "+esc(h.subject):""} · given ${fmtD(h.dateGiven)}${h.dueDate?` · due <b>${fmtD(h.dueDate)}</b>`:""}. Tick the students who handed it in — the date is saved (after the due date = late). Work sent from the student / parents' app shows under <b>Sent work</b> — check it and tick to confirm; the app then shows <b>✓ Checked</b>.</p>
     <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:10px">
       <div class="field" style="margin:0"><label>Received on</label><input type="date" id="hr_date" value="${todayStr()}"></div>
       <button class="btn-line btn-sm" onclick="hwRcvAll(true)">✓ All submitted</button><button class="btn-line btn-sm" onclick="hwRcvAll(false)">Clear all</button>
+      <button class="btn-black btn-sm" id="hr_sentAll" style="display:none" onclick="hwRcvSent()">✓ Confirm all who sent work</button>
       <span class="sub" id="hr_sum" style="margin-left:auto"></span></div>
-    <div class="tbl-wrap" style="max-height:52vh;overflow:auto"><table><thead><tr><th>Student</th><th>Status</th><th style="text-align:center">Submitted</th></tr></thead>
-      <tbody>${L.length ? L.map(st=>`<tr><td><b>${esc(st.name)}</b><br><span class="sub">${esc(st.regNo||"")}</span></td><td id="hr_s_${st.id}"></td>
+    <div class="tbl-wrap" style="max-height:52vh;overflow:auto"><table><thead><tr><th>Student</th><th>Status</th><th>Sent work</th><th style="text-align:center">Submitted</th></tr></thead>
+      <tbody>${L.length ? L.map(st=>`<tr><td><b>${esc(st.name)}</b><br><span class="sub">${esc(st.regNo||"")}</span></td><td id="hr_s_${st.id}"></td><td id="hr_f_${st.id}" class="sub">${SERVER ? "…" : "—"}</td>
         <td style="text-align:center"><input type="checkbox" id="hr_${st.id}" style="width:22px;height:22px" ${HW_RCV.done[st.id]?"checked":""} onchange="hwRcvSet('${st.id}',this.checked)"></td></tr>`).join("")
-        : `<tr><td colspan="3" class="empty">No students in this class${h.subject?" / subject":""}</td></tr>`}</tbody></table></div>
+        : `<tr><td colspan="4" class="empty">No students in this class${h.subject?" / subject":""}</td></tr>`}</tbody></table></div>
     <div class="modal-foot">
       <button class="btn-line" onclick="closeModal()">Cancel</button>
       <button class="btn-red" onclick="saveHwRcv()">Save receival</button>
     </div>`, true);
   hwRcvDraw();
+  if(SERVER) asgApi("/api/asg/hw-subs?hwId=" + encodeURIComponent(id)).then(d=>{ if(!HW_RCV || HW_RCV.id !== id) return; HW_RCV.subs = d || {}; hwRcvFiles(); })
+    .catch(()=>{ L.forEach(st=>{ const c = $("hr_f_"+st.id); if(c) c.textContent = "—"; }); });
 }
-function hwRcvSet(sid, on){ if(!HW_RCV) return; if(on) HW_RCV.done[sid] = $("hr_date").value || todayStr(); else delete HW_RCV.done[sid]; hwRcvDraw(); }
+/* v90: bache / parent ka bheja hua kaam — thumbnail (bara dekhne ko click), PDF link */
+function hwRcvFiles(){
+  const h = DB.homework.find(x=>x.id===HW_RCV.id), L = hwStudents(h);
+  L.forEach(st=>{ const c = $("hr_f_"+st.id), x = HW_RCV.subs[st.id]; if(!c) return;
+    c.innerHTML = x && x.files.length ? `<div style="display:flex;gap:4px;flex-wrap:wrap;max-width:260px">${x.files.map(f=>`<a href="/api/asg/file/${f.file}" target="_blank" rel="noopener" title="${esc(f.name)}">${f.type === "application/pdf"
+        ? `<span class="chip">📄 PDF</span>` : `<img src="/api/asg/file/${f.file}" alt="" style="width:46px;height:46px;object-fit:cover;border-radius:6px;border:1px solid var(--line)">`}</a>`).join("")}</div>
+        <span class="sub">${x.files.length} file${x.files.length>1?"s":""} · ${x.by === "student" ? "by student" : "by parent"} · ${fmtD(String(x.at||"").slice(0,10))}</span>` : "—"; });
+  const n = L.filter(st=>HW_RCV.subs[st.id] && !HW_RCV.done[st.id]).length;
+  if($("hr_sentAll")){ $("hr_sentAll").style.display = n ? "" : "none"; $("hr_sentAll").textContent = `✓ Confirm all who sent work (${n})`; }
+}
+function hwRcvSent(){
+  const h = DB.homework.find(x=>x.id===HW_RCV.id);
+  hwStudents(h).forEach(st=>{ const x = HW_RCV.subs[st.id]; if(x && !HW_RCV.done[st.id]){ HW_RCV.done[st.id] = String(x.at||"").slice(0,10) || todayStr(); const cb = $("hr_"+st.id); if(cb) cb.checked = true; } });
+  hwRcvDraw(); hwRcvFiles();
+}
+function hwRcvSet(sid, on){ if(!HW_RCV) return;
+  /* v90: app se bheja kaam — wohi din jab bheja (late ka hisaab sahi rahe) */
+  const x = HW_RCV.subs && HW_RCV.subs[sid];
+  if(on) HW_RCV.done[sid] = (x && String(x.at||"").slice(0,10)) || $("hr_date").value || todayStr(); else delete HW_RCV.done[sid]; hwRcvDraw(); if(HW_RCV.subs) hwRcvFiles(); }
 function hwRcvAll(on){ const h = DB.homework.find(x=>x.id===HW_RCV.id); hwStudents(h).forEach(st=>{ if(on){ if(!HW_RCV.done[st.id]) HW_RCV.done[st.id] = $("hr_date").value || todayStr(); } else delete HW_RCV.done[st.id]; const cb = $("hr_"+st.id); if(cb) cb.checked = on; }); hwRcvDraw(); }
 function hwRcvDraw(){
   const h = DB.homework.find(x=>x.id===HW_RCV.id), L = hwStudents(h), tmp = {...h, done:HW_RCV.done};

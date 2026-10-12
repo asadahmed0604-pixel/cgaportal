@@ -186,7 +186,7 @@ function header(title, sub, back) {
   $("#topTitle").textContent = title; $("#topSub").textContent = sub || me.school;
   $("#backBtn").hidden = !back; $("#outBtn").hidden = !!back;
 }
-$("#backBtn").addEventListener("click", async () => { if (cur && cur.sub && cur.sub.status === "in_progress") await saveNow(); stopTimers(); cur = null; list(); });
+$("#backBtn").addEventListener("click", async () => { if (cur && cur.sub && cur.sub.status === "in_progress") await saveNow(); stopTimers(); cur = null; curHw = null; list(); });
 
 /* ------------------------------ login ------------------------------ */
 function showLogin() {
@@ -234,11 +234,13 @@ async function asgList() {
   if (!kidId) { view.innerHTML = `<div class="card center">No student is linked to this phone number. Please contact the school office.</div>`; return; }
   view.innerHTML = kids + `<div class="center"><div class="spin"></div></div>`;
   bindKids();
-  let rows;
-  try { rows = await api("/student/api/list?studentId=" + encodeURIComponent(kidId)); }
+  let rows, hw = [];
+  try { [rows, hw] = await Promise.all([api("/student/api/list?studentId=" + encodeURIComponent(kidId)), api("/student/api/homework?studentId=" + encodeURIComponent(kidId)).catch(() => [])]); }
   catch (e) { view.innerHTML = kids + `<div class="card err">${esc(e.message)}</div>`; bindKids(); return; }
   const kid = me.children.find((k) => k.id === kidId);
-  view.innerHTML = kids + `<h2>${esc(kid.name)}'s assignments</h2><p class="sub" style="margin-top:0">${esc(kid.course)} · ${esc(kid.shift)}</p>` + (rows.length ? rows.map((a) => {
+  HW = hw;
+  view.innerHTML = kids + `<h2>${esc(kid.name)}'s assignments</h2><p class="sub" style="margin-top:0">${esc(kid.course)} · ${esc(kid.shift)}</p>`
+    + hwListHtml(hw) + (hw.length ? `<h3 style="margin:16px 0 8px">📝 Assignments &amp; tests</h3>` : "") + (rows.length ? rows.map((a) => {
     const st = { new: `<span class="tag new">New</span>`, in_progress: `<span class="tag prog">In progress</span>`, submitted: `<span class="tag prog">Checking…</span>`,
       checking: `<span class="tag prog">Checking…</span>`, marked: `<span class="tag done">Marked</span>`, error: `<span class="tag prog">With teacher</span>` }[a.state] || "";
     return `<div class="item" data-a="${a.id}"><div class="i"><b>${esc(a.title)}</b><div class="sub">${esc(a.subject)}${a.code ? " (" + esc(a.code) + ")" : ""} · ${a.questions} questions · ${a.total} marks${a.teacherName ? " · " + esc(a.teacherName) : ""}</div>
@@ -247,6 +249,82 @@ async function asgList() {
   }).join("") : `<div class="card center">No assignments yet 🎉</div>`);
   bindKids();
   view.querySelectorAll("[data-a]").forEach((el) => el.addEventListener("click", () => openAsg(el.dataset.a)));
+  view.querySelectorAll("[data-hw]").forEach((el) => el.addEventListener("click", () => openHw(el.dataset.hw)));
+}
+
+/* ------------------------------ v90: homework — photos / PDF jama karo, teacher confirm kare ------------------------------ */
+let HW = [], curHw = null;
+const HW_TAG = { pending: `<span class="tag new">To do</span>`, submitted: `<span class="tag prog">Sent — awaiting teacher</span>`,
+  done: `<span class="tag done">✓ Checked by teacher</span>`, late: `<span class="tag done">✓ Checked (late)</span>`, missed: `<span class="tag time">Not submitted</span>` };
+function hwListHtml(hw) {
+  if (!hw.length) return "";
+  const open = hw.filter((h) => h.state === "pending" || h.state === "missed").length;
+  return `<h3 style="margin:6px 0 8px">📚 Homework${open ? ` <span class="tag time">${open} to submit</span>` : ""}</h3>` + hw.map((h) => `<div class="item" data-hw="${h.id}"><div class="i"><b>${esc(h.title)}</b>
+      <div class="sub">${esc(h.subject || "")}${h.teacher ? (h.subject ? " · " : "") + esc(h.teacher) : ""}${h.given ? ` · given ${fmtD(h.given)}` : ""}</div>
+      ${HW_TAG[h.state] || ""}${h.due ? `<span class="tag ${h.state === "pending" || h.state === "missed" ? "time" : ""}">Due ${fmtD(h.due)}</span>` : ""}${h.files.length ? `<span class="tag">📎 ${h.files.length}</span>` : ""}</div>
+      <div style="font-size:1.4rem;color:var(--muted)">›</div></div>`).join("");
+}
+function openHw(id) {
+  curHw = HW.find((h) => h.id === id); if (!curHw) return;
+  stopTimers(); header(curHw.title, curHw.subject || me.school, true);
+  drawHw();
+}
+function drawHw() {
+  const h = curHw, locked = h.state === "done" || h.state === "late";
+  view.innerHTML = `<div class="card" style="margin-top:0"><h3 style="margin-top:0">📚 ${esc(h.title)}</h3>
+      <p class="sub" style="margin:0 0 8px">${esc(h.subject || "")}${h.teacher ? " · " + esc(h.teacher) : ""}${h.given ? ` · given ${fmtD(h.given)}` : ""}${h.due ? ` · <b>due ${fmtD(h.due)}</b>` : ""}</p>
+      ${h.detail ? `<div style="white-space:pre-wrap">${esc(h.detail)}</div>` : ""}
+      <div style="margin-top:8px">${HW_TAG[h.state] || ""}${h.checkedOn ? `<span class="tag">${fmtD(h.checkedOn)}</span>` : ""}</div></div>
+    <div class="card ${locked ? "" : "upcard"}" id="upCard"><h3>${locked ? "📎 Your work" : "📤 Submit your homework"} <span class="sub">(PDF or photos)</span></h3>
+      ${locked ? `<p class="sub" style="margin:0 0 6px">Your teacher has checked this homework ✓</p>` : `<p class="sub" style="margin:0 0 10px">Take a photo of each page (or add a PDF). Every page is sent to your teacher straight away — you can add more pages or remove a wrong one until the teacher checks it.</p>
+      <div class="upbtns"><button class="btn line" id="upCam">📷 Take a photo</button><button class="btn line" id="upImgs">🖼 Choose photos</button><button class="btn line" id="upPdf">📄 Choose PDF</button></div>
+      <input type="file" id="inCam" accept="image/*" capture="environment" hidden>
+      <input type="file" id="inImgs" accept="image/*" multiple hidden>
+      <input type="file" id="inPdf" accept="application/pdf" multiple hidden>`}
+      <div class="sub" id="upMsg" style="margin-top:8px"></div>
+      <div class="photos" id="photos"></div>
+      <div class="sub" id="upCount" style="margin-top:6px"></div></div>`;
+  drawHwFiles(locked);
+  if (locked) return;
+  [["upCam", "inCam"], ["upImgs", "inImgs"], ["upPdf", "inPdf"]].forEach(([b, i]) => {
+    $("#" + b).addEventListener("click", () => $("#" + i).click());
+    $("#" + i).addEventListener("change", (e) => { const f = [...e.target.files]; e.target.value = ""; if (f.length) hwUpload(f); });
+  });
+  const card = $("#upCard");
+  ["dragenter", "dragover"].forEach((ev) => card.addEventListener(ev, (e) => { e.preventDefault(); card.classList.add("drag"); }));
+  ["dragleave", "drop"].forEach((ev) => card.addEventListener(ev, (e) => { e.preventDefault(); card.classList.remove("drag"); }));
+  card.addEventListener("drop", (e) => { const f = [...(e.dataTransfer && e.dataTransfer.files || [])]; if (f.length) hwUpload(f); });
+}
+function drawHwFiles(locked) {
+  const L = curHw.files, n = L.length;
+  $("#photos").innerHTML = L.map((f, i) => `<div>${f.type === "application/pdf" ? `<a class="pdf" href="${fileUrl(f)}" target="_blank" rel="noopener">📄 ${esc(f.name)}</a>` : `<a href="${fileUrl(f)}" target="_blank" rel="noopener"><img src="${fileUrl(f)}" alt=""></a>`}<span class="pg">${i + 1}</span>${locked ? "" : `<button data-rm="${f.file}" aria-label="Remove">✕</button>`}</div>`).join("");
+  $("#upCount").textContent = n ? `${n} page${n > 1 ? "s" : ""} sent to your teacher${locked || n >= MAX_FILES ? "" : ` · you can add ${MAX_FILES - n} more`}` : locked ? "" : "Nothing sent yet.";
+  $("#photos").querySelectorAll("[data-rm]").forEach((b) => b.addEventListener("click", async () => {
+    if (!confirm("Remove this page?")) return;
+    try { const d = await api("/student/api/hw-remove", { studentId: kidId, hwId: curHw.id, file: b.dataset.rm }); hwSet(d.files); drawHwFiles(false); } catch (e) { alert(e.message); }
+  }));
+}
+function hwSet(files) {
+  curHw.files = files;
+  if (curHw.state !== "done" && curHw.state !== "late") curHw.state = files.length ? "submitted" : curHw.due && curHw.due < new Date(Date.now() + 5 * 3600e3).toISOString().slice(0, 10) ? "missed" : "pending";
+}
+async function hwUpload(files) {
+  const room = MAX_FILES - curHw.files.length;
+  if (room <= 0) { alert(`You can upload up to ${MAX_FILES} files.`); return; }
+  if (files.length > room) { alert(`Only ${room} more file${room > 1 ? "s" : ""} can be added — the first ${room} will be uploaded.`); files = files.slice(0, room); }
+  const bad = files.filter((f) => f.type !== "application/pdf" && !/^image\//.test(f.type));
+  if (bad.length) { alert("Only PDF files and photos can be uploaded: " + bad.map((f) => f.name).join(", ")); files = files.filter((f) => !bad.includes(f)); }
+  for (const [i, f] of files.entries()) {
+    $("#upMsg").textContent = `Uploading ${i + 1} of ${files.length} — ${f.name}…`;
+    try {
+      const isPdf = f.type === "application/pdf";
+      if (isPdf && f.size > 15 * 1024 * 1024) throw new Error(`${f.name} is larger than 15 MB — scan at a lower quality or upload photos instead.`);
+      const blob = isPdf ? f : await shrink(f);
+      const d = await api(`/student/api/hw-upload?studentId=${encodeURIComponent(kidId)}&hwId=${encodeURIComponent(curHw.id)}&name=${encodeURIComponent(f.name)}`, null, { type: isPdf ? "application/pdf" : "image/jpeg", blob });
+      hwSet(d.files); drawHwFiles(false);
+    } catch (e) { alert(e.message); }
+  }
+  $("#upMsg").textContent = curHw.files.length ? "✓ Sent to your teacher." : "";
 }
 function bindKids() {
   view.querySelectorAll("[data-tab]").forEach((b) => b.addEventListener("click", () => { tab = b.dataset.tab; try { localStorage.setItem("cgaTab", tab); } catch {} list(); }));
@@ -314,7 +392,7 @@ async function report(quiet) {
     </div>
     <div class="card"><h3>📚 Homework</h3>${(r.homework || []).length ? `<table class="rt"><tbody>${r.homework.map((h) => `<tr><td style="white-space:nowrap">${esc(fmtD(h.given))}</td>
         <td><b>${esc(h.title)}</b>${h.subject ? ` <span class="sub">· ${esc(h.subject)}</span>` : ""}${h.teacher ? `<div class="sub">${esc(h.teacher)}</div>` : ""}${h.detail ? `<div class="sub">${esc(h.detail)}</div>` : ""}${h.due ? `<div class="sub">Due ${esc(fmtD(h.due))}</div>` : ""}</td>
-        <td class="r">${{ done: `<span class="pill P">Submitted</span>`, late: `<span class="pill L">Late</span>`, missed: `<span class="pill A">Not submitted</span>`, pending: `<span class="pill E">Pending</span>` }[h.state]}</td></tr>`).join("")}</tbody></table>`
+        <td class="r">${{ done: `<span class="pill P">Submitted</span>`, late: `<span class="pill L">Late</span>`, missed: `<span class="pill A">Not submitted</span>`, pending: `<span class="pill E">Pending</span>`, submitted: `<span class="pill L">Sent — awaiting teacher</span>` }[h.state]}</td></tr>`).join("")}</tbody></table>`
       : `<p class="sub" style="margin:0">No homework given yet.</p>`}</div>
     ${r.remarks.length ? `<div class="card"><h3>💬 Teacher remarks</h3><table class="rt"><tbody>${r.remarks.map((x) => `<tr><td style="white-space:nowrap">${esc(fmtD(x.d))}</td><td><b>${esc(x.type)}</b>${x.by ? ` <span class="sub">· ${esc(x.by)}</span>` : ""}<div>${esc(x.note)}</div></td></tr>`).join("")}</tbody></table></div>` : ""}`;
   bindKids();

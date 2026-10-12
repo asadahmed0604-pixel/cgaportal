@@ -9,7 +9,7 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 const ai = require("./ai");
-const { studentReport } = require("./student-report");
+const { studentReport, homeworkOf } = require("./student-report");
 const { feeSummary } = require("./parent-bot");
 
 const GRACE_MS = 90e3;                        // timer khatam hone ke baad network ke liye thori mohlat
@@ -35,7 +35,7 @@ const isDate = (d) => /^\d{4}-\d{2}-\d{2}$/.test(String(d || ""));
 
 module.exports = function setup(ctx) {
   const { DATA_DIR, send, sendJson, readBody, readRaw, sameOrigin, dbNow, logAct, actWho, accessFor, pinOk, childrenOf, phoneKey,
-          clientIp, blocked, failed, fails, isHttps, escHtml, schoolName, teacherClasses, mutateDb } = ctx;
+          clientIp, blocked, failed, fails, isHttps, escHtml, schoolName, teacherClasses, mutateDb, hwSeenBy } = ctx;
 
   const DIR = path.join(DATA_DIR, "asg"), SUBS = path.join(DIR, "subs"), FILES = path.join(DIR, "files");
   const ASG_FILE = path.join(DIR, "assignments.json");
@@ -75,6 +75,15 @@ module.exports = function setup(ctx) {
   const slotLeft = (auth, kind) => auth.role !== "teacher" || usedOf(auth.tid)[kind] < LIMITS[kind];
   const limitMsg = (kind) => `You have used all ${LIMITS[kind]} ${kind === "test" ? "tests" : "assignments"} for this month (limit: ${LIMITS.test} tests + ${LIMITS.assignment} assignments). Ask the admin if you need more.`;
   const hashCode = (code, salt) => crypto.pbkdf2Sync(String(code), Buffer.from(salt, "hex"), 100000, 32, "sha256").toString("hex");
+  /* ---------- v90: homework ki photos / PDF — bacha (ya parent) portal se jama karta hai ----------
+     DATA_DIR/asg/hwsubs.json: { "<hwId>|<studentId>": {hwId, studentId, files:[{file,type,name,at}], at, by} }
+     db.json se alag (teacher ka save ise kabhi nahi mitata). Teacher "Receival" mein dekh kar confirm karta hai → homework.done */
+  const HW_FILE = path.join(DIR, "hwsubs.json");
+  let hwSubs = {};
+  try { hwSubs = JSON.parse(fs.readFileSync(HW_FILE, "utf8")) || {}; } catch { hwSubs = {}; }
+  const saveHw = () => writeAtomic(HW_FILE, JSON.stringify(hwSubs));
+  const hwKey = (hid, sid) => hid + "|" + sid;
+  const hwFilesOf = (hid) => Object.values(hwSubs).filter((x) => x.hwId === hid);
   const subsOf = (aid) => [...subs.values()].filter((s) => s.assignmentId === aid);
   const subFor = (aid, sid) => [...subs.values()].find((s) => s.assignmentId === aid && s.studentId === sid) || null;
 
@@ -480,9 +489,31 @@ module.exports = function setup(ctx) {
       return sendJson(res, 200, { ok: true });
     }
 
+    /* v90: kis homework mein kin bachon ne portal se kaam bheja — Homework list ka "📥 sent" */
+    if (p === "/api/asg/hw-sent" && req.method === "GET") {
+      const seen = new Map((db.homework || []).filter((h) => h && (!isT || hwSeenBy(db, h, auth.tid))).map((h) => [h.id, h]));
+      const out = {};
+      Object.values(hwSubs).forEach((x) => { if (seen.has(x.hwId) && (x.files || []).length) (out[x.hwId] = out[x.hwId] || []).push(x.studentId); });
+      return sendJson(res, 200, out);
+    }
+
+    /* v90: homework ki jama shuda photos / PDF — Receival ke liye (teacher sirf apni classes ka homework) */
+    if (p === "/api/asg/hw-subs" && req.method === "GET") {
+      const h = (db.homework || []).find((x) => x && x.id === url.searchParams.get("hwId"));
+      if (!h || (isT && !hwSeenBy(db, h, auth.tid))) return sendJson(res, 404, { error: "Not found" });
+      return sendJson(res, 200, Object.fromEntries(hwFilesOf(h.id).filter((x) => (x.files || []).length)
+        .map((x) => [x.studentId, { files: x.files, at: x.at, by: x.by || "" }])));
+    }
+
     const fm = p.match(/^\/api\/asg\/file\/([a-f0-9]{24}\.(jpg|png|webp|pdf))$/);
     if (fm && req.method === "GET") {
       const name = fm[1];
+      const hwOf = Object.values(hwSubs).find((x) => (x.files || []).some((f) => f.file === name));
+      if (hwOf) {
+        const h = (db.homework || []).find((x) => x && x.id === hwOf.hwId);
+        if (!h || (isT && !hwSeenBy(db, h, auth.tid)) || !fs.existsSync(path.join(FILES, name))) return send(res, 404, "Not found");
+        return send(res, 200, fs.readFileSync(path.join(FILES, name)), EXT_TYPE[fm[2]], { "Cache-Control": "private, max-age=86400", "Content-Disposition": "inline", "X-Frame-Options": "SAMEORIGIN" });
+      }
       const mine = assignments.some((a) => canAsg(auth, a) && [...(a.files || []), ...(a.schemeFiles || [])].some((f) => f.file === name))
         || [...subs.values()].some((s) => (s.files || []).some((f) => f.file === name) && canAsg(auth, asgById(s.assignmentId)));
       /* abhi upload hua, kisi assignment mein nahi laga (naam random 96-bit hai) — staff / teacher preview ke liye */
@@ -571,7 +602,8 @@ module.exports = function setup(ctx) {
     if (fm && req.method === "GET") {
       const st = kid(url.searchParams.get("s")), name = fm[1];
       const ok = st && (assignments.some((a) => open(a, pktDate()) && (a.studentIds || []).includes(st.id) && subFor(a.id, st.id) && (a.files || []).some((f) => f.file === name))
-        || [...subs.values()].some((s) => s.studentId === st.id && (s.files || []).some((f) => f.file === name)));
+        || [...subs.values()].some((s) => s.studentId === st.id && (s.files || []).some((f) => f.file === name))
+        || Object.values(hwSubs).some((x) => x.studentId === st.id && (x.files || []).some((f) => f.file === name)));
       if (!ok || !fs.existsSync(path.join(FILES, name))) return send(res, 404, "Not found");
       return send(res, 200, fs.readFileSync(path.join(FILES, name)), EXT_TYPE[fm[2]], { "Cache-Control": "private, max-age=86400", "Content-Disposition": "inline", "X-Frame-Options": "SAMEORIGIN" });
     }
@@ -583,13 +615,32 @@ module.exports = function setup(ctx) {
       const st = kid(url.searchParams.get("studentId"));
       if (!st) return sendJson(res, 400, { error: "Choose a student." });
       const r = studentReport(fam.db, st, pktDate());
-      if (!fam.self) r.fees = feeSummary(fam.db, st);        // v83: parents app — fees (bacha khud login kare to nahi)
+      if (!fam.self) r.fees = feeSummary(fam.db, st);
+      /* v90: portal se photos bhej diye, teacher ne abhi confirm nahi kiya */
+      (r.homework || []).forEach((h) => { const x = hwSubs[hwKey(h.id, st.id)]; if ((h.state === "pending" || h.state === "missed") && x && (x.files || []).length) h.state = "submitted"; });        // v83: parents app — fees (bacha khud login kare to nahi)
       r.assignments = assignments.filter((a) => open(a, pktDate()) && (a.studentIds || []).includes(st.id)).map((a) => {
         const s = settle(subFor(a.id, st.id));
         return { title: a.title, subject: a.subject, total: a.total, state: s ? s.status : "new", dueDate: a.dueDate || "",
                  score: s && s.result && (s.status === "marked" || s.teacherEdited) ? s.result.total_awarded : null };
       });
       return sendJson(res, 200, r);
+    }
+
+    /* v90: homework (Morning + Evening) — teacher / admin ka diya; bacha photos / PDF jama kare, teacher confirm kare */
+    if (p === "/student/api/homework" && req.method === "GET") {
+      const st = kid(url.searchParams.get("studentId"));
+      if (!st) return sendJson(res, 400, { error: "Choose a student." });
+      const today = pktDate(), since = pktDate(Date.now() - 45 * 864e5);
+      const emps = fam.db.employees || [];
+      const list = homeworkOf(fam.db, st).filter((h) => String(h.dueDate || h.dateGiven || "") >= since || !(h.done || {})[st.id]).slice(0, 30).map((h) => {
+        const d = (h.done || {})[st.id], due = h.dueDate || "", sub = hwSubs[hwKey(h.id, st.id)], files = (sub && sub.files) || [];
+        return { id: h.id, title: h.title || "", subject: h.subject || "", detail: h.detail || "", given: h.dateGiven || "", due,
+          teacher: h.teacherId ? (emps.find((e) => e.id === h.teacherId) || {}).name || "" : "",
+          state: d ? (typeof d === "string" && due && d > due ? "late" : "done") : files.length ? "submitted" : due && due < today ? "missed" : "pending",
+          checkedOn: typeof d === "string" ? d : "", submittedAt: (sub && sub.at) || "",
+          files: files.map((f) => ({ file: f.file, type: f.type, name: f.name })) };
+      });
+      return sendJson(res, 200, list);
     }
 
     if (p === "/student/api/list" && req.method === "GET") {
@@ -622,9 +673,38 @@ module.exports = function setup(ctx) {
       return sendJson(res, 200, subForStudent(s));
     }
 
+    /* v90: homework photo / PDF: raw body, ?studentId=&hwId=&name= */
+    const hwFind = (st, hid) => homeworkOf(fam.db, st).find((h) => h.id === hid) || null;
+    if (p === "/student/api/hw-upload") {
+      const st = kid(url.searchParams.get("studentId")), h = st && hwFind(st, url.searchParams.get("hwId"));
+      if (!h) return sendJson(res, 404, { error: "This homework is not available." });
+      if ((h.done || {})[st.id]) return sendJson(res, 409, { error: "Your teacher has already checked this homework." });
+      const k = hwKey(h.id, st.id), cur = hwSubs[k] || { hwId: h.id, studentId: st.id, files: [] };
+      if ((cur.files || []).length >= MAX_WORK_FILES) return sendJson(res, 400, { error: `Maximum ${MAX_WORK_FILES} files (PDF / photos).` });
+      const type = String(req.headers["content-type"] || "").split(";")[0].trim().toLowerCase();
+      let f;
+      try { f = storeFile(await readRaw(req, MAX_UPLOAD + 1024), type, url.searchParams.get("name")); }
+      catch (e) { return sendJson(res, e.status || 400, { error: e.message }); }
+      const first = !(cur.files || []).length;
+      cur.files = (cur.files || []).concat({ ...f, at: new Date().toISOString() }); cur.at = new Date().toISOString(); cur.by = fam.self ? "student" : "parent";
+      hwSubs[k] = cur; saveHw();
+      if (first) logAct(req, who(st), "Homework submitted", `${h.title}${h.subject ? " · " + h.subject : ""}`);
+      return sendJson(res, 200, { ok: true, files: cur.files.map((x) => ({ file: x.file, type: x.type, name: x.name })) });
+    }
+
     const body = JSON.parse((await readBody(req)) || "{}");
     const st = kid(body.studentId);
     if (!st) return sendJson(res, 400, { error: "Choose a student." });
+
+    if (p === "/student/api/hw-remove") {
+      const h = hwFind(st, body.hwId), k = h && hwKey(h.id, st.id);
+      if (!h || !hwSubs[k]) return sendJson(res, 404, { error: "Not found" });
+      if ((h.done || {})[st.id]) return sendJson(res, 409, { error: "Your teacher has already checked this homework." });
+      hwSubs[k].files = (hwSubs[k].files || []).filter((f) => f.file !== body.file);
+      if (!hwSubs[k].files.length) delete hwSubs[k];
+      saveHw();
+      return sendJson(res, 200, { ok: true, files: ((hwSubs[k] || {}).files || []).map((x) => ({ file: x.file, type: x.type, name: x.name })) });
+    }
 
     /* kholo: pehli dafa timer yahin se shuru hota hai */
     if (p === "/student/api/open") {
