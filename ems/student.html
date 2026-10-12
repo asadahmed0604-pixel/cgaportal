@@ -281,6 +281,15 @@ async function report(quiet) {
       <div class="stat"><small>Average marks</small><b>${mk.average === null ? "—" : mk.average + "%"}</b><span>${mk.count ? (mk.count > 10 ? `last 10 of ${mk.count} tests` : `${mk.count} test${mk.count === 1 ? "" : "s"}`) : "no marks yet"}</span>${meter(mk.average)}</div>
       <div class="stat"><small>Assignments</small><b>${pend.length}</b><span>${pend.length ? "to do" : "nothing pending ✓"}</span></div>
     </div>
+    ${r.fees ? (() => { const F = r.fees, money = (n) => "Rs " + Math.round(+n || 0).toLocaleString("en-US"), M = (m) => m ? new Date(m + "-01T12:00").toLocaleDateString("en-GB", { month: "long", year: "numeric" }) : "";
+      const pill = { paid: `<span class="pill P">Paid</span>`, partial: `<span class="pill L">Partly paid</span>`, unpaid: `<span class="pill A">Unpaid</span>`, carried: `<span class="pill E">Moved to next challan</span>` };
+      return `<div class="card"><h3>💳 Fees</h3>
+        <div class="stats" style="margin-bottom:10px"><div class="stat"><small>Total due now</small><b style="color:${F.totalDue ? "var(--red)" : "var(--green-d)"}">${money(F.totalDue)}</b><span>${F.totalDue ? "please pay by the due date" : "nothing due ✓"}</span></div>
+          ${F.lastPayment ? `<div class="stat"><small>Last payment</small><b>${money(F.lastPayment.amt)}</b><span>${esc(fmtD(F.lastPayment.date))}${F.lastPayment.method ? " · " + esc(F.lastPayment.method) : ""}</span></div>` : ""}</div>
+        ${F.challans.length ? `<table class="rt"><tbody>${F.challans.slice(0, 8).map((c) => `<tr><td><b>${esc(M(c.month))}</b><div class="sub">${esc(c.chNo)}${c.arrears ? ` · incl. ${money(c.arrears)} arrears` : ""}</div>
+            ${c.payments.length ? `<div class="sub">${c.payments.map((p) => `✓ ${money(p.amt)} · ${esc(fmtD(p.date))}${p.method ? " · " + esc(p.method) : ""}`).join("<br>")}</div>` : ""}</td>
+          <td class="r"><b>${money(c.amount)}</b><div>${pill[c.status]}</div>${c.status === "partial" || c.status === "unpaid" ? `<div class="sub" style="color:var(--red)">${money(c.due)} due${c.dueDate ? " · by " + esc(fmtD(c.dueDate)) : ""}</div>` : ""}</td></tr>`).join("")}</tbody></table>`
+          : `<p class="sub" style="margin:0">No challans yet.</p>`}</div>`; })() : ""}
     <div class="card"><h3>🕘 Today's classes</h3>${r.todayClasses.length ? `<table class="rt"><tbody>${r.todayClasses.map((c) => `<tr><td class="r" style="text-align:left;width:130px">${esc(span(c.from, c.to))}</td><td><b>${esc(c.subject || c.course)}</b>${c.teacher ? `<div class="sub">${esc(c.teacher)}</div>` : ""}</td></tr>`).join("")}</tbody></table>`
       : `<p class="sub" style="margin:0">No classes scheduled for today.</p>`}</div>
     <div class="card"><h3>📅 Attendance</h3>
