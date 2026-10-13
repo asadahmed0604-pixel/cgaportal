@@ -129,7 +129,9 @@ function tests(db, s) {
     LI(last.map((e) => `${fmtD(e.date)} · ${e.exam}${e.subject ? ` (${e.subject})` : ""}: ${e.absent ? "Absent" : `${+e.obtained}/${+e.total} = ${pc(e)}%`}${e.comment ? ` — "${e.comment}"` : ""}`)),
     P(avg === null ? "Absent in these tests." : `Average: ${avg}%${sat.length < last.length ? ` (absent in ${last.length - sat.length} — not counted)` : ""}`),
     ...(() => { const ps = classPosition(db, s);                         // v99: class mein position
-      return ps ? [P(`🏅 Class position (${fmtM(ps.month)}): ${ps.rank} of ${ps.of} · ${ps.pct}% (class average ${ps.classAvg}%)`)] : []; })(),
+      if (!ps) return [];
+      const x = ps.parts, bits = [`marks ${x.marks}%`, x.hw !== null ? `homework on time ${x.hw}%` : "", `behaviour ${x.beh}/100`, x.att !== null ? `attendance & punctuality ${x.att}%` : ""].filter(Boolean);
+      return [P(`🏅 Class position (${fmtM(ps.month)}): ${ps.rank} of ${ps.of} · overall score ${ps.score}`), P(`Based on ${bits.join(" · ")}.`)]; })(),
   ];
 }
 
