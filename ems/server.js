@@ -165,6 +165,7 @@ function dataFor(role, tid) {
 /* ---------- v36: teacher ko sirf apni classes — tests, marks aur Evening class attendance ----------
    Teacher ki classes = Employees mein assign ki gayi (shift + class) + jin students ke subject par wo teacher laga hai. */
 /* v48: Evening bacha 2 classes mein (course + course2) */
+const O_MORNING = ["O1", "O2"];            // v94: Morning O Levels — subject-wise jaise Evening
 const stuClasses = (st) => [st.course, st.shift === "Evening" ? st.course2 : ""].filter(Boolean);
 const stuIn = (st, sh, c) => st.shift === sh && stuClasses(st).includes(c);
 /* v79: teacher sirf apni shift ki classes — Evening teacher ko Morning ki class kabhi nahi (chahe kisi Morning bache ke subject par
@@ -231,7 +232,10 @@ function teacherView(d, tid) {
     if (!sets.length || sets.some((x) => !x)) return L;
     return L.filter((x) => x.teacherId === tid || sets.some((set) => subjHit(set, x.name))); };
   const act = activeNow(d), today = pktToday(), since = new Date(Date.now() + 5 * 3600e3 - 7 * 864e5).toISOString().slice(0, 10);
-  const students = (d.students || []).filter((st) => act(st) && keys(st).length && (keys(st).some((k) => k.startsWith("Morning|") || !subjOf(k)) || mine(st).length));
+  /* v94: Morning O1 / O2 bhi subject-wise (Evening ki tarah); baqi Morning classes poori. Subjects darj na hon to bacha dikhao. */
+  const wholeK = (k) => k.startsWith("Morning|") && !O_MORNING.includes(k.slice(8));
+  const noSubjO = (st) => st.shift === "Morning" && !(st.subjects || []).length && keys(st).some((k) => O_MORNING.includes(k.slice(8)));
+  const students = (d.students || []).filter((st) => act(st) && keys(st).length && (keys(st).some((k) => wholeK(k) || !subjOf(k)) || noSubjO(st) || mine(st).length));
   /* teacher ke apne subjects — Create test / homework ki list mein sirf yehi */
   const mySub = new Set();
   [...cls].forEach((k) => { const x = subjOf(k); if (x) x.forEach((v) => mySub.add(v)); });

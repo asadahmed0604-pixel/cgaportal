@@ -70,9 +70,10 @@ function studentReport(db, st, today) {
 
   const exams = (db.exams || []).filter((e) => e.studentId === st.id && +e.total > 0)
     .sort((a, b) => String(b.date).localeCompare(String(a.date)));
-  const p = (e) => (e.absent ? 0 : Math.round((+e.obtained * 100) / +e.total));
+  /* v95: absent = koi % / grade nahi; average mein gina nahi jata */
+  const p = (e) => (e.absent ? null : Math.round((+e.obtained * 100) / +e.total));
   const bySub = {};
-  exams.forEach((e) => { const k = e.subject || "General"; (bySub[k] = bySub[k] || []).push(p(e)); });
+  exams.forEach((e) => { const k = e.subject || "General"; if (!e.absent) (bySub[k] = bySub[k] || []).push(p(e)); });
   const avg = (l) => (l.length ? Math.round(l.reduce((a, x) => a + x, 0) / l.length) : null);
 
   const classes = classesFor(db, st), wd = new Date(Date.parse(today + "T12:00:00Z")).getUTCDay();
@@ -91,7 +92,7 @@ function studentReport(db, st, today) {
     marks: {
       list: exams.slice(0, 25).map((e) => ({ date: e.date, exam: e.exam || "Test", subject: e.subject || "", obtained: e.absent ? null : +e.obtained, total: +e.total,
         pct: p(e), absent: !!e.absent, comment: e.comment || "", by: e.byName || "" })),
-      average: avg(exams.slice(0, 10).map(p)), count: exams.length,
+      average: avg(exams.filter((e) => !e.absent).slice(0, 10).map(p)), count: exams.filter((e) => !e.absent).length,
       bySubject: Object.entries(bySub).map(([k, l]) => ({ subject: k, avg: avg(l), n: l.length, last: l[0] })).sort((a, b) => a.subject.localeCompare(b.subject)),
     },
     /* v69: homework — subject wala sirf us subject ke bachon ko */

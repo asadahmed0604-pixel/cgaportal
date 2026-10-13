@@ -121,12 +121,12 @@ function tests(db, s) {
   const ex = (db.exams || []).filter((e) => e.studentId === s.id).sort((a, b) => String(b.date).localeCompare(String(a.date)));
   if (!ex.length) return [H(`📝 ${s.name} — Test Results`), P("No test results recorded yet.")];
   const pc = (e) => (+e.total ? Math.round(+e.obtained * 100 / +e.total) : 0);
-  const last = ex.slice(0, 6);
-  const avg = Math.round(last.reduce((a, e) => a + pc(e), 0) / last.length);
+  const last = ex.slice(0, 6), sat = last.filter((e) => !e.absent);     // v95: absent test average mein nahi
+  const avg = sat.length ? Math.round(sat.reduce((a, e) => a + pc(e), 0) / sat.length) : null;
   return [
     H(`📝 ${s.name} — Last ${last.length} tests`),
-    LI(last.map((e) => `${fmtD(e.date)} · ${e.exam}${e.subject ? ` (${e.subject})` : ""}: ${+e.obtained}/${+e.total} = ${pc(e)}%${e.comment ? ` — "${e.comment}"` : ""}`)),
-    P(`Average: ${avg}%`),
+    LI(last.map((e) => `${fmtD(e.date)} · ${e.exam}${e.subject ? ` (${e.subject})` : ""}: ${e.absent ? "Absent" : `${+e.obtained}/${+e.total} = ${pc(e)}%`}${e.comment ? ` — "${e.comment}"` : ""}`)),
+    P(avg === null ? "Absent in these tests." : `Average: ${avg}%${sat.length < last.length ? ` (absent in ${last.length - sat.length} — not counted)` : ""}`),
   ];
 }
 

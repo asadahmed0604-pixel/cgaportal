@@ -1384,7 +1384,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v93 · 13 Oct 2026";
+const BUILD = "v95 · 13 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -2127,7 +2127,8 @@ function studentScores(m){
   const act = DB.students.filter(s=>activeIn(s, m, RM));
   const ex = {}, att = {}, bunk = {};
   DB.exams.forEach(e=>{ const mm = String(e.date||"").slice(0,7); if(mm < from || mm > m || !(+e.total > 0)) return;
-    (ex[e.studentId] = ex[e.studentId] || []).push(e.absent ? 0 : Math.min(100, (+e.obtained||0) * 100 / +e.total)); });
+    if(e.absent) return;                                      // v95: absent paper average mein nahi
+    (ex[e.studentId] = ex[e.studentId] || []).push(Math.min(100, (+e.obtained||0) * 100 / +e.total)); });
   Object.keys(DB.attendance||{}).forEach(d=>{ if(!d.startsWith(m)) return; const day = DB.attendance[d];
     for(const sid in day){ const k = day[sid] && day[sid].s; if(!k) continue; const r = att[sid] = att[sid] || {P:0,L:0,A:0,E:0}; if(r[k] !== undefined) r[k]++; } });
   (DB.classAtt||[]).forEach(c=>{ if(!String(c.date||"").startsWith(m) || !c.marks) return; const day = (DB.attendance||{})[c.date] || {};
@@ -2991,7 +2992,7 @@ function openProfile(id){
     </table></div></div>
     <div class="tabpane" id="tpAtt"><div class="tbl-wrap"><table><thead><tr><th>Date</th><th>Status</th><th>Time</th><th>Shift</th></tr></thead><tbody>${attRows||`<tr><td colspan="4" class="empty">No attendance marked yet</td></tr>`}</tbody></table></div></div>
     <div class="tabpane fee-only" id="tpFee"><div style="margin-bottom:8px"><button class="btn-black btn-sm" onclick="openLedger('${s.id}')">📒 Fee ledger (installments & balance)</button></div><div class="tbl-wrap"><table><thead><tr><th>Challan #</th><th>Month</th><th>Amount</th><th>Status</th><th>Paid Date</th></tr></thead><tbody>${fees.length?fees.map(f=>`<tr><td>${f.chNo}</td><td>${fmtM(f.month)}</td><td>${money(f.amount)}</td><td>${isPartial(f) ? `<span class="badge b-freeze">Partial</span><br><span class="sub">${money(feeOutstanding(f))} due</span>` : `<span class="badge b-${f.status.toLowerCase()}">${f.status}</span>`}</td><td>${feePays(f).length > 1 || isPartial(f) ? feePays(f).map(p=>`${fmtD(p.date)} · ${money(p.amt)}${p.method ? " · " + esc(p.method) : ""}`).join("<br>") : fmtD(f.paidDate)}</td></tr>`).join(""):`<tr><td colspan="5" class="empty">No challans</td></tr>`}</tbody></table></div></div>
-    <div class="tabpane" id="tpExam"><div class="tbl-wrap"><table><thead><tr><th>Date</th><th>Exam</th><th>Subject / Topic</th><th>Obtained</th><th>Total</th><th>%</th><th>Result</th><th>Teacher Comment</th></tr></thead><tbody>${exams.length?exams.map(e=>{const p=Math.round(e.obtained/e.total*100);return `<tr><td>${fmtD(e.date)}</td><td>${esc(e.exam)}</td><td>${esc(e.subject||"—")}</td><td>${e.obtained}</td><td>${e.total}</td><td>${p}%</td><td><span class="badge ${p>=50?"b-paid":"b-unpaid"}">${p>=50?"Pass":"Fail"}</span></td><td style="max-width:220px;font-size:.82rem">${esc(e.comment||"—")}</td></tr>`;}).join(""):`<tr><td colspan="8" class="empty">No exam records</td></tr>`}</tbody></table></div></div>
+    <div class="tabpane" id="tpExam"><div class="tbl-wrap"><table><thead><tr><th>Date</th><th>Exam</th><th>Subject / Topic</th><th>Obtained</th><th>Total</th><th>%</th><th>Result</th><th>Teacher Comment</th></tr></thead><tbody>${exams.length?exams.map(e=>{return `<tr><td>${fmtD(e.date)}</td><td>${esc(e.exam)}</td><td>${esc(e.subject||"—")}</td><td>${eObt(e)}</td><td>${e.total}</td><td>${ePctT(e)}</td><td><span class="badge ${e.absent ? "b-freeze" : eP(e)>=50?"b-paid":"b-unpaid"}">${eResult(e)}</span></td><td style="max-width:220px;font-size:.82rem">${esc(e.comment||"—")}</td></tr>`;}).join(""):`<tr><td colspan="8" class="empty">No exam records</td></tr>`}</tbody></table></div></div>
     <div class="tabpane" id="tpHw"><div class="tbl-wrap"><table><thead><tr><th>Date Given</th><th>Title</th><th>Due Date</th><th>Detail</th><th>Status</th></tr></thead><tbody>${hwRows||`<tr><td colspan="5" class="empty">No homework for this course/shift</td></tr>`}</tbody></table></div></div>
   `, true);
 }
@@ -3087,16 +3088,16 @@ function downloadProfile(id){
     <div style="font-weight:800;border-left:4px solid #159670;padding-left:8px;margin:14px 0 8px">Exam / Test Record</div>
     <table style="width:100%;border-collapse:collapse;margin-bottom:12px">
       <thead><tr>${["#","Date","Exam","Subject / Topic","Obtained","Total","%","Grade","Result","Comment"].map(h=>`<th style="${cell};background:#f0f0f0">${h}</th>`).join("")}</tr></thead>
-      <tbody>${exams.length? exams.map((e,i)=>{const p=Math.round(e.obtained/e.total*100);return `<tr>
+      <tbody>${exams.length? exams.map((e,i)=>{return `<tr>
         <td style="${cell};text-align:center">${i+1}</td>
         <td style="${cell}">${fmtD(e.date)}</td>
         <td style="${cell}"><b>${esc(e.exam)}</b></td>
         <td style="${cell}">${esc(e.subject||"—")}</td>
-        <td style="${cell};text-align:center"><b>${e.obtained}</b></td>
+        <td style="${cell};text-align:center"><b>${eObt(e)}</b></td>
         <td style="${cell};text-align:center">${e.total}</td>
-        <td style="${cell};text-align:center"><b>${p}%</b></td>
-        <td style="${cell};text-align:center">${gradeOf(p)}</td>
-        <td style="${cell};text-align:center;font-weight:700;${p>=50?"color:#0f7b3d":"color:#C0392B"}">${p>=50?"Pass":"Fail"}</td>
+        <td style="${cell};text-align:center"><b>${ePctT(e)}</b></td>
+        <td style="${cell};text-align:center">${eGrade(e)}</td>
+        <td style="${cell};text-align:center;font-weight:700;color:${eColor(e)}">${eResult(e)}</td>
         <td style="${cell};font-size:.74rem">${esc(e.comment||"—")}</td>
       </tr>`;}).join("") : `<tr><td colspan="10" style="${cell};text-align:center;color:#777">No exam records</td></tr>`}</tbody>
     </table>
@@ -3251,9 +3252,9 @@ function waChallans(){
 /* Report cards → WhatsApp (bulk report card wale chunaav se) */
 function waReportCards(){
   const cards = bulkRcList(), m = $("brc_month").value, A = DB.settings.name || "Cambridge Grads Academy";
-  waSender(`📲 Report cards — ${fmtM(m)} (${cards.length})`, cards.map(d=>({id:d.s.id, who:d.s.name, sub:`${classLabelOf(d.s)} · ${d.ex.length ? d.pct + "%" : "no tests"}`, phone:parentPhone(d.s),
+  waSender(`📲 Report cards — ${fmtM(m)} (${cards.length})`, cards.map(d=>({id:d.s.id, who:d.s.name, sub:`${classLabelOf(d.s)} · ${d.pct !== null ? d.pct + "%" : d.ex.length ? "absent" : "no tests"}`, phone:parentPhone(d.s),
     text:`Dear Parent,\n${A} — Report card ${fmtM(m)}\nStudent: ${d.s.name} (${classLabelOf(d.s)})\n` +
-      (d.ex.length ? d.ex.map(e=>`• ${e.subject || e.exam}: ${e.absent ? "Absent" : e.obtained}/${e.total}`).join("\n") + `\nTotal: ${d.obt}/${d.tot} = ${d.pct}% (${gradeOf(d.pct)})${d.rank ? `\nClass position: ${d.rank}/${d.rankOf}` : ""}` : "No tests recorded this month") +
+      (d.ex.length ? d.ex.map(e=>`• ${e.subject || e.exam}: ${e.absent ? "Absent" : `${e.obtained}/${e.total}`}`).join("\n") + (d.pct !== null ? `\nTotal: ${d.obt}/${d.tot} = ${d.pct}% (${gradeOf(d.pct)})${d.abs ? ` · absent in ${d.abs}` : ""}${d.rank ? `\nClass position: ${d.rank}/${d.rankOf}` : ""}` : `\nAbsent in all tests`) : "No tests recorded this month") +
       `\nAttendance: ${d.att.pct}% (P ${d.att.P} · A ${d.att.A})${d.remarks && d.remarks.length ? `\nTeacher remarks: ${d.remarks.map(r=>r.note).join("; ")}` : ""}\nThe full report card PDF is attached.`,
     pdf: async()=>({name:`${fileSafe(d.s.name)} - Report Card ${fmtM(m)}.pdf`, bytes: await reportCardPDF(d)})})), "report-cards");
 }
@@ -3268,7 +3269,7 @@ async function reportCardPDF(d){
   doc.text(d.from && d.from === d.to ? fmtM(d.from) : "", x0 + W - 74, 76, {size:8, bold:true, color:PC.pale, align:"center"});
   let y = 104, cw = W/3;
   doc.rect(x0, y, W, 56, {fill:PC.soft});
-  [["STUDENT", s.name], ["REG NO", s.regNo || "-"], ["CLASS · SHIFT", `${classLabelOf(s)} · ${s.shift}`], ["FATHER NAME", s.fatherName || "-"], ["ATTENDANCE", `${d.att.pct}%  (P ${d.att.P} · A ${d.att.A} · L ${d.att.L})`], ["RESULT", d.ex.length ? `${d.pct}% · ${gradeOf(d.pct)}${d.rank ? ` · Position ${d.rank}/${d.rankOf}` : ""}` : "-"]]
+  [["STUDENT", s.name], ["REG NO", s.regNo || "-"], ["CLASS · SHIFT", `${classLabelOf(s)} · ${s.shift}`], ["FATHER NAME", s.fatherName || "-"], ["ATTENDANCE", `${d.att.pct}%  (P ${d.att.P} · A ${d.att.A} · L ${d.att.L})`], ["RESULT", d.pct !== null ? `${d.pct}% · ${gradeOf(d.pct)}${d.rank ? ` · Position ${d.rank}/${d.rankOf}` : ""}` : d.ex.length ? "Absent" : "-"]]
     .forEach(([k,v],i)=>{ const cx = x0 + (i%3)*cw + 10, ry = y + 6 + Math.floor(i/3)*25; doc.text(k, cx, ry + 8, {size:6.5, bold:true, color:PC.muted}); doc.text(v, cx, ry + 20, {size:9.5, bold:true, color:PC.ink, maxW:cw - 16}); });
   y += 70;
   const cols = [["#",22],["Date",62],["Subject / Test",W-22-62-48-56-40-40-50],["Total",48],["Obtained",56],["%",40],["Grade",40],["Result",50]];
@@ -3277,15 +3278,15 @@ async function reportCardPDF(d){
   y += 18;
   const rows = d.ex.slice(0, 30);
   rows.forEach((e,i)=>{
-    const p = +e.total ? Math.round(e.obtained/e.total*100) : 0, h = e.comment ? 26 : 18;
+    const h = e.comment ? 26 : 18;
     if(i % 2) doc.rect(x0, y, W, h, {fill:"#F6FAFB"});
-    const vals = [String(i+1), fmtD(e.date), e.subject || e.exam, String(e.total), e.absent ? "Absent" : String(e.obtained), p + "%", gradeOf(p), p >= 50 ? "Pass" : "Fail"];
-    cx = x0; vals.forEach((v,j)=>{ doc.text(v, cx + 5, y + 12, {size:8.5, bold:j===2||j===4, color: j===7 ? (p>=50 ? PC.green : PC.red) : PC.ink, maxW:cols[j][1] - 8}); cx += cols[j][1]; });
+    const vals = [String(i+1), fmtD(e.date), e.subject || e.exam, String(e.total), String(eObt(e)), ePctT(e), eGrade(e), eResult(e)];
+    cx = x0; vals.forEach((v,j)=>{ doc.text(v, cx + 5, y + 12, {size:8.5, bold:j===2||j===4, color: j===7 ? (e.absent ? PC.muted : eP(e)>=50 ? PC.green : PC.red) : PC.ink, maxW:cols[j][1] - 8}); cx += cols[j][1]; });
     if(e.comment) doc.text(`"${e.comment}"`, x0 + 22 + 62 + 5, y + 22, {size:7, color:PC.muted, maxW:cols[2][1] - 8});
     y += h; doc.line(x0, y, x0 + W, y, {color:PC.line, lw:.5});
   });
   if(!rows.length){ doc.text("No tests recorded in this period", x0 + W/2, y + 16, {size:9, color:PC.muted, align:"center"}); y += 26; }
-  if(rows.length){ doc.rect(x0, y, W, 20, {fill:PC.head}); doc.text(`Overall (${d.ex.length} tests): ${d.obt} / ${d.tot} = ${d.pct}%  ·  Grade ${gradeOf(d.pct)}${d.classAvg ? `  ·  Class avg ${d.classAvg}%` : ""}`, x0 + 10, y + 13.5, {size:9, bold:true, color:PC.ink, maxW:W - 20}); y += 30; }
+  if(rows.length){ doc.rect(x0, y, W, 20, {fill:PC.head}); doc.text(d.pct === null ? `Overall: absent in all ${d.ex.length} tests` : `Overall (${d.sat} tests${d.abs ? `, absent in ${d.abs}` : ""}): ${d.obt} / ${d.tot} = ${d.pct}%  ·  Grade ${gradeOf(d.pct)}${d.classAvg ? `  ·  Class avg ${d.classAvg}%` : ""}`, x0 + 10, y + 13.5, {size:9, bold:true, color:PC.ink, maxW:W - 20}); y += 30; }
   if(d.remarks && d.remarks.length){ doc.text("Teacher remarks: " + d.remarks.map(r=>r.note).join(" · "), x0, y + 6, {size:8.5, color:PC.ink, maxW:W}); }
   const fy = PDF_H - 50;
   [["Issued: " + fmtD(todayStr()), x0], ["Class Teacher", x0 + W/2 - 60], ["Principal / Admin", x0 + W - 120]].forEach(([t, x])=>{ doc.line(x, fy, x + 120, fy, {color:"#999999", lw:.6}); doc.text(t, x + 60, fy + 12, {size:8, color:PC.muted, align:"center"}); });
@@ -3584,8 +3585,8 @@ function ptmClasses(x){
   return IS_TEACHER ? all.filter(c=>myClassKeys().has("Morning|"+c)) : all;
 }
 function ptmStudents(x, c){
-  const cls = c ? [c] : ptmClasses(x);
-  return DB.students.filter(st=>st.shift==="Morning" && st.status!=="Left" && cls.some(k=>inClass(st, k))).sort((a,b)=>a.course.localeCompare(b.course) || a.name.localeCompare(b.name));
+  const cls = c ? [c] : ptmClasses(x), so = IS_TEACHER ? mySubjMap() : null;
+  return DB.students.filter(st=>st.shift==="Morning" && st.status!=="Left" && cls.some(k=>inClass(st, k) && (!so || teachesStu(st, "Morning|"+k, so)))).sort((a,b)=>a.course.localeCompare(b.course) || a.name.localeCompare(b.name));
 }
 /* bache ke liye: kisi ne bhi "met" kaha to aaye; sab ne "N" kaha to nahi aaye */
 function ptmMet(x, sid){
@@ -6032,14 +6033,14 @@ function renderExams(){
     return !q || ((st? st.name+" "+st.regNo : "")+" "+(e.subject||"")+" "+e.exam).toLowerCase().includes(q);
   }).sort((a,b)=>b.date.localeCompare(a.date));
   $("examRows").innerHTML = rows.length? rows.map(e=>{
-    const st = stuById(e.studentId), p = Math.round(e.obtained/e.total*100);
+    const st = stuById(e.studentId);
     return `<tr>
       <td>${fmtD(e.date)}</td>
       <td>${st? esc(st.name)+" <span class='sub'>("+esc(st.regNo)+")</span>":"<i>Deleted</i>"}</td>
       <td>${esc(e.exam)}</td>
       <td>${esc(e.subject||"—")}</td>
-      <td><b>${e.absent ? "Absent" : e.obtained}</b></td><td>${e.total}</td><td><b>${p}%</b></td>
-      <td><span class="badge ${p>=50?"b-paid":"b-unpaid"}">${p>=50?"Pass":"Fail"}</span></td>
+      <td><b>${eObt(e)}</b></td><td>${e.total}</td><td><b>${ePctT(e)}</b></td>
+      <td><span class="badge ${e.absent ? "b-freeze" : eP(e)>=50?"b-paid":"b-unpaid"}">${eResult(e)}</span></td>
       <td style="max-width:200px;font-size:.82rem">${esc(e.comment||"—")}</td>
       <td style="white-space:nowrap">
         <button class="btn-line btn-sm" onclick="openExamForm('${e.id}')">Edit</button>
@@ -6083,7 +6084,7 @@ function delExam(id){
   const e = DB.exams.find(x=>x.id===id); if(!e) return;
   const st = stuById(e.studentId);
   askConfirm("Delete exam record?",
-    `<b>${esc(e.exam)}</b> — ${st? esc(st.name):"student"} · ${e.obtained}/${e.total}`,
+    `<b>${esc(e.exam)}</b> — ${st? esc(st.name):"student"} · ${e.absent ? "Absent" : `${e.obtained}/${e.total}`}`,
     ()=>{ DB.exams=DB.exams.filter(x=>x.id!==id); save(); renderExams(); toast("Exam record deleted"); });
 }
 
@@ -6109,13 +6110,19 @@ function mySubjMap(){                         // "Shift|Class" → [subjects] ya
   DB.students.forEach(st=>(st.subjects||[]).forEach(x=>{ if(x.teacherId===MY_TID) classesOf(st).forEach(c=>add(st.shift+"|"+c, x.name)); }));
   return k => whole.has(k) || !map.has(k) ? null : [...map.get(k)];
 }
+/* v94: Morning O Levels (O1, O2) mein bache apne apne subjects lete hain — teacher ko sirf apne subject wale bache.
+   Baqi Morning classes (FT, AS, A2) mein poori class. */
+const O_MORNING = ["O1","O2"];
+const subjWise = (sh, c) => sh === "Evening" || (sh === "Morning" && O_MORNING.includes(c));
 function teachesStu(st, k, subjOf){           // k = "Shift|Class"
   const [sh, c] = k.split("|");
   if(st.shift !== sh || !inClass(st, c)) return false;
-  if(sh === "Morning") return true;
+  if(!subjWise(sh, c)) return true;
   const subs = subjOf(k);
   if(!subs) return true;
-  return (st.subjects||[]).some(x=>x.teacherId ? x.teacherId===MY_TID : subs.some(y=>subjLike(x.name, y)));
+  /* Morning O Level: bache ke subjects darj hi na hon to (ghalti se chhup na jaye) dikhao */
+  if(sh === "Morning" && !(st.subjects||[]).length) return st.hasSubj !== true;
+  return (st.subjects||[]).some(x=>x.teacherId===MY_TID || (sh === "Morning" || !x.teacherId) && subs.some(y=>subjLike(x.name, y)));
 }
 /* Wohi bacha do records mein (maslan Morning + Evening) → aik hi gina jaye: same Reg No, ya same naam magar alag shift */
 function uniqueStudents(list){
@@ -6488,8 +6495,7 @@ function examMarksCSV(id){
   const ts = DB.tests.filter(t=>t.examId===id).sort((a,b)=>a.course.localeCompare(b.course) || a.subject.localeCompare(b.subject)); if(!ts.length) return;
   const rows = [["Class","Reg No","Student","Subject","Teacher","Date","Total","Obtained","%","Grade","Remark"]];
   ts.forEach(t=>testStudents(t).forEach(st=>{ const e = DB.exams.find(x=>x.testId===t.id && x.studentId===st.id);
-    const pc = e && +t.total ? Math.round(e.obtained/t.total*100) : "";
-    rows.push([t.course, st.regNo||"", st.name, t.subject, teacherName(t.teacherId), t.date, t.total, e ? (e.absent ? "Absent" : e.obtained) : "", pc, pc==="" ? "" : gradeOf(pc), e ? e.comment||"" : ""]); }));
+    rows.push([t.course, st.regNo||"", st.name, t.subject, teacherName(t.teacherId), t.date, t.total, e ? eObt(e) : "", e ? (e.absent ? "Absent" : eP(e)) : "", e ? eGrade(e) : "", e ? e.comment||"" : ""]); }));
   downloadCSV(`${fileSafe(ts[0].examName||ts[0].name)}-result.csv`.replace(/\s+/g,"-"), rows);
 }
 const MK_REMARKS = ["Excellent — keep it up","Very good","Good effort","Satisfactory","Needs improvement","Needs revision",
@@ -7210,12 +7216,13 @@ function renderMyDash(){
   const stus = DB.students.filter(st=>activeIn(st, m, RM) && keys.some(k=>teachesStu(st, k, subjOf)));
   const people = uniqueStudents(stus);
   /* Evening class jis ka subject maloom nahi — poori class ginti mein (admin subject set kare) */
-  const wholeCls = keys.filter(k=>k.startsWith("Evening|") && !subjOf(k));
+  const wholeCls = keys.filter(k=>subjWise(...k.split("|")) && !subjOf(k));
   const today0 = new Date().getDay();
   const asg = (me.assignments||[]).filter(a=>teachShifts(me).includes(a.shift)).sort((a,b)=>((slotOf(a,today0)||a).from||"99").localeCompare((slotOf(b,today0)||b).from||"99") || a.course.localeCompare(b.course));
   const today = new Date().getDay(), nowT = new Date().toTimeString().slice(0,5);
   const forAsg = a => stus.filter(st=>st.shift===a.shift && inClass(st, a.course)
-    && (a.shift === "Morning" || (a.subject ? (st.subjects||[]).some(x=>x.teacherId ? x.teacherId===MY_TID : subjLike(x.name, a.subject)) : teachesStu(st, a.shift+"|"+a.course, subjOf))));
+    && (!subjWise(a.shift, a.course) || (a.subject ? (st.subjects||[]).some(x=>x.teacherId===MY_TID || (a.shift === "Morning" || !x.teacherId) && subjLike(x.name, a.subject))
+      || (a.shift === "Morning" && !(st.subjects||[]).length && st.hasSubj !== true) : teachesStu(st, a.shift+"|"+a.course, subjOf))));
   const todays = asg.filter(a=>(a.from || a.dayList) && asgDays(a).includes(today)).map(a=>({...a, ...(slotOf(a, today) || {})}));
   /* attendance (sirf parhne ke liye) */
   const att = DB.empAttendance || {}, days = Object.keys(att).filter(d=>d.startsWith(m) && empRecs(att[d], MY_TID).length).sort();
@@ -7245,7 +7252,7 @@ function renderMyDash(){
   $("mdSub").textContent = `${new Date().toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long",year:"numeric"})}${me.online ? " · 🟢 Online teacher" : ""}`;
   $("mdCards").innerHTML = `
     <div class="card"><div class="k">My classes</div><div class="v">${keys.length}</div><div class="hint">${keys.map(k=>k.split("|").reverse().join(" · ")).join(", ") || "Ask the admin to assign"}</div></div>
-    <div class="card"><div class="k">My students</div><div class="v">${people.length}</div><div class="hint">${fmtM(m)} · Morning: whole class · Evening: your subject only${people.length < stus.length ? ` · ${stus.length - people.length} repeated counted once` : ""}${wholeCls.length && SERVER ? `<br><span style="color:var(--danger)">Subject not set for ${wholeCls.map(k=>k.split("|").reverse().join(" · ")).join(", ")} — whole class counted. Ask the admin to set your subject (Employees → Edit → Assign).</span>` : ""}</div></div>
+    <div class="card"><div class="k">My students</div><div class="v">${people.length}</div><div class="hint">${fmtM(m)} · Morning O1/O2 & Evening: your subject only · other Morning classes: whole class${people.length < stus.length ? ` · ${stus.length - people.length} repeated counted once` : ""}${wholeCls.length && SERVER ? `<br><span style="color:var(--danger)">Subject not set for ${wholeCls.map(k=>k.split("|").reverse().join(" · ")).join(", ")} — whole class counted. Ask the admin to set your subject (Employees → Edit → Assign).</span>` : ""}</div></div>
     <div class="card"><div class="k">Today's classes</div><div class="v">${todays.length}</div><div class="hint">${todays.length ? todays.map(a=>`${fmtT(a.from)} ${a.course}`).join(", ") : "No class times set for today"}</div></div>
     <div class="card${empLateMonth(MY_TID, m).over ? " late-card" : ""}"><div class="k">My attendance (${fmtM(m)})</div><div class="v ${pct >= 90 || !marked ? "green" : "red"}">${marked ? pct + "%" : "—"}</div><div class="hint">${c.P} present · ${c.L} late · ${c.A} absent · ${c.E} informed leave · ${c.U} uninformed · leaves ${empLeaveDays(MY_TID, m).length}/${EMP_LEAVE_LIMIT} · late ${empLateMonth(MY_TID, m).tot}/${latePolicy().allow} min${empLateMonth(MY_TID, m).ded ? ` · <b style="color:var(--danger)">fine Rs ${empLateMonth(MY_TID, m).ded.toLocaleString("en-US")}</b>` : ""}</div></div>
     <div class="card click" onclick="document.querySelector('#nav button[data-page=tests]').click()"><div class="k">Marks pending</div><div class="v ${pend.length ? "red" : "green"}">${pend.length}</div><div class="hint">papers with incomplete marks</div></div>`;
@@ -7550,7 +7557,7 @@ async function asgEdit(a){
     <p class="sub" style="margin-top:0">Timed: the timer starts when the student presses Start; when it runs out their answers are submitted and marked automatically.</p>
     <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><b>Students</b>
       <span><a href="#" onclick="document.querySelectorAll('.ae_st').forEach(c=>c.checked=true);return false">All</a> · <a href="#" onclick="document.querySelectorAll('.ae_st').forEach(c=>c.checked=false);return false">None</a></span></div>
-    <p class="sub" style="margin:2px 0 8px">${x.shift === "Morning" ? "Morning: the whole class." : "Evening: only students of this class who take " + esc(x.subject) + "."}</p>
+    <p class="sub" style="margin:2px 0 8px">${!subjWise(x.shift, x.course) ? "Morning: the whole class." : `${esc(x.shift)}: only students of this class who take ${esc(x.subject)}.`}</p>
     <div id="ae_stu" class="asg-stu">Loading…</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
       <button class="btn-red" onclick="asgSave('published')">📤 ${x.status === "published" ? "Save" : "Publish to students"}</button>
@@ -7836,6 +7843,18 @@ function caOpen(id){
 
 /* ---------- Grades ---------- */
 function gradeOf(p){ return p>=80?"A+":p>=70?"A":p>=60?"B":p>=50?"C":"F"; }
+/* v95: absent bacha — grade / % / Pass-Fail nahi, sirf "Absent"; total aur percentage mein woh paper gina hi nahi jata */
+const eP = e => e.absent ? null : (+e.total ? Math.round((+e.obtained||0)*100/+e.total) : 0);
+const eObt = e => e.absent ? "Absent" : e.obtained;
+const ePctT = e => e.absent ? "—" : eP(e) + "%";
+const eGrade = e => e.absent ? "Absent" : gradeOf(eP(e));
+const eResult = e => e.absent ? "Absent" : eP(e) >= 50 ? "Pass" : "Fail";
+const eColor = e => e.absent ? "#6B7C85" : eP(e) >= 50 ? "#0F7B3D" : "#C0392B";
+/* sirf jin papers mein bacha baitha — total, %, grade */
+function exSum(ex){
+  const sat = ex.filter(e=>!e.absent), obt = sat.reduce((a,e)=>a + (+e.obtained||0), 0), tot = sat.reduce((a,e)=>a + (+e.total||0), 0);
+  return {sat:sat.length, abs:ex.length - sat.length, obt, tot, pct: tot ? Math.round(obt*100/tot) : null};
+}
 
 /* ================= CLASS RESULT (course + shift wise) ================= */
 function openClassResult(){
@@ -7858,9 +7877,8 @@ function classResultData(){
   const stus = DB.students.filter(s=>inClass(s, c) && s.shift===sh);
   const rows = stus.map(s=>{
     const ex = DB.exams.filter(e=>e.studentId===s.id && (!m||e.date.startsWith(m)));
-    const obt = ex.reduce((a,e)=>a+ +e.obtained,0), tot = ex.reduce((a,e)=>a+ +e.total,0);
-    const pct = tot? Math.round(obt/tot*100) : null;
-    return {s, n:ex.length, obt, tot, pct};
+    const x = exSum(ex);                                       // v95: absent papers total mein nahi
+    return {s, n:x.sat, abs:x.abs, obt:x.obt, tot:x.tot, pct:x.pct};
   }).sort((a,b)=>(b.pct??-1)-(a.pct??-1));
   rows.forEach((r,i)=>r.pos = r.pct===null? "—" : i+1);
   return {c, sh, m, rows};
@@ -7869,10 +7887,10 @@ function classResultTable(rows){
   return `<div class="tbl-wrap"><table>
     <thead><tr><th>Position</th><th>Reg No</th><th>Name</th><th>Tests</th><th>Obtained</th><th>Total</th><th>%</th><th>Grade</th><th>Result</th></tr></thead>
     <tbody>${rows.length? rows.map(r=>r.pct===null?
-      `<tr><td>—</td><td>${esc(r.s.regNo)}</td><td>${esc(r.s.name)}</td><td colspan="6" class="empty">No exams</td></tr>`:
+      `<tr><td>—</td><td>${esc(r.s.regNo)}</td><td>${esc(r.s.name)}</td><td colspan="6" class="empty">${r.abs ? `Absent (${r.abs} test${r.abs>1?"s":""})` : "No exams"}</td></tr>`:
       `<tr>
         <td><b>${r.pos}</b></td><td>${esc(r.s.regNo)}</td><td><b>${esc(r.s.name)}</b></td>
-        <td>${r.n}</td><td><b>${r.obt}</b></td><td>${r.tot}</td><td><b>${r.pct}%</b></td>
+        <td>${r.n}${r.abs ? ` <span class="sub">(+${r.abs} absent)</span>` : ""}</td><td><b>${r.obt}</b></td><td>${r.tot}</td><td><b>${r.pct}%</b></td>
         <td><b>${gradeOf(r.pct)}</b></td>
         <td><span class="badge ${r.pct>=50?"b-paid":"b-unpaid"}">${r.pct>=50?"Pass":"Fail"}</span></td>
       </tr>`).join("") : `<tr><td colspan="9" class="empty">No students in this class/shift</td></tr>`}</tbody>
@@ -7897,7 +7915,7 @@ function printClassResult(){
           <td style="border:1px solid #999;padding:5px 7px;text-align:center"><b>${r.pos}</b></td>
           <td style="border:1px solid #999;padding:5px 7px">${esc(r.s.regNo)}</td>
           <td style="border:1px solid #999;padding:5px 7px"><b>${esc(r.s.name)}</b></td>
-          ${r.pct===null? `<td colspan="6" style="border:1px solid #999;padding:5px 7px;color:#777">No exams</td>`:
+          ${r.pct===null? `<td colspan="6" style="border:1px solid #999;padding:5px 7px;color:#777">${r.abs ? "Absent" : "No exams"}</td>`:
           `<td style="border:1px solid #999;padding:5px 7px;text-align:center">${r.n}</td>
           <td style="border:1px solid #999;padding:5px 7px;text-align:center"><b>${r.obt}</b></td>
           <td style="border:1px solid #999;padding:5px 7px;text-align:center">${r.tot}</td>
@@ -7942,32 +7960,31 @@ function reportCardData(){
     if(to && m>to) return false;
     return true;
   }).sort((a,b)=>a.date.localeCompare(b.date));
-  const obt = ex.reduce((a,e)=>a+ +e.obtained,0), tot = ex.reduce((a,e)=>a+ +e.total,0);
-  const pct = tot? Math.round(obt/tot*100) : 0;
+  const x = exSum(ex);
   const att = attSummary(sid, s.doj);
-  return {s, ex, obt, tot, pct, att, from, to};
+  return {s, ex, obt:x.obt, tot:x.tot, pct:x.pct, sat:x.sat, abs:x.abs, att, from, to};
 }
 function rcRows(ex){
-  return ex.map((e,i)=>{ const p=Math.round(e.obtained/e.total*100); return `<tr>
+  return ex.map((e,i)=>{ return `<tr>
     <td style="border:1px solid #999;padding:5px 8px;text-align:center">${i+1}</td>
     <td style="border:1px solid #999;padding:5px 8px">${fmtD(e.date)}</td>
     <td style="border:1px solid #999;padding:5px 8px"><b>${esc(e.exam)}</b>${e.subject?`<br><span style="font-size:.72rem;color:#555">${esc(e.subject)}</span>`:""}${e.comment?`<br><i style="font-size:.7rem;color:#777">"${esc(e.comment)}"</i>`:""}</td>
     <td style="border:1px solid #999;padding:5px 8px;text-align:center">${e.total}</td>
-    <td style="border:1px solid #999;padding:5px 8px;text-align:center"><b>${e.obtained}</b></td>
-    <td style="border:1px solid #999;padding:5px 8px;text-align:center"><b>${p}%</b></td>
-    <td style="border:1px solid #999;padding:5px 8px;text-align:center">${gradeOf(p)}</td>
-    <td style="border:1px solid #999;padding:5px 8px;text-align:center;${p>=50?"color:#0f7b3d":"color:#C0392B"};font-weight:700">${p>=50?"Pass":"Fail"}</td>
+    <td style="border:1px solid #999;padding:5px 8px;text-align:center"><b>${eObt(e)}</b></td>
+    <td style="border:1px solid #999;padding:5px 8px;text-align:center"><b>${ePctT(e)}</b></td>
+    <td style="border:1px solid #999;padding:5px 8px;text-align:center">${eGrade(e)}</td>
+    <td style="border:1px solid #999;padding:5px 8px;text-align:center;color:${eColor(e)};font-weight:700">${eResult(e)}</td>
   </tr>`; }).join("");
 }
 function transcriptHTML(d, forPrint){
   const {s, ex, obt, tot, pct, att} = d;
   const A = DB.settings;
   const range = (d.from||d.to) ? (d.from && d.from === d.to ? fmtM(d.from) : `${d.from ? fmtM(d.from) : "Start"} — ${d.to ? fmtM(d.to) : "Now"}`) : "All Exams";
-  const rows = ex.map((e,i)=>{ const p = +e.total ? Math.round(e.obtained/e.total*100) : 0; return `<tr>
+  const rows = ex.map((e,i)=>{ return `<tr>
       <td>${i+1}</td><td>${fmtD(e.date)}</td>
       <td><b>${esc(e.subject || e.exam)}</b>${e.subject ? `<br><span style="font-size:.7rem;color:#6B7C85">${esc(e.exam)}</span>` : ""}${e.comment ? `<br><i style="font-size:.7rem;color:#3b5560">"${esc(e.comment)}"</i>` : ""}</td>
-      <td>${e.total}</td><td><b>${e.absent ? "Absent" : e.obtained}</b></td><td><b>${p}%</b></td><td>${gradeOf(p)}</td>
-      <td style="color:${p>=50?"#0F7B3D":"#C0392B"};font-weight:700">${p>=50?"Pass":"Fail"}</td></tr>`; }).join("");
+      <td>${e.total}</td><td><b>${eObt(e)}</b></td><td><b>${ePctT(e)}</b></td><td>${eGrade(e)}</td>
+      <td style="color:${eColor(e)};font-weight:700">${eResult(e)}</td></tr>`; }).join("");
   return `
   <div class="rc" style="${forPrint ? "" : "border:1px solid var(--line);border-radius:10px;padding:14px"}">
     <div class="rc-head">
@@ -7987,16 +8004,17 @@ function transcriptHTML(d, forPrint){
       </div>
     </div>
     <div class="rc-sum">
-      <div><small>Tests</small><b>${ex.length}</b></div>
-      <div><small>Marks</small><b>${obt} / ${tot}</b></div>
-      <div><small>Percentage · Grade</small><b>${ex.length ? pct+"% · "+gradeOf(pct) : "—"}</b></div>
-      <div><small>${d.rank ? "Class position" : "Result"}</small><b>${d.rank ? `${d.rank} / ${d.rankOf}` : ex.length ? (pct>=50 ? "PASS" : "FAIL") : "—"}</b>${d.rank ? `<span style="display:block;font-size:.66rem;color:#6B7C85">Class avg ${d.classAvg}%</span>` : ""}</div>
+      <div><small>Tests</small><b>${ex.length}</b>${d.abs ? `<span style="display:block;font-size:.66rem;color:#6B7C85">absent in ${d.abs}</span>` : ""}</div>
+      <div><small>Marks</small><b>${pct !== null ? `${obt} / ${tot}` : "—"}</b></div>
+      <div><small>Percentage · Grade</small><b>${pct !== null ? pct+"% · "+gradeOf(pct) : ex.length ? "Absent" : "—"}</b></div>
+      <div><small>${d.rank ? "Class position" : "Result"}</small><b>${d.rank ? `${d.rank} / ${d.rankOf}` : pct !== null ? (pct>=50 ? "PASS" : "FAIL") : ex.length ? "ABSENT" : "—"}</b>${d.rank ? `<span style="display:block;font-size:.66rem;color:#6B7C85">Class avg ${d.classAvg}%</span>` : ""}</div>
     </div>
     <table class="rc-tbl">
       <thead><tr>${["#","Date","Subject / Test","Total","Obtained","%","Grade","Result"].map(h=>`<th>${h}</th>`).join("")}</tr></thead>
       <tbody>${ex.length ? rows : `<tr><td colspan="8" style="padding:14px;color:#777">No exam records in this period</td></tr>`}</tbody>
-      ${ex.length ? `<tfoot><tr><td colspan="3" style="text-align:right">Overall (${ex.length} tests)</td><td>${tot}</td><td>${obt}</td><td>${pct}%</td><td>${gradeOf(pct)}</td>
-        <td style="color:${pct>=50?"#0F7B3D":"#C0392B"}">${pct>=50?"PASS":"FAIL"}</td></tr></tfoot>` : ""}
+      ${ex.length ? (pct !== null ? `<tfoot><tr><td colspan="3" style="text-align:right">Overall (${d.sat} tests${d.abs ? `, absent in ${d.abs}` : ""})</td><td>${tot}</td><td>${obt}</td><td>${pct}%</td><td>${gradeOf(pct)}</td>
+        <td style="color:${pct>=50?"#0F7B3D":"#C0392B"}">${pct>=50?"PASS":"FAIL"}</td></tr></tfoot>`
+        : `<tfoot><tr><td colspan="8" style="text-align:center">Absent in all tests</td></tr></tfoot>`) : ""}
     </table>
     ${d.remarks && d.remarks.length ? `<div class="rc-rem"><b>Teacher remarks:</b> ${d.remarks.map(r=>esc(r.note)).join(" · ")}</div>` : ""}
     <div class="rc-sign"><span>Issued: ${fmtD(todayStr())}</span><span>Class Teacher</span><span>Principal / Admin</span></div>
@@ -8019,9 +8037,9 @@ function reportCardFor(sid, from, to){
   const s = stuById(sid);
   const ex = DB.exams.filter(e=>{ if(e.studentId!==sid) return false; const m = String(e.date).slice(0,7);
     return !(from && m < from) && !(to && m > to); }).sort((a,b)=>a.date.localeCompare(b.date));
-  const obt = ex.reduce((a,e)=>a+ +e.obtained,0), tot = ex.reduce((a,e)=>a+ +e.total,0);
+  const x = exSum(ex);
   const remarks = (s.remarks||[]).filter(r=>r.parentVisible!==false && (!from || String(r.d).slice(0,7) >= from) && (!to || String(r.d).slice(0,7) <= to));
-  return {s, ex, obt, tot, pct: tot ? Math.round(obt/tot*100) : 0, att: attInRange(sid, from, to), from, to, remarks};
+  return {s, ex, obt:x.obt, tot:x.tot, pct:x.pct, sat:x.sat, abs:x.abs, att: attInRange(sid, from, to), from, to, remarks};
 }
 function bulkRcList(){
   const m = $("brc_month").value, sh = $("brc_shift").value, cl = window._brcClass || "", onlyEx = $("brc_onlyex").checked;
@@ -8030,7 +8048,7 @@ function bulkRcList(){
   const cards = stus.map(st=>reportCardFor(st.id, m, m)).filter(d=>!onlyEx || d.ex.length);
   /* position aur average — class + shift ke andar, sirf jin ke tests hain */
   const groups = {};
-  cards.forEach(d=>{ if(d.ex.length) (groups[d.s.shift+"|"+d.s.course] = groups[d.s.shift+"|"+d.s.course] || []).push(d); });
+  cards.forEach(d=>{ if(d.pct !== null) (groups[d.s.shift+"|"+d.s.course] = groups[d.s.shift+"|"+d.s.course] || []).push(d); });
   Object.values(groups).forEach(g=>{
     g.sort((a,b)=>b.pct - a.pct);
     const avg = Math.round(g.reduce((a,d)=>a+d.pct,0)/g.length);
@@ -8045,7 +8063,7 @@ function bulkRcPreview(){
   $("brc_classWrap").innerHTML = `<label>Class</label><select onchange="window._brcClass=this.value;bulkRcPreview()"><option value="">All classes</option>${classes.map(c=>`<option ${c===window._brcClass?"selected":""}>${esc(c)}</option>`).join("")}</select>`;
   const cards = bulkRcList();
   const by = {};
-  cards.forEach(d=>{ const k = `${d.s.course} · ${d.s.shift}`; const r = by[k] = by[k] || {n:0, ex:0, sum:0}; r.n++; if(d.ex.length){ r.ex++; r.sum += d.pct; } });
+  cards.forEach(d=>{ const k = `${d.s.course} · ${d.s.shift}`; const r = by[k] = by[k] || {n:0, ex:0, sum:0}; r.n++; if(d.pct !== null){ r.ex++; r.sum += d.pct; } });
   $("brc_prev").innerHTML = Object.keys(by).length ? `<div class="tbl-wrap"><table><thead><tr><th>Class</th><th style="text-align:right">Report cards</th><th style="text-align:right">With tests</th><th style="text-align:right">Class average</th></tr></thead><tbody>
       ${Object.entries(by).map(([k,r])=>`<tr><td>${esc(k)}</td><td style="text-align:right">${r.n}</td><td style="text-align:right">${r.ex}</td><td style="text-align:right">${r.ex?Math.round(r.sum/r.ex)+"%":"—"}</td></tr>`).join("")}
     </tbody></table></div>` : `<div class="note">No report cards for this selection in ${fmtM(m)}${$("brc_onlyex").checked ? " — no tests recorded. Try unticking \"Only students with tests\"" : ""}.</div>`;
@@ -8081,7 +8099,7 @@ function bulkRcCSV(){
   const cards = bulkRcList(), m = $("brc_month").value;
   downloadCSV(`report-cards-${m}${window._brcClass?"-"+window._brcClass.replace(/\W+/g,""):""}.csv`, [
     ["Class","Shift","Reg No","Student","Tests","Obtained","Total","%","Grade","Position","Class Avg %","Attendance %","Present","Absent","Late","Leave"],
-    ...cards.map(d=>[d.s.course, d.s.shift, d.s.regNo, d.s.name, d.ex.length, d.obt, d.tot, d.ex.length?d.pct:"", d.ex.length?gradeOf(d.pct):"", d.rank||"", d.classAvg||"",
+    ...cards.map(d=>[d.s.course, d.s.shift, d.s.regNo, d.s.name, d.ex.length, d.obt, d.tot, d.pct!==null?d.pct:(d.ex.length?"Absent":""), d.pct!==null?gradeOf(d.pct):(d.ex.length?"Absent":""), d.rank||"", d.classAvg||"",
       d.att.pct, d.att.P, d.att.A, d.att.L, d.att.E])]);
 }
 
