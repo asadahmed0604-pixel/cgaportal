@@ -1384,7 +1384,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v97 · 13 Oct 2026";
+const BUILD = "v98 · 13 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -2256,7 +2256,8 @@ function clRowsFor(date, shift, tidOnly){
   if(date.slice(0,7) !== thisMonth()) return rows;
   const live = clLiveClasses(date.slice(0,7));
   DB.employees.forEach(e=>(e.assignments||[]).forEach(a=>{
-    if(a.shift !== shift || (tidOnly && e.id !== tidOnly) || !asgDays(a).includes(wd) || !live.has(a.shift + "|" + a.course)) return;
+    /* v98: sirf class + subject wali assignments — bina subject ("whole class") wali row nahi */
+    if(!String(a.subject||"").trim() || a.shift !== shift || (tidOnly && e.id !== tidOnly) || !asgDays(a).includes(wd) || !live.has(a.shift + "|" + a.course)) return;
     const k = clKey(a.shift, a.course, a.subject, e.id); if(seen.has(k)) return; seen.add(k);
     const sl = slotOf(a, wd) || {};
     rows.push({k, tid:e.id, teacher:e.name, course:a.course, subject:a.subject||"", from:sl.from||"", to:sl.to||"", rec:day[k]||null});
@@ -2276,7 +2277,7 @@ function renderClassLog(){
   const date = dI.value;
   $("clShift").innerHTML = ["Morning","Evening"].map(x=>`<button class="${CL.shift===x?"on":""}" onclick="CL.shift='${x}';renderClassLog()">${x==="Morning"?"🌅":"🌆"} ${x}</button>`).join("");
   $("clView").innerHTML = [["subject","Subject-wise"],["class","Class-wise"]].map(([k,l])=>`<button class="${CL.view===k?"on":""}" onclick="CL.view='${k}';renderClassLog()">${l}</button>`).join("");
-  const ts = $("clTeacher"), tv = ts.value, live = clLiveClasses(thisMonth()), T = DB.employees.filter(e=>(e.assignments||[]).some(a=>a.shift===CL.shift && live.has(a.shift+"|"+a.course))).sort((a,b)=>a.name.localeCompare(b.name));
+  const ts = $("clTeacher"), tv = ts.value, live = clLiveClasses(thisMonth()), T = DB.employees.filter(e=>(e.assignments||[]).some(a=>a.shift===CL.shift && String(a.subject||"").trim() && live.has(a.shift+"|"+a.course))).sort((a,b)=>a.name.localeCompare(b.name));
   ts.innerHTML = `<option value="">All teachers</option>` + T.map(e=>`<option value="${e.id}" ${e.id===tv?"selected":""}>${esc(e.name)}</option>`).join("");
   const rows = clRowsFor(date, CL.shift, ts.value), c = {T:0,N:0,C:0,U:0};
   rows.forEach(r=>c[r.rec ? r.rec.s : "U"]++);
@@ -2285,7 +2286,7 @@ function renderClassLog(){
     <div class="card"><div class="k">Not marked yet</div><div class="v">${c.U}</div><div class="hint">${c.C ? c.C + " cancelled" : ""}</div></div>`;
   const btns = r => `<span class="cl-btns">${["T","N","C"].map(x=>`<button class="${x} ${r.rec && r.rec.s===x ? "on" : ""}" onclick="clSet('${esc(r.k)}','${x}')">${x==="T"?"✓ Taken":x==="N"?"✗ Not taken":"Cancelled"}</button>`).join("")}</span>`;
   const row = r => `<tr class="${r.rec ? "cl-" + r.rec.s : ""}"><td style="white-space:nowrap">${r.from ? `${fmtT(r.from)}${r.to ? "–" + fmtT(r.to) : ""}` : `<span class="sub">—</span>`}</td>
-    ${CL.view === "subject" ? `<td><b>${esc(r.course)}</b></td>` : ""}<td>${esc(r.subject || "(whole class)")}</td><td>${esc(r.teacher)}${r.extra ? ` <span class="sub">(not in schedule)</span>` : ""}<br><span class="sub">${clHint(r, date)}</span></td>
+    ${CL.view === "subject" ? `<td><b>${esc(r.course)}</b></td>` : ""}<td>${esc(r.subject)}</td><td>${esc(r.teacher)}${r.extra ? ` <span class="sub">(not in schedule)</span>` : ""}<br><span class="sub">${clHint(r, date)}</span></td>
     <td>${btns(r)}</td><td><input id="cln_${esc(r.k)}" value="${esc((r.rec||{}).note||"")}" placeholder="reason / substitute…" style="min-width:150px" onchange="clNote('${esc(r.k)}',this.value)">${r.rec && r.rec.by ? `<br><span class="sub">${esc(r.rec.by)}</span>` : ""}</td></tr>`;
   const head = `<thead><tr><th>Time</th>${CL.view === "subject" ? "<th>Class</th>" : ""}<th>Subject</th><th>Teacher</th><th>Status</th><th>Note</th></tr></thead>`;
   let body;
