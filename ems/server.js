@@ -69,6 +69,14 @@ function teacherToken(e) {
   const exp = Date.now() + SESSION_DAYS * 864e5, tag = e.login.hash.slice(0, 12);
   return `teacher.${e.id}.${exp}.${tag}.${sign(`ems|teacher|${e.id}|${exp}|${tag}`)}`;
 }
+/* v102: Admin / Fee Admin ke apne naam wale login (har shakhs ka Login ID + password) — token mein employee id */
+const STAFF_ROLES = ["admin", "feeadmin"];
+const STAFF_LABEL = { admin: "Admin", feeadmin: "Fee Admin" };
+function staffToken(e) {
+  const exp = Date.now() + SESSION_DAYS * 864e5, tag = e.login.hash.slice(0, 12);
+  return `staff.${e.id}.${exp}.${tag}.${sign(`ems|staff|${e.id}|${exp}|${tag}`)}`;
+}
+const staffById = (id) => ((dbNow() || {}).employees || []).find((e) => e.id === id && STAFF_ROLES.includes(e.access) && e.login && e.login.hash);
 const teacherById = (id) => ((dbNow() || {}).employees || []).find((e) => e.id === id && e.category === "Teacher" && e.login && e.login.hash);
 /* v78: → {e} ya {why} — "noid" (ye Login ID kisi ka nahi), "off" (employee Teacher category mein nahi), "pw" (password ghalat) */
 const teacherKey = (user) => String(user || "").trim().toLowerCase().replace(/\s+/g, "");
@@ -76,12 +84,14 @@ function teacherLogin(user, pw) {
   const u = teacherKey(user);
   const any = u && ((dbNow() || {}).employees || []).find((x) => x.login && x.login.hash && x.login.user === u);
   if (!any) return { why: "noid" };
-  if (any.category !== "Teacher") return { why: "off", e: any };
+  /* v102: naam wala staff login — employee.access "admin" / "feeadmin" (Executive Settings → Logins se) */
+  const role = STAFF_ROLES.includes(any.access) ? any.access : any.category === "Teacher" ? "teacher" : null;
+  if (!role) return { why: "off", e: any };
   const a = any.login, p = String(pw || "");
   const h = crypto.pbkdf2Sync(p, Buffer.from(a.salt, "hex"), +a.iter || 100000, 32, "sha256").toString("hex");
-  if (safeEq(h, a.hash)) return { ok: true, e: any };
+  if (safeEq(h, a.hash)) return { ok: true, e: any, role };
   /* phone keyboard ne aakhir mein space laga di ho */
-  if (p !== p.trim() && safeEq(crypto.pbkdf2Sync(p.trim(), Buffer.from(a.salt, "hex"), +a.iter || 100000, 32, "sha256").toString("hex"), a.hash)) return { ok: true, e: any };
+  if (p !== p.trim() && safeEq(crypto.pbkdf2Sync(p.trim(), Buffer.from(a.salt, "hex"), +a.iter || 100000, 32, "sha256").toString("hex"), a.hash)) return { ok: true, e: any, role };
   return { why: "pw", e: any };
 }
 /* → {role, tid} ya null */
@@ -96,6 +106,12 @@ function authed(req) {
     if (!(+exp > Date.now()) || !safeEq(sig, sign(`ems|${role}|${exp}|${tag}`))) return null;
     const a = roleAuth(role);
     return a && a.hash.startsWith(tag) ? { role } : null;
+  }
+  if (parts.length === 5 && parts[0] === "staff") {
+    const [, sid, exp, tag, sig] = parts;
+    if (!(+exp > Date.now()) || !safeEq(sig, sign(`ems|staff|${sid}|${exp}|${tag}`))) return null;
+    const e = staffById(sid);
+    return e && e.login.hash.startsWith(tag) ? { role: e.access, sid } : null;
   }
   if (parts.length === 5 && parts[0] === "teacher") {
     const [, tid, exp, tag, sig] = parts;
@@ -139,8 +155,19 @@ function codeOk(code) {
    Aam Admin ko fees bhi nahi: challans, students ki monthly fee, one-time charges, subject fees. */
 const redactCache = {};
 const keyOf = (x) => String(x || "").toLowerCase().replace(/[^a-z0-9]/g, "");
-function dataFor(role, tid) {
+/* v102: staff KPIs / to-do — har shakhs ko sirf apne (sid); bina naam wale shared admin login ko kisi ke nahi */
+function withStaff(text, sid) {
+  if (!text.startsWith("{") || text === "{}") return text;
+  const d = dbNow() || {};
+  const k = sid ? (d.staffKpis || []).filter((x) => x && x.sid === sid) : [], t = sid ? (d.staffTasks || []).filter((x) => x && x.sid === sid) : [];
+  return text.slice(0, -1) + `,"staffKpis":${JSON.stringify(k)},"staffTasks":${JSON.stringify(t)}}`;
+}
+function dataFor(role, tid, sid) {
   if (role === "exec") return state.dataText;
+  if (role !== "teacher") return withStaff(redacted(role, tid), sid);
+  return redacted(role, tid);
+}
+function redacted(role, tid) {
   const ck = role === "teacher" ? "teacher:" + tid : role;
   const c = redactCache[ck];
   if (c && c.v === state.version) return c.text;
@@ -154,6 +181,7 @@ function dataFor(role, tid) {
   d.classCosts = {};
   if (d.settings) { delete d.settings.adminAuth; delete d.settings.feeAdminAuth; delete d.settings.feeAdminCode; }
   (d.employees || []).forEach((e) => { delete e.salary; delete e.login; });
+  delete d.staffKpis; delete d.staffTasks;                 // v102: withStaff apne wale jorta hai
   if (role === "admin") {
     d.fees = []; d.feeReceipts = [];
     (d.students || []).forEach((st) => { delete st.monthlyFee; delete st.charges; (st.subjects || []).forEach((x) => { delete x.fee; }); });
@@ -337,8 +365,23 @@ function teacherMerge(data, tid) {
 }
 /* Admin ke save mein chhupaye hue hisse server wale hi rehte hain */
 const SALARY_CAT = "Salary & Wages";
-function keepProtected(data, role) {
+function keepProtected(data, role, sid) {
   const cur = JSON.parse(state.dataText) || {};
+  /* v102: staff KPIs sirf Executive badalta hai; to-do list mein staff sirf apne kaam ka status / note badal sakta hai
+     aur apne liye naya kaam (own) jor / hata sakta hai — kisi aur ka nahi, aur Executive ke diye kaam mita nahi sakta */
+  data.staffKpis = cur.staffKpis || [];
+  const curT = Array.isArray(cur.staffTasks) ? cur.staffTasks : [], newT = new Map((Array.isArray(data.staffTasks) ? data.staffTasks : []).filter((t) => t && t.id).map((t) => [t.id, t]));
+  const tasks = [];
+  curT.forEach((t) => {
+    const n = newT.get(t.id);
+    if (!sid || t.sid !== sid) return tasks.push(t);
+    if (!n) { if (!t.own) tasks.push(t); return; }                       // apna (own) kaam hi hata sakta hai
+    tasks.push({ ...t, status: n.status === "done" ? "done" : "open", doneOn: n.status === "done" ? String(n.doneOn || "").slice(0, 10) : "",
+      staffNote: String(n.staffNote || "").slice(0, 500), ...(t.own ? { title: String(n.title || t.title).slice(0, 200), due: String(n.due || "").slice(0, 10) } : {}) });
+  });
+  if (sid) newT.forEach((n, id) => { if (!curT.some((t) => t.id === id) && n.sid === sid) tasks.push({ id, sid, own: true, title: String(n.title || "").slice(0, 200),
+    due: String(n.due || "").slice(0, 10), status: n.status === "done" ? "done" : "open", doneOn: String(n.doneOn || "").slice(0, 10), staffNote: "", created: String(n.created || "").slice(0, 10), by: "self" }); });
+  data.staffTasks = tasks;
   /* Fee Admin (khula hua) apni income / expense entries badal sakta hai; salary entries server wali hi */
   data.txns = role === "feeadmin"
     ? (Array.isArray(data.txns) ? data.txns : []).filter((t) => t && t.category !== SALARY_CAT).concat((cur.txns || []).filter((t) => t.category === SALARY_CAT))
@@ -349,9 +392,11 @@ function keepProtected(data, role) {
   ["adminAuth", "feeAdminAuth", "feeAdminCode", "salaryAuto"].forEach((k) => { if (cs[k] !== undefined) data.settings[k] = cs[k]; else delete data.settings[k]; });
   const sal = new Map((cur.employees || []).map((e) => [e.id, e.salary]));
   const login = new Map((cur.employees || []).map((e) => [e.id, e.login]));
+  const access = new Map((cur.employees || []).map((e) => [e.id, e.access]));        // v102: kis ka kya access — sirf Executive
   (data.employees || []).forEach((e) => {
     if (sal.has(e.id)) e.salary = sal.get(e.id);
     if (login.get(e.id)) e.login = login.get(e.id); else delete e.login;          // teacher passwords sirf Executive
+    if (access.get(e.id)) e.access = access.get(e.id); else delete e.access;
   });
   if (role === "admin") {
     data.feeReceipts = cur.feeReceipts || [];                                 // v43: fee receipts sirf fee wale dekhte hain
@@ -426,6 +471,7 @@ function actWho(auth) {
   const d = dbNow() || {}, s = d.settings || {};
   if (!auth) return { role: "", name: "" };
   if (auth.role === "exec") return { role: "exec", name: "Executive" };
+  if (auth.sid) { const e = (d.employees || []).find((x) => x.id === auth.sid); return { role: auth.role, name: `${STAFF_LABEL[auth.role] || auth.role}: ${e ? e.name : auth.sid}` }; }
   if (auth.role === "feeadmin") return { role: "feeadmin", name: "Fee Admin" + (s.feeAdminAuth && s.feeAdminAuth.who ? " (" + s.feeAdminAuth.who + ")" : "") };
   if (auth.role === "admin") return { role: "admin", name: "Admin" };
   if (auth.role === "teacher") { const e = (d.employees || []).find((x) => x.id === auth.tid); return { role: "teacher", name: "Teacher: " + (e ? e.name : auth.tid) }; }
@@ -467,7 +513,7 @@ const canon = (v) => JSON.stringify(v, (k, x) => x && typeof x === "object" && !
 /* Save se pehle aur baad ka data — kya badla, insaani zabaan mein */
 const ACT_COLS = { students: "Students", fees: "Fee challans", employees: "Employees", txns: "Income / Expense", inquiries: "Inquiries",
   exams: "Exam marks", tests: "Tests", homework: "Homework", inventory: "Inventory", issues: "Issuance", audits: "Class audits", kpis: "KPI checklists",
-  subjects: "Subjects", feeReceipts: "Fee receipts (app)", parentAccess: "Parent access", studentAccess: "Student logins (Evening)", parentMsgs: "Parent messages", classAtt: "Class attendance", ptms: "PTM" };
+  subjects: "Subjects", feeReceipts: "Fee receipts (app)", parentAccess: "Parent access", studentAccess: "Student logins (Evening)", parentMsgs: "Parent messages", classAtt: "Class attendance", ptms: "PTM", staffKpis: "Staff KPIs", staffTasks: "Staff to-do" };
 const ACT_SKIP_FIELDS = new Set(["hash", "salt", "iter"]);
 const recLabel = (r, col) => {
   if (!r || typeof r !== "object") return "?";
@@ -609,8 +655,9 @@ async function asgRoute(fn, res) {
 const APP_HTML = fs.readFileSync(path.join(__dirname, "index.html"), "utf8");
 if (!APP_HTML.includes("<!--EMS_SERVER_BOOT-->")) throw new Error("<!--EMS_SERVER_BOOT--> not found in index.html");
 const jsonForScript = (text) => text.replace(/</g, "\\u003c").replace(/\u2028/g, "\\u2028").replace(/\u2029/g, "\\u2029");
-function appPage(role, tid, view, ul) {
-  const boot = `<script>window.__EMS__={version:${state.version},role:${JSON.stringify(role)},tid:${JSON.stringify(tid || "")},unlock:${JSON.stringify(ul || {})},data:${jsonForScript(dataFor(view || role, tid))}};</script>`;
+function appPage(role, tid, view, ul, sid) {
+  const me = sid ? (((dbNow() || {}).employees || []).find((e) => e.id === sid) || {}).name || "" : "";      // v102: naam wala staff login
+  const boot = `<script>window.__EMS__={version:${state.version},role:${JSON.stringify(role)},tid:${JSON.stringify(tid || "")},sid:${JSON.stringify(sid || "")},me:${jsonForScript(JSON.stringify(me))},unlock:${JSON.stringify(ul || {})},data:${jsonForScript(dataFor(view || role, tid, sid))}};</script>`;
   return APP_HTML.replace("<!--EMS_SERVER_BOOT-->", () => boot);
 }
 /* v38: Staff (/login) aur Teachers (/teacher) ke alag login pages — dono /login par post karte hain */
@@ -652,9 +699,11 @@ input:focus{outline:none;border-color:#159670;background:#fff;box-shadow:0 0 0 4
   <div class="seg"><a href="/login" class="${teacher ? "" : "on"}">🏢 Staff</a><a href="/teacher" class="${teacher ? "on" : ""}">🧑‍🏫 Teacher</a><a href="/student">🎓 Student</a></div>
   ${msg ? `<div class="err">${msg}</div>` : ""}
   ${teacher ? `<div class="f"><label for="user">Login ID</label>
-  <input id="user" name="user" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" required autofocus placeholder="e.g. ahmed"></div>` : ""}
-  <div class="f"><label for="pw">Password${teacher ? "" : " <span style=\"font-weight:500;color:#6B7C85\">(Executive / Fee Admin / Admin)</span>"}</label>
-  <input id="pw" type="password" name="password" autocomplete="current-password" required ${teacher ? "" : "autofocus"} placeholder="••••••••">
+  <input id="user" name="user" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" required autofocus placeholder="e.g. ahmed"></div>`
+  : `<div class="f"><label for="user">Login ID <span style="font-weight:500;color:#6B7C85">(your own staff login — leave blank for the Executive / shared password)</span></label>
+  <input id="user" name="user" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="e.g. maryam"></div>`}
+  <div class="f"><label for="pw">Password</label>
+  <input id="pw" type="password" name="password" autocomplete="current-password" required placeholder="••••••••">
   <button type="button" class="eye" aria-label="Show password" onclick="const i=document.getElementById('pw');i.type=i.type==='password'?'text':'password';this.textContent=i.type==='password'?'👁':'🙈'">👁</button></div>
   <button class="go" type="submit">Sign in</button>
   <div class="keep">🔒 You stay signed in on this device for ${SESSION_DAYS} days</div>
@@ -893,14 +942,20 @@ const server = http.createServer(async (req, res) => {
         const r = teacherLogin(user, pw), t = r.ok ? r.e : null;
         if (!t) {
           failed(k); failed("tip:" + ip);
-          const msg = { noid: `No teacher login with the ID “${teacherKey(user).slice(0, 30)}” — check the Login ID the office gave you (small letters, no spaces).`,
-                        off: "This login is switched off (the employee is not set as a Teacher) — please contact the office.",
+          const msg = { noid: `No login with the ID “${teacherKey(user).slice(0, 30)}” — check the Login ID the office gave you (small letters, no spaces).`,
+                        off: "This login is switched off (no teacher category or staff access set) — please contact the office.",
                         pw: "Wrong password for this Login ID — check capital letters, or ask the office to set a new password." }[r.why];
-          logAct(req, { role: "teacher", name: r.e ? "Teacher: " + r.e.name : "Login ID: " + user.slice(0, 30) }, "Failed login",
-            { noid: "Unknown teacher Login ID", off: "Login exists but employee category is not Teacher", pw: "Wrong teacher password" }[r.why]);
+          const sr = r.e && STAFF_ROLES.includes(r.e.access) ? r.e.access : "";
+          logAct(req, { role: sr || "teacher", name: r.e ? `${sr ? STAFF_LABEL[sr] : "Teacher"}: ${r.e.name}` : "Login ID: " + user.slice(0, 30) }, "Failed login",
+            { noid: "Unknown Login ID", off: "Login exists but no Teacher category / staff access", pw: sr ? "Wrong staff password" : "Wrong teacher password" }[r.why]);
           return send(res, 401, loginPage(msg, true), "text/html; charset=utf-8");
         }
         fails.delete(k);
+        if (r.role !== "teacher") {
+          logAct(req, { role: r.role, name: `${STAFF_LABEL[r.role]}: ${t.name}` }, "Login", "Staff portal (own login)");
+          setSession(req, res, staffToken(t), SESSION_DAYS * 86400);
+          return redirect(res, "/");
+        }
         logAct(req, { role: "teacher", name: "Teacher: " + t.name }, "Login", "Teacher portal");
         setSession(req, res, teacherToken(t), SESSION_DAYS * 86400);
         return redirect(res, "/");
@@ -919,7 +974,7 @@ const server = http.createServer(async (req, res) => {
       return redirect(res, "/");
     }
     if (p === "/logout") {
-      const wasTeacher = (authed(req) || {}).role === "teacher";
+      const wasTeacher = (authed(req) || {}).role === "teacher";        // staff (naam wala login) → /login
       if (authed(req)) logAct(req, actWho(authed(req)), "Logout", "");
       res.setHeader("Set-Cookie", [`ems_s=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${isHttps(req) ? "; Secure" : ""}`,
                                    `ems_u=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${isHttps(req) ? "; Secure" : ""}`]);
@@ -937,7 +992,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     if ((p === "/" || p === "/index.html") && req.method === "GET")
-      return send(res, 200, appPage(role, tid, view, ul), "text/html; charset=utf-8");
+      return send(res, 200, appPage(role, tid, view, ul, auth.sid), "text/html; charset=utf-8");
 
     if (p.startsWith("/api/asg/")) return await asgRoute(() => asg.staff(req, res, url, auth), res);
 
@@ -981,7 +1036,7 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, { version: state.version, updatedAt: state.updatedAt, role });
 
     if (p === "/api/db" && req.method === "GET")
-      return sendJson(res, 200, `{"version":${state.version},"unlock":${JSON.stringify(ul || {})},"data":${dataFor(view, tid)}}`);
+      return sendJson(res, 200, `{"version":${state.version},"unlock":${JSON.stringify(ul || {})},"data":${dataFor(view, tid, auth.sid)}}`);
 
     if (p === "/api/db" && req.method === "PUT") {
       if (!sameOrigin(req)) return sendJson(res, 403, { error: "origin" });
@@ -992,8 +1047,8 @@ const server = http.createServer(async (req, res) => {
       /* Kisi aur ne beech mein save kiya — client pehle merge kare, phir dobara bheje */
       if (role !== "exec" && body.force) return sendJson(res, 403, { error: "Only the Executive can import a backup." });
       if (!body.force && body.baseVersion !== state.version)
-        return sendJson(res, 409, `{"version":${state.version},"unlock":${JSON.stringify(ul || {})},"data":${dataFor(view, tid)}}`);
-      const out = role === "teacher" ? teacherMerge(data, tid) : role !== "exec" ? keepProtected(data, view) : data;
+        return sendJson(res, 409, `{"version":${state.version},"unlock":${JSON.stringify(ul || {})},"data":${dataFor(view, tid, auth.sid)}}`);
+      const out = role === "teacher" ? teacherMerge(data, tid) : role !== "exec" ? keepProtected(data, view, auth.sid) : data;
       let changes = [];
       try { changes = body.force ? [] : diffData(dbNow(), out); } catch (e) { changes = ["(could not compare: " + e.message + ")"]; }
       persist({ version: state.version + 1, updatedAt: new Date().toISOString(), dataText: JSON.stringify(out) },

@@ -471,6 +471,7 @@ label.chk input{width:auto}
   <nav class="nav" id="nav">
     <button data-page="dashboard" class="active"><span class="ico">▦</span> Dashboard</button>
     <button data-page="mydash" style="display:none"><span class="ico">🏠</span> My Dashboard</button>
+    <button data-page="staffdash" style="display:none"><span class="ico">🏠</span> My Dashboard</button>
     <button data-page="students"><span class="ico">🎓</span> Students</button>
     <button data-page="gallery"><span class="ico">🖼</span> Gallery</button>
     <button data-page="attendance"><span class="ico">🗓</span> Attendance</button>
@@ -486,6 +487,7 @@ label.chk input{width:auto}
     <button data-page="timetable"><span class="ico">🗓</span> Timetable</button>
     <button data-page="assign"><span class="ico">✍</span> Assignments</button>
     <button data-page="audit"><span class="ico">🔍</span> Class Audit</button>
+    <button data-page="staffkpi"><span class="ico">🎯</span> Staff KPIs & To-do</button>
     <button data-page="employees"><span class="ico">👥</span> Employees</button>
     <button data-page="inventory"><span class="ico">📦</span> Inventory</button>
     <button data-page="issuance"><span class="ico">📤</span> Issuance</button>
@@ -708,6 +710,23 @@ label.chk input{width:auto}
     <thead><tr><th>Date Given</th><th>Title</th><th>Class</th><th>Shift</th><th>Due Date</th><th>Detail</th><th>Submitted</th><th>Actions</th></tr></thead>
     <tbody id="hwRows"></tbody>
   </table></div>
+</section>
+
+<!-- ================= v102: STAFF — apna dashboard + Executive ka KPIs / to-do page ================= -->
+<section class="page" id="page-staffdash">
+  <div class="page-head"><div><h2 id="sdTitle">My Dashboard</h2><div class="sub" id="sdSub"></div></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn-red" onclick="openOwnTask()">+ Add my to-do</button></div></div>
+  <div class="cards" id="sdCards"></div>
+  <div class="grid2" style="align-items:start;gap:16px">
+    <div class="panel"><h3>✅ My to-do list</h3><div id="sdTasks"></div></div>
+    <div class="panel"><h3>🎯 My KPIs — <span id="sdKpiM"></span></h3><div id="sdKpi"></div></div>
+  </div>
+  <div class="panel" style="margin-top:16px"><h3 id="sdWorkH">📋 Today's work</h3><div id="sdWork"></div></div>
+</section>
+<section class="page" id="page-staffkpi">
+  <div class="page-head"><div><h2>🎯 Staff KPIs & To-do</h2><div class="sub">For staff with their own login (Settings → Logins → Staff logins). Set each person's monthly KPIs (target, weight, score 0–5) and give them tasks — they see both on their dashboard and tick tasks done.</div></div>
+    <div class="toolbar" style="margin:0"><div class="field" style="margin:0"><label>Month</label><input type="month" id="skMonth" onchange="renderStaffKpi()"></div></div></div>
+  <div id="skList"></div>
 </section>
 
 <!-- ================= v92: PTM (Morning) ================= -->
@@ -1384,7 +1403,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v101 · 13 Oct 2026";
+const BUILD = "v102 · 13 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -1492,7 +1511,7 @@ function studentFee(s){
 }
 
 const DEFAULT_DB = {
-  students:[], inquiries:[], fees:[], exams:[], employees:[], txns:[], homework:[], ptms:[],
+  students:[], inquiries:[], fees:[], exams:[], employees:[], txns:[], homework:[], ptms:[], staffKpis:[], staffTasks:[],
   subjects:[],             // [{id, name, level, defaultFee}] — Settings se manage hoti hain
   inventory:[],            // [{id, name, type, qty, unitCost, issuedOpening, date, note}]
   issues:[],               // [{id, date, itemId, qty, toType, toId, toName, course, unitCost, charge, remarks}]
@@ -1522,17 +1541,21 @@ const ROLE = (SERVER && SERVER.role) || "exec";
 const IS_ADMIN = ROLE !== "exec";                    // admin, feeadmin ya teacher — hisaab-kitaab nahi
 const IS_TEACHER = ROLE === "teacher";               // v36: sirf apni classes ke tests / marks aur Evening class attendance
 const MY_TID = (SERVER && SERVER.tid) || "";
+/* v102: Admin / Fee Admin ka apna naam wala login (employee id + naam) */
+const MY_SID = (SERVER && SERVER.sid) || "";
+const MY_STAFF = (SERVER && SERVER.me) || "";
 const CAN_FEES = ROLE === "exec" || ROLE === "feeadmin";   // v32: Fee / Billing sirf Executive aur Fee Admin
 const TEACHER_PAGES = ["mydash","assign","tests","classatt","homework","ptm"];
-const ALL_PAGES = ["dashboard","mydash","students","gallery","attendance","fees","homework","parents","ptm","inquiries","exams","tests","classatt","classlog","timetable","assign",
+const ALL_PAGES = ["dashboard","mydash","staffdash","staffkpi","students","gallery","attendance","fees","homework","parents","ptm","inquiries","exams","tests","classatt","classlog","timetable","assign",
                    "audit","employees","inventory","issuance","finance","reports","biz","settings"];
 const ADMIN_HIDDEN = IS_TEACHER ? ALL_PAGES.filter(p=>!TEACHER_PAGES.includes(p))
-  : ["dashboard","reports","biz"].concat(ROLE === "feeadmin" ? [] : ["finance"]).concat(CAN_FEES ? [] : ["fees"]);
+  : ["dashboard","reports","biz","staffkpi"].concat(ROLE === "feeadmin" ? [] : ["finance"]).concat(CAN_FEES ? [] : ["fees"]);
 /* v44: Fee Admin — Fee / Billing aur Income / Expense 4 digit code ke baad (server bhi code ke baghair ye data nahi deta) */
 const GATED_PAGES = ["fees","finance"];
 const UNLOCK = {gated: !!(SERVER && SERVER.unlock && SERVER.unlock.gated), on: !SERVER || !SERVER.unlock || SERVER.unlock.on !== false, exp: (SERVER && SERVER.unlock && SERVER.unlock.exp) || 0};
 const feeOpen = () => ROLE !== "feeadmin" || !UNLOCK.gated || (UNLOCK.on && Date.now() < UNLOCK.exp);
 let ROLE_LABEL = {exec:"Executive", feeadmin:"Fee Admin", admin:"Admin", teacher:"Teacher"}[ROLE] || ROLE;
+if(MY_SID && MY_STAFF) ROLE_LABEL += " · " + MY_STAFF;
 if(SERVER) DB = SERVER.data || structuredClone(DEFAULT_DB);
 else try{
   localStorage.setItem("__t","1"); localStorage.removeItem("__t");
@@ -1760,7 +1783,7 @@ const TAB_PICK = {exec:["dashboard","students","attendance","fees"], feeadmin:["
 function buildTabs(){
   const box = $("mtabs"); if(!box) return;
   const vis = [...document.querySelectorAll("#nav button[data-page]")].filter(b=>b.style.display !== "none");
-  const pick = (TAB_PICK[ROLE] || TAB_PICK.exec).map(p=>vis.find(b=>b.dataset.page === p)).filter(Boolean).slice(0, 4);
+  const pick = ((MY_SID ? ["staffdash"] : []).concat(TAB_PICK[ROLE] || TAB_PICK.exec)).map(p=>vis.find(b=>b.dataset.page === p)).filter(Boolean).slice(0, 4);
   box.innerHTML = pick.map(b=>{ const ico = (b.querySelector(".ico")||{}).textContent || "•", txt = b.textContent.replace(ico, "").trim().split(" / ")[0];
     return `<button data-tab="${b.dataset.page}" onclick="document.querySelector('#nav button[data-page=${b.dataset.page}]').click()"><span class="i">${ico}</span><span>${esc(txt)}</span></button>`; }).join("")
     + `<button onclick="drawer(true)"><span class="i">☰</span><span>More</span></button>`;
@@ -1814,8 +1837,9 @@ function renderPage(p){
   if(ROLE === "feeadmin") document.querySelectorAll(".page").forEach(x=>x.classList.remove("locked"));
   if(GATED_PAGES.includes(p) && !feeOpen()){ drawLock(p); return; }
   if(!IS_TEACHER && p === "mydash") p = "dashboard";
+  if(p === "staffdash" && !MY_SID) p = IS_ADMIN ? "students" : "dashboard";
   ({dashboard:renderDashboard, students:renderStudents, gallery:renderGallery, attendance:loadAttendance,
-    fees:renderFees, homework:renderHomework, ptm:renderPtm, inquiries:renderInquiries, exams:renderExams,
+    fees:renderFees, homework:renderHomework, ptm:renderPtm, staffdash:renderStaffDash, staffkpi:renderStaffKpi, inquiries:renderInquiries, exams:renderExams,
     employees:renderEmployees, inventory:renderInventory, issuance:renderIssuance,
     finance:renderFinance, reports:renderReport, biz:renderBiz, audit:renderAudit, parents:renderParents,
     tests:renderTests, classatt:loadClassAtt, classlog:renderClassLog, timetable:renderTimetable, mydash:renderMyDash, assign:()=>{ if(SERVER) renderAssign(); },
@@ -3587,6 +3611,189 @@ function saveHwRcv(){
   h.done = HW_RCV.done; h.checkedOn = todayStr(); h.checkedBy = IS_TEACHER ? teacherName(MY_TID) : (myName() || ROLE_LABEL);
   save(); closeModal(); renderHomework(); toast(`Receival saved — ${Object.keys(h.done).length} submitted`);
 }
+/* ================= v102: STAFF — naam wale Admin / Fee Admin logins, KPIs aur to-do =================
+   Executive: Settings → Logins → Staff logins (kis ko Admin / Fee Admin access) · 🎯 Staff KPIs & To-do (mahana KPIs + kaam).
+   Staff: 🏠 My Dashboard — apne kaam ki cheezein, apne KPIs, apni to-do list (tick karte hain; apna to-do bhi jor sakte hain).
+   Server har staff ko sirf us ke apne KPIs / kaam bhejta hai aur KPIs sirf Executive badal sakta hai. */
+const STAFF_ACCESS = {admin:"Admin", feeadmin:"Fee Admin"};
+const staffPeople = () => DB.employees.filter(e=>STAFF_ACCESS[e.access]).sort((a,b)=>a.name.localeCompare(b.name));
+const KPI_TPL = {
+  admin: [["Daily attendance marked on time","Morning & Evening by 9:30 AM"],["Inquiry follow-ups on time","No overdue follow-ups"],["Parent messages answered","Within 24 hours"],
+          ["Student records up to date","Profiles, phones, subjects complete"],["Homework / exams / PTM data entered","On the day"]],
+  feeadmin: [["Challans generated on time","By the 1st of the month"],["Fee collection","90% of the month's billing"],["Parents' app receipts verified","Within 24 hours"],
+             ["Defaulter follow-ups","All defaulters called every week"],["Daily cash / bank reconciliation","Every working day"]]
+};
+const kpiOf = (sid, m) => (DB.staffKpis||[]).find(k=>k.sid===sid && k.month===m);
+function staffKpiPct(k){
+  if(!k) return null; let w = 0, got = 0;
+  (k.items||[]).forEach(it=>{ if(it.score === "" || it.score === undefined || it.score === null) return; const wt = +it.weight || 0; w += wt; got += wt * (+it.score)/5; });
+  return w ? Math.round(got*100/w) : null;
+}
+const tasksOf = sid => (DB.staffTasks||[]).filter(t=>t.sid===sid);
+const taskLate = t => t.status !== "done" && t.due && t.due < todayStr();
+function taskRow(t, canTick, canEdit){
+  return `<div style="display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px dashed var(--line);${t.status==="done" ? "opacity:.6" : ""}">
+    ${canTick ? `<input type="checkbox" style="width:22px;height:22px;margin-top:2px" ${t.status==="done"?"checked":""} onchange="tickTask('${t.id}',this.checked)">` : `<span>${t.status==="done" ? "✅" : "⬜"}</span>`}
+    <div style="flex:1"><b style="${t.status==="done" ? "text-decoration:line-through" : ""}">${esc(t.title)}</b>
+      ${t.priority === "High" ? ` <span class="badge b-unpaid">High</span>` : ""}${t.own ? ` <span class="chip">my own</span>` : ""}
+      <div class="sub">${t.due ? `${taskLate(t) ? `<b style="color:var(--danger)">Overdue — due ${fmtD(t.due)}</b>` : `Due ${fmtD(t.due)}`}` : "No due date"}${t.status==="done" && t.doneOn ? ` · done ${fmtD(t.doneOn)}` : ""}${t.note ? ` · ${esc(t.note)}` : ""}</div>
+      ${t.staffNote ? `<div class="sub">💬 ${esc(t.staffNote)}</div>` : ""}</div>
+    ${canEdit ? `<span style="white-space:nowrap"><button class="btn-line btn-sm" onclick="openStaffTask('${t.sid}','${t.id}')">Edit</button><button class="btn-danger btn-sm" onclick="delStaffTask('${t.id}')">✕</button></span>`
+      : t.own && MY_SID ? `<button class="btn-line btn-sm" onclick="delOwnTask('${t.id}')">✕</button>` : canTick ? `<button class="btn-line btn-sm" onclick="noteTask('${t.id}')" title="Add a note for the Executive">💬</button>` : ""}</div>`;
+}
+const taskSort = (a,b)=>(a.status==="done") - (b.status==="done") || String(a.due||"9999").localeCompare(String(b.due||"9999")) || String(a.title).localeCompare(String(b.title));
+function tickTask(id, on){
+  const t = (DB.staffTasks||[]).find(x=>x.id===id); if(!t) return;
+  t.status = on ? "done" : "open"; t.doneOn = on ? todayStr() : "";
+  save(); renderPage(MY_SID ? "staffdash" : "staffkpi"); toast(on ? "✓ Marked done" : "Marked open again");
+}
+function noteTask(id){
+  const t = (DB.staffTasks||[]).find(x=>x.id===id); if(!t) return;
+  openModal(`<h3>💬 Note — ${esc(t.title)}</h3><div class="field"><label>Note for the Executive (progress, problem…)</label><textarea id="tn_text" rows="3">${esc(t.staffNote||"")}</textarea></div>
+    <div class="modal-foot"><button class="btn-line" onclick="closeModal()">Cancel</button><button class="btn-red" onclick="const t=(DB.staffTasks||[]).find(x=>x.id==='${id}');t.staffNote=$('tn_text').value.trim();save();closeModal();renderStaffDash();toast('Note saved')">Save</button></div>`);
+}
+function openOwnTask(){
+  if(!MY_SID) return;
+  openModal(`<h3>+ My to-do</h3><div class="grid2"><div class="field"><label>What to do *</label><input id="ot_title" placeholder="e.g. Call O2 defaulters"></div>
+    <div class="field"><label>Due date</label><input type="date" id="ot_due" value="${todayStr()}"></div></div>
+    <div class="modal-foot"><button class="btn-line" onclick="closeModal()">Cancel</button><button class="btn-red" onclick="saveOwnTask()">Add</button></div>`);
+}
+function saveOwnTask(){
+  const title = $("ot_title").value.trim(); if(!title){ toast("Write the task"); return; }
+  DB.staffTasks = DB.staffTasks || [];
+  DB.staffTasks.push({id:uid(), sid:MY_SID, own:true, title, due:$("ot_due").value||"", status:"open", doneOn:"", staffNote:"", created:todayStr(), by:"self"});
+  save(); closeModal(); renderStaffDash(); toast("Added to your to-do list");
+}
+function delOwnTask(id){ DB.staffTasks = (DB.staffTasks||[]).filter(t=>!(t.id===id && t.own && t.sid===MY_SID)); save(); renderStaffDash(); toast("Removed"); }
+
+/* ---------- Executive: 🎯 Staff KPIs & To-do ---------- */
+function renderStaffKpi(){
+  if(!$("skMonth").value) $("skMonth").value = wm();
+  const m = $("skMonth").value, L = staffPeople();
+  $("skList").innerHTML = L.length ? L.map(e=>{
+    const k = kpiOf(e.id, m), pct = staffKpiPct(k), T = tasksOf(e.id).sort(taskSort), open = T.filter(t=>t.status!=="done"), late = open.filter(taskLate);
+    return `<div class="panel" style="margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center">
+        <div><h3 style="margin:0">${esc(e.name)} <span class="chip">${STAFF_ACCESS[e.access]}</span></h3><span class="sub">${e.login ? `Login ID <code>${esc(e.login.user)}</code>` : "no login yet"}</span></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn-black btn-sm" onclick="openStaffKpi('${e.id}')">🎯 KPIs — ${fmtM(m)}</button><button class="btn-red btn-sm" onclick="openStaffTask('${e.id}')">+ Task</button></div></div>
+      <div class="cards" style="margin:10px 0">
+        <div class="card"><div class="k">KPI score · ${fmtM(m)}</div><div class="v" style="${scoreColor(pct)}">${pct === null ? "—" : pct + "%"}</div><div class="hint">${k ? `${(k.items||[]).length} KPIs${pct !== null ? " · " + kpiRating(pct) : " · not scored yet"}` : "No KPIs set for this month"}</div></div>
+        <div class="card"><div class="k">Open tasks</div><div class="v">${open.length}</div><div class="hint">${late.length ? `<b style="color:var(--danger)">${late.length} overdue</b>` : "none overdue"}</div></div>
+        <div class="card"><div class="k">Done this month</div><div class="v green">${T.filter(t=>t.status==="done" && String(t.doneOn).startsWith(m)).length}</div></div></div>
+      ${T.length ? T.slice(0, 12).map(t=>taskRow(t, true, true)).join("") : `<p class="sub">No tasks yet.</p>`}</div>`; }).join("")
+    : `<div class="note">No staff with their own login yet. Create them in <b>Settings → Logins → Staff logins</b> (Admin or Fee Admin access).</div>`;
+}
+let SKD = null;
+function openStaffKpi(sid){
+  const e = empById(sid), m = $("skMonth").value || wm(), k = kpiOf(sid, m);
+  const prev = (DB.staffKpis||[]).filter(x=>x.sid===sid && x.month < m).sort((a,b)=>b.month.localeCompare(a.month))[0];
+  SKD = {sid, m, items: k ? structuredClone(k.items||[]) : (prev ? prev.items.map(it=>({...it, id:uid(), score:"", note:""})) : (KPI_TPL[e.access]||KPI_TPL.admin).map(([title,target])=>({id:uid(), title, target, weight:20, score:"", note:""}))), review: k ? k.review||"" : ""};
+  drawStaffKpi();
+}
+function drawStaffKpi(){
+  const e = empById(SKD.sid);
+  const tw = SKD.items.reduce((a,it)=>a + (+it.weight||0), 0), pct = staffKpiPct({items:SKD.items});
+  openModal(`<h3>🎯 ${esc(e.name)} — KPIs ${fmtM(SKD.m)}</h3>
+    <p class="sub" style="margin-bottom:8px">Each KPI: what is measured, the target, its weight, and your score at review (0–5; blank = not scored yet). ${esc(e.name)} sees this on their dashboard.</p>
+    <div class="tbl-wrap"><table class="ptm-tbl"><thead><tr><th>KPI</th><th>Target</th><th style="width:80px">Weight</th><th style="width:110px">Score 0–5</th><th>Note</th><th></th></tr></thead><tbody>
+    ${SKD.items.map((it,i)=>`<tr><td><input value="${esc(it.title)}" oninput="SKD.items[${i}].title=this.value" placeholder="KPI"></td>
+      <td><input value="${esc(it.target||"")}" oninput="SKD.items[${i}].target=this.value" placeholder="Target"></td>
+      <td><input type="number" min="0" value="${esc(it.weight)}" onchange="SKD.items[${i}].weight=+this.value||0;drawStaffKpi()"></td>
+      <td><select onchange="SKD.items[${i}].score=this.value===''?'':+this.value;drawStaffKpi()"><option value="">—</option>${[0,1,2,3,4,5].map(n=>`<option ${it.score!==""&&+it.score===n?"selected":""}>${n}</option>`).join("")}</select></td>
+      <td><input value="${esc(it.note||"")}" oninput="SKD.items[${i}].note=this.value" placeholder="optional"></td>
+      <td><button class="btn-line btn-sm" onclick="SKD.items.splice(${i},1);drawStaffKpi()">✕</button></td></tr>`).join("")}
+    </tbody></table></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;flex-wrap:wrap;gap:8px">
+      <button class="btn-line btn-sm" onclick="SKD.items.push({id:uid(),title:'',target:'',weight:10,score:'',note:''});drawStaffKpi()">+ Add KPI</button>
+      <span class="sub">Total weight ${tw} · score so far <b style="${scoreColor(pct)}">${pct === null ? "—" : pct + "%"}</b></span></div>
+    <div class="field" style="margin-top:10px"><label>Review comment (shown to ${esc(e.name)})</label><textarea id="sk_rev" rows="2" oninput="SKD.review=this.value">${esc(SKD.review)}</textarea></div>
+    <div class="modal-foot"><button class="btn-line" onclick="closeModal()">Cancel</button><button class="btn-red" onclick="saveStaffKpi()">Save KPIs</button></div>`, true);
+}
+function saveStaffKpi(){
+  const items = SKD.items.filter(it=>String(it.title||"").trim()).map(it=>({...it, title:String(it.title).trim(), target:String(it.target||"").trim(), weight:+it.weight||0}));
+  if(!items.length){ toast("Add at least one KPI"); return; }
+  DB.staffKpis = DB.staffKpis || [];
+  const k = kpiOf(SKD.sid, SKD.m), rec = {sid:SKD.sid, month:SKD.m, items, review:String(SKD.review||"").trim(), by:ROLE_LABEL, savedAt:new Date().toISOString()};
+  if(k) Object.assign(k, rec); else DB.staffKpis.push({id:uid(), ...rec});
+  save(); closeModal(); renderStaffKpi(); toast(`✓ KPIs saved — ${empById(SKD.sid).name}, ${fmtM(SKD.m)}`);
+}
+function openStaffTask(sid, id){
+  const t = id ? (DB.staffTasks||[]).find(x=>x.id===id) : {}, e = empById(sid);
+  openModal(`<h3>${id ? "Edit task" : "+ Task"} — ${esc(e.name)}</h3>
+    <div class="grid2"><div class="field"><label>Task *</label><input id="st_title" value="${esc(t.title||"")}" placeholder="e.g. Update all O2 student phone numbers"></div>
+      <div class="field"><label>Due date</label><input type="date" id="st_due" value="${esc(t.due||"")}"></div>
+      <div class="field"><label>Priority</label><select id="st_pri">${["Normal","High","Low"].map(x=>`<option ${t.priority===x?"selected":""}>${x}</option>`).join("")}</select></div>
+      <div class="field"><label>Note / details</label><input id="st_note" value="${esc(t.note||"")}"></div></div>
+    <div class="modal-foot"><button class="btn-line" onclick="closeModal()">Cancel</button><button class="btn-red" onclick="saveStaffTask('${sid}','${id||""}')">${id ? "Save" : "Give task"}</button></div>`);
+}
+function saveStaffTask(sid, id){
+  const title = $("st_title").value.trim(); if(!title){ toast("Write the task"); return; }
+  DB.staffTasks = DB.staffTasks || [];
+  const data = {title, due:$("st_due").value||"", priority:$("st_pri").value, note:$("st_note").value.trim()};
+  if(id) Object.assign(DB.staffTasks.find(x=>x.id===id), data);
+  else DB.staffTasks.push({id:uid(), sid, ...data, status:"open", doneOn:"", staffNote:"", created:todayStr(), by:"Executive"});
+  save(); closeModal(); renderStaffKpi(); toast(id ? "Task updated" : `Task given to ${empById(sid).name}`);
+}
+function delStaffTask(id){
+  const t = (DB.staffTasks||[]).find(x=>x.id===id); if(!t) return;
+  askConfirm("Delete task?", esc(t.title), ()=>{ DB.staffTasks = DB.staffTasks.filter(x=>x.id!==id); save(); renderStaffKpi(); toast("Task deleted"); });
+}
+
+/* ---------- Staff: 🏠 My Dashboard ---------- */
+function renderStaffDash(){
+  if(!MY_SID) return;
+  const me = empById(MY_SID) || {name:MY_STAFF}, m = wm(), t0 = todayStr(), fee = ROLE === "feeadmin";
+  $("sdTitle").textContent = `Welcome, ${me.name || MY_STAFF}`;
+  $("sdSub").textContent = `${STAFF_ACCESS[ROLE] || ROLE} · ${new Date().toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long",year:"numeric"})}`;
+  const T = tasksOf(MY_SID).sort(taskSort), open = T.filter(t=>t.status!=="done"), late = open.filter(taskLate);
+  const k = kpiOf(MY_SID, m), pct = staffKpiPct(k);
+  $("sdKpiM").textContent = fmtM(m);
+  $("sdKpi").innerHTML = k ? `<div style="display:flex;align-items:center;gap:14px;margin-bottom:8px"><div style="font-size:2rem;font-weight:900;${scoreColor(pct)}">${pct === null ? "—" : pct + "%"}</div>
+      <div class="sub">${pct === null ? "Not scored yet — the Executive scores at review" : kpiRating(pct)}</div></div>
+    <div class="tbl-wrap"><table><thead><tr><th>KPI</th><th>Target</th><th style="text-align:right">Weight</th><th style="text-align:right">Score</th></tr></thead><tbody>
+    ${(k.items||[]).map(it=>`<tr><td><b>${esc(it.title)}</b>${it.note ? `<br><span class="sub">${esc(it.note)}</span>` : ""}</td><td class="sub">${esc(it.target||"—")}</td><td style="text-align:right">${+it.weight||0}</td>
+      <td style="text-align:right">${it.score === "" || it.score === undefined ? `<span class="sub">—</span>` : `<b style="${scoreColor(+it.score*20)}">${it.score} / 5</b>`}</td></tr>`).join("")}</tbody></table></div>
+    ${k.review ? `<div class="note" style="margin-top:8px"><b>Executive:</b> ${esc(k.review)}</div>` : ""}`
+    : `<p class="sub">Your KPIs for ${fmtM(m)} have not been set yet.</p>`;
+  $("sdTasks").innerHTML = T.length ? T.slice(0, 30).map(t=>taskRow(t, true, false)).join("") : `<p class="sub">Nothing on your list — add your own with “+ Add my to-do”.</p>`;
+  /* kaam ke hisaab se aaj ki cheezein */
+  const act = DB.students.filter(st=>st.status === "Active"), day = (DB.attendance||{})[t0] || {};
+  const marked = sh => act.filter(st=>st.shift===sh && day[st.id]).length, tot = sh => act.filter(st=>st.shift===sh).length;
+  const iq = DB.inquiries.filter(i=>INQ_OPEN(i.stage) && i.nextFollow && i.nextFollow <= t0);
+  const msgs = (DB.parentMsgs||[]).filter(x=>x.status === "Open");
+  let cards = `<div class="card"><div class="k">My open tasks</div><div class="v">${open.length}</div><div class="hint">${late.length ? `<b style="color:var(--danger)">${late.length} overdue</b>` : "none overdue"}</div></div>
+    <div class="card"><div class="k">My KPI · ${fmtM(m)}</div><div class="v" style="${scoreColor(pct)}">${pct === null ? "—" : pct + "%"}</div><div class="hint">${k ? (k.items||[]).length + " KPIs" : "not set"}</div></div>`;
+  let work = "";
+  if(fee){
+    if(!feeOpen()){ cards += `<div class="card"><div class="k">Fees</div><div class="v">🔒</div><div class="hint">Open Fee / Billing and enter the 4-digit code to see fee figures</div></div>`; work = `<p class="sub">Unlock Fee / Billing to see today's fee work.</p>`; }
+    else {
+      const F = DB.fees.filter(f=>f.month === m), billed = F.reduce((a,f)=>a + feeBilled(f), 0), got = F.reduce((a,f)=>a + feeReceived(f), 0), due = F.reduce((a,f)=>a + feeOutstanding(f), 0);
+      const unpaid = F.filter(f=>feeOutstanding(f) > 0), pend = (DB.feeReceipts||[]).filter(r=>r.status === "Pending");
+      const today = DB.fees.reduce((a,f)=>a + feePays(f).filter(p=>p.date === t0).reduce((x,p)=>x + (+p.amt||0), 0), 0);
+      cards += `<div class="card"><div class="k">Collected · ${fmtM(m)}</div><div class="v green">${money(got)}</div><div class="hint">of ${money(billed)} billed · ${billed ? Math.round(got*100/billed) : 0}%</div></div>
+        <div class="card"><div class="k">Outstanding</div><div class="v red">${money(due)}</div><div class="hint">${unpaid.length} unpaid challans</div></div>
+        <div class="card"><div class="k">Collected today</div><div class="v">${money(today)}</div></div>
+        <div class="card click" onclick="document.querySelector('#nav button[data-page=fees]').click()"><div class="k">App receipts to verify</div><div class="v ${pend.length ? "red" : "green"}">${pend.length}</div><div class="hint">sent by parents</div></div>`;
+      work = `<ul style="margin:0 0 0 18px;line-height:1.8">${[pend.length ? `<b>${pend.length}</b> parents' app receipt${pend.length>1?"s":""} waiting — Fee / Billing → receipts` : "",
+        unpaid.length ? `<b>${unpaid.length}</b> unpaid challans for ${fmtM(m)} (${money(due)})` : `All ${fmtM(m)} challans paid ✓`,
+        !F.length ? `No challans generated for ${fmtM(m)} yet` : ""].filter(Boolean).map(x=>`<li>${x}</li>`).join("")}</ul>`;
+    }
+  }
+  cards += `<div class="card click" onclick="document.querySelector('#nav button[data-page=attendance]').click()"><div class="k">Attendance today</div><div class="v">${marked("Morning") + marked("Evening")}</div><div class="hint">Morning ${marked("Morning")}/${tot("Morning")} · Evening ${marked("Evening")}/${tot("Evening")}</div></div>
+    <div class="card click" onclick="document.querySelector('#nav button[data-page=inquiries]').click()"><div class="k">Follow-ups due</div><div class="v ${iq.length ? "red" : "green"}">${iq.length}</div><div class="hint">${iq.filter(i=>i.nextFollow < t0).length} overdue</div></div>
+    <div class="card click" onclick="document.querySelector('#nav button[data-page=parents]').click()"><div class="k">Parent messages</div><div class="v ${msgs.length ? "red" : "green"}">${msgs.length}</div><div class="hint">waiting for a reply</div></div>`;
+  $("sdCards").innerHTML = cards;
+  const ptm = (DB.ptms||[]).filter(x=>x.date >= t0).sort((a,b)=>a.date.localeCompare(b.date))[0];
+  work += `<ul style="margin:6px 0 0 18px;line-height:1.8">${[
+    tot("Morning") && marked("Morning") < tot("Morning") ? `Morning attendance: ${tot("Morning") - marked("Morning")} students not marked yet today` : "",
+    tot("Evening") && marked("Evening") < tot("Evening") ? `Evening attendance: ${tot("Evening") - marked("Evening")} students not marked yet today` : "",
+    iq.length ? `${iq.length} inquiry follow-up${iq.length>1?"s":""} due (${iq.filter(i=>i.nextFollow < t0).length} overdue)` : "",
+    msgs.length ? `${msgs.length} parent message${msgs.length>1?"s":""} to answer` : "",
+    ptm ? `PTM ${ptm.date === t0 ? "<b>today</b>" : "on " + fmtD(ptm.date)} — ${esc((ptm.classes||[]).join(", "))}` : "",
+    late.length ? `<b style="color:var(--danger)">${late.length} of your tasks are overdue</b>` : ""].filter(Boolean).map(x=>`<li>${x}</li>`).join("") || "<li>All clear ✓</li>"}</ul>`;
+  $("sdWork").innerHTML = work;
+}
+
 /* ================= v92: PTM — Parent-Teacher Meeting (Morning) =================
    Admin PTM banata hai (din, waqt, classes). Har teacher apni class ke har bache ke liye: parent aaye ya nahi, kaun aaya, remark.
    Entry key "<studentId>|<teacherId>" (admin / office ki "<studentId>|admin"). Parents app se feedback server likhta hai (ptm.feedback). */
@@ -6711,7 +6918,7 @@ function removeFeeCode(){
    Login role ka hota hai (Admin / Executive), banda ka nahi — is liye har computer par "👤 Aap kaun?" aik dafa chun lein.
    Jis inquiry ka "Zimmedar" aap hain: nayi / naye sir se di gayi ho to toast + 🔔 ginti (+ browser notification),
    aur jis ka follow-up aaj ya pichla ho wo bhi 🔔 mein. */
-const myName = () => { try{ return localStorage.getItem("emsMe") || ""; }catch(e){ return ""; } };
+const myName = () => { if(MY_SID) return MY_STAFF; try{ return localStorage.getItem("emsMe") || ""; }catch(e){ return ""; } };
 const isMine = i => { const me = myName(), a = String(i.assignedTo||"").trim(); return !!me && !!a && (keyify(a) === keyify(me) || nameScore(a, me) >= 0.8); };
 const inqSeenKey = i => `${i.id}|${keyify(i.assignedTo||"")}`;
 const inqSeen = () => { try{ return JSON.parse(localStorage.getItem("emsInqSeen")||"[]"); }catch(e){ return []; } };
@@ -10758,7 +10965,17 @@ function renderLogins(){
         <td style="white-space:nowrap"><button class="btn-black btn-sm" onclick="openTeacherLogin('${e.id}')">${e.login?"Change password":"Create login"}</button>
           ${e.login?`<button class="btn-line btn-sm" onclick="copyTeacherLink('${e.id}')" title="Link + Login ID copy">📋</button> <button class="btn-line btn-sm" onclick="disableTeacherLogin('${e.id}')">Disable</button>`:""}</td></tr>`).join("") || `<tr><td colspan="6" class="empty">No teachers — set the category to "Teacher" in Employees</td></tr>`}
     </tbody></table></div>
-    ${(()=>{ const off = DB.employees.filter(e=>e.login && e.category!=="Teacher"); return off.length ? `<div class="note" style="border-left-color:var(--danger);margin-top:10px">⚠ These people have a teacher login but their category is not <b>Teacher</b>, so they cannot log in: ${off.map(e=>`<b>${esc(e.name)}</b> (${esc(e.category||"no category")}, ID <code>${esc(e.login.user)}</code>)`).join(", ")} — set the category to Teacher in Employees.</div>` : ""; })()}`;
+    <h3 style="margin:22px 0 6px">🪪 Staff logins — own name (Admin / Fee Admin)</h3>
+    <p class="sub" style="margin-bottom:10px">Give each office person their <b>own Login ID + password</b> with <b>Admin</b> or <b>Fee Admin</b> access. They sign in on the Staff tab with their Login ID, get <b>My Dashboard</b> (their work, their KPIs and to-do list), and every change is logged with their name. Set their KPIs and tasks in <b>🎯 Staff KPIs & To-do</b>.</p>
+    <div class="tbl-wrap"><table><thead><tr><th>Name</th><th>Access</th><th>Login ID</th><th>Status</th><th></th></tr></thead><tbody>
+      ${staffPeople().map(e=>`<tr><td><b>${esc(e.name)}</b><br><span class="sub">${esc(e.category||"")}</span></td><td><span class="chip">${STAFF_ACCESS[e.access]}</span></td>
+        <td>${e.login ? `<code>${esc(e.login.user)}</code>` : "—"}</td><td>${e.login ? `<span class="badge b-paid">On</span> <span class="sub">${fmtD(e.login.setOn)}</span>` : `<span class="sub">No password yet</span>`}</td>
+        <td style="white-space:nowrap"><button class="btn-black btn-sm" onclick="openStaffLogin('${e.id}')">${e.login ? "Change" : "Set password"}</button>
+          ${e.login ? `<button class="btn-line btn-sm" onclick="copyStaffLink('${e.id}')" title="Link + Login ID copy">📋</button>` : ""} <button class="btn-line btn-sm" onclick="removeStaffAccess('${e.id}')">Remove access</button></td></tr>`).join("")
+        || `<tr><td colspan="5" class="empty">No staff logins yet</td></tr>`}
+    </tbody></table></div>
+    <button class="btn-red" style="margin-top:8px" onclick="openStaffLogin()">+ Add staff login</button>
+    ${(()=>{ const off = DB.employees.filter(e=>e.login && e.category!=="Teacher" && !STAFF_ACCESS[e.access]); return off.length ? `<div class="note" style="border-left-color:var(--danger);margin-top:10px">⚠ These people have a teacher login but their category is not <b>Teacher</b>, so they cannot log in: ${off.map(e=>`<b>${esc(e.name)}</b> (${esc(e.category||"no category")}, ID <code>${esc(e.login.user)}</code>)`).join(", ")} — set the category to Teacher in Employees.</div>` : ""; })()}`;
   teacherLoginActivity();
 }
 /* v78: har teacher ka aakhri login aur ghalat koshishen (activity log se — sirf Executive) */
@@ -10773,6 +10990,50 @@ async function teacherLoginActivity(){
     const when = t => new Date(t).toLocaleString("en-GB", {day:"numeric", month:"short", hour:"2-digit", minute:"2-digit"});
     c.innerHTML = (ok ? `✓ ${when(ok.t)}` : "Never logged in") + (bad.length ? `<br><span style="color:var(--danger)">✗ ${bad.length} failed since — ${esc(bad[0].detail || "")}</span>` : "");
   });
+}
+/* v102: staff login (Admin / Fee Admin) — employee chuno ya naya naam, access, Login ID, password */
+function openStaffLogin(id){
+  const e = id ? empById(id) : null;
+  const others = DB.employees.filter(x=>x.category !== "Teacher").sort((a,b)=>a.name.localeCompare(b.name));
+  openModal(`<h3>🪪 ${e ? esc(e.name) + " — staff login" : "Add staff login"}</h3>
+    <div class="grid2">
+      ${e ? "" : `<div class="field"><label>Person</label><select id="slWho" onchange="$('slNewWrap').style.display=this.value?'none':''"><option value="">➕ New person (type the name)</option>${others.map(x=>`<option value="${x.id}">${esc(x.name)} · ${esc(x.category||"")}</option>`).join("")}</select></div>
+      <div class="field" id="slNewWrap"><label>Name *</label><input id="slName" placeholder="e.g. Miss Sara Khan"></div>`}
+      <div class="field"><label>Access</label><select id="slAccess">${Object.entries(STAFF_ACCESS).map(([k,v])=>`<option value="${k}" ${e && e.access===k?"selected":""}>${v}${k==="feeadmin" ? " — Admin + Fee / Billing" : " — no fees"}</option>`).join("")}</select></div>
+      <div class="field"><label>Login ID (lowercase, no spaces)</label><input id="slUser" value="${esc((e&&e.login&&e.login.user)||"")}" autocomplete="off" placeholder="e.g. sara"></div>
+      <div class="field"><label>Password (min 8)${e && e.login ? " — blank = keep" : ""}</label><input type="password" id="slPw" autocomplete="new-password"></div>
+      <div class="field"><label>Repeat</label><input type="password" id="slPw2" autocomplete="new-password"></div>
+    </div>
+    <div class="note">They sign in at <b>${esc(location.origin)}/login</b> → Staff → Login ID + password. Fee Admin access also needs the 4-digit fee code (if set) to open Fee / Billing. Changing the password signs out their old login.</div>
+    <div class="modal-foot"><button class="btn-line" onclick="closeModal()">Cancel</button><button class="btn-red" onclick="saveStaffLogin('${id||""}')">Save</button></div>`);
+}
+async function saveStaffLogin(id){
+  let e = id ? empById(id) : null;
+  const pick = !e && $("slWho").value, name = !e && !pick ? $("slName").value.trim() : "";
+  if(!e && !pick && !name){ toast("Choose a person or type the name"); return; }
+  const user = $("slUser").value.trim().toLowerCase(), x = $("slPw").value, access = $("slAccess").value;
+  if(!/^[a-z0-9._-]{3,30}$/.test(user)){ toast("Login ID 3–30 characters: a-z, 0-9, . _ -"); return; }
+  const tgt = e || (pick ? empById(pick) : null);
+  if(DB.employees.some(o=>(!tgt || o.id!==tgt.id) && o.login && o.login.user===user)){ toast("This Login ID is already used"); return; }
+  const keep = tgt && tgt.login && !x;
+  if(!keep && x.length < 8){ toast("Password must be at least 8 characters"); return; }
+  if(!keep && x !== $("slPw2").value){ toast("The two passwords do not match"); return; }
+  if(!keep && (!window.crypto || !crypto.subtle)){ toast("This browser cannot set passwords — use Chrome / Edge"); return; }
+  if(!tgt){ e = {id:uid(), name, category:"Admin", shift:"Morning", phone:"", doj:todayStr(), salary:0, address:"", assignments:[], schedule:{}}; DB.employees.push(e); } else e = tgt;
+  e.access = access;
+  e.login = keep ? {...e.login, user} : {user, ...(await pinHash(x)), setOn:todayStr()};
+  save(); closeModal(); renderLogins(); toast(`${e.name} — ${STAFF_ACCESS[access]} login ready · ID: ${user}`);
+}
+function removeStaffAccess(id){
+  const e = empById(id); if(!e) return;
+  askConfirm(`Remove ${esc(e.name)}'s staff login?`, "They will be signed out and cannot log in. Their KPIs and tasks stay.", ()=>{
+    delete e.access; delete e.login; save(); renderLogins(); toast("Staff login removed");
+  }, "Yes, remove");
+}
+function copyStaffLink(id){
+  const e = empById(id); if(!e || !e.login) return;
+  const txt = `Hello ${e.name}! ${DB.settings.name||"Cambridge Grads Academy"} — your ${STAFF_ACCESS[e.access]} login:\n${location.origin}/login (Staff tab)\n\nLogin ID: ${e.login.user}\nPassword: the one given to you`;
+  (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject()).then(()=>toast(`${e.name}'s login message copied`)).catch(()=>showCopyFallback("staff-login.txt", txt, ""));
 }
 function copyTeacherLink(id){
   const e = id && empById(id);
@@ -11981,7 +12242,8 @@ if(IS_ADMIN){
   if(IS_TEACHER){ document.body.classList.add("role-teacher"); const me = empById(MY_TID); if(me) ROLE_LABEL = "Teacher · " + me.name;
     document.querySelector('#nav button[data-page="mydash"]').style.display = "";
     setTimeout(()=>{ const ev = eveTestStatus(wm()).filter(x=>x.need); if(ev.length) toast(`⏰ This month ${ev.map(x=>`${x.c}: ${x.n}/${EVE_TEST_TARGET} tests`).join(", ")} — take 2 tests in every Evening class`); }, 1200); }
-  document.querySelector(`#nav button[data-page="${IS_TEACHER ? "mydash" : "students"}"]`).click();
+  if(MY_SID) document.querySelector('#nav button[data-page="staffdash"]').style.display = "";
+  document.querySelector(`#nav button[data-page="${IS_TEACHER ? "mydash" : MY_SID ? "staffdash" : "students"}"]`).click();
 }
 if(!SERVER){ const b = document.querySelector('#nav button[data-page="assign"]'); if(b) b.style.display = "none"; }   // v61: assignments sirf online
 renderDashboard();
