@@ -45,6 +45,23 @@ function classesFor(db, st) {
 }
 
 const mine = (st) => (st.subjects || []).filter((x) => x && x.name);
+/* v99: class mein position — report card wala hisaab: mahine ke tests ka total % (sirf jin papers mein baitha,
+   na liya hua Morning subject nahi), class + shift ke sab bache (Left nahi), barabar % = aik hi position.
+   Mahina = bache ke marks wala aakhri mahina (is mahine ke na hon to pichla). */
+function classPosition(db, st) {
+  const mExams = (s) => (db.exams || []).filter((e) => e.studentId === s.id && +e.total > 0 && !e.absent && takesSubj(s, e.subject));
+  const months = [...new Set(mExams(st).map((e) => String(e.date || "").slice(0, 7)).filter(Boolean))].sort();
+  const month = months.pop(); if (!month) return null;
+  const pctOf = (s) => { const L = mExams(s).filter((e) => String(e.date).startsWith(month));
+    const tot = L.reduce((a, e) => a + +e.total, 0), obt = L.reduce((a, e) => a + (+e.obtained || 0), 0);
+    return tot ? Math.round((obt * 100) / tot) : null; };
+  const rows = (db.students || []).filter((s) => s.shift === st.shift && s.course === st.course && s.status !== "Left")
+    .map((s) => ({ id: s.id, p: pctOf(s) })).filter((r) => r.p !== null).sort((a, b) => b.p - a.p);
+  let rank = 0; rows.forEach((r, i) => { r.rank = i && rows[i - 1].p === r.p ? rows[i - 1].rank : i + 1; });
+  const me = rows.find((r) => r.id === st.id); if (!me) return null;
+  rank = me.rank;
+  return { month, rank, of: rows.length, pct: me.p, classAvg: Math.round(rows.reduce((a, r) => a + r.p, 0) / rows.length) };
+}
 /* v97: index.html ka takesSubject — wohi naam ya aik doosre ka shuru; subjects darj na hon to haan. Sirf Morning par lagta hai. */
 function takesSubj(st, subject) {
   const t = keyOf(subject); if (!t || st.shift !== "Morning") return true;
@@ -99,6 +116,7 @@ function studentReport(db, st, today) {
     marks: {
       list: exams.slice(0, 25).map((e) => ({ date: e.date, exam: e.exam || "Test", subject: e.subject || "", obtained: e.absent ? null : +e.obtained, total: +e.total,
         pct: p(e), absent: !!e.absent, comment: e.comment || "", by: e.byName || "" })),
+      position: classPosition(db, st),           // v99
       average: avg(exams.filter((e) => !e.absent).slice(0, 10).map(p)), count: exams.filter((e) => !e.absent).length,
       bySubject: Object.entries(bySub).map(([k, l]) => ({ subject: k, avg: avg(l), n: l.length, last: l[0] })).sort((a, b) => a.subject.localeCompare(b.subject)),
     },
@@ -114,4 +132,4 @@ function studentReport(db, st, today) {
   };
 }
 
-module.exports = { studentReport, classesFor, homeworkOf, takesSubj };
+module.exports = { studentReport, classesFor, homeworkOf, takesSubj, classPosition };

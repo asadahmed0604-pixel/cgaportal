@@ -28,7 +28,7 @@ function childrenOf(db, key) {
     s.status !== "Left" && [s.fatherPhone, s.motherPhone, s.phone].some((p) => phoneKeys(p).includes(key)));
 }
 
-const { takesSubj } = require("./student-report");     // v97: Morning — na liya hua subject
+const { takesSubj, classPosition } = require("./student-report");     // v97: Morning — na liya hua subject
 const pad = (n) => String(n).padStart(2, "0");
 const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -128,6 +128,8 @@ function tests(db, s) {
     H(`📝 ${s.name} — Last ${last.length} tests`),
     LI(last.map((e) => `${fmtD(e.date)} · ${e.exam}${e.subject ? ` (${e.subject})` : ""}: ${e.absent ? "Absent" : `${+e.obtained}/${+e.total} = ${pc(e)}%`}${e.comment ? ` — "${e.comment}"` : ""}`)),
     P(avg === null ? "Absent in these tests." : `Average: ${avg}%${sat.length < last.length ? ` (absent in ${last.length - sat.length} — not counted)` : ""}`),
+    ...(() => { const ps = classPosition(db, s);                         // v99: class mein position
+      return ps ? [P(`🏅 Class position (${fmtM(ps.month)}): ${ps.rank} of ${ps.of} · ${ps.pct}% (class average ${ps.classAvg}%)`)] : []; })(),
   ];
 }
 
