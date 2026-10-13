@@ -346,6 +346,12 @@ WhatsApp), class result, Exams list, result CSV, student profile, parents' app c
 left out of the totals, percentage, average and class position ("absent in 1"); a student absent in every test shows
 **Absent** instead of a grade.
 
+## Grading scale (v96)
+
+All grades (report cards, class result, exam CSV, student profile, student portal, AI assignment check) use the Cambridge
+scale: **A\*** 90%+ · **A** 75–89 · **B** 66–74 · **C** 56–65 · **D** 50–55 · **E** 40–49 · **U** below 40 (percent rounded).
+A\*–E is **Pass**, U is **Fail** (pass mark 40%). The scale is printed at the bottom of every report card.
+
 ## Install as an app (v41)
 
 Staff (`/`), Teachers (`/teacher`) and Parents (`/parent`) — all three links can be installed as an app on a phone / computer

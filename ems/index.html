@@ -1384,7 +1384,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v95 · 13 Oct 2026";
+const BUILD = "v96 · 13 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -2992,7 +2992,7 @@ function openProfile(id){
     </table></div></div>
     <div class="tabpane" id="tpAtt"><div class="tbl-wrap"><table><thead><tr><th>Date</th><th>Status</th><th>Time</th><th>Shift</th></tr></thead><tbody>${attRows||`<tr><td colspan="4" class="empty">No attendance marked yet</td></tr>`}</tbody></table></div></div>
     <div class="tabpane fee-only" id="tpFee"><div style="margin-bottom:8px"><button class="btn-black btn-sm" onclick="openLedger('${s.id}')">📒 Fee ledger (installments & balance)</button></div><div class="tbl-wrap"><table><thead><tr><th>Challan #</th><th>Month</th><th>Amount</th><th>Status</th><th>Paid Date</th></tr></thead><tbody>${fees.length?fees.map(f=>`<tr><td>${f.chNo}</td><td>${fmtM(f.month)}</td><td>${money(f.amount)}</td><td>${isPartial(f) ? `<span class="badge b-freeze">Partial</span><br><span class="sub">${money(feeOutstanding(f))} due</span>` : `<span class="badge b-${f.status.toLowerCase()}">${f.status}</span>`}</td><td>${feePays(f).length > 1 || isPartial(f) ? feePays(f).map(p=>`${fmtD(p.date)} · ${money(p.amt)}${p.method ? " · " + esc(p.method) : ""}`).join("<br>") : fmtD(f.paidDate)}</td></tr>`).join(""):`<tr><td colspan="5" class="empty">No challans</td></tr>`}</tbody></table></div></div>
-    <div class="tabpane" id="tpExam"><div class="tbl-wrap"><table><thead><tr><th>Date</th><th>Exam</th><th>Subject / Topic</th><th>Obtained</th><th>Total</th><th>%</th><th>Result</th><th>Teacher Comment</th></tr></thead><tbody>${exams.length?exams.map(e=>{return `<tr><td>${fmtD(e.date)}</td><td>${esc(e.exam)}</td><td>${esc(e.subject||"—")}</td><td>${eObt(e)}</td><td>${e.total}</td><td>${ePctT(e)}</td><td><span class="badge ${e.absent ? "b-freeze" : eP(e)>=50?"b-paid":"b-unpaid"}">${eResult(e)}</span></td><td style="max-width:220px;font-size:.82rem">${esc(e.comment||"—")}</td></tr>`;}).join(""):`<tr><td colspan="8" class="empty">No exam records</td></tr>`}</tbody></table></div></div>
+    <div class="tabpane" id="tpExam"><div class="tbl-wrap"><table><thead><tr><th>Date</th><th>Exam</th><th>Subject / Topic</th><th>Obtained</th><th>Total</th><th>%</th><th>Result</th><th>Teacher Comment</th></tr></thead><tbody>${exams.length?exams.map(e=>{return `<tr><td>${fmtD(e.date)}</td><td>${esc(e.exam)}</td><td>${esc(e.subject||"—")}</td><td>${eObt(e)}</td><td>${e.total}</td><td>${ePctT(e)}</td><td><span class="badge ${e.absent ? "b-freeze" : eP(e)>=PASS_PCT?"b-paid":"b-unpaid"}">${eResult(e)}</span></td><td style="max-width:220px;font-size:.82rem">${esc(e.comment||"—")}</td></tr>`;}).join(""):`<tr><td colspan="8" class="empty">No exam records</td></tr>`}</tbody></table></div></div>
     <div class="tabpane" id="tpHw"><div class="tbl-wrap"><table><thead><tr><th>Date Given</th><th>Title</th><th>Due Date</th><th>Detail</th><th>Status</th></tr></thead><tbody>${hwRows||`<tr><td colspan="5" class="empty">No homework for this course/shift</td></tr>`}</tbody></table></div></div>
   `, true);
 }
@@ -3281,12 +3281,13 @@ async function reportCardPDF(d){
     const h = e.comment ? 26 : 18;
     if(i % 2) doc.rect(x0, y, W, h, {fill:"#F6FAFB"});
     const vals = [String(i+1), fmtD(e.date), e.subject || e.exam, String(e.total), String(eObt(e)), ePctT(e), eGrade(e), eResult(e)];
-    cx = x0; vals.forEach((v,j)=>{ doc.text(v, cx + 5, y + 12, {size:8.5, bold:j===2||j===4, color: j===7 ? (e.absent ? PC.muted : eP(e)>=50 ? PC.green : PC.red) : PC.ink, maxW:cols[j][1] - 8}); cx += cols[j][1]; });
+    cx = x0; vals.forEach((v,j)=>{ doc.text(v, cx + 5, y + 12, {size:8.5, bold:j===2||j===4, color: j===7 ? (e.absent ? PC.muted : eP(e)>=PASS_PCT ? PC.green : PC.red) : PC.ink, maxW:cols[j][1] - 8}); cx += cols[j][1]; });
     if(e.comment) doc.text(`"${e.comment}"`, x0 + 22 + 62 + 5, y + 22, {size:7, color:PC.muted, maxW:cols[2][1] - 8});
     y += h; doc.line(x0, y, x0 + W, y, {color:PC.line, lw:.5});
   });
   if(!rows.length){ doc.text("No tests recorded in this period", x0 + W/2, y + 16, {size:9, color:PC.muted, align:"center"}); y += 26; }
   if(rows.length){ doc.rect(x0, y, W, 20, {fill:PC.head}); doc.text(d.pct === null ? `Overall: absent in all ${d.ex.length} tests` : `Overall (${d.sat} tests${d.abs ? `, absent in ${d.abs}` : ""}): ${d.obt} / ${d.tot} = ${d.pct}%  ·  Grade ${gradeOf(d.pct)}${d.classAvg ? `  ·  Class avg ${d.classAvg}%` : ""}`, x0 + 10, y + 13.5, {size:9, bold:true, color:PC.ink, maxW:W - 20}); y += 30; }
+  doc.text(GRADE_KEY.replace(/–/g, "-"), x0, y - 4, {size:7, color:PC.muted, maxW:W}); y += 8;
   if(d.remarks && d.remarks.length){ doc.text("Teacher remarks: " + d.remarks.map(r=>r.note).join(" · "), x0, y + 6, {size:8.5, color:PC.ink, maxW:W}); }
   const fy = PDF_H - 50;
   [["Issued: " + fmtD(todayStr()), x0], ["Class Teacher", x0 + W/2 - 60], ["Principal / Admin", x0 + W - 120]].forEach(([t, x])=>{ doc.line(x, fy, x + 120, fy, {color:"#999999", lw:.6}); doc.text(t, x + 60, fy + 12, {size:8, color:PC.muted, align:"center"}); });
@@ -6040,7 +6041,7 @@ function renderExams(){
       <td>${esc(e.exam)}</td>
       <td>${esc(e.subject||"—")}</td>
       <td><b>${eObt(e)}</b></td><td>${e.total}</td><td><b>${ePctT(e)}</b></td>
-      <td><span class="badge ${e.absent ? "b-freeze" : eP(e)>=50?"b-paid":"b-unpaid"}">${eResult(e)}</span></td>
+      <td><span class="badge ${e.absent ? "b-freeze" : eP(e)>=PASS_PCT?"b-paid":"b-unpaid"}">${eResult(e)}</span></td>
       <td style="max-width:200px;font-size:.82rem">${esc(e.comment||"—")}</td>
       <td style="white-space:nowrap">
         <button class="btn-line btn-sm" onclick="openExamForm('${e.id}')">Edit</button>
@@ -7693,7 +7694,7 @@ async function asgScript(id){
     ${s.status === "checking" || s.status === "submitted" ? `<div class="note" style="margin-top:10px">AI is checking this right now — refresh in a minute.</div>` : ""}
     ${s.checkError ? `<div class="note" style="margin-top:10px">${esc(s.checkError)} Enter the marks yourself below.</div>` : ""}
     ${(r.needs_teacher_review||[]).length ? `<div class="note" style="margin-top:10px;border-left-color:#E0A800;background:#FFF6E0"><b>AI asks you to double-check:</b><br>${r.needs_teacher_review.map(esc).join("<br>")}</div>` : ""}
-    <div class="asg-cover"><div class="asg-tot"><b id="as_tot">${r.total_awarded}</b>/ ${a.total}</div><div><b>${pct}%</b> · indicative grade <b>${pct>=90?"A*":pct>=80?"A":pct>=70?"B":pct>=60?"C":pct>=50?"D":pct>=40?"E":"U"}</b></div></div>
+    <div class="asg-cover"><div class="asg-tot"><b id="as_tot">${r.total_awarded}</b>/ ${a.total}</div><div><b>${pct}%</b> · indicative grade <b>${gradeOf(pct)}</b></div></div>
     ${a.questions.map(q=>{ const m = byNum.get(String(q.number)) || {awarded:0, points_credited:[], examiner_comment:"", marks_annotation:"", student_answer:""};
       const typed = (s.answers||{})[q.number] || "";
       return `<div class="asg-sq" data-n="${esc(q.number)}"><div class="b"><b>${esc(q.number)}</b> <span style="white-space:pre-wrap">${esc(q.text)}</span>
@@ -7842,14 +7843,17 @@ function caOpen(id){
 }
 
 /* ---------- Grades ---------- */
-function gradeOf(p){ return p>=80?"A+":p>=70?"A":p>=60?"B":p>=50?"C":"F"; }
+/* v96: Cambridge grading — 90+ A*, 75–89 A, 66–74 B, 56–65 C, 50–55 D, 40–49 E, 40 se kam U. A*–E pass, U fail. */
+const PASS_PCT = 40;
+const GRADE_KEY = "Grading: A* 90%+ · A 75–89 · B 66–74 · C 56–65 · D 50–55 · E 40–49 · U below 40";
+function gradeOf(p){ p = Math.round(+p || 0); return p>=90?"A*":p>=75?"A":p>=66?"B":p>=56?"C":p>=50?"D":p>=40?"E":"U"; }
 /* v95: absent bacha — grade / % / Pass-Fail nahi, sirf "Absent"; total aur percentage mein woh paper gina hi nahi jata */
 const eP = e => e.absent ? null : (+e.total ? Math.round((+e.obtained||0)*100/+e.total) : 0);
 const eObt = e => e.absent ? "Absent" : e.obtained;
 const ePctT = e => e.absent ? "—" : eP(e) + "%";
 const eGrade = e => e.absent ? "Absent" : gradeOf(eP(e));
-const eResult = e => e.absent ? "Absent" : eP(e) >= 50 ? "Pass" : "Fail";
-const eColor = e => e.absent ? "#6B7C85" : eP(e) >= 50 ? "#0F7B3D" : "#C0392B";
+const eResult = e => e.absent ? "Absent" : eP(e) >= PASS_PCT ? "Pass" : "Fail";
+const eColor = e => e.absent ? "#6B7C85" : eP(e) >= PASS_PCT ? "#0F7B3D" : "#C0392B";
 /* sirf jin papers mein bacha baitha — total, %, grade */
 function exSum(ex){
   const sat = ex.filter(e=>!e.absent), obt = sat.reduce((a,e)=>a + (+e.obtained||0), 0), tot = sat.reduce((a,e)=>a + (+e.total||0), 0);
@@ -7892,7 +7896,7 @@ function classResultTable(rows){
         <td><b>${r.pos}</b></td><td>${esc(r.s.regNo)}</td><td><b>${esc(r.s.name)}</b></td>
         <td>${r.n}${r.abs ? ` <span class="sub">(+${r.abs} absent)</span>` : ""}</td><td><b>${r.obt}</b></td><td>${r.tot}</td><td><b>${r.pct}%</b></td>
         <td><b>${gradeOf(r.pct)}</b></td>
-        <td><span class="badge ${r.pct>=50?"b-paid":"b-unpaid"}">${r.pct>=50?"Pass":"Fail"}</span></td>
+        <td><span class="badge ${r.pct>=PASS_PCT?"b-paid":"b-unpaid"}">${r.pct>=PASS_PCT?"Pass":"Fail"}</span></td>
       </tr>`).join("") : `<tr><td colspan="9" class="empty">No students in this class/shift</td></tr>`}</tbody>
   </table></div>`;
 }
@@ -7921,7 +7925,7 @@ function printClassResult(){
           <td style="border:1px solid #999;padding:5px 7px;text-align:center">${r.tot}</td>
           <td style="border:1px solid #999;padding:5px 7px;text-align:center"><b>${r.pct}%</b></td>
           <td style="border:1px solid #999;padding:5px 7px;text-align:center"><b>${gradeOf(r.pct)}</b></td>
-          <td style="border:1px solid #999;padding:5px 7px;text-align:center;${r.pct>=50?"color:#0f7b3d":"color:#C0392B"};font-weight:700">${r.pct>=50?"Pass":"Fail"}</td>`}
+          <td style="border:1px solid #999;padding:5px 7px;text-align:center;${r.pct>=PASS_PCT?"color:#0f7b3d":"color:#C0392B"};font-weight:700">${r.pct>=PASS_PCT?"Pass":"Fail"}</td>`}
         </tr>`).join("")}</tbody>
       </table>
       <div style="display:flex;justify-content:space-between;margin-top:34px;font-size:.78rem;color:#444">
@@ -8007,16 +8011,17 @@ function transcriptHTML(d, forPrint){
       <div><small>Tests</small><b>${ex.length}</b>${d.abs ? `<span style="display:block;font-size:.66rem;color:#6B7C85">absent in ${d.abs}</span>` : ""}</div>
       <div><small>Marks</small><b>${pct !== null ? `${obt} / ${tot}` : "—"}</b></div>
       <div><small>Percentage · Grade</small><b>${pct !== null ? pct+"% · "+gradeOf(pct) : ex.length ? "Absent" : "—"}</b></div>
-      <div><small>${d.rank ? "Class position" : "Result"}</small><b>${d.rank ? `${d.rank} / ${d.rankOf}` : pct !== null ? (pct>=50 ? "PASS" : "FAIL") : ex.length ? "ABSENT" : "—"}</b>${d.rank ? `<span style="display:block;font-size:.66rem;color:#6B7C85">Class avg ${d.classAvg}%</span>` : ""}</div>
+      <div><small>${d.rank ? "Class position" : "Result"}</small><b>${d.rank ? `${d.rank} / ${d.rankOf}` : pct !== null ? (pct>=PASS_PCT ? "PASS" : "FAIL") : ex.length ? "ABSENT" : "—"}</b>${d.rank ? `<span style="display:block;font-size:.66rem;color:#6B7C85">Class avg ${d.classAvg}%</span>` : ""}</div>
     </div>
     <table class="rc-tbl">
       <thead><tr>${["#","Date","Subject / Test","Total","Obtained","%","Grade","Result"].map(h=>`<th>${h}</th>`).join("")}</tr></thead>
       <tbody>${ex.length ? rows : `<tr><td colspan="8" style="padding:14px;color:#777">No exam records in this period</td></tr>`}</tbody>
       ${ex.length ? (pct !== null ? `<tfoot><tr><td colspan="3" style="text-align:right">Overall (${d.sat} tests${d.abs ? `, absent in ${d.abs}` : ""})</td><td>${tot}</td><td>${obt}</td><td>${pct}%</td><td>${gradeOf(pct)}</td>
-        <td style="color:${pct>=50?"#0F7B3D":"#C0392B"}">${pct>=50?"PASS":"FAIL"}</td></tr></tfoot>`
+        <td style="color:${pct>=PASS_PCT?"#0F7B3D":"#C0392B"}">${pct>=PASS_PCT?"PASS":"FAIL"}</td></tr></tfoot>`
         : `<tfoot><tr><td colspan="8" style="text-align:center">Absent in all tests</td></tr></tfoot>`) : ""}
     </table>
     ${d.remarks && d.remarks.length ? `<div class="rc-rem"><b>Teacher remarks:</b> ${d.remarks.map(r=>esc(r.note)).join(" · ")}</div>` : ""}
+    <div style="font-size:.68rem;color:#6B7C85;margin-top:6px">${GRADE_KEY}</div>
     <div class="rc-sign"><span>Issued: ${fmtD(todayStr())}</span><span>Class Teacher</span><span>Principal / Admin</span></div>
   </div>`;
 }
