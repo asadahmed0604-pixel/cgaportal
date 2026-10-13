@@ -134,6 +134,13 @@ button{cursor:pointer}
 .sheet .msg{margin-top:10px;font-size:.88rem;color:var(--danger)}
 .past{margin-top:16px;border-top:1px solid var(--line);padding-top:10px;font-size:.86rem}
 .past div{display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px dashed var(--line)}
+/* v92: PTM */
+.ptm{border:1.5px solid var(--line);border-radius:14px;padding:12px;margin-bottom:12px}
+.ptm h4{font-size:1rem;margin:0}.ptm .when{color:var(--muted);font-size:.86rem;margin:2px 0 6px}
+.ptm .nt{background:#F7FBFA;border-radius:10px;padding:8px 10px;font-size:.88rem;margin:6px 0}
+.stars{display:flex;gap:4px;margin:6px 0}.stars button{border:none;background:none;font-size:1.7rem;line-height:1;color:#D3DEDE;padding:0 2px}.stars button.on{color:#E0A526}
+.ptm textarea{width:100%;min-height:80px;padding:10px 12px;border:1.5px solid #D3DEDE;border-radius:12px;background:#FAFCFC;font:inherit;font-size:1rem}
+.ptm .done{color:var(--green-dark);font-weight:700;font-size:.86rem;margin-top:6px}
 .st-p{color:#8a6100;font-weight:700}.st-a{color:var(--green-dark);font-weight:700}.st-r{color:var(--danger);font-weight:700}
 </style>
 </head>
@@ -197,6 +204,16 @@ button{cursor:pointer}
     <div class="msg" id="rcMsg"></div>
     <button type="button" class="go" id="rcGo">Send receipt</button>
     <div class="past" id="rcPast"></div>
+  </div>
+</div>
+
+<div class="sheetBg" id="ptmBg">
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="ptmTitle">
+    <div class="handle"></div>
+    <button type="button" class="x" id="ptmClose" aria-label="Close">✕</button>
+    <h3 id="ptmTitle">🤝 Parent-Teacher Meeting</h3>
+    <p class="sub">Date, time and your feedback for the school. Only the school administration reads your feedback.</p>
+    <div id="ptmList"></div>
   </div>
 </div>
 
@@ -285,6 +302,7 @@ function pick(m){
 function drawQuick(){
   const box = $("quick"); box.innerHTML = "";
   ME.menu.forEach(m=>{ const b = el("button", m.id === "receipt" ? "hl" : "", m.label); b.type = "button"; b.onclick = ()=>pick(m); box.appendChild(b); });
+  if(ME.ptm && ME.ptm.count){ const b = el("button", "hl", "🤝 PTM"); b.type = "button"; b.onclick = openPtm; box.insertBefore(b, box.firstChild); }
 }
 function setMode(m){
   MODE = m;
@@ -377,6 +395,44 @@ async function openReceipt(){
     }
   }catch(err){ if(err.message !== "login") $("rcFees").innerHTML = ""; }
 }
+/* ---------- v92: PTM — din / waqt + parent ka feedback (admin ke liye) ---------- */
+const escH = (x) => String(x ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const fmtT = (t) => { const x = /^(\d{1,2}):(\d{2})$/.exec(String(t || "")); if(!x) return ""; const h = +x[1]; return `${((h + 11) % 12) + 1}:${x[2]} ${h < 12 ? "AM" : "PM"}`; };
+let PTMS = [];
+async function openPtm(){
+  $("ptmBg").classList.add("show"); $("ptmList").innerHTML = `<p class="sub">Loading…</p>`;
+  try{ PTMS = await api("/parent/api/ptm"); }catch(err){ $("ptmList").innerHTML = `<p class="msg">${escH(err.message)}</p>`; return; }
+  drawPtm();
+}
+function drawPtm(){
+  const L = PTMS.filter(x=>!KID || x.studentId === KID.id || ME.children.length > 1);
+  if(!L.length){ $("ptmList").innerHTML = `<p class="sub">No PTM scheduled right now.</p>`; return; }
+  $("ptmList").innerHTML = L.map((x, i)=>{ const f = x.feedback || {}, r = f.rating || 0;
+    return `<div class="ptm" data-i="${i}"><h4>${escH(x.title)}${ME.children.length > 1 ? ` · ${escH(x.studentName)}` : ""}</h4>
+      <div class="when">📅 ${fmtD(x.date)}${x.from ? ` · 🕘 ${fmtT(x.from)}${x.to ? "–" + fmtT(x.to) : ""}` : ""}${x.date === today() ? " · <b>Today</b>" : ""}</div>
+      ${x.note ? `<div class="nt">${escH(x.note)}</div>` : ""}
+      ${x.open ? `<label class="l">Your feedback about ${escH(x.studentName)}'s studies / the school</label>
+        <div class="stars">${[1,2,3,4,5].map(n=>`<button type="button" data-r="${n}" class="${n <= r ? "on" : ""}" aria-label="${n} star">★</button>`).join("")}</div>
+        <textarea placeholder="Write your feedback, suggestions or concerns…" maxlength="1500">${escH(f.text || "")}</textarea>
+        <button type="button" class="go">${f.at ? "Update feedback" : "Send feedback"}</button>
+        <div class="msg"></div>${f.at ? `<div class="done">✓ Sent ${fmtD(f.at)}</div>` : ""}`
+      : f.at ? `<div class="done">✓ Your feedback: ${"★".repeat(r)}${escH(f.text ? " — " + f.text : "")}</div>` : `<p class="sub">Feedback for this PTM is closed.</p>`}</div>`; }).join("");
+  $("ptmList").querySelectorAll(".ptm").forEach(box=>{
+    const x = L[+box.dataset.i]; let rating = (x.feedback || {}).rating || 0;
+    box.querySelectorAll("[data-r]").forEach(b=>b.onclick = ()=>{ rating = +b.dataset.r; box.querySelectorAll("[data-r]").forEach(y=>y.classList.toggle("on", +y.dataset.r <= rating)); });
+    const go = box.querySelector(".go"); if(!go) return;
+    go.onclick = async ()=>{
+      const text = box.querySelector("textarea").value.trim(), m = box.querySelector(".msg");
+      if(text.length < 3 && !rating){ m.textContent = "Write your feedback or choose stars."; return; }
+      go.disabled = true; m.textContent = "";
+      try{ await api("/parent/api/ptm-feedback", {ptmId:x.id, studentId:x.studentId, text, rating}); x.feedback = {text, rating, at:new Date().toISOString()}; drawPtm(); }
+      catch(err){ m.textContent = err.message; go.disabled = false; }
+    };
+  });
+}
+$("ptmClose").onclick = ()=> $("ptmBg").classList.remove("show");
+$("ptmBg").addEventListener("click", e=>{ if(e.target === $("ptmBg")) $("ptmBg").classList.remove("show"); });
+
 function closeReceipt(){ $("sheetBg").classList.remove("show"); }
 $("rcClose").onclick = closeReceipt;
 $("sheetBg").addEventListener("click", e=>{ if(e.target === $("sheetBg")) closeReceipt(); });
@@ -436,7 +492,8 @@ async function start(){
   $("msgs").appendChild(el("div", "day", "Today"));
   bot([{t:"h", text:"Welcome! 👋"},
        {t:"p", text: ME.children.length > 1 ? `Your ${ME.children.length} children: ${ME.children.map(k=>k.name).join(", ")}. Choose a child above.` : `What would you like to see about ${KID.name} (${KID.course}, ${KID.shift})?`},
-       ...(ME.replies ? [{t:"p", text:`The school has replied to ${ME.replies} of your message${ME.replies>1?"s":""} — tap "Teacher Remarks".`}] : [])], "", tiles());
+       ...(ME.replies ? [{t:"p", text:`The school has replied to ${ME.replies} of your message${ME.replies>1?"s":""} — tap "Teacher Remarks".`}] : []),
+       ...(ME.ptm && ME.ptm.next ? [{t:"p", text:`🤝 Parent-Teacher Meeting on ${fmtD(ME.ptm.next.date)}${ME.ptm.next.from ? " at " + fmtT(ME.ptm.next.from) : ""} — tap "🤝 PTM" below for details and to send your feedback.`}] : [])], "", tiles());
 }
 start().catch(()=> showLogin());
 </script>
