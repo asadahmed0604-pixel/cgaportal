@@ -339,6 +339,13 @@ student list and counts, homework receival, PTM attendance / remarks, assignment
 subjects are not entered yet still shows (so nobody is hidden by mistake). FT1, FT2, AS and A2 stay whole-class. The
 teacher's subject comes from Employees → Assign (or the subject's teacher on the student profile).
 
+## Absent is not Fail (v95)
+
+A student marked **Absent** in a test gets no %, grade or Pass/Fail — just **Absent** — on report cards (screen, print, PDF,
+WhatsApp), class result, Exams list, result CSV, student profile, parents' app chat and the student portal. Absent papers are
+left out of the totals, percentage, average and class position ("absent in 1"); a student absent in every test shows
+**Absent** instead of a grade.
+
 ## Install as an app (v41)
 
 Staff (`/`), Teachers (`/teacher`) and Parents (`/parent`) — all three links can be installed as an app on a phone / computer
