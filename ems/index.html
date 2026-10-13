@@ -1384,7 +1384,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v100 · 13 Oct 2026";
+const BUILD = "v101 · 13 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -3529,16 +3529,17 @@ function openHwRcv(id){
   HW_RCV = {id, done:{...(h.done||{})}, subs:{}};
   openModal(`
     <h3>✓ Homework receival — ${esc(h.title)}</h3>
-    <p class="sub" style="margin-bottom:10px">${esc(h.course)} · ${h.shift}${h.subject?" · "+esc(h.subject):""} · given ${fmtD(h.dateGiven)}${h.dueDate?` · due <b>${fmtD(h.dueDate)}</b>`:""}. Tick the students who handed it in — the date is saved (after the due date = late). Work sent from the student / parents' app shows under <b>Sent work</b> — check it and tick to confirm; the app then shows <b>✓ Checked</b>.</p>
+    <p class="sub" style="margin-bottom:10px">${esc(h.course)} · ${h.shift}${h.subject?" · "+esc(h.subject):""} · given ${fmtD(h.dateGiven)}${h.dueDate?` · due <b>${fmtD(h.dueDate)}</b>`:""}. Tick the students who handed it in — the date is saved (after the due date = late). Handed in on paper earlier and not ticked in time? Pick the real day under <b>Submitted on</b>. Work sent from the student / parents' app shows under <b>Sent work</b> — check it and tick to confirm; the app then shows <b>✓ Checked</b>.</p>
     <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:10px">
       <div class="field" style="margin:0"><label>Received on</label><input type="date" id="hr_date" value="${todayStr()}"></div>
       <button class="btn-line btn-sm" onclick="hwRcvAll(true)">✓ All submitted</button><button class="btn-line btn-sm" onclick="hwRcvAll(false)">Clear all</button>
       <button class="btn-black btn-sm" id="hr_sentAll" style="display:none" onclick="hwRcvSent()">✓ Confirm all who sent work</button>
       <span class="sub" id="hr_sum" style="margin-left:auto"></span></div>
-    <div class="tbl-wrap" style="max-height:52vh;overflow:auto"><table><thead><tr><th>Student</th><th>Status</th><th>Sent work</th><th style="text-align:center">Submitted</th></tr></thead>
+    <div class="tbl-wrap" style="max-height:52vh;overflow:auto"><table class="ptm-tbl"><thead><tr><th>Student</th><th>Status</th><th>Sent work</th><th style="text-align:center">Submitted</th><th>Submitted on</th></tr></thead>
       <tbody>${L.length ? L.map(st=>`<tr><td><b>${esc(st.name)}</b><br><span class="sub">${esc(st.regNo||"")}</span></td><td id="hr_s_${st.id}"></td><td id="hr_f_${st.id}" class="sub">${SERVER ? "…" : "—"}</td>
-        <td style="text-align:center"><input type="checkbox" id="hr_${st.id}" style="width:22px;height:22px" ${HW_RCV.done[st.id]?"checked":""} onchange="hwRcvSet('${st.id}',this.checked)"></td></tr>`).join("")
-        : `<tr><td colspan="4" class="empty">No students in this class${h.subject?" / subject":""}</td></tr>`}</tbody></table></div>
+        <td style="text-align:center"><input type="checkbox" id="hr_${st.id}" style="width:22px;height:22px" ${HW_RCV.done[st.id]?"checked":""} onchange="hwRcvSet('${st.id}',this.checked)"></td>
+        <td><input type="date" id="hrd_${st.id}" style="min-width:140px" min="${esc(h.dateGiven||"")}" max="${todayStr()}" onchange="hwRcvDate('${st.id}',this.value)" title="Day the student actually handed it in"></td></tr>`).join("")
+        : `<tr><td colspan="5" class="empty">No students in this class${h.subject?" / subject":""}</td></tr>`}</tbody></table></div>
     <div class="modal-foot">
       <button class="btn-line" onclick="closeModal()">Cancel</button>
       <button class="btn-red" onclick="saveHwRcv()">Save receival</button>
@@ -3567,10 +3568,18 @@ function hwRcvSet(sid, on){ if(!HW_RCV) return;
   const x = HW_RCV.subs && HW_RCV.subs[sid];
   if(on) HW_RCV.done[sid] = (x && String(x.at||"").slice(0,10)) || $("hr_date").value || todayStr(); else delete HW_RCV.done[sid]; hwRcvDraw(); if(HW_RCV.subs) hwRcvFiles(); }
 function hwRcvAll(on){ const h = DB.homework.find(x=>x.id===HW_RCV.id); hwStudents(h).forEach(st=>{ if(on){ if(!HW_RCV.done[st.id]) HW_RCV.done[st.id] = $("hr_date").value || todayStr(); } else delete HW_RCV.done[st.id]; const cb = $("hr_"+st.id); if(cb) cb.checked = on; }); hwRcvDraw(); }
+/* v101: bache ne kaam jis din asal mein diya (teacher ne baad mein tick kiya) — wohi tareekh; late ka hisaab isi se */
+function hwRcvDate(sid, v){
+  if(!HW_RCV) return;
+  if(v){ if(v > todayStr()){ toast("Date cannot be in the future"); v = todayStr(); } HW_RCV.done[sid] = v; const cb = $("hr_"+sid); if(cb) cb.checked = true; }
+  else { delete HW_RCV.done[sid]; const cb = $("hr_"+sid); if(cb) cb.checked = false; }
+  hwRcvDraw(); if(HW_RCV.subs) hwRcvFiles();
+}
 function hwRcvDraw(){
   const h = DB.homework.find(x=>x.id===HW_RCV.id), L = hwStudents(h), tmp = {...h, done:HW_RCV.done};
   const lab = {ok:`<span class="badge b-paid">Submitted</span>`, late:`<span class="badge b-freeze">Late</span>`, miss:`<span class="badge b-left">Not submitted</span>`, pending:`<span class="badge b-unpaid">Pending</span>`};
-  L.forEach(st=>{ const c = $("hr_s_"+st.id); if(c){ const d = HW_RCV.done[st.id]; c.innerHTML = lab[hwState(tmp, st.id)] + (typeof d === "string" ? ` <span class="sub">${fmtD(d)}</span>` : ""); } });
+  L.forEach(st=>{ const c = $("hr_s_"+st.id), d = HW_RCV.done[st.id]; if(c){ c.innerHTML = lab[hwState(tmp, st.id)] + (typeof d === "string" ? ` <span class="sub">${fmtD(d)}</span>` : ""); }
+    const di = $("hrd_"+st.id); if(di) di.value = typeof d === "string" ? d : ""; });
   const n = L.filter(st=>HW_RCV.done[st.id]).length; $("hr_sum").textContent = `${n} / ${L.length} submitted`;
 }
 function saveHwRcv(){

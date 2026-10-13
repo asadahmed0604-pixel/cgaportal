@@ -386,6 +386,12 @@ Class position (parents' app, chat, report cards — screen, PDF, WhatsApp, bulk
 A part with no data that month is skipped and its weight shared among the rest. Only students with marks that month are
 ranked; equal scores share a position. Weights: `POS_W` in `ems/index.html` and `ems/student-report.js` (keep both the same).
 
+## Homework receival — pick the real submission day (v101)
+
+Homework → ✓ Receival has a **Submitted on** date for every student. If a student handed the homework in on paper on time
+but the teacher ticks it later, pick the real day — the student counts as on time (not late) in reports, the parents' app
+and the class position. Picking a date also ticks the student; clearing it unticks. On phones each student is a card.
+
 ## Install as an app (v41)
 
 Staff (`/`), Teachers (`/teacher`) and Parents (`/parent`) — all three links can be installed as an app on a phone / computer
