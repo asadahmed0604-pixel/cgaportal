@@ -1384,7 +1384,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v99 · 13 Oct 2026";
+const BUILD = "v100 · 13 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -3255,7 +3255,7 @@ function waReportCards(){
   const cards = bulkRcList(), m = $("brc_month").value, A = DB.settings.name || "Cambridge Grads Academy";
   waSender(`📲 Report cards — ${fmtM(m)} (${cards.length})`, cards.map(d=>({id:d.s.id, who:d.s.name, sub:`${classLabelOf(d.s)} · ${d.pct !== null ? d.pct + "%" : d.ex.length ? "absent" : "no tests"}`, phone:parentPhone(d.s),
     text:`Dear Parent,\n${A} — Report card ${fmtM(m)}\nStudent: ${d.s.name} (${classLabelOf(d.s)})\n` +
-      (d.ex.length ? d.ex.map(e=>`• ${e.subject || e.exam}: ${e.absent ? "Absent" : `${e.obtained}/${e.total}`}`).join("\n") + (d.pct !== null ? `\nTotal: ${d.obt}/${d.tot} = ${d.pct}% (${gradeOf(d.pct)})${d.abs ? ` · absent in ${d.abs}` : ""}${d.rank ? `\nClass position: ${d.rank}/${d.rankOf}` : ""}` : `\nAbsent in all tests`) : "No tests recorded this month") +
+      (d.ex.length ? d.ex.map(e=>`• ${e.subject || e.exam}: ${e.absent ? "Absent" : `${e.obtained}/${e.total}`}`).join("\n") + (d.pct !== null ? `\nTotal: ${d.obt}/${d.tot} = ${d.pct}% (${gradeOf(d.pct)})${d.abs ? ` · absent in ${d.abs}` : ""}${d.rank ? `\nClass position: ${d.rank}/${d.rankOf}${d.pos ? ` (${posText(d.pos)})` : ""}` : ""}` : `\nAbsent in all tests`) : "No tests recorded this month") +
       `\nAttendance: ${d.att.pct}% (P ${d.att.P} · A ${d.att.A})${d.remarks && d.remarks.length ? `\nTeacher remarks: ${d.remarks.map(r=>r.note).join("; ")}` : ""}\nThe full report card PDF is attached.`,
     pdf: async()=>({name:`${fileSafe(d.s.name)} - Report Card ${fmtM(m)}.pdf`, bytes: await reportCardPDF(d)})})), "report-cards");
 }
@@ -3288,6 +3288,8 @@ async function reportCardPDF(d){
   });
   if(!rows.length){ doc.text("No tests recorded in this period", x0 + W/2, y + 16, {size:9, color:PC.muted, align:"center"}); y += 26; }
   if(rows.length){ doc.rect(x0, y, W, 20, {fill:PC.head}); doc.text(d.pct === null ? `Overall: absent in all ${d.ex.length} tests` : `Overall (${d.sat} tests${d.abs ? `, absent in ${d.abs}` : ""}): ${d.obt} / ${d.tot} = ${d.pct}%  ·  Grade ${gradeOf(d.pct)}${d.classAvg ? `  ·  Class avg ${d.classAvg}%` : ""}`, x0 + 10, y + 13.5, {size:9, bold:true, color:PC.ink, maxW:W - 20}); y += 30; }
+  if(d.rank && d.pos){ doc.text(`Class position ${d.rank} / ${d.rankOf}: ${posText(d.pos)}`.replace(/→/g, "=").replace(/–/g, "-"), x0, y - 4, {size:7.5, bold:true, color:PC.ink, maxW:W}); y += 10;
+    doc.text(POS_LABEL, x0, y - 4, {size:7, color:PC.muted, maxW:W}); y += 10; }
   doc.text(GRADE_KEY.replace(/–/g, "-"), x0, y - 4, {size:7, color:PC.muted, maxW:W}); y += 8;
   if(d.remarks && d.remarks.length){ doc.text("Teacher remarks: " + d.remarks.map(r=>r.note).join(" · "), x0, y + 6, {size:8.5, color:PC.ink, maxW:W}); }
   const fy = PDF_H - 50;
@@ -8028,6 +8030,7 @@ function transcriptHTML(d, forPrint){
         : `<tfoot><tr><td colspan="8" style="text-align:center">Absent in all tests</td></tr></tfoot>`) : ""}
     </table>
     ${d.remarks && d.remarks.length ? `<div class="rc-rem"><b>Teacher remarks:</b> ${d.remarks.map(r=>esc(r.note)).join(" · ")}</div>` : ""}
+    ${d.rank && d.pos ? `<div style="font-size:.7rem;color:#3b5560;margin-top:6px"><b>Class position ${d.rank} / ${d.rankOf}</b> — ${esc(posText(d.pos))}<br>${POS_LABEL}</div>` : ""}
     <div style="font-size:.68rem;color:#6B7C85;margin-top:6px">${GRADE_KEY}</div>
     <div class="rc-sign"><span>Issued: ${fmtD(todayStr())}</span><span>Class Teacher</span><span>Principal / Admin</span></div>
   </div>`;
@@ -8053,6 +8056,29 @@ function reportCardFor(sid, from, to){
   const remarks = (s.remarks||[]).filter(r=>r.parentVisible!==false && (!from || String(r.d).slice(0,7) >= from) && (!to || String(r.d).slice(0,7) <= to));
   return {s, ex, obt:x.obt, tot:x.tot, pct:x.pct, sat:x.sat, abs:x.abs, att: attInRange(sid, from, to), from, to, remarks};
 }
+/* v100: class position — 4 cheezon ka score (student-report.js ka posParts bilkul yehi): marks 60 · homework waqt par 15
+   · behaviour & discipline 10 · attendance & punctuality 15. Jo na ho us ka weight baqi mein bant jata hai. */
+const POS_W = {marks:60, hw:15, beh:10, att:15};
+const POS_LABEL = "Position based on: test & exam marks 60% · timely homework 15% · behaviour & discipline 10% · attendance & punctuality 15%";
+function posParts(st, m, marks){
+  if(marks === null || marks === undefined) return null;
+  const t0 = todayStr();
+  let hs = 0, hn = 0;
+  (DB.homework||[]).forEach(h=>{ if(h.shift !== st.shift || !inClass(st, h.course)) return;
+    if(h.subject && (st.subjects||[]).length && !(st.subjects||[]).some(x=>subjLike(x.name, h.subject))) return;
+    const due = h.dueDate || h.dateGiven || ""; if(!String(due).startsWith(m)) return;
+    const d = (h.done||{})[st.id];
+    if(d){ hn++; hs += typeof d === "string" && h.dueDate && d > h.dueDate ? 50 : 100; } else if(due < t0) hn++; });
+  const att = DB.attendance || {}; let P = 0, La = 0, A = 0;
+  Object.keys(att).forEach(d=>{ if(!d.startsWith(m)) return; const r = att[d] && att[d][st.id]; if(!r) return; if(r.s==="P") P++; else if(r.s==="L") La++; else if(r.s==="A") A++; });
+  let beh = 100;
+  (st.remarks||[]).forEach(r=>{ if(!String(r.d||"").startsWith(m)) return; beh += r.type==="Behaviour" ? -15 : r.type==="Issue" ? -10 : r.type==="Appreciation" ? 5 : 0; });
+  (DB.classAtt||[]).forEach(c=>{ if(!String(c.date).startsWith(m) || !c.marks || c.marks[st.id] !== "A") return; const g = att[c.date] && att[c.date][st.id]; if(g && (g.s==="P" || g.s==="L")) beh -= 10; });
+  const parts = {marks, hw: hn ? Math.round(hs/hn) : null, beh: Math.max(0, Math.min(100, beh)), att: P+La+A ? Math.round((P + La*0.5)*100/(P+La+A)) : null};
+  let w = 0, sum = 0; Object.entries(POS_W).forEach(([k,v])=>{ if(parts[k] !== null){ w += v; sum += v*parts[k]; } });
+  return {...parts, score: Math.round(sum/w*10)/10};
+}
+const posText = x => x ? `marks ${x.marks}%${x.hw !== null ? ` · homework ${x.hw}%` : ""} · behaviour ${x.beh}${x.att !== null ? ` · attendance ${x.att}%` : ""} → score ${x.score}` : "";
 function bulkRcList(){
   const m = $("brc_month").value, sh = $("brc_shift").value, cl = window._brcClass || "", onlyEx = $("brc_onlyex").checked;
   const RM = rosterMonths();
@@ -8060,11 +8086,11 @@ function bulkRcList(){
   const cards = stus.map(st=>reportCardFor(st.id, m, m)).filter(d=>!onlyEx || d.ex.length);
   /* position aur average — class + shift ke andar, sirf jin ke tests hain */
   const groups = {};
-  cards.forEach(d=>{ if(d.pct !== null) (groups[d.s.shift+"|"+d.s.course] = groups[d.s.shift+"|"+d.s.course] || []).push(d); });
+  cards.forEach(d=>{ d.pos = posParts(d.s, m, d.pct); if(d.pos) (groups[d.s.shift+"|"+d.s.course] = groups[d.s.shift+"|"+d.s.course] || []).push(d); });
   Object.values(groups).forEach(g=>{
-    g.sort((a,b)=>b.pct - a.pct);
+    g.sort((a,b)=>b.pos.score - a.pos.score);                 // v100: marks + homework + behaviour + attendance
     const avg = Math.round(g.reduce((a,d)=>a+d.pct,0)/g.length);
-    g.forEach((d,i)=>{ d.rank = (i && g[i-1].pct === d.pct) ? g[i-1].rank : i+1; d.rankOf = g.length; d.classAvg = avg; });
+    g.forEach((d,i)=>{ d.rank = (i && g[i-1].pos.score === d.pos.score) ? g[i-1].rank : i+1; d.rankOf = g.length; d.classAvg = avg; });
   });
   return cards.sort((a,b)=>(a.s.shift+a.s.course).localeCompare(b.s.shift+b.s.course) || (a.rank||999)-(b.rank||999) || a.s.name.localeCompare(b.s.name));
 }

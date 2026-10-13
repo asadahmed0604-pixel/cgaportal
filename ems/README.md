@@ -372,6 +372,20 @@ and the chat's test results end with "🏅 Class position". Same method as the r
 marks, total % of the tests they sat (absent papers and Morning subjects they don't take are left out), compared with
 every student of the same class and shift; equal % share a position.
 
+## Class position criteria (v100)
+
+Class position (parents' app, chat, report cards — screen, PDF, WhatsApp, bulk) is now a combined score for the month:
+
+| Part | Weight | How |
+|---|---|---|
+| Test & exam marks | 60% | total % of the tests sat (absent / not-taken subjects left out) |
+| Timely homework | 15% | on time 100 · late 50 · not submitted (due date passed) 0 |
+| Behaviour & discipline | 10% | starts at 100 · "Behaviour" remark −15 · "Issue" −10 · class bunk −10 · "Appreciation" +5 |
+| Attendance & punctuality | 15% | Present 100 · Late 50 · Absent 0 (leave not counted) |
+
+A part with no data that month is skipped and its weight shared among the rest. Only students with marks that month are
+ranked; equal scores share a position. Weights: `POS_W` in `ems/index.html` and `ems/student-report.js` (keep both the same).
+
 ## Install as an app (v41)
 
 Staff (`/`), Teachers (`/teacher`) and Parents (`/parent`) — all three links can be installed as an app on a phone / computer

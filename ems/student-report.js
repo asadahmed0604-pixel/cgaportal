@@ -45,22 +45,43 @@ function classesFor(db, st) {
 }
 
 const mine = (st) => (st.subjects || []).filter((x) => x && x.name);
-/* v99: class mein position — report card wala hisaab: mahine ke tests ka total % (sirf jin papers mein baitha,
-   na liya hua Morning subject nahi), class + shift ke sab bache (Left nahi), barabar % = aik hi position.
-   Mahina = bache ke marks wala aakhri mahina (is mahine ke na hon to pichla). */
+/* v100: class mein position — 4 cheezon ka mila jula score (weights POS_W, jo na ho us ka weight baqi mein bant jata hai):
+   marks (mahine ke tests ka total %, absent / na liya hua Morning subject nahi) · homework waqt par (on time 100, late 50, missed 0)
+   · behaviour & discipline (100 se: "Behaviour" remark −15, "Issue" −10, class bunk −10, "Appreciation" +5) · attendance & punctuality
+   (Present 100, Late 50, Absent 0). Class + shift ke sab bache (Left nahi) jin ke us mahine marks hain; barabar score = aik position.
+   index.html ka posParts bilkul yehi hisaab karta hai (report cards). */
+const POS_W = { marks: 60, hw: 15, beh: 10, att: 15 };
+function posParts(db, st, month) {
+  const L = (db.exams || []).filter((e) => e.studentId === st.id && +e.total > 0 && !e.absent && takesSubj(st, e.subject) && String(e.date).startsWith(month));
+  const tot = L.reduce((a, e) => a + +e.total, 0), obt = L.reduce((a, e) => a + (+e.obtained || 0), 0);
+  const marks = tot ? Math.round((obt * 100) / tot) : null;
+  if (marks === null) return null;
+  const today = new Date(Date.now() + 5 * 3600e3).toISOString().slice(0, 10);
+  let hs = 0, hn = 0;
+  homeworkOf(db, st).forEach((h) => { const due = h.dueDate || h.dateGiven || ""; if (!String(due).startsWith(month)) return;
+    const d = (h.done || {})[st.id];
+    if (d) { hn++; hs += typeof d === "string" && h.dueDate && d > h.dueDate ? 50 : 100; } else if (due < today) hn++; });
+  const att = db.attendance || {}; let P = 0, La = 0, A = 0;
+  Object.keys(att).forEach((d) => { if (!d.startsWith(month)) return; const r = att[d] && att[d][st.id]; if (!r) return; if (r.s === "P") P++; else if (r.s === "L") La++; else if (r.s === "A") A++; });
+  let beh = 100;
+  (st.remarks || []).forEach((r) => { if (!String(r.d || "").startsWith(month)) return;
+    beh += r.type === "Behaviour" ? -15 : r.type === "Issue" ? -10 : r.type === "Appreciation" ? 5 : 0; });
+  (db.classAtt || []).forEach((c) => { if (!String(c.date).startsWith(month) || !c.marks || c.marks[st.id] !== "A") return;
+    const g = att[c.date] && att[c.date][st.id]; if (g && (g.s === "P" || g.s === "L")) beh -= 10; });
+  const parts = { marks, hw: hn ? Math.round(hs / hn) : null, beh: Math.max(0, Math.min(100, beh)), att: P + La + A ? Math.round(((P + La * 0.5) * 100) / (P + La + A)) : null };
+  let w = 0, sum = 0; Object.entries(POS_W).forEach(([k, v]) => { if (parts[k] !== null) { w += v; sum += v * parts[k]; } });
+  return { ...parts, score: Math.round((sum / w) * 10) / 10 };
+}
 function classPosition(db, st) {
-  const mExams = (s) => (db.exams || []).filter((e) => e.studentId === s.id && +e.total > 0 && !e.absent && takesSubj(s, e.subject));
-  const months = [...new Set(mExams(st).map((e) => String(e.date || "").slice(0, 7)).filter(Boolean))].sort();
+  const months = [...new Set((db.exams || []).filter((e) => e.studentId === st.id && +e.total > 0 && !e.absent && takesSubj(st, e.subject))
+    .map((e) => String(e.date || "").slice(0, 7)).filter(Boolean))].sort();
   const month = months.pop(); if (!month) return null;
-  const pctOf = (s) => { const L = mExams(s).filter((e) => String(e.date).startsWith(month));
-    const tot = L.reduce((a, e) => a + +e.total, 0), obt = L.reduce((a, e) => a + (+e.obtained || 0), 0);
-    return tot ? Math.round((obt * 100) / tot) : null; };
   const rows = (db.students || []).filter((s) => s.shift === st.shift && s.course === st.course && s.status !== "Left")
-    .map((s) => ({ id: s.id, p: pctOf(s) })).filter((r) => r.p !== null).sort((a, b) => b.p - a.p);
-  let rank = 0; rows.forEach((r, i) => { r.rank = i && rows[i - 1].p === r.p ? rows[i - 1].rank : i + 1; });
+    .map((s) => ({ id: s.id, x: posParts(db, s, month) })).filter((r) => r.x).sort((a, b) => b.x.score - a.x.score);
+  rows.forEach((r, i) => { r.rank = i && rows[i - 1].x.score === r.x.score ? rows[i - 1].rank : i + 1; });
   const me = rows.find((r) => r.id === st.id); if (!me) return null;
-  rank = me.rank;
-  return { month, rank, of: rows.length, pct: me.p, classAvg: Math.round(rows.reduce((a, r) => a + r.p, 0) / rows.length) };
+  return { month, rank: me.rank, of: rows.length, pct: me.x.marks, score: me.x.score, parts: me.x, weights: POS_W,
+    classAvg: Math.round(rows.reduce((a, r) => a + r.x.marks, 0) / rows.length) };
 }
 /* v97: index.html ka takesSubject — wohi naam ya aik doosre ka shuru; subjects darj na hon to haan. Sirf Morning par lagta hai. */
 function takesSubj(st, subject) {
