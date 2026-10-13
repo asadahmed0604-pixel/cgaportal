@@ -437,6 +437,11 @@ label.chk input{width:auto}
   .modal h3{padding-right:40px;font-size:1.08rem}
   .modal-foot{position:sticky;bottom:calc(-16px - env(safe-area-inset-bottom));background:#fff;margin:14px -14px calc(-16px - env(safe-area-inset-bottom));padding:12px 14px calc(12px + env(safe-area-inset-bottom));flex-wrap:wrap;box-shadow:0 -4px 12px rgba(0,0,0,.06)}
   .modal-foot button{flex:1 1 auto}
+  /* v92: PTM form — phone par har bacha aik card */
+  .ptm-tbl thead{display:none}
+  .ptm-tbl tr{display:block;padding:10px 4px;border-bottom:1px solid var(--line)}
+  .ptm-tbl td{display:block;border:0!important;padding:4px 6px!important}
+  .ptm-tbl td.pm-sel{display:flex;gap:6px}.ptm-tbl td.pm-sel select{flex:1;margin-top:0!important}
   #toast{bottom:calc(84px + env(safe-area-inset-bottom))!important;left:12px;right:12px}
   .att-opts button{padding:6px 8px;font-size:.74rem}
 }
@@ -472,6 +477,7 @@ label.chk input{width:auto}
     <button data-page="fees"><span class="ico">₨</span> Fee / Billing</button>
     <button data-page="homework"><span class="ico">📚</span> Homework</button>
     <button data-page="parents"><span class="ico">👪</span> Parents</button>
+    <button data-page="ptm"><span class="ico">🤝</span> PTM</button>
     <button data-page="inquiries"><span class="ico">☎</span> Inquiries</button>
     <button data-page="exams"><span class="ico">📝</span> Exams</button>
     <button data-page="tests"><span class="ico">🧪</span> Tests & Marks</button>
@@ -701,6 +707,18 @@ label.chk input{width:auto}
   <div class="tbl-wrap"><table>
     <thead><tr><th>Date Given</th><th>Title</th><th>Class</th><th>Shift</th><th>Due Date</th><th>Detail</th><th>Submitted</th><th>Actions</th></tr></thead>
     <tbody id="hwRows"></tbody>
+  </table></div>
+</section>
+
+<!-- ================= v92: PTM (Morning) ================= -->
+<section class="page" id="page-ptm">
+  <div class="page-head">
+    <div><h2>🤝 Parent-Teacher Meetings</h2><div class="sub" id="ptmSub">Morning (School System). The admin schedules a PTM for classes; each teacher marks which parents came and writes a remark for every student of their class; parents can send feedback from the parents' app.</div></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap" id="ptmBtns"><button class="btn-red" onclick="openPtmForm()">+ Schedule PTM</button></div>
+  </div>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Date</th><th>PTM</th><th>Classes</th><th>Parents met</th><th>Remarks</th><th id="ptmFbH">Parent feedback</th><th></th></tr></thead>
+    <tbody id="ptmRows"></tbody>
   </table></div>
 </section>
 
@@ -1366,7 +1384,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v91 · 12 Oct 2026";
+const BUILD = "v92 · 13 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -1474,7 +1492,7 @@ function studentFee(s){
 }
 
 const DEFAULT_DB = {
-  students:[], inquiries:[], fees:[], exams:[], employees:[], txns:[], homework:[],
+  students:[], inquiries:[], fees:[], exams:[], employees:[], txns:[], homework:[], ptms:[],
   subjects:[],             // [{id, name, level, defaultFee}] — Settings se manage hoti hain
   inventory:[],            // [{id, name, type, qty, unitCost, issuedOpening, date, note}]
   issues:[],               // [{id, date, itemId, qty, toType, toId, toName, course, unitCost, charge, remarks}]
@@ -1505,8 +1523,8 @@ const IS_ADMIN = ROLE !== "exec";                    // admin, feeadmin ya teach
 const IS_TEACHER = ROLE === "teacher";               // v36: sirf apni classes ke tests / marks aur Evening class attendance
 const MY_TID = (SERVER && SERVER.tid) || "";
 const CAN_FEES = ROLE === "exec" || ROLE === "feeadmin";   // v32: Fee / Billing sirf Executive aur Fee Admin
-const TEACHER_PAGES = ["mydash","assign","tests","classatt","homework"];
-const ALL_PAGES = ["dashboard","mydash","students","gallery","attendance","fees","homework","parents","inquiries","exams","tests","classatt","classlog","timetable","assign",
+const TEACHER_PAGES = ["mydash","assign","tests","classatt","homework","ptm"];
+const ALL_PAGES = ["dashboard","mydash","students","gallery","attendance","fees","homework","parents","ptm","inquiries","exams","tests","classatt","classlog","timetable","assign",
                    "audit","employees","inventory","issuance","finance","reports","biz","settings"];
 const ADMIN_HIDDEN = IS_TEACHER ? ALL_PAGES.filter(p=>!TEACHER_PAGES.includes(p))
   : ["dashboard","reports","biz"].concat(ROLE === "feeadmin" ? [] : ["finance"]).concat(CAN_FEES ? [] : ["fees"]);
@@ -1797,7 +1815,7 @@ function renderPage(p){
   if(GATED_PAGES.includes(p) && !feeOpen()){ drawLock(p); return; }
   if(!IS_TEACHER && p === "mydash") p = "dashboard";
   ({dashboard:renderDashboard, students:renderStudents, gallery:renderGallery, attendance:loadAttendance,
-    fees:renderFees, homework:renderHomework, inquiries:renderInquiries, exams:renderExams,
+    fees:renderFees, homework:renderHomework, ptm:renderPtm, inquiries:renderInquiries, exams:renderExams,
     employees:renderEmployees, inventory:renderInventory, issuance:renderIssuance,
     finance:renderFinance, reports:renderReport, biz:renderBiz, audit:renderAudit, parents:renderParents,
     tests:renderTests, classatt:loadClassAtt, classlog:renderClassLog, timetable:renderTimetable, mydash:renderMyDash, assign:()=>{ if(SERVER) renderAssign(); },
@@ -3555,6 +3573,136 @@ function saveHwRcv(){
   h.done = HW_RCV.done; h.checkedOn = todayStr(); h.checkedBy = IS_TEACHER ? teacherName(MY_TID) : (myName() || ROLE_LABEL);
   save(); closeModal(); renderHomework(); toast(`Receival saved — ${Object.keys(h.done).length} submitted`);
 }
+/* ================= v92: PTM — Parent-Teacher Meeting (Morning) =================
+   Admin PTM banata hai (din, waqt, classes). Har teacher apni class ke har bache ke liye: parent aaye ya nahi, kaun aaya, remark.
+   Entry key "<studentId>|<teacherId>" (admin / office ki "<studentId>|admin"). Parents app se feedback server likhta hai (ptm.feedback). */
+const PTM_WHO = ["Father","Mother","Both parents","Guardian"];
+const ptmMyKey = () => IS_TEACHER ? MY_TID : "admin";
+const ptmMyName = () => IS_TEACHER ? teacherName(MY_TID) : (myName() || ROLE_LABEL);
+function ptmClasses(x){
+  const all = (x.classes||[]).slice().sort(classSort);
+  return IS_TEACHER ? all.filter(c=>myClassKeys().has("Morning|"+c)) : all;
+}
+function ptmStudents(x, c){
+  const cls = c ? [c] : ptmClasses(x);
+  return DB.students.filter(st=>st.shift==="Morning" && st.status!=="Left" && cls.some(k=>inClass(st, k))).sort((a,b)=>a.course.localeCompare(b.course) || a.name.localeCompare(b.name));
+}
+/* bache ke liye: kisi ne bhi "met" kaha to aaye; sab ne "N" kaha to nahi aaye */
+function ptmMet(x, sid){
+  const L = Object.entries(x.entries||{}).filter(([k])=>k.startsWith(sid+"|")).map(([,v])=>v);
+  return L.some(v=>v.met==="Y") ? "Y" : L.some(v=>v.met==="N") ? "N" : "";
+}
+function renderPtm(){
+  DB.ptms = DB.ptms || [];
+  $("ptmBtns").style.display = IS_TEACHER ? "none" : "";
+  $("ptmFbH").style.display = IS_TEACHER ? "none" : "";
+  if(IS_TEACHER) $("ptmSub").textContent = "Morning PTMs of your classes — mark which parents came and write a remark for each student. Only you and the admin see your remarks.";
+  const rows = DB.ptms.filter(x=>!IS_TEACHER || ptmClasses(x).length).sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+  const t = todayStr();
+  $("ptmRows").innerHTML = rows.length ? rows.map(x=>{
+    const L = ptmStudents(x), met = L.filter(st=>ptmMet(x, st.id)==="Y").length, mk = ptmMyKey();
+    const rem = IS_TEACHER ? L.filter(st=>((x.entries||{})[st.id+"|"+mk]||{}).remark).length : L.filter(st=>Object.entries(x.entries||{}).some(([k,v])=>k.startsWith(st.id+"|") && v.remark)).length;
+    const fb = Object.keys(x.feedback||{}).length;
+    return `<tr>
+      <td><b>${fmtD(x.date)}</b>${x.from ? `<br><span class="sub">${esc(x.from)}${x.to ? "–"+esc(x.to) : ""}</span>` : ""}${x.date===t ? `<br><span class="badge b-paid">Today</span>` : x.date > t ? `<br><span class="badge b-freeze">Upcoming</span>` : ""}</td>
+      <td><b>${esc(x.title||"PTM")}</b>${x.note ? `<br><span class="sub">${esc(x.note)}</span>` : ""}</td>
+      <td>${ptmClasses(x).map(c=>`<span class="chip">${esc(c)}</span>`).join(" ")}</td>
+      <td><b>${met}</b> / ${L.length}</td>
+      <td>${rem} / ${L.length}</td>
+      ${IS_TEACHER ? "" : `<td>${fb ? `<b>${fb}</b> 💬` : `<span class="sub">—</span>`}</td>`}
+      <td style="white-space:nowrap"><button class="btn-black btn-sm" onclick="openPtm('${x.id}')">${IS_TEACHER ? "✍ Attendance & remarks" : "Open"}</button>
+        ${IS_TEACHER ? "" : `<button class="btn-line btn-sm" onclick="openPtmForm('${x.id}')">Edit</button><button class="btn-line btn-sm" onclick="ptmCSV('${x.id}')">⬇ CSV</button><button class="btn-danger btn-sm" onclick="delPtm('${x.id}')">Delete</button>`}</td></tr>`;
+  }).join("") : `<tr><td colspan="7" class="empty">${IS_TEACHER ? "No PTM scheduled for your Morning classes yet." : "No PTM yet — “+ Schedule PTM”."}</td></tr>`;
+}
+function openPtmForm(id){
+  if(IS_TEACHER) return;
+  const x = id ? DB.ptms.find(y=>y.id===id) : {}, on = new Set(x.classes || []);
+  openModal(`
+    <h3>${id ? "Edit PTM" : "🤝 Schedule a PTM (Morning)"}</h3>
+    <div class="grid2">
+      <div class="field"><label>Title *</label><input id="pt_title" value="${esc(x.title || "Parent-Teacher Meeting")}"></div>
+      <div class="field"><label>Date *</label><input type="date" id="pt_date" value="${x.date || wmDate()}"></div>
+      <div class="field"><label>From</label><input type="time" id="pt_from" value="${esc(x.from || "09:00")}"></div>
+      <div class="field"><label>To</label><input type="time" id="pt_to" value="${esc(x.to || "12:00")}"></div>
+    </div>
+    <div class="field"><label>Classes *</label><div class="chips">${CLASSES_BY_SHIFT.Morning.map(c=>{ const n = DB.students.filter(st=>st.shift==="Morning" && st.status!=="Left" && inClass(st, c)).length;
+      return `<label class="chk" style="margin:0 12px 6px 0"><input type="checkbox" class="pt-c" value="${esc(c)}" ${!id || on.has(c) ? "checked" : ""}> ${esc(c)} <span class="sub">(${n})</span></label>`; }).join("")}</div></div>
+    <div class="field"><label>Note for parents (shows in the parents' app)</label><textarea id="pt_note" rows="2" placeholder="e.g. Please bring the report card. Meet each subject teacher in the class room.">${esc(x.note || "")}</textarea></div>
+    <div class="modal-foot"><button class="btn-line" onclick="closeModal()">Cancel</button><button class="btn-red" onclick="savePtm('${id||""}')">${id ? "Save" : "Schedule PTM"}</button></div>`);
+}
+function savePtm(id){
+  const title = $("pt_title").value.trim(), date = $("pt_date").value, classes = [...document.querySelectorAll(".pt-c:checked")].map(i=>i.value);
+  if(!title || !date){ toast("Enter the title and date"); return; }
+  if(!classes.length){ toast("Choose at least one class"); return; }
+  const data = {title, date, from:$("pt_from").value, to:$("pt_to").value, classes, note:$("pt_note").value.trim(), shift:"Morning"};
+  DB.ptms = DB.ptms || [];
+  if(id) Object.assign(DB.ptms.find(y=>y.id===id), data);
+  else DB.ptms.push({id:uid(), ...data, entries:{}, feedback:{}, createdOn:todayStr(), createdBy:myName() || ROLE_LABEL});
+  save(); closeModal(); renderPtm(); toast(id ? "PTM updated" : `PTM scheduled — ${fmtD(date)} · ${classes.join(", ")}. Teachers and parents can see it now.`);
+}
+function delPtm(id){
+  const x = DB.ptms.find(y=>y.id===id); if(!x) return;
+  askConfirm("Delete PTM?", `<b>${esc(x.title)}</b> — ${fmtD(x.date)}. All attendance, remarks and parent feedback of this PTM will be deleted.`, ()=>{
+    DB.ptms = DB.ptms.filter(y=>y.id!==id); save(); renderPtm(); toast("PTM deleted"); });
+}
+let PTM = null;
+function openPtm(id, cls){
+  const x = DB.ptms.find(y=>y.id===id); if(!x) return;
+  const C = ptmClasses(x); if(!C.length){ toast("None of your classes is in this PTM"); return; }
+  const c = cls && C.includes(cls) ? cls : (PTM && PTM.id===id && C.includes(PTM.c) ? PTM.c : C[0]);
+  PTM = {id, c};
+  const L = ptmStudents(x, c), mk = ptmMyKey();
+  const others = sid => Object.entries(x.entries||{}).filter(([k,v])=>k.startsWith(sid+"|") && k !== sid+"|"+mk && (v.met || v.remark))
+    .map(([,v])=>`<div class="sub" style="margin-top:3px">• <b>${esc(v.tname||"")}</b>: ${v.met==="Y" ? "met"+(v.who?" ("+esc(v.who)+")":"") : v.met==="N" ? "not met" : ""}${v.remark ? " — "+esc(v.remark) : ""}</div>`).join("");
+  const fb = sid => { const f = (x.feedback||{})[sid]; return f ? `<div class="note" style="margin:6px 0 0;padding:6px 10px">💬 <b>Parent feedback</b>${f.rating ? " · " + "★".repeat(f.rating) + "☆".repeat(5-f.rating) : ""}${f.text ? `<br>${esc(f.text)}` : ""}<br><span class="sub">${fmtD(String(f.at||"").slice(0,10))}</span></div>` : ""; };
+  openModal(`
+    <h3>🤝 ${esc(x.title)} — ${fmtD(x.date)}</h3>
+    <p class="sub" style="margin-bottom:8px">${x.from ? esc(x.from)+(x.to?"–"+esc(x.to):"")+" · " : ""}Mark whether each student's parent came, who came, and write your remark.${IS_TEACHER ? "" : " Entries by teachers and parents' feedback show under each student."}</p>
+    <div class="chips" style="margin-bottom:10px">${C.map(k=>`<button class="${k===c ? "btn-black" : "btn-line"} btn-sm" onclick="ptmSaveDraft();openPtm('${id}','${esc(k)}')">${esc(k)}</button>`).join(" ")}
+      <span class="sub" id="pm_sum" style="margin-left:auto"></span></div>
+    <div class="tbl-wrap" style="max-height:56vh;overflow:auto"><table class="ptm-tbl"><thead><tr><th>Student</th><th style="min-width:150px">Parent came?</th><th style="min-width:240px">${IS_TEACHER ? "Your remark" : "Remark (office)"}</th></tr></thead><tbody>
+    ${L.length ? L.map(st=>{ const e = (x.entries||{})[st.id+"|"+mk] || {};
+      return `<tr data-sid="${st.id}"><td><b>${esc(st.name)}</b><br><span class="sub">${esc(st.regNo||"")}${st.fatherName ? " · "+esc(st.fatherName) : ""}</span>${IS_TEACHER ? "" : others(st.id) + fb(st.id)}</td>
+        <td class="pm-sel"><select class="pm-met" onchange="ptmSum()"><option value="">—</option><option value="Y" ${e.met==="Y"?"selected":""}>✓ Met</option><option value="N" ${e.met==="N"?"selected":""}>✗ Did not come</option></select>
+          <select class="pm-who" style="margin-top:6px"><option value="">Who came…</option>${PTM_WHO.map(w=>`<option ${e.who===w?"selected":""}>${w}</option>`).join("")}</select></td>
+        <td><textarea class="pm-rem" rows="2" placeholder="e.g. Weak in algebra — practise daily; parents will check homework">${esc(e.remark||"")}</textarea></td></tr>`; }).join("")
+      : `<tr><td colspan="3" class="empty">No students in ${esc(c)}</td></tr>`}
+    </tbody></table></div>
+    <div class="modal-foot"><button class="btn-line" onclick="closeModal()">Close</button><button class="btn-red" onclick="ptmSave()">Save ${esc(c)}</button></div>`, true);
+  ptmSum();
+}
+function ptmSum(){
+  const r = [...document.querySelectorAll("#modalBox tr[data-sid]")], y = r.filter(tr=>tr.querySelector(".pm-met").value==="Y").length, n = r.filter(tr=>tr.querySelector(".pm-met").value==="N").length;
+  if($("pm_sum")) $("pm_sum").textContent = `${y} met · ${n} did not come · ${r.length - y - n} not marked`;
+}
+/* class badalne se pehle — jo likha hai wo DB mein (save() nahi; "Save" par jata hai) */
+function ptmSaveDraft(){
+  const x = PTM && DB.ptms.find(y=>y.id===PTM.id); if(!x) return 0;
+  const mk = ptmMyKey(); let n = 0;
+  x.entries = x.entries || {};
+  document.querySelectorAll("#modalBox tr[data-sid]").forEach(tr=>{
+    const sid = tr.dataset.sid, met = tr.querySelector(".pm-met").value, who = tr.querySelector(".pm-who").value, remark = tr.querySelector(".pm-rem").value.trim(), k = sid+"|"+mk, old = x.entries[k];
+    if(!met && !who && !remark){ if(old){ delete x.entries[k]; n++; } return; }
+    if(old && old.met===met && old.who===who && old.remark===remark) return;
+    x.entries[k] = {met, who: met==="N" ? "" : who, remark, at:new Date().toISOString(), tname:ptmMyName()}; n++;
+  });
+  return n;
+}
+function ptmSave(){
+  const n = ptmSaveDraft();
+  save(); renderPtm(); toast(n ? `✓ Saved — ${n} student${n>1?"s":""} updated` : "Nothing changed");
+}
+function ptmCSV(id){
+  const x = DB.ptms.find(y=>y.id===id); if(!x) return;
+  const rows = [["Class","Reg No","Student","Father","Parent met","Teacher / office","Met","Who came","Remark","Parent rating","Parent feedback"]];
+  ptmStudents(x).forEach(st=>{
+    const E = Object.entries(x.entries||{}).filter(([k])=>k.startsWith(st.id+"|")).map(([,v])=>v), f = (x.feedback||{})[st.id] || {};
+    (E.length ? E : [{}]).forEach((v,i)=>rows.push([st.course, st.regNo||"", st.name, st.fatherName||"", i ? "" : ptmMet(x, st.id)==="Y" ? "Yes" : ptmMet(x, st.id)==="N" ? "No" : "",
+      v.tname||"", v.met==="Y" ? "Yes" : v.met==="N" ? "No" : "", v.who||"", v.remark||"", i ? "" : f.rating||"", i ? "" : f.text||""]));
+  });
+  downloadCSV(`PTM ${x.date} ${x.title}.csv`, rows);
+}
+
 /* ---- mahine ki report: kis bache ne kaunsa homework jama karwaya, kaunsa nahi ---- */
 function hwReportRows(m, c){
   const keys = hwKeys(), L = DB.homework.filter(h=>String(hwDue(h)).startsWith(m) && (!c || h.shift+"|"+h.course===c) && (!keys || keys.includes(h.shift+"|"+h.course)));

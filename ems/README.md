@@ -308,6 +308,18 @@ portal and the parents' app, above the AI assignments: To do / Sent — awaiting
 - Files are stored on the server in `DATA_DIR/asg/files`, the list in `DATA_DIR/asg/hwsubs.json` (outside db.json). Teachers
   only see the work of homework in their own classes.
 
+## Parent-Teacher Meetings — PTM (v92, Morning)
+
+- **Admin / Executive → 🤝 PTM → + Schedule PTM**: title, date, time, Morning classes and a note for parents. The table shows
+  parents met, remarks written and parents' feedback for each PTM; **Open** shows every student with each teacher's entry
+  and the parent's feedback; **⬇ CSV** exports it all. The office can mark attendance / remarks too.
+- **Teacher → 🤝 PTM** (only PTMs of their own Morning classes): **✍ Attendance & remarks** — for every student of the class:
+  parent came / did not come, who came (father, mother, both, guardian) and a remark. Teachers only see and change their
+  own entries (the server ignores anything else) and never see parents' feedback.
+- **Parents' app**: a welcome line and a **🤝 PTM** button (Morning children whose class has a PTM in the last 30 days or
+  coming up) — date, time, note, and **feedback** (1–5 stars + text) that only the administration reads. Feedback can be
+  sent or changed until 7 days after the PTM.
+
 ## Install as an app (v41)
 
 Staff (`/`), Teachers (`/teacher`) and Parents (`/parent`) — all three links can be installed as an app on a phone / computer

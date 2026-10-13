@@ -214,6 +214,7 @@ function activeNow(d) {
     return s.status === "Active" || !!(s.statusSince && s.statusSince.slice(0, 7) > m);
   };
 }
+const ptmSeen = (x, cls) => !!x && Array.isArray(x.classes) && x.classes.some((c) => cls.has("Morning|" + c));
 const hwSeen = (h, tid, cls, me) => !!h && cls.has(h.shift + "|" + h.course) && (!h.teacherId || h.teacherId === tid || asgCovers(me, h.shift, h.course, h.subject));
 function teacherView(d, tid) {
   const cls = teacherClasses(d, tid), me = meOf(d, tid);
@@ -262,6 +263,10 @@ function teacherView(d, tid) {
     fees: [], txns: [], homework: (d.homework || []).filter((h) => hwSeen(h, tid, cls, me)), inventory: [], issues: [], attendance: {},
     /* v41: sirf apni staff attendance — dekhne ke liye; teacherMerge ise kabhi nahi leta */
     empAttendance: Object.fromEntries(Object.entries(d.empAttendance || {}).filter(([, day]) => day && day[tid]).map(([dt, day]) => [dt, { [tid]: day[tid] }])),
+    /* v92: PTM — sirf Morning, sirf apni classes; apni entries (haazri + remarks); parents ka feedback sirf admin ke liye */
+    ptms: (d.ptms || []).filter((x) => ptmSeen(x, cls)).map((x) => ({ id: x.id, title: x.title, date: x.date, from: x.from || "", to: x.to || "",
+      shift: "Morning", note: x.note || "", classes: (x.classes || []).filter((c) => cls.has("Morning|" + c)),
+      entries: Object.fromEntries(Object.entries(x.entries || {}).filter(([k]) => k.endsWith("|" + tid))), feedback: {} })),
     classCosts: {}, parentAccess: [], studentAccess: [], parentMsgs: [], audits: (d.audits || []).filter((a) => a.teacherId === tid), counters: d.counters || {},
     settings: { name: s.name, addr: s.addr, phone: s.phone, logo: s.logo, latePolicy: s.latePolicy },
   };
@@ -302,7 +307,23 @@ function teacherMerge(data, tid) {
   });
   const curIds = new Set(curHw.map((h) => h.id));
   newHw.forEach((n) => { if (!curIds.has(n.id) && hwSeen({ ...n, teacherId: tid }, tid, cls)) homework.push({ ...n, teacherId: tid, by: "teacher", done: cleanDone(n, n.done) }); });
-  return Object.assign(cur, { tests, exams, classAtt, homework });
+  /* v92: PTM — teacher sirf apni entries ("<studentId>|<tid>") apni Morning classes ke bachon ke liye; PTM khud admin ka */
+  const newPtm = new Map(arr(data.ptms).map((x) => [x.id, x]));
+  const ptms = arr(cur.ptms).map((x) => {
+    const n = newPtm.get(x.id);
+    if (!n || !ptmSeen(x, cls)) return x;
+    const mine = new Set((cur.students || []).filter((st) => st.shift === "Morning" && st.status !== "Left"
+      && (x.classes || []).some((c) => cls.has("Morning|" + c) && stuIn(st, "Morning", c))).map((st) => st.id));
+    const entries = Object.fromEntries(Object.entries(x.entries || {}).filter(([k]) => !k.endsWith("|" + tid)));
+    Object.entries(n.entries && typeof n.entries === "object" ? n.entries : {}).forEach(([k, v]) => {
+      const [sid, t] = k.split("|");
+      if (t !== tid || !mine.has(sid) || !v || typeof v !== "object") return;
+      entries[k] = { met: v.met === "Y" ? "Y" : v.met === "N" ? "N" : "", who: String(v.who || "").slice(0, 30), remark: String(v.remark || "").slice(0, 1000),
+        at: String(v.at || "").slice(0, 30), tname: String(v.tname || "").slice(0, 80) };
+    });
+    return { ...x, entries };
+  });
+  return Object.assign(cur, { tests, exams, classAtt, homework, ptms });
 }
 /* Admin ke save mein chhupaye hue hisse server wale hi rehte hain */
 const SALARY_CAT = "Salary & Wages";
@@ -436,7 +457,7 @@ const canon = (v) => JSON.stringify(v, (k, x) => x && typeof x === "object" && !
 /* Save se pehle aur baad ka data — kya badla, insaani zabaan mein */
 const ACT_COLS = { students: "Students", fees: "Fee challans", employees: "Employees", txns: "Income / Expense", inquiries: "Inquiries",
   exams: "Exam marks", tests: "Tests", homework: "Homework", inventory: "Inventory", issues: "Issuance", audits: "Class audits", kpis: "KPI checklists",
-  subjects: "Subjects", feeReceipts: "Fee receipts (app)", parentAccess: "Parent access", studentAccess: "Student logins (Evening)", parentMsgs: "Parent messages", classAtt: "Class attendance" };
+  subjects: "Subjects", feeReceipts: "Fee receipts (app)", parentAccess: "Parent access", studentAccess: "Student logins (Evening)", parentMsgs: "Parent messages", classAtt: "Class attendance", ptms: "PTM" };
 const ACT_SKIP_FIELDS = new Set(["hash", "salt", "iter"]);
 const recLabel = (r, col) => {
   if (!r || typeof r !== "object") return "?";
@@ -542,6 +563,20 @@ function tooMany(key, limit, windowMs) {
 }
 const pktToday = () => new Date(Date.now() + 5 * 3600e3).toISOString().slice(0, 10);   // Pakistan time (UTC+5)
 const schoolName = (db) => (db && db.settings && db.settings.name) || "Cambridge Grads Academy";
+/* v92: PTM — Morning class ki; feedback PTM ke din se 7 din baad tak */
+const ptmFor = (x, st) => !!x && st.shift === "Morning" && st.status !== "Left" && (x.classes || []).some((c) => stuIn(st, "Morning", c));
+const ptmOpen = (x) => !x.closed && String(x.date || "") >= new Date(Date.now() + 5 * 3600e3 - 7 * 864e5).toISOString().slice(0, 10);
+function ptmsFor(db, kids) {
+  const since = new Date(Date.now() + 5 * 3600e3 - 30 * 864e5).toISOString().slice(0, 10), out = [];
+  (db.ptms || []).filter((x) => x && String(x.date || "") >= since).forEach((x) => kids.forEach((st) => {
+    if (!ptmFor(x, st)) return;
+    const fb = (x.feedback || {})[st.id];
+    out.push({ id: x.id, title: x.title || "Parent-Teacher Meeting", date: x.date, from: x.from || "", to: x.to || "", note: x.note || "",
+      studentId: st.id, studentName: st.name, course: st.course, open: ptmOpen(x),
+      feedback: fb ? { text: fb.text || "", rating: fb.rating || 0, at: fb.at || "" } : null });       // dono parents (father / mother) aik hi feedback
+  }));
+  return out.sort((a, b) => b.date.localeCompare(a.date));
+}
 const childView = (st) => ({ id: st.id, name: st.name, course: st.course, shift: st.shift, regNo: st.regNo });
 const escHtml = (x) => String(x).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
@@ -752,8 +787,12 @@ const server = http.createServer(async (req, res) => {
       }
       if (p === "/parent/api/me" && req.method === "GET") {
         const replies = (who.db.parentMsgs || []).filter((m) => m.phone === who.key && m.reply).length;
-        return sendJson(res, 200, { school: schoolName(who.db), children: kids.map(childView), menu: bot.MENU, replies });
+        const ptm = ptmsFor(who.db, kids);
+        return sendJson(res, 200, { school: schoolName(who.db), children: kids.map(childView), menu: bot.MENU, replies,
+          ptm: { count: ptm.length, next: ptm.filter((x) => x.date >= pktToday()).sort((a, b) => a.date.localeCompare(b.date))[0] || null } });
       }
+      /* v92: PTM — Morning bachon ki class ki PTM; parent feedback likhe (PTM se 7 din baad tak) */
+      if (p === "/parent/api/ptm" && req.method === "GET") return sendJson(res, 200, ptmsFor(who.db, kids));
       if (req.method !== "POST") return send(res, 404, "Not found");
       if (!sameOrigin(req)) return sendJson(res, 403, { error: "origin" });
       const body = JSON.parse((await readBody(req)) || "{}");
@@ -788,6 +827,21 @@ const server = http.createServer(async (req, res) => {
             file: `/fee-receipts/${name}`, fileType: ext, d: new Date().toISOString(), status: "Pending", note: "" });
         });
         logAct(req, { role: "parent", name: "Parent 0" + who.key }, "Fee receipt sent", `${child.name} · Rs ${amount}${fee ? " · " + (fee.chNo || "") : ""}`);
+        return sendJson(res, 200, { ok: true });
+      }
+      if (p === "/parent/api/ptm-feedback") {
+        const x = (who.db.ptms || []).find((y) => y && y.id === body.ptmId);
+        if (!x || !ptmFor(x, child)) return sendJson(res, 404, { error: "This PTM is not for this child." });
+        if (!ptmOpen(x)) return sendJson(res, 409, { error: "Feedback for this PTM is closed." });
+        const text = String(body.text || "").trim().slice(0, 1500), rating = Math.max(0, Math.min(5, parseInt(body.rating, 10) || 0));
+        if (text.length < 3 && !rating) return sendJson(res, 400, { error: "Write your feedback or choose a rating." });
+        if (tooMany("ptm:" + who.key, 20, 864e5)) return sendJson(res, 429, { error: "Too many changes today — try again tomorrow." });
+        mutateDb((d) => {
+          const y = (d.ptms || []).find((z) => z.id === x.id); if (!y) return;
+          y.feedback = y.feedback || {};
+          y.feedback[child.id] = { text, rating, at: new Date().toISOString(), phone: who.key, studentName: child.name };
+        });
+        logAct(req, { role: "parent", name: "Parent 0" + who.key }, "PTM feedback", `${child.name} · ${x.title || "PTM"}${rating ? ` · ${rating}★` : ""}`);
         return sendJson(res, 200, { ok: true });
       }
       if (p === "/parent/api/message") {
