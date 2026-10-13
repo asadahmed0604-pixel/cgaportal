@@ -392,6 +392,20 @@ Homework → ✓ Receival has a **Submitted on** date for every student. If a st
 but the teacher ticks it later, pick the real day — the student counts as on time (not late) in reports, the parents' app
 and the class position. Picking a date also ticks the student; clearing it unticks. On phones each student is a card.
 
+## Staff logins with names, staff dashboards, KPIs and to-do (v102)
+
+- **Settings → Logins → 🪪 Staff logins** (Executive): pick an employee or type a new name, choose **Admin** or **Fee Admin**
+  access, set a Login ID + password. They sign in at `/login` → Staff tab with their Login ID. The shared Admin / Fee Admin
+  passwords still work. Every save / login is logged with the person's name. Only the Executive can change access or logins.
+- **🏠 My Dashboard** (staff with their own login): today's work for their role — attendance marked, inquiry follow-ups due,
+  parent messages; Fee Admin also sees this month's collection, outstanding, today's collection and parents' app receipts
+  to verify (after the 4-digit fee code). Plus **My KPIs** (score, targets, Executive's review) and **My to-do list**
+  (tick done, add a note for the Executive, add their own to-dos).
+- **🎯 Staff KPIs & To-do** (Executive only): per person per month — KPIs (title, target, weight, score 0–5; starts from a
+  role template or last month's KPIs) and tasks (due date, priority). Score = weighted average of scored KPIs.
+- The server sends each staff member only their own KPIs and tasks; KPIs can only be changed by the Executive, and a staff
+  member can only tick / note their own tasks and add or remove their own to-dos.
+
 ## Install as an app (v41)
 
 Staff (`/`), Teachers (`/teacher`) and Parents (`/parent`) — all three links can be installed as an app on a phone / computer
