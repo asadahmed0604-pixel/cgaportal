@@ -1384,7 +1384,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v92 · 13 Oct 2026";
+const BUILD = "v93 · 13 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -5880,6 +5880,7 @@ function audList(m, wk, sh, tid){
 
 function renderAudit(){
   if(!DB.audits) DB.audits = [];
+  kpiDeadlineSync();
   setTimeout(renderKpis, 0);
   if(!$("audFMonth").value) $("audFMonth").value = wm();
   const m = $("audFMonth").value, wk = $("audFWeek").value, sh = $("audFShift").value, ft = $("audFTeacher").value;
@@ -6134,6 +6135,82 @@ function classKeysFor(shift){
   if(IS_TEACHER) return [...myClassKeys()].filter(k=>!shift || k.startsWith(shift+"|"));
   return (shift ? [shift] : ["Morning","Evening"]).flatMap(x=>(CLASSES_BY_SHIFT[x]||[]).map(c=>x+"|"+c));
 }
+/* ================= v93: MARKS ENTRY DEADLINE =================
+   Har paper par t.marksDue (YYYY-MM-DD) — us din raat 11:59 PM (Pakistan) tak sab bachon ke marks + remarks.
+   Marks ka waqt = e.firstAt (pehli dafa save; server teacher ke save par khud lagata hai). Purane marks jin par waqt nahi — on time.
+   Deadline guzarne par KPI checklist ka standard item "as_grade" (Gradebook / marks on time) khud 0–5 bharta hai. */
+const dueEnd = d => Date.parse(String(d) + "T23:59:59+05:00");
+const recAt = e => e.firstAt || e.savedAt || "";
+const onTimeRec = (e, t) => !recAt(e) || Date.parse(recAt(e)) <= dueEnd(t.marksDue);
+function dueInfo(t, n, d){
+  if(!t.marksDue) return null;
+  const end = dueEnd(t.marksDue), left = end - Date.now(), full = n && d >= n;
+  const late = full && testMarks(t).some(e=>!onTimeRec(e, t));
+  if(full) return {k: late ? "late" : "ok", txt: late ? `Completed after the deadline (${fmtD(t.marksDue)})` : `Done before the deadline`};
+  if(left < 0) return {k:"crossed", txt:`Deadline crossed — ${fmtD(t.marksDue)} 11:59 PM · ${n - d} pending`};
+  const h = Math.floor(left / 36e5);
+  return {k: h < 48 ? "near" : "set", txt: h < 48 ? `Deadline ${h < 24 ? `in ${Math.max(1, h)} h` : "tomorrow"} — ${fmtD(t.marksDue)} 11:59 PM` : `Deadline ${fmtD(t.marksDue)} 11:59 PM`};
+}
+const dueBadge = (t, n, d) => { const x = dueInfo(t, n, d); if(!x) return "";
+  const c = {crossed:"b-unpaid", near:"b-freeze", late:"b-freeze", ok:"b-paid", set:""}[x.k];
+  return `<br><span class="badge ${c}" style="margin-top:4px${c ? "" : ";background:#EEF3F2;color:var(--muted)"}" title="${esc(x.txt)}">⏰ ${x.k === "ok" ? "on time ✓" : x.k === "late" ? "late" : x.k === "crossed" ? "crossed" : fmtD(t.marksDue)}</span>`; };
+/* teacher ke papers jin ki deadline is mahine thi aur guzar chuki — kitne bachon ke marks waqt par */
+function deadlineStats(tid, m, mineFn){
+  const asgOf = (empById(tid)||{}).assignments || [];
+  const mine = mineFn || (t => t.teacherId === tid || (!t.teacherId && asgOf.some(a=>a.shift===t.shift && a.course===t.course && a.subject && subjLike(a.subject, t.subject))));
+  const L = DB.tests.filter(t=>t.marksDue && String(t.marksDue).startsWith(m) && dueEnd(t.marksDue) < Date.now() && mine(t));
+  let n = 0, ok = 0;
+  L.forEach(t=>{ const S = testStudents(t), byS = new Map(testMarks(t).map(e=>[e.studentId, e]));
+    S.forEach(st=>{ n++; const e = byS.get(st.id); if(e && onTimeRec(e, t)) ok++; }); });
+  return {papers:L.length, n, ok, pct: n ? Math.round(ok*100/n) : null};
+}
+/* KPI checklist ka standard 1–5 paimana */
+const deadlineScore = p => p === null ? "" : p >= 95 ? 5 : p >= 85 ? 4 : p >= 70 ? 3 : p >= 50 ? 2 : p > 0 ? 1 : 0;
+/* Admin / Executive ke browser mein: guzri hui deadlines → har teacher ke us mahine ke KPI checklist mein "as_grade" (auto).
+   Coordinator ne khud number diya ho (auto nahi) to wahi rehta hai. */
+function kpiDeadlineSync(){
+  if(IS_TEACHER || ROLE === "feeadmin" || !DB.tests) return 0;
+  DB.kpis = DB.kpis || [];
+  const months = [...new Set(DB.tests.filter(t=>t.marksDue && dueEnd(t.marksDue) < Date.now()).map(t=>String(t.marksDue).slice(0,7)))];
+  let changed = 0;
+  months.forEach(m=>DB.employees.filter(e=>e.category==="Teacher").forEach(e=>{
+    const st = deadlineStats(e.id, m); if(!st.papers || !st.n) return;
+    const s = deadlineScore(st.pct), note = `Auto — marks deadline: ${st.ok}/${st.n} students on time (${st.pct}%) in ${st.papers} paper${st.papers>1?"s":""}`;
+    let k = DB.kpis.find(x=>x.month===m && x.teacherId===e.id);
+    const cur = k && (k.items||{}).as_grade;
+    if(cur && !cur.auto && cur.s !== "" && cur.s !== undefined) return;          // coordinator ka apna number
+    if(cur && cur.auto && cur.s === s && cur.note === note) return;
+    if(!k){ k = {id:uid(), month:m, teacherId:e.id, teacherName:e.name, subject:"", classes:"", coordinator:"", reviewed:"", items:{}, signOff:"", savedAt:new Date().toISOString(), by:"Auto (marks deadline)", auto:true}; DB.kpis.push(k); }
+    k.items = k.items || {}; k.items.as_grade = {s, note, auto:true}; changed++;
+  }));
+  if(changed) save();
+  return changed;
+}
+function setExamDeadline(examId){
+  if(IS_TEACHER) return;
+  const ts = DB.tests.filter(t=>t.examId===examId); if(!ts.length) return;
+  const cur = ts.map(t=>t.marksDue).find(Boolean) || "";
+  openModal(`<h3>⏰ Marks entry deadline — ${esc(ts[0].examName || ts[0].name)}</h3>
+    <p class="sub" style="margin-bottom:10px">Teachers must enter marks and remarks for every student of their papers by <b>11:59 PM</b> on this date. They see a warning when it is close or crossed, and after it passes their KPI (“Gradebook / marks on time”) is updated automatically.</p>
+    <div class="field"><label>Deadline date (blank = no deadline)</label><input type="date" id="ed_due" value="${esc(cur)}"></div>
+    <div class="modal-foot"><button class="btn-line" onclick="closeModal()">Cancel</button><button class="btn-red" onclick="saveExamDeadline('${examId}')">Save for all ${ts.length} papers</button></div>`);
+}
+/* teacher: jin papers ki deadline 2 din mein hai ya guzar gayi aur marks adhoore */
+function marksDueAlert(){
+  const keys = [...myClassKeys()];
+  const L = DB.tests.filter(t=>t.marksDue && keys.includes(t.shift+"|"+t.course) && testMine(t)).map(t=>{ const n = testStudents(t).length, d = testMarks(t).length; return {t, n, d, x:dueInfo(t, n, d)}; })
+    .filter(r=>r.x && (r.x.k === "crossed" || r.x.k === "near")).sort((a,b)=>String(a.t.marksDue).localeCompare(String(b.t.marksDue)));
+  if(!L.length) return "";
+  const cr = L.filter(r=>r.x.k === "crossed");
+  return `<div class="note" style="margin-bottom:12px;${cr.length ? "border-left-color:var(--danger);background:#FDECEA" : "border-left-color:#d9a400;background:#FFF6E0"}">⏰ <b>${cr.length ? "Marks deadline crossed" : "Marks deadline coming up"}</b> — ${L.map(r=>`<a href="#" onclick="openMarks('${r.t.id}');return false"><b>${esc(r.t.course)} · ${esc(r.t.subject||r.t.name)}</b></a> (${r.d}/${r.n}) — ${esc(r.x.txt)}`).join("<br>")}
+    ${cr.length ? `<br><span class="sub">Marks entered after the deadline count as late in your KPI (“Gradebook / marks on time”). Enter them now.</span>` : `<br><span class="sub">Enter marks and remarks for every student before 11:59 PM on the deadline — it counts in your KPI.</span>`}</div>`;
+}
+function saveExamDeadline(examId){
+  const d = $("ed_due").value;
+  DB.tests.filter(t=>t.examId===examId).forEach(t=>{ if(d) t.marksDue = d; else delete t.marksDue; });
+  save(); closeModal(); kpiDeadlineSync(); renderTests(); toast(d ? `⏰ Deadline set — ${fmtD(d)} 11:59 PM` : "Deadline removed");
+}
+
 /* v87: paper / homework mera? — bina teacher, mere naam ka, ya Employees → Assign mein ye class + subject mujhe diya hai */
 const asgMine = (sh, c, subj) => ((empById(MY_TID)||{}).assignments||[]).some(a=>a.shift===sh && a.course===c && a.subject && (!subj || subjLike(a.subject, subj)));
 const testMine = t => !t.teacherId || t.teacherId===MY_TID || asgMine(t.shift, t.course, t.subject);
@@ -6176,9 +6253,10 @@ function renderTests(){
     .map(t=>({t, n:testStudents(t).length, d:testMarks(t).length}))
     .filter(r=>!fst || (fst==="due" ? r.d < r.n : r.n && r.d >= r.n))
     .sort((a,b)=>String(b.t.date).localeCompare(String(a.t.date)) || a.t.course.localeCompare(b.t.course));
-  $("testsNote").innerHTML = IS_TEACHER && !keys.length
+  const dueWarn = IS_TEACHER ? marksDueAlert() : "";
+  $("testsNote").innerHTML = dueWarn + (IS_TEACHER && !keys.length
     ? `<div class="note">No class is assigned to you yet — ask the admin: Employees → your name → Edit → assign class.</div>`
-    : IS_TEACHER ? `<div class="sub" style="margin-bottom:10px">Showing <b>all exams</b> (any month) and <b>${fmtM(thisMonth())}</b> tests. Your classes: ${[...myClassKeys()].map(k=>{ const [sh,c]=k.split("|"); return `<span class="chip">${esc(c)} · ${sh}</span>`; }).join(" ")}</div>` : "";
+    : IS_TEACHER ? `<div class="sub" style="margin-bottom:10px">Showing <b>all exams</b> (any month) and <b>${fmtM(thisMonth())}</b> tests. Your classes: ${[...myClassKeys()].map(k=>{ const [sh,c]=k.split("|"); return `<span class="chip">${esc(c)} · ${sh}</span>`; }).join(" ")}</div>` : "");
   $("testRows").innerHTML = rows.length ? rows.map(({t,n,d})=>{ const av = testAvg(t), te = empById(t.teacherId);
     return `<tr>
       <td>${fmtD(t.date)}</td>
@@ -6187,7 +6265,7 @@ function renderTests(){
       <td>${esc(t.subject||"—")}</td>
       <td>${te ? (te.online?`<span class="online-dot" title="Online"></span>`:"") + esc(te.name) : "—"}</td>
       <td>${t.total}</td>
-      <td><span class="badge ${n && d>=n ? "b-paid" : d ? "b-freeze" : "b-unpaid"}">${d} / ${n}</span></td>
+      <td><span class="badge ${n && d>=n ? "b-paid" : d ? "b-freeze" : "b-unpaid"}">${d} / ${n}</span>${dueBadge(t, n, d)}</td>
       <td>${av===null ? "—" : `<b>${av}%</b>`}</td>
       <td class="sub">${t.by==="teacher" ? "Teacher" : t.by==="assignment" ? "✍ Assignment" : "Admin"}</td>
       <td style="white-space:nowrap">
@@ -6213,6 +6291,7 @@ function openTestForm(id){
       <div class="field"><label>Subject *</label><input id="t_subj" list="t_subjList" value="${esc(t.subject||"")}" placeholder="e.g. Physics" onchange="testFormSync()"><datalist id="t_subjList"></datalist></div>
       <div class="field"><label>Teacher (enters the marks)</label><select id="t_teacher" ${IS_TEACHER?"disabled":""}></select></div>
       <div class="field"><label>Total marks *</label><input type="number" id="t_total" value="${t.total||25}" min="1"></div>
+      ${IS_TEACHER ? "" : `<div class="field"><label>Marks entry deadline (11:59 PM)</label><input type="date" id="t_due" value="${esc(t.marksDue||"")}"></div>`}
     </div>
     <div class="modal-foot">
       <button class="btn-line" onclick="closeModal()">Cancel</button>
@@ -6242,6 +6321,7 @@ function testFormSync(){
 function saveTest(id){
   const data = {name:$("t_name").value.trim(), date:$("t_date").value, shift:$("t_shift").value, course:$("t_course").value,
     subject:$("t_subj").value.trim(), teacherId: IS_TEACHER ? MY_TID : $("t_teacher").value, total:+$("t_total").value};
+  if($("t_due")) data.marksDue = $("t_due").value || "";
   if(!data.name || !data.date || !data.course || !data.subject){ toast("Enter name, date, class and subject"); return; }
   if(!(data.total > 0)){ toast("Enter total marks"); return; }
   if(IS_TEACHER && data.shift !== "Evening"){ toast("Only the admin can create Morning tests"); return; }
@@ -6305,10 +6385,10 @@ function drawExamGroups(list){
       g.tests.forEach(t=>{ const a = testStudents(t).length, b = testMarks(t).length; n += a; d += b; if(a && b >= a) done++; });
       const cls = [...new Set(g.tests.map(t=>t.course))];
       return `<tr><td><b>${esc(g.name)}</b></td><td>${esc(g.shift)}</td><td>${fmtD(g.from)}${g.to!==g.from ? " – "+fmtD(g.to) : ""}</td>
-        <td class="sub">${cls.map(esc).join(", ")}</td><td>${done} / ${g.tests.length} complete</td>
+        <td class="sub">${cls.map(esc).join(", ")}${(()=>{ const due = g.tests.map(t=>t.marksDue).find(Boolean); return due ? `<br><b style="${dueEnd(due) < Date.now() ? "color:var(--danger)" : ""}">⏰ Marks by ${fmtD(due)} 11:59 PM</b>` : ""; })()}</td><td>${done} / ${g.tests.length} complete</td>
         <td><span class="badge ${n && d>=n ? "b-paid" : d ? "b-freeze" : "b-unpaid"}">${d} / ${n}</span></td>
         <td style="white-space:nowrap"><button class="btn-black btn-sm" onclick="$('testFExam').value='${g.id}';renderTests()">Papers</button>
-          ${IS_TEACHER ? "" : `<button class="btn-line btn-sm" onclick="openExamForm('${g.id}')">+ Classes / papers</button>
+          ${IS_TEACHER ? "" : `<button class="btn-line btn-sm" onclick="setExamDeadline('${g.id}')">⏰ Deadline</button><button class="btn-line btn-sm" onclick="openExamForm('${g.id}')">+ Classes / papers</button>
           <button class="btn-line btn-sm" onclick="examMarksCSV('${g.id}')">⬇ Result CSV</button>
           <button class="btn-danger btn-sm" onclick="delExamGroup('${g.id}')">Delete</button>`}</td></tr>`; }).join("")}
     </tbody></table></div></div>`;
@@ -6329,6 +6409,7 @@ function openExamForm(examId){
       <div class="field"><label>Shift</label><select id="ex_shift" onchange="exClasses()" ${examId?"disabled":""}>${["Morning","Evening"].map(x=>`<option ${x===sh?"selected":""}>${x}</option>`).join("")}</select></div>
       <div class="field"><label>First paper date</label><input type="date" id="ex_date" value="${o.date || wmDate()}" onchange="exGrid(true)"></div>
       <div class="field"><label>Total marks (per paper — can change later)</label><input type="number" id="ex_total" value="${o.total || 50}" min="1" onchange="exGrid(true)"></div>
+      <div class="field"><label>Marks entry deadline (11:59 PM)</label><input type="date" id="ex_due" value="${esc(o.marksDue || "")}"></div>
     </div>
     <div class="field"><label>Classes</label><div id="ex_cls" class="chips"></div></div>
     <div id="ex_grid"></div>
@@ -6383,9 +6464,10 @@ function saveExamGroup(){
   const bad = papers.filter(x=>!x.date || !(x.total > 0));
   if(bad.length){ $("ex_msg").innerHTML = `<div class="note">${bad.length} papers have no date or total marks — fill them in.</div>`; return; }
   const examId = EXF.examId || uid(), mem = DB.settings.subjTeacher = DB.settings.subjTeacher || {};
+  if(EXF.examId && $("ex_due")){ const d = $("ex_due").value; DB.tests.filter(t=>t.examId===examId).forEach(t=>{ if(d) t.marksDue = d; else delete t.marksDue; }); }
   papers.forEach(x=>{
     DB.tests.push({id:uid(), examId, examName:name, name, date:x.date, shift:sh, course:x.c, subject:x.subj, teacherId:x.tid, total:x.total,
-      by:"admin", createdOn:todayStr(), createdBy:ROLE_LABEL});
+      by:"admin", createdOn:todayStr(), createdBy:ROLE_LABEL, ...($("ex_due") && $("ex_due").value ? {marksDue:$("ex_due").value} : {})});
     if(x.tid) mem[subjTeacherKey(sh, x.c, x.subj)] = x.tid;
   });
   const noT = papers.filter(x=>!x.tid).length;
@@ -6475,7 +6557,8 @@ function saveMarks(){
     const cur = DB.exams.find(e=>e.testId===t.id && e.studentId===o.sid);
     if(o.clear){ if(cur){ DB.exams = DB.exams.filter(e=>e!==cur); del++; } return; }
     const rec = {testId:t.id, studentId:o.sid, exam:t.name, subject:t.subject, date:t.date, total:+t.total,
-      obtained: o.a ? 0 : o.m, absent:o.a, comment:o.r, by: IS_TEACHER ? MY_TID : "", byName, savedAt:new Date().toISOString()};
+      obtained: o.a ? 0 : o.m, absent:o.a, comment:o.r, by: IS_TEACHER ? MY_TID : "", byName, savedAt:new Date().toISOString(),
+      firstAt: (cur && (cur.firstAt || cur.savedAt)) || new Date().toISOString()};            // v93: deadline ke liye pehli entry ka waqt
     if(cur) Object.assign(cur, rec); else DB.exams.push({id:uid(), ...rec});
     n++;
   });
@@ -7094,6 +7177,7 @@ function myLiveKpi(m){
   const ckc = ck ? kpiCalc(ck) : null;
   const rows = [
     ["📝 Marks entry", n ? Math.round(d*100/n) : null, n ? `Marks for ${d} / ${n} students (${tests.length} tests)` : "No tests this month"],
+    (()=>{ const ds = deadlineStats(MY_TID, m, testMine); return ["⏰ Marks by deadline", ds.pct, ds.papers ? `${ds.ok} / ${ds.n} students' marks entered before the deadline (${ds.papers} paper${ds.papers>1?"s":""})` : "No marks deadline passed this month"]; })(),
     ["💬 Remarks", recs.length ? Math.round(recs.filter(e=>String(e.comment||"").trim().length >= 2).length*100/recs.length) : null, recs.length ? `${recs.filter(e=>String(e.comment||"").trim().length>=2).length} / ${recs.length} marks with a remark` : "—"],
     ...(ev.length ? [["🧪 Evening tests (2 / class)", Math.round(ev.reduce((a,x)=>a+Math.min(x.n, EVE_TEST_TARGET),0)*100/(ev.length*EVE_TEST_TARGET)), ev.map(x=>`${x.c}: ${x.n}/${EVE_TEST_TARGET}`).join(" · ")]] : []),
     ["🗓 My attendance", days.length ? Math.round(pres*100/days.length) : null, days.length ? `Present ${pres} / ${days.length} days` : "Not marked yet"],
@@ -7110,8 +7194,8 @@ function myLiveKpi(m){
 function renderMyDash(){
   { const m0 = wm(), K = myLiveKpi(m0), ev = eveTestStatus(m0).filter(x=>x.need);
     $("mdKpiM").textContent = fmtM(m0);
-    $("mdRemind").innerHTML = ev.length ? `<div class="note" style="margin-bottom:14px;border-left-color:var(--accent-dark,#d9a400);background:#FFF6E0">⏰ <b>Reminder:</b> in the Evening each class needs at least <b>${EVE_TEST_TARGET} tests</b> per month — ${ev.map(x=>`<b>${esc(x.c)}</b>: ${x.n}/${EVE_TEST_TARGET} (${x.need} more)`).join(" · ")}
-      <button class="btn-red btn-sm" style="margin-left:8px" onclick="document.querySelector('#nav button[data-page=tests]').click();setTimeout(()=>openTestForm(),50)">+ Create test</button></div>` : "";
+    $("mdRemind").innerHTML = marksDueAlert() + (ev.length ? `<div class="note" style="margin-bottom:14px;border-left-color:var(--accent-dark,#d9a400);background:#FFF6E0">⏰ <b>Reminder:</b> in the Evening each class needs at least <b>${EVE_TEST_TARGET} tests</b> per month — ${ev.map(x=>`<b>${esc(x.c)}</b>: ${x.n}/${EVE_TEST_TARGET} (${x.need} more)`).join(" · ")}
+      <button class="btn-red btn-sm" style="margin-left:8px" onclick="document.querySelector('#nav button[data-page=tests]').click();setTimeout(()=>openTestForm(),50)">+ Create test</button></div>` : "");
     $("mdKpi").innerHTML = `<div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:10px">
         <div style="font-size:2.2rem;font-weight:900;${scoreColor(K.live)}">${K.live === null ? "—" : K.live + "%"}</div>
         <div><b>Live KPI score</b><br><span class="sub">${K.live === null ? "No data yet" : kpiRating(K.live)} · average of all below</span></div></div>
@@ -11737,6 +11821,9 @@ function queuePush(){
 }
 const modalOpen = () => $("modalOverlay").classList.contains("show");
 const typing = () => { const a = document.activeElement; return !!a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && !!a.closest(".main, .modal"); };
+
+/* v93: guzri hui marks deadlines → KPI (admin / executive ke browser se; har 10 minute aur shuru mein) */
+if(!IS_TEACHER) { setTimeout(()=>{ try{ kpiDeadlineSync(); }catch(e){} }, 5000); setInterval(()=>{ try{ kpiDeadlineSync(); }catch(e){} }, 10*60e3); }
 
 /* Server ka naya data screen par lagao (jo page khula hai wahi dobara banao) */
 function adoptRemote(remote){
