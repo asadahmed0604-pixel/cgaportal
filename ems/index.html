@@ -1384,7 +1384,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v96 · 13 Oct 2026";
+const BUILD = "v97 · 13 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -2127,7 +2127,7 @@ function studentScores(m){
   const act = DB.students.filter(s=>activeIn(s, m, RM));
   const ex = {}, att = {}, bunk = {};
   DB.exams.forEach(e=>{ const mm = String(e.date||"").slice(0,7); if(mm < from || mm > m || !(+e.total > 0)) return;
-    if(e.absent) return;                                      // v95: absent paper average mein nahi
+    if(e.absent || !examShown(e)) return;                     // v95: absent paper average mein nahi · v97: na liya hua subject bhi nahi
     (ex[e.studentId] = ex[e.studentId] || []).push(Math.min(100, (+e.obtained||0) * 100 / +e.total)); });
   Object.keys(DB.attendance||{}).forEach(d=>{ if(!d.startsWith(m)) return; const day = DB.attendance[d];
     for(const sid in day){ const k = day[sid] && day[sid].s; if(!k) continue; const r = att[sid] = att[sid] || {P:0,L:0,A:0,E:0}; if(r[k] !== undefined) r[k]++; } });
@@ -2897,7 +2897,7 @@ function openProfile(id){
   const s = stuById(id); if(!s) return;
   const a = attSummary(id, s.doj);
   const fees = DB.fees.filter(f=>f.studentId===id).sort((x,y)=>y.month.localeCompare(x.month));
-  const exams = DB.exams.filter(e=>e.studentId===id).sort((x,y)=>y.date.localeCompare(x.date));
+  const exams = DB.exams.filter(e=>e.studentId===id && examShown(e)).sort((x,y)=>y.date.localeCompare(x.date));
   const hws = DB.homework.filter(h=>inClass(s, h.course) && h.shift===s.shift && (!h.subject || !(s.subjects||[]).length || (s.subjects||[]).some(x=>subjLike(x.name, h.subject)))).sort((x,y)=>y.dateGiven.localeCompare(x.dateGiven));
   /* Siblings — same Father/Guardian CNIC */
   const cnicKey = v => String(v||"").replace(/\D/g,"");
@@ -3014,7 +3014,7 @@ function downloadProfile(id){
   const s = stuById(id); if(!s) return;
   const a = attSummary(id, s.doj);
   const fees = DB.fees.filter(f=>f.studentId===id).sort((x,y)=>y.month.localeCompare(x.month));
-  const exams = DB.exams.filter(e=>e.studentId===id).sort((x,y)=>x.date.localeCompare(y.date));
+  const exams = DB.exams.filter(e=>e.studentId===id && examShown(e)).sort((x,y)=>x.date.localeCompare(y.date));
   const A = DB.settings;
   const paidT = fees.reduce((x,f)=>x + feeReceived(f), 0);
   const dueT  = fees.reduce((x,f)=>x + feeOutstanding(f), 0);
@@ -6223,7 +6223,13 @@ function saveExamDeadline(examId){
 const asgMine = (sh, c, subj) => ((empById(MY_TID)||{}).assignments||[]).some(a=>a.shift===sh && a.course===c && a.subject && (!subj || subjLike(a.subject, subj)));
 const testMine = t => !t.teacherId || t.teacherId===MY_TID || asgMine(t.shift, t.course, t.subject);
 const canEditTest = t => !IS_TEACHER || (t.by==="teacher" && t.teacherId===MY_TID && t.shift==="Evening");
-const testMarks = t => DB.exams.filter(e=>e.testId===t.id);
+/* v97: Morning — jo bacha ye subject nahi leta (subjects darj hain aur ye un mein nahi) us ke marks na gine jate hain na dikhte hain */
+const morningSkip = (st, subject) => !!st && st.shift === "Morning" && !!subject && !takesSubject(st, subject);
+const examShown = e => !morningSkip(stuById(e.studentId), e.subject);
+/* teacher ke paas sirf us ke apne bache hote hain — kisi aur bache ka purana mark us ki ginti / average mein nahi */
+const testMarks = t => DB.exams.filter(e=>{ if(e.testId!==t.id) return false; const st = stuById(e.studentId);
+  if(IS_TEACHER && !st) return false;
+  return t.shift !== "Morning" || !morningSkip(st, t.subject); });
 /* v84: paper ka subject bacha leta hai? — wohi naam, ya aik doosre ka shuru (English ↔ English Language, Mathematics ↔ Mathematics (D),
    Pakistan Studies ↔ Pakistan Studies P1) — magar "Mathematics" ↔ "Additional Mathematics" nahi. Subjects maloom hi na hon to bacha shamil. */
 function takesSubject(st, subject){
@@ -6235,7 +6241,7 @@ function takesSubject(st, subject){
 function testStudents(t){
   const m = String(t.date||wm()).slice(0,7), RM = rosterMonths();
   const has = new Set(testMarks(t).map(e=>e.studentId));
-  return DB.students.filter(st=>has.has(st.id) || (st.shift===t.shift && inClass(st, t.course) && st.status!=="Left" && inMonth(st, m, RM)
+  return DB.students.filter(st=>(has.has(st.id) && !morningSkip(st, t.subject)) || (st.shift===t.shift && inClass(st, t.course) && st.status!=="Left" && inMonth(st, m, RM)
       && takesSubject(st, t.subject)))
     .sort((a,b)=>a.name.localeCompare(b.name));
 }
@@ -7880,7 +7886,7 @@ function classResultData(){
   const c=$("cr_course").value, sh=$("cr_shift").value, m=$("cr_month").value;
   const stus = DB.students.filter(s=>inClass(s, c) && s.shift===sh);
   const rows = stus.map(s=>{
-    const ex = DB.exams.filter(e=>e.studentId===s.id && (!m||e.date.startsWith(m)));
+    const ex = DB.exams.filter(e=>e.studentId===s.id && examShown(e) && (!m||e.date.startsWith(m)));
     const x = exSum(ex);                                       // v95: absent papers total mein nahi
     return {s, n:x.sat, abs:x.abs, obt:x.obt, tot:x.tot, pct:x.pct};
   }).sort((a,b)=>(b.pct??-1)-(a.pct??-1));
@@ -7958,7 +7964,7 @@ function reportCardData(){
   const sid=$("rc_stu").value, from=$("rc_from").value, to=$("rc_to").value;
   const s = stuById(sid);
   const ex = DB.exams.filter(e=>{
-    if(e.studentId!==sid) return false;
+    if(e.studentId!==sid || !examShown(e)) return false;
     const m = e.date.slice(0,7);
     if(from && m<from) return false;
     if(to && m>to) return false;
@@ -8040,7 +8046,7 @@ function attInRange(sid, from, to){
 }
 function reportCardFor(sid, from, to){
   const s = stuById(sid);
-  const ex = DB.exams.filter(e=>{ if(e.studentId!==sid) return false; const m = String(e.date).slice(0,7);
+  const ex = DB.exams.filter(e=>{ if(e.studentId!==sid || !examShown(e)) return false; const m = String(e.date).slice(0,7);
     return !(from && m < from) && !(to && m > to); }).sort((a,b)=>a.date.localeCompare(b.date));
   const x = exSum(ex);
   const remarks = (s.remarks||[]).filter(r=>r.parentVisible!==false && (!from || String(r.d).slice(0,7) >= from) && (!to || String(r.d).slice(0,7) <= to));

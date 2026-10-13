@@ -45,6 +45,12 @@ function classesFor(db, st) {
 }
 
 const mine = (st) => (st.subjects || []).filter((x) => x && x.name);
+/* v97: index.html ka takesSubject — wohi naam ya aik doosre ka shuru; subjects darj na hon to haan. Sirf Morning par lagta hai. */
+function takesSubj(st, subject) {
+  const t = keyOf(subject); if (!t || st.shift !== "Morning") return true;
+  const L = mine(st).map((x) => keyOf(x.name)).filter(Boolean);
+  return !L.length || L.some((k) => k === t || k.startsWith(t) || t.startsWith(k));
+}
 /* v69 / v90: bache ka homework (uski class + shift; subject wala sirf us subject ke bachon ko) — naya pehle */
 const homeworkOf = (db, st) => (db.homework || []).filter((h) => h && h.shift === st.shift && classesOf(st).includes(h.course)
     && (!h.subject || !mine(st).length || mine(st).some((x) => subjLike(x.name, h.subject))))
@@ -68,7 +74,8 @@ function studentReport(db, st, today) {
     if (k === "A" && g && (g.s === "P" || g.s === "L") && c.date >= since) bunks.push({ date: c.date, subject: c.subject || c.course });
   });
 
-  const exams = (db.exams || []).filter((e) => e.studentId === st.id && +e.total > 0)
+  /* v97: Morning — jo subject bacha nahi leta (subjects darj hain) us ke marks report mein nahi */
+  const exams = (db.exams || []).filter((e) => e.studentId === st.id && +e.total > 0 && takesSubj(st, e.subject))
     .sort((a, b) => String(b.date).localeCompare(String(a.date)));
   /* v95: absent = koi % / grade nahi; average mein gina nahi jata */
   const p = (e) => (e.absent ? null : Math.round((+e.obtained * 100) / +e.total));
@@ -107,4 +114,4 @@ function studentReport(db, st, today) {
   };
 }
 
-module.exports = { studentReport, classesFor, homeworkOf };
+module.exports = { studentReport, classesFor, homeworkOf, takesSubj };
