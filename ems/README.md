@@ -352,6 +352,13 @@ All grades (report cards, class result, exam CSV, student profile, student porta
 scale: **A\*** 90%+ · **A** 75–89 · **B** 66–74 · **C** 56–65 · **D** 50–55 · **E** 40–49 · **U** below 40 (percent rounded).
 A\*–E is **Pass**, U is **Fail** (pass mark 40%). The scale is printed at the bottom of every report card.
 
+## Morning — subjects a student doesn't take are hidden (v97)
+
+For Morning students whose subjects are entered on their profile, a paper / mark in a subject they don't take is left out
+everywhere: the marks entry list (even if a mark was entered by mistake earlier), marks counts and averages, the report card
+(screen, print, PDF, WhatsApp, bulk), class result, student profile, and the parents' app / student portal. The mark itself is
+not deleted (it still shows in the Exams list, where the admin can delete it). Students with no subjects entered still appear.
+
 ## Install as an app (v41)
 
 Staff (`/`), Teachers (`/teacher`) and Parents (`/parent`) — all three links can be installed as an app on a phone / computer

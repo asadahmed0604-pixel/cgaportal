@@ -28,6 +28,7 @@ function childrenOf(db, key) {
     s.status !== "Left" && [s.fatherPhone, s.motherPhone, s.phone].some((p) => phoneKeys(p).includes(key)));
 }
 
+const { takesSubj } = require("./student-report");     // v97: Morning — na liya hua subject
 const pad = (n) => String(n).padStart(2, "0");
 const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -118,7 +119,7 @@ function attendance(db, s, today) {
 }
 
 function tests(db, s) {
-  const ex = (db.exams || []).filter((e) => e.studentId === s.id).sort((a, b) => String(b.date).localeCompare(String(a.date)));
+  const ex = (db.exams || []).filter((e) => e.studentId === s.id && takesSubj(s, e.subject)).sort((a, b) => String(b.date).localeCompare(String(a.date)));
   if (!ex.length) return [H(`📝 ${s.name} — Test Results`), P("No test results recorded yet.")];
   const pc = (e) => (+e.total ? Math.round(+e.obtained * 100 / +e.total) : 0);
   const last = ex.slice(0, 6), sat = last.filter((e) => !e.absent);     // v95: absent test average mein nahi
