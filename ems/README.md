@@ -359,6 +359,12 @@ everywhere: the marks entry list (even if a mark was entered by mistake earlier)
 (screen, print, PDF, WhatsApp, bulk), class result, student profile, and the parents' app / student portal. The mark itself is
 not deleted (it still shows in the Exams list, where the admin can delete it). Students with no subjects entered still appear.
 
+## Classes Taken — only class + subject rows (v98)
+
+Classes Taken (admin) and the teacher's own "classes taken" list show only assignments that have a class **and** a subject.
+Assignments without a subject (the old "(whole class)" rows) are no longer listed, and teachers who only have such
+assignments are not in the teacher filter. Give the subject in Employees → Edit → Assign to bring a class back.
+
 ## Install as an app (v41)
 
 Staff (`/`), Teachers (`/teacher`) and Parents (`/parent`) — all three links can be installed as an app on a phone / computer
