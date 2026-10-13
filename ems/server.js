@@ -278,7 +278,8 @@ function teacherMerge(data, tid) {
   const arr = (x) => (Array.isArray(x) ? x.filter((y) => y && typeof y === "object" && y.id) : []);
   const curTests = arr(cur.tests), curById = new Map(curTests.map((t) => [t.id, t]));
   const tests = curTests.filter((t) => !testOwn(t, tid, cls))
-    .concat(arr(data.tests).filter((t) => testOwn(t, tid, cls) && (!curById.has(t.id) || testOwn(curById.get(t.id), tid, cls))));
+    .concat(arr(data.tests).filter((t) => testOwn(t, tid, cls) && (!curById.has(t.id) || testOwn(curById.get(t.id), tid, cls)))
+      .map((t) => { const o = curById.get(t.id), x = { ...t }; delete x.marksDue; if (o && o.marksDue) x.marksDue = o.marksDue; return x; }));   // v93: deadline sirf admin
   const outIds = new Set(tests.map((t) => t.id));
   const gone = new Set(curTests.filter((t) => !outIds.has(t.id)).map((t) => t.id));        // teacher ne apna test hataya
   const testOf = new Map(tests.map((t) => [t.id, t]));
@@ -286,8 +287,13 @@ function teacherMerge(data, tid) {
   const vis = (e) => { const t = e && testOf.get(e.testId); return !!t && testSeen(t, tid, cls, me); };
   const fits = (e) => { const t = testOf.get(e.testId), st = stu.get(e.studentId); return !!st && stuIn(st, t.shift, t.course); };
   const curEx = arr(cur.exams), curExById = new Map(curEx.map((e) => [e.id, e]));
+  /* v93: marks ka pehla waqt (deadline / KPI) server tay karta hai — teacher badal nahi sakta */
+  const curByStu = new Map(curEx.map((e) => [e.testId + "|" + e.studentId, e]));
+  const stamp = (e) => { const o = curExById.get(e.id) || curByStu.get(e.testId + "|" + e.studentId);
+    const first = o ? o.firstAt || o.savedAt || "" : new Date().toISOString();
+    return { ...e, firstAt: first || undefined }; };
   const exams = curEx.filter((e) => !gone.has(e.testId) && !vis(e))
-    .concat(arr(data.exams).filter((e) => vis(e) && fits(e) && (!curExById.has(e.id) || vis(curExById.get(e.id)))));
+    .concat(arr(data.exams).filter((e) => vis(e) && fits(e) && (!curExById.has(e.id) || vis(curExById.get(e.id)))).map(stamp));
   const curCa = arr(cur.classAtt), curCaById = new Map(curCa.map((c) => [c.id, c]));
   const classAtt = curCa.filter((c) => !catOwn(c, tid, cls))
     .concat(arr(data.classAtt).filter((c) => catOwn(c, tid, cls) && (!curCaById.has(c.id) || catOwn(curCaById.get(c.id), tid, cls))));

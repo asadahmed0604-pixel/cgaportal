@@ -320,6 +320,18 @@ portal and the parents' app, above the AI assignments: To do / Sent — awaiting
   coming up) — date, time, note, and **feedback** (1–5 stars + text) that only the administration reads. Feedback can be
   sent or changed until 7 days after the PTM.
 
+## Marks entry deadline + KPI (v93)
+
+- **Admin → Tests & Marks → 📋 Exams → ⏰ Deadline** (or the date in Create Exam / Edit test): marks and remarks for every
+  student must be in by **11:59 PM** (Pakistan time) on that date.
+- Teachers see it on every paper (⏰ date / crossed / on time ✓ / late) and a warning on My Dashboard and Tests & Marks when
+  a deadline is within 2 days or has been crossed with marks pending.
+- The time a mark was **first** entered is kept (`firstAt`, set by the server for teachers — re-saving or editing later does
+  not make it late, and a teacher cannot change it). Teacher live KPI has a new row **⏰ Marks by deadline**.
+- When a deadline passes, the teacher's monthly **KPI checklist** item “Gradebook updated / marks on time” (as_grade) is filled
+  automatically on the standard 0–5 scale from the share of students whose marks were in on time: ≥95% → 5, ≥85% → 4,
+  ≥70% → 3, ≥50% → 2, >0 → 1, none → 0 (note: “Auto — marks deadline …”). A number the coordinator enters by hand is kept.
+
 ## Install as an app (v41)
 
 Staff (`/`), Teachers (`/teacher`) and Parents (`/parent`) — all three links can be installed as an app on a phone / computer
