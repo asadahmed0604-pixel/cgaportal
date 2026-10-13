@@ -360,6 +360,7 @@ async function report(quiet) {
     <div class="stats">
       <div class="stat"><small>Today</small><b>${a.today ? `<span class="pill ${a.today.s}">${ATT_N[a.today.s] || a.today.s}</span>` : "—"}</b><span>${a.today ? (a.today.t ? "at " + esc(a.today.t) : "attendance marked") : "not marked yet"}</span></div>
       <div class="stat"><small>Attendance · ${esc(new Date(a.month + "-01T12:00").toLocaleDateString("en-GB", { month: "short" }))}</small><b>${mc.pct === null ? "—" : mc.pct + "%"}</b><span>${mc.P + mc.L} present · ${mc.A} absent</span>${meter(mc.pct)}</div>
+      ${mk.position ? `<div class="stat"><small>Class position · ${esc(new Date(mk.position.month + "-01T12:00").toLocaleDateString("en-GB", { month: "short" }))}</small><b>${mk.position.rank}<span style="font-size:1rem;color:var(--muted)"> / ${mk.position.of}</span></b><span>${mk.position.pct}% · class average ${mk.position.classAvg}%</span>${meter(mk.position.pct)}</div>` : ""}
       <div class="stat"><small>Average marks</small><b>${mk.average === null ? "—" : mk.average + "%"}</b><span>${mk.count ? (mk.count > 10 ? `last 10 of ${mk.count} tests` : `${mk.count} test${mk.count === 1 ? "" : "s"}`) : "no marks yet"}</span>${meter(mk.average)}</div>
       <div class="stat" id="todoStat" style="cursor:pointer"><small>Homework &amp; assignments</small><b>${todo}</b><span>${todo ? todoTxt + " to do ›" : "nothing pending ✓"}</span></div>
     </div>

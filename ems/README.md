@@ -365,6 +365,13 @@ Classes Taken (admin) and the teacher's own "classes taken" list show only assig
 Assignments without a subject (the old "(whole class)" rows) are no longer listed, and teachers who only have such
 assignments are not in the teacher filter. Give the subject in Employees → Edit → Assign to bring a class back.
 
+## Class position for parents (v99)
+
+Parents' app → **My Report** has a **Class position** card (e.g. 2 / 18 · Oct, with the child's % and the class average),
+and the chat's test results end with "🏅 Class position". Same method as the report card: the child's latest month with
+marks, total % of the tests they sat (absent papers and Morning subjects they don't take are left out), compared with
+every student of the same class and shift; equal % share a position.
+
 ## Install as an app (v41)
 
 Staff (`/`), Teachers (`/teacher`) and Parents (`/parent`) — all three links can be installed as an app on a phone / computer
