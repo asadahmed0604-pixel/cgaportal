@@ -104,7 +104,9 @@ module.exports = function setup(ctx) {
      (bache ke subject par koi aur teacher laga ho to wo us teacher ka hai). */
   function eligible(db, shift, course, subject, tid) {
     return (db.students || []).filter((st) => st.shift === shift && classesOf(st).includes(course) && st.status !== "Left"
-      && (shift === "Morning" || !subject || (st.subjects || []).some((x) => (x.teacherId && tid ? x.teacherId === tid : true) && subjLike(x.name, subject))));
+      && ((shift === "Morning" && !["O1", "O2"].includes(course)) || !subject       // v94: Morning O1 / O2 bhi subject-wise
+        || (shift === "Morning" && !(st.subjects || []).length)
+        || (st.subjects || []).some((x) => (shift === "Morning" || !x.teacherId || !tid || x.teacherId === tid) && subjLike(x.name, subject))));
   }
   const canClass = (auth, db, shift, course) => auth.role !== "teacher" || teacherClasses(db, auth.tid).has(shift + "|" + course);
   const canAsg = (auth, a) => !!a && (auth.role !== "teacher" || a.teacherId === auth.tid);

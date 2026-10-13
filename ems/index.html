@@ -1384,7 +1384,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v93 · 13 Oct 2026";
+const BUILD = "v94 · 13 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -3584,8 +3584,8 @@ function ptmClasses(x){
   return IS_TEACHER ? all.filter(c=>myClassKeys().has("Morning|"+c)) : all;
 }
 function ptmStudents(x, c){
-  const cls = c ? [c] : ptmClasses(x);
-  return DB.students.filter(st=>st.shift==="Morning" && st.status!=="Left" && cls.some(k=>inClass(st, k))).sort((a,b)=>a.course.localeCompare(b.course) || a.name.localeCompare(b.name));
+  const cls = c ? [c] : ptmClasses(x), so = IS_TEACHER ? mySubjMap() : null;
+  return DB.students.filter(st=>st.shift==="Morning" && st.status!=="Left" && cls.some(k=>inClass(st, k) && (!so || teachesStu(st, "Morning|"+k, so)))).sort((a,b)=>a.course.localeCompare(b.course) || a.name.localeCompare(b.name));
 }
 /* bache ke liye: kisi ne bhi "met" kaha to aaye; sab ne "N" kaha to nahi aaye */
 function ptmMet(x, sid){
@@ -6109,13 +6109,19 @@ function mySubjMap(){                         // "Shift|Class" → [subjects] ya
   DB.students.forEach(st=>(st.subjects||[]).forEach(x=>{ if(x.teacherId===MY_TID) classesOf(st).forEach(c=>add(st.shift+"|"+c, x.name)); }));
   return k => whole.has(k) || !map.has(k) ? null : [...map.get(k)];
 }
+/* v94: Morning O Levels (O1, O2) mein bache apne apne subjects lete hain — teacher ko sirf apne subject wale bache.
+   Baqi Morning classes (FT, AS, A2) mein poori class. */
+const O_MORNING = ["O1","O2"];
+const subjWise = (sh, c) => sh === "Evening" || (sh === "Morning" && O_MORNING.includes(c));
 function teachesStu(st, k, subjOf){           // k = "Shift|Class"
   const [sh, c] = k.split("|");
   if(st.shift !== sh || !inClass(st, c)) return false;
-  if(sh === "Morning") return true;
+  if(!subjWise(sh, c)) return true;
   const subs = subjOf(k);
   if(!subs) return true;
-  return (st.subjects||[]).some(x=>x.teacherId ? x.teacherId===MY_TID : subs.some(y=>subjLike(x.name, y)));
+  /* Morning O Level: bache ke subjects darj hi na hon to (ghalti se chhup na jaye) dikhao */
+  if(sh === "Morning" && !(st.subjects||[]).length) return st.hasSubj !== true;
+  return (st.subjects||[]).some(x=>x.teacherId===MY_TID || (sh === "Morning" || !x.teacherId) && subs.some(y=>subjLike(x.name, y)));
 }
 /* Wohi bacha do records mein (maslan Morning + Evening) → aik hi gina jaye: same Reg No, ya same naam magar alag shift */
 function uniqueStudents(list){
@@ -7210,12 +7216,13 @@ function renderMyDash(){
   const stus = DB.students.filter(st=>activeIn(st, m, RM) && keys.some(k=>teachesStu(st, k, subjOf)));
   const people = uniqueStudents(stus);
   /* Evening class jis ka subject maloom nahi — poori class ginti mein (admin subject set kare) */
-  const wholeCls = keys.filter(k=>k.startsWith("Evening|") && !subjOf(k));
+  const wholeCls = keys.filter(k=>subjWise(...k.split("|")) && !subjOf(k));
   const today0 = new Date().getDay();
   const asg = (me.assignments||[]).filter(a=>teachShifts(me).includes(a.shift)).sort((a,b)=>((slotOf(a,today0)||a).from||"99").localeCompare((slotOf(b,today0)||b).from||"99") || a.course.localeCompare(b.course));
   const today = new Date().getDay(), nowT = new Date().toTimeString().slice(0,5);
   const forAsg = a => stus.filter(st=>st.shift===a.shift && inClass(st, a.course)
-    && (a.shift === "Morning" || (a.subject ? (st.subjects||[]).some(x=>x.teacherId ? x.teacherId===MY_TID : subjLike(x.name, a.subject)) : teachesStu(st, a.shift+"|"+a.course, subjOf))));
+    && (!subjWise(a.shift, a.course) || (a.subject ? (st.subjects||[]).some(x=>x.teacherId===MY_TID || (a.shift === "Morning" || !x.teacherId) && subjLike(x.name, a.subject))
+      || (a.shift === "Morning" && !(st.subjects||[]).length && st.hasSubj !== true) : teachesStu(st, a.shift+"|"+a.course, subjOf))));
   const todays = asg.filter(a=>(a.from || a.dayList) && asgDays(a).includes(today)).map(a=>({...a, ...(slotOf(a, today) || {})}));
   /* attendance (sirf parhne ke liye) */
   const att = DB.empAttendance || {}, days = Object.keys(att).filter(d=>d.startsWith(m) && empRecs(att[d], MY_TID).length).sort();
@@ -7245,7 +7252,7 @@ function renderMyDash(){
   $("mdSub").textContent = `${new Date().toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long",year:"numeric"})}${me.online ? " · 🟢 Online teacher" : ""}`;
   $("mdCards").innerHTML = `
     <div class="card"><div class="k">My classes</div><div class="v">${keys.length}</div><div class="hint">${keys.map(k=>k.split("|").reverse().join(" · ")).join(", ") || "Ask the admin to assign"}</div></div>
-    <div class="card"><div class="k">My students</div><div class="v">${people.length}</div><div class="hint">${fmtM(m)} · Morning: whole class · Evening: your subject only${people.length < stus.length ? ` · ${stus.length - people.length} repeated counted once` : ""}${wholeCls.length && SERVER ? `<br><span style="color:var(--danger)">Subject not set for ${wholeCls.map(k=>k.split("|").reverse().join(" · ")).join(", ")} — whole class counted. Ask the admin to set your subject (Employees → Edit → Assign).</span>` : ""}</div></div>
+    <div class="card"><div class="k">My students</div><div class="v">${people.length}</div><div class="hint">${fmtM(m)} · Morning O1/O2 & Evening: your subject only · other Morning classes: whole class${people.length < stus.length ? ` · ${stus.length - people.length} repeated counted once` : ""}${wholeCls.length && SERVER ? `<br><span style="color:var(--danger)">Subject not set for ${wholeCls.map(k=>k.split("|").reverse().join(" · ")).join(", ")} — whole class counted. Ask the admin to set your subject (Employees → Edit → Assign).</span>` : ""}</div></div>
     <div class="card"><div class="k">Today's classes</div><div class="v">${todays.length}</div><div class="hint">${todays.length ? todays.map(a=>`${fmtT(a.from)} ${a.course}`).join(", ") : "No class times set for today"}</div></div>
     <div class="card${empLateMonth(MY_TID, m).over ? " late-card" : ""}"><div class="k">My attendance (${fmtM(m)})</div><div class="v ${pct >= 90 || !marked ? "green" : "red"}">${marked ? pct + "%" : "—"}</div><div class="hint">${c.P} present · ${c.L} late · ${c.A} absent · ${c.E} informed leave · ${c.U} uninformed · leaves ${empLeaveDays(MY_TID, m).length}/${EMP_LEAVE_LIMIT} · late ${empLateMonth(MY_TID, m).tot}/${latePolicy().allow} min${empLateMonth(MY_TID, m).ded ? ` · <b style="color:var(--danger)">fine Rs ${empLateMonth(MY_TID, m).ded.toLocaleString("en-US")}</b>` : ""}</div></div>
     <div class="card click" onclick="document.querySelector('#nav button[data-page=tests]').click()"><div class="k">Marks pending</div><div class="v ${pend.length ? "red" : "green"}">${pend.length}</div><div class="hint">papers with incomplete marks</div></div>`;
@@ -7550,7 +7557,7 @@ async function asgEdit(a){
     <p class="sub" style="margin-top:0">Timed: the timer starts when the student presses Start; when it runs out their answers are submitted and marked automatically.</p>
     <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><b>Students</b>
       <span><a href="#" onclick="document.querySelectorAll('.ae_st').forEach(c=>c.checked=true);return false">All</a> · <a href="#" onclick="document.querySelectorAll('.ae_st').forEach(c=>c.checked=false);return false">None</a></span></div>
-    <p class="sub" style="margin:2px 0 8px">${x.shift === "Morning" ? "Morning: the whole class." : "Evening: only students of this class who take " + esc(x.subject) + "."}</p>
+    <p class="sub" style="margin:2px 0 8px">${!subjWise(x.shift, x.course) ? "Morning: the whole class." : `${esc(x.shift)}: only students of this class who take ${esc(x.subject)}.`}</p>
     <div id="ae_stu" class="asg-stu">Loading…</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
       <button class="btn-red" onclick="asgSave('published')">📤 ${x.status === "published" ? "Save" : "Publish to students"}</button>

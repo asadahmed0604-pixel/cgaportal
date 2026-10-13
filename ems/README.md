@@ -332,6 +332,13 @@ portal and the parents' app, above the AI assignments: To do / Sent — awaiting
   automatically on the standard 0–5 scale from the share of students whose marks were in on time: ≥95% → 5, ≥85% → 4,
   ≥70% → 3, ≥50% → 2, >0 → 1, none → 0 (note: “Auto — marks deadline …”). A number the coordinator enters by hand is kept.
 
+## Morning O Levels — teachers see only their subject's students (v94)
+
+In Morning **O1 and O2** a teacher now sees only the students who take their subject (as in the Evening): My Dashboard
+student list and counts, homework receival, PTM attendance / remarks, assignment students and marks entry. A student whose
+subjects are not entered yet still shows (so nobody is hidden by mistake). FT1, FT2, AS and A2 stay whole-class. The
+teacher's subject comes from Employees → Assign (or the subject's teacher on the student profile).
+
 ## Install as an app (v41)
 
 Staff (`/`), Teachers (`/teacher`) and Parents (`/parent`) — all three links can be installed as an app on a phone / computer
