@@ -413,6 +413,13 @@ end time, parents of those Morning classes see a banner — "Results will be ann
 9:00 AM–12:00 PM" — instead of marks, averages and class position (My Report and chat). Results come back automatically
 when the PTM time is over. The PTM list shows "🔒 results hidden till PTM". Staff screens and report cards are not affected.
 
+## Import a staff member's KPIs (v104)
+
+🎯 Staff KPIs & To-do → each person has **⬆ Import KPIs** and **⬇ Template** (also inside the KPI form). Fill the template
+in Excel and save it as **CSV**: columns **KPI, Target, Weight, Score (0–5), Note**; an optional "Month, October 2026" row on top
+picks the month. Scores can be 0–5, a % (80 → 4), done / yes (5), not done (0) or n/a (blank). The KPI form opens filled in —
+check it and press **Save KPIs**. A different name in the file shows a warning.
+
 ## Install as an app (v41)
 
 Staff (`/`), Teachers (`/teacher`) and Parents (`/parent`) — all three links can be installed as an app on a phone / computer
