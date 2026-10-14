@@ -726,6 +726,7 @@ label.chk input{width:auto}
 <section class="page" id="page-staffkpi">
   <div class="page-head"><div><h2>🎯 Staff KPIs & To-do</h2><div class="sub">For staff with their own login (Settings → Logins → Staff logins). Set each person's monthly KPIs (target, weight, score 0–5) and give them tasks — they see both on their dashboard and tick tasks done.</div></div>
     <div class="toolbar" style="margin:0"><div class="field" style="margin:0"><label>Month</label><input type="month" id="skMonth" onchange="renderStaffKpi()"></div></div></div>
+  <input type="file" id="skFile" accept=".csv,text/csv,.txt" style="display:none" onchange="importStaffKpi(this)">
   <div id="skList"></div>
 </section>
 
@@ -1403,7 +1404,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v103 · 14 Oct 2026";
+const BUILD = "v104 · 14 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -3675,7 +3676,7 @@ function renderStaffKpi(){
     return `<div class="panel" style="margin-bottom:14px">
       <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center">
         <div><h3 style="margin:0">${esc(e.name)} <span class="chip">${STAFF_ACCESS[e.access]}</span></h3><span class="sub">${e.login ? `Login ID <code>${esc(e.login.user)}</code>` : "no login yet"}</span></div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn-black btn-sm" onclick="openStaffKpi('${e.id}')">🎯 KPIs — ${fmtM(m)}</button><button class="btn-red btn-sm" onclick="openStaffTask('${e.id}')">+ Task</button></div></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn-black btn-sm" onclick="openStaffKpi('${e.id}')">🎯 KPIs — ${fmtM(m)}</button><button class="btn-line btn-sm" onclick="pickStaffKpiFile('${e.id}')" title="Import this person's KPIs from a CSV / Excel (saved as CSV) sheet">⬆ Import KPIs</button><button class="btn-line btn-sm" onclick="staffKpiTemplate('${e.id}')">⬇ Template</button><button class="btn-red btn-sm" onclick="openStaffTask('${e.id}')">+ Task</button></div></div>
       <div class="cards" style="margin:10px 0">
         <div class="card"><div class="k">KPI score · ${fmtM(m)}</div><div class="v" style="${scoreColor(pct)}">${pct === null ? "—" : pct + "%"}</div><div class="hint">${k ? `${(k.items||[]).length} KPIs${pct !== null ? " · " + kpiRating(pct) : " · not scored yet"}` : "No KPIs set for this month"}</div></div>
         <div class="card"><div class="k">Open tasks</div><div class="v">${open.length}</div><div class="hint">${late.length ? `<b style="color:var(--danger)">${late.length} overdue</b>` : "none overdue"}</div></div>
@@ -3704,10 +3705,54 @@ function drawStaffKpi(){
       <td><button class="btn-line btn-sm" onclick="SKD.items.splice(${i},1);drawStaffKpi()">✕</button></td></tr>`).join("")}
     </tbody></table></div>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;flex-wrap:wrap;gap:8px">
-      <button class="btn-line btn-sm" onclick="SKD.items.push({id:uid(),title:'',target:'',weight:10,score:'',note:''});drawStaffKpi()">+ Add KPI</button>
+      <span style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn-line btn-sm" onclick="SKD.items.push({id:uid(),title:'',target:'',weight:10,score:'',note:''});drawStaffKpi()">+ Add KPI</button>
+        <button class="btn-line btn-sm" onclick="pickStaffKpiFile(SKD.sid)">⬆ Import CSV</button><button class="btn-line btn-sm" onclick="staffKpiTemplate(SKD.sid)">⬇ Template</button></span>
       <span class="sub">Total weight ${tw} · score so far <b style="${scoreColor(pct)}">${pct === null ? "—" : pct + "%"}</b></span></div>
     <div class="field" style="margin-top:10px"><label>Review comment (shown to ${esc(e.name)})</label><textarea id="sk_rev" rows="2" oninput="SKD.review=this.value">${esc(SKD.review)}</textarea></div>
     <div class="modal-foot"><button class="btn-line" onclick="closeModal()">Cancel</button><button class="btn-red" onclick="saveStaffKpi()">Save KPIs</button></div>`, true);
+}
+/* v104: kisi aik staff member ke KPIs CSV se (Excel → Save As → CSV). Columns: KPI, Target, Weight, Score (0–5), Note —
+   heading row kahin bhi ho; upar "Month: October 2026" ho to wahi mahina. Import ke baad form khulta hai, dekh kar Save. */
+let SK_IMP = "";
+function pickStaffKpiFile(sid){ SK_IMP = sid; const f = $("skFile"); if(f){ f.value = ""; f.click(); } }
+function staffKpiTemplate(sid){
+  const e = empById(sid), m = ($("skMonth") && $("skMonth").value) || wm(), k = kpiOf(sid, m);
+  const items = k ? k.items : (KPI_TPL[e.access]||KPI_TPL.admin).map(([title,target])=>({title, target, weight:20, score:"", note:""}));
+  downloadCSV(`KPIs ${e.name} ${fmtM(m)}.csv`, [["Name", e.name], ["Month", fmtM(m)], [],
+    ["KPI","Target","Weight","Score (0-5)","Note"], ...items.map(it=>[it.title, it.target||"", it.weight, it.score === "" || it.score === undefined ? "" : it.score, it.note||""])]);
+}
+function importStaffKpi(inp){
+  const f = inp.files && inp.files[0], sid = SK_IMP; if(!f || !sid) return;
+  const rd = new FileReader();
+  rd.onload = ()=>{
+    inp.value = "";
+    const rows = parseCSV(String(rd.result||"").replace(/^\uFEFF/, "")), cell = (r, i) => String((r||[])[i] ?? "").trim();
+    const hi = rows.findIndex(r=>r.some(c=>/^(kpi|kpis|kpi\s*\/\s*task|title|task|key performance indicator)s?$/i.test(String(c).trim())));
+    if(hi < 0){ toast("No 'KPI' heading found — use the ⬇ Template (columns: KPI, Target, Weight, Score, Note)"); return; }
+    const H = rows[hi].map(c=>String(c).trim().toLowerCase()), col = re => H.findIndex(h=>re.test(h));
+    const cK = col(/^(kpi|kpis|kpi\s*\/\s*task|title|task|key performance indicator)s?$/), cT = col(/target|standard|measure|goal/), cW = col(/weight|%|points/), cS = col(/score|rating|status|marks/), cN = col(/note|comment|evidence|remark/);
+    const items = [];
+    rows.slice(hi+1).forEach(r=>{
+      const t = cell(r, cK); if(!t || /^(total|totals|overall|score|rating)\b/i.test(t)) return;
+      const raw = cS >= 0 ? cell(r, cS).toLowerCase() : "", n = parseFloat(raw);
+      const score = raw === "" || /^n\/?a$|^-$/.test(raw) ? "" : !isNaN(n) ? Math.max(0, Math.min(5, Math.round(n > 5 && n <= 100 ? n/20 : n))) : /not|no\b/.test(raw) ? 0 : /done|yes|met/.test(raw) ? 5 : "";
+      const w = cW >= 0 ? parseFloat(cell(r, cW)) : NaN;
+      items.push({id:uid(), title:t, target: cT >= 0 ? cell(r, cT) : "", weight: isNaN(w) ? 20 : Math.max(0, w), score, note: cN >= 0 ? cell(r, cN) : ""});
+    });
+    if(!items.length){ toast("No KPI rows found under the heading"); return; }
+    /* "Month: October 2026" / "Name: …" upar se */
+    const top = rows.slice(0, hi), find = re => { for(const r of top) for(let i = 0; i < r.length; i++) if(re.test(cell(r, i))) return cell(r, i+1); return ""; };
+    let m = ($("skMonth") && $("skMonth").value) || wm();
+    const mm = String(find(/^month(\s*\/\s*year)?:?$/i)).match(/([a-z]+)\s+(\d{4})|(\d{4})-(\d{2})/i);
+    if(mm){ if(mm[3]) m = `${mm[3]}-${mm[4]}`; else { const i = ["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"].indexOf(mm[1].slice(0,3).toLowerCase()); if(i >= 0) m = `${mm[2]}-${String(i+1).padStart(2,"0")}`; } }
+    const e = empById(sid), nm = find(/^(name|staff|employee)(\s*name)?:?$/i);
+    if($("skMonth")) $("skMonth").value = m;
+    const k = kpiOf(sid, m);
+    SKD = {sid, m, items, review: k ? k.review||"" : ""};
+    drawStaffKpi();
+    toast(`${items.length} KPIs read for ${e.name} — ${fmtM(m)}${nm && nameScore(nm, e.name) < 0.5 ? ` · ⚠ the file says “${nm}”` : ""}. Check and press Save KPIs.`);
+  };
+  rd.readAsText(f);
 }
 function saveStaffKpi(){
   const items = SKD.items.filter(it=>String(it.title||"").trim()).map(it=>({...it, title:String(it.title).trim(), target:String(it.target||"").trim(), weight:+it.weight||0}));
