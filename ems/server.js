@@ -71,6 +71,19 @@ function teacherToken(e) {
 }
 /* v102: Admin / Fee Admin ke apne naam wale login (har shakhs ka Login ID + password) — token mein employee id */
 const STAFF_ROLES = ["admin", "feeadmin"];
+/* v105: staff ki shift (coordinator) — Morning / Evening; khali = dono. Doosri shift ki student attendance / class attendance /
+   classes-taken na bheji jati hai na un ke save se badalti hai */
+const SHIFTS = ["Morning", "Evening"];
+const scopeOf = (sid) => { const e = sid && ((dbNow() || {}).employees || []).find((x) => x.id === sid); return e && SHIFTS.includes(e.scope) ? e.scope : ""; };
+const shiftMap = (d) => new Map((d.students || []).map((st) => [st.id, st.shift]));
+function scopeData(d, scope) {
+  const sm = shiftMap(d), att = {};
+  Object.entries(d.attendance || {}).forEach(([dt, day]) => { const o = {}; Object.entries(day || {}).forEach(([sid, r]) => { if (sm.get(sid) === scope) o[sid] = r; }); att[dt] = o; });
+  d.attendance = att;
+  d.classAtt = (d.classAtt || []).filter((c) => c && c.shift === scope);
+  d.classLog = Object.fromEntries(Object.entries(d.classLog || {}).map(([dt, day]) => [dt, Object.fromEntries(Object.entries(day || {}).filter(([k]) => k.startsWith(scope + "|")))]));
+  return d;
+}
 const STAFF_LABEL = { admin: "Admin", feeadmin: "Fee Admin" };
 function staffToken(e) {
   const exp = Date.now() + SESSION_DAYS * 864e5, tag = e.login.hash.slice(0, 12);
@@ -111,7 +124,7 @@ function authed(req) {
     const [, sid, exp, tag, sig] = parts;
     if (!(+exp > Date.now()) || !safeEq(sig, sign(`ems|staff|${sid}|${exp}|${tag}`))) return null;
     const e = staffById(sid);
-    return e && e.login.hash.startsWith(tag) ? { role: e.access, sid } : null;
+    return e && e.login.hash.startsWith(tag) ? { role: e.access, sid, scope: SHIFTS.includes(e.scope) ? e.scope : "" } : null;
   }
   if (parts.length === 5 && parts[0] === "teacher") {
     const [, tid, exp, tag, sig] = parts;
@@ -164,7 +177,13 @@ function withStaff(text, sid) {
 }
 function dataFor(role, tid, sid) {
   if (role === "exec") return state.dataText;
-  if (role !== "teacher") return withStaff(redacted(role, tid), sid);
+  if (role !== "teacher") {
+    const sc = scopeOf(sid);
+    if (!sc) return withStaff(redacted(role, tid), sid);
+    const ck = `${role}|${sc}`, c = redactCache[ck];
+    if (!(c && c.v === state.version)) redactCache[ck] = { v: state.version, text: JSON.stringify(scopeData(JSON.parse(redacted(role, tid)), sc)) };
+    return withStaff(redactCache[ck].text, sid);
+  }
   return redacted(role, tid);
 }
 function redacted(role, tid) {
@@ -382,6 +401,27 @@ function keepProtected(data, role, sid) {
   if (sid) newT.forEach((n, id) => { if (!curT.some((t) => t.id === id) && n.sid === sid) tasks.push({ id, sid, own: true, title: String(n.title || "").slice(0, 200),
     due: String(n.due || "").slice(0, 10), status: n.status === "done" ? "done" : "open", doneOn: String(n.doneOn || "").slice(0, 10), staffNote: "", created: String(n.created || "").slice(0, 10), by: "self" }); });
   data.staffTasks = tasks;
+  /* v105: shift wala staff — doosri shift ka attendance / class attendance / classes-taken server wala hi */
+  const sc = scopeOf(sid);
+  if (sc) {
+    const sm = shiftMap(cur), att = {}, A = data.attendance && typeof data.attendance === "object" ? data.attendance : {};
+    new Set([...Object.keys(cur.attendance || {}), ...Object.keys(A)]).forEach((dt) => {
+      const o = {};
+      Object.entries((cur.attendance || {})[dt] || {}).forEach(([id, r]) => { if (sm.get(id) !== sc) o[id] = r; });
+      Object.entries(A[dt] || {}).forEach(([id, r]) => { if (sm.get(id) === sc) o[id] = r; });
+      if (Object.keys(o).length) att[dt] = o;
+    });
+    data.attendance = att;
+    data.classAtt = (cur.classAtt || []).filter((c) => c && c.shift !== sc).concat((Array.isArray(data.classAtt) ? data.classAtt : []).filter((c) => c && c.shift === sc));
+    const L = {}, NL = data.classLog && typeof data.classLog === "object" ? data.classLog : {};
+    new Set([...Object.keys(cur.classLog || {}), ...Object.keys(NL)]).forEach((dt) => {
+      const o = {};
+      Object.entries((cur.classLog || {})[dt] || {}).forEach(([k, v]) => { if (!k.startsWith(sc + "|")) o[k] = v; });
+      Object.entries(NL[dt] || {}).forEach(([k, v]) => { if (k.startsWith(sc + "|")) o[k] = v; });
+      if (Object.keys(o).length) L[dt] = o;
+    });
+    data.classLog = L;
+  }
   /* Fee Admin (khula hua) apni income / expense entries badal sakta hai; salary entries server wali hi */
   data.txns = role === "feeadmin"
     ? (Array.isArray(data.txns) ? data.txns : []).filter((t) => t && t.category !== SALARY_CAT).concat((cur.txns || []).filter((t) => t.category === SALARY_CAT))
@@ -393,10 +433,12 @@ function keepProtected(data, role, sid) {
   const sal = new Map((cur.employees || []).map((e) => [e.id, e.salary]));
   const login = new Map((cur.employees || []).map((e) => [e.id, e.login]));
   const access = new Map((cur.employees || []).map((e) => [e.id, e.access]));        // v102: kis ka kya access — sirf Executive
+  const scopes = new Map((cur.employees || []).map((e) => [e.id, e.scope]));
   (data.employees || []).forEach((e) => {
     if (sal.has(e.id)) e.salary = sal.get(e.id);
     if (login.get(e.id)) e.login = login.get(e.id); else delete e.login;          // teacher passwords sirf Executive
     if (access.get(e.id)) e.access = access.get(e.id); else delete e.access;
+    if (scopes.get(e.id)) e.scope = scopes.get(e.id); else delete e.scope;
   });
   if (role === "admin") {
     data.feeReceipts = cur.feeReceipts || [];                                 // v43: fee receipts sirf fee wale dekhte hain
@@ -657,7 +699,7 @@ if (!APP_HTML.includes("<!--EMS_SERVER_BOOT-->")) throw new Error("<!--EMS_SERVE
 const jsonForScript = (text) => text.replace(/</g, "\\u003c").replace(/\u2028/g, "\\u2028").replace(/\u2029/g, "\\u2029");
 function appPage(role, tid, view, ul, sid) {
   const me = sid ? (((dbNow() || {}).employees || []).find((e) => e.id === sid) || {}).name || "" : "";      // v102: naam wala staff login
-  const boot = `<script>window.__EMS__={version:${state.version},role:${JSON.stringify(role)},tid:${JSON.stringify(tid || "")},sid:${JSON.stringify(sid || "")},me:${jsonForScript(JSON.stringify(me))},unlock:${JSON.stringify(ul || {})},data:${jsonForScript(dataFor(view || role, tid, sid))}};</script>`;
+  const boot = `<script>window.__EMS__={version:${state.version},role:${JSON.stringify(role)},tid:${JSON.stringify(tid || "")},sid:${JSON.stringify(sid || "")},scope:${JSON.stringify(scopeOf(sid))},me:${jsonForScript(JSON.stringify(me))},unlock:${JSON.stringify(ul || {})},data:${jsonForScript(dataFor(view || role, tid, sid))}};</script>`;
   return APP_HTML.replace("<!--EMS_SERVER_BOOT-->", () => boot);
 }
 /* v38: Staff (/login) aur Teachers (/teacher) ke alag login pages — dono /login par post karte hain */
