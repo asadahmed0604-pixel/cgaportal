@@ -1403,7 +1403,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v102 · 13 Oct 2026";
+const BUILD = "v103 · 14 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -3826,7 +3826,7 @@ function renderPtm(){
     const fb = Object.keys(x.feedback||{}).length;
     return `<tr>
       <td><b>${fmtD(x.date)}</b>${x.from ? `<br><span class="sub">${esc(x.from)}${x.to ? "–"+esc(x.to) : ""}</span>` : ""}${x.date===t ? `<br><span class="badge b-paid">Today</span>` : x.date > t ? `<br><span class="badge b-freeze">Upcoming</span>` : ""}</td>
-      <td><b>${esc(x.title||"PTM")}</b>${x.note ? `<br><span class="sub">${esc(x.note)}</span>` : ""}</td>
+      <td><b>${esc(x.title||"PTM")}</b>${x.hideResults && !IS_TEACHER ? ` <span class="badge ${dueEnd(x.date) >= Date.now() ? "b-freeze" : ""}" title="Parents cannot see these classes' results until the PTM is over">🔒 results ${dueEnd(x.date) >= Date.now() ? "hidden till PTM" : "released"}</span>` : ""}${x.note ? `<br><span class="sub">${esc(x.note)}</span>` : ""}</td>
       <td>${ptmClasses(x).map(c=>`<span class="chip">${esc(c)}</span>`).join(" ")}</td>
       <td><b>${met}</b> / ${L.length}</td>
       <td>${rem} / ${L.length}</td>
@@ -3848,6 +3848,7 @@ function openPtmForm(id){
     </div>
     <div class="field"><label>Classes *</label><div class="chips">${CLASSES_BY_SHIFT.Morning.map(c=>{ const n = DB.students.filter(st=>st.shift==="Morning" && st.status!=="Left" && inClass(st, c)).length;
       return `<label class="chk" style="margin:0 12px 6px 0"><input type="checkbox" class="pt-c" value="${esc(c)}" ${!id || on.has(c) ? "checked" : ""}> ${esc(c)} <span class="sub">(${n})</span></label>`; }).join("")}</div></div>
+    <label class="chk" style="margin:4px 0 10px"><input type="checkbox" id="pt_hide" ${!id || x.hideResults ? "checked" : ""}> 🔒 Hide these classes' exam results from parents until this PTM is over — the parents' app shows “Results will be announced at the PTM” instead</label>
     <div class="field"><label>Note for parents (shows in the parents' app)</label><textarea id="pt_note" rows="2" placeholder="e.g. Please bring the report card. Meet each subject teacher in the class room.">${esc(x.note || "")}</textarea></div>
     <div class="modal-foot"><button class="btn-line" onclick="closeModal()">Cancel</button><button class="btn-red" onclick="savePtm('${id||""}')">${id ? "Save" : "Schedule PTM"}</button></div>`);
 }
@@ -3855,7 +3856,7 @@ function savePtm(id){
   const title = $("pt_title").value.trim(), date = $("pt_date").value, classes = [...document.querySelectorAll(".pt-c:checked")].map(i=>i.value);
   if(!title || !date){ toast("Enter the title and date"); return; }
   if(!classes.length){ toast("Choose at least one class"); return; }
-  const data = {title, date, from:$("pt_from").value, to:$("pt_to").value, classes, note:$("pt_note").value.trim(), shift:"Morning"};
+  const data = {title, date, from:$("pt_from").value, to:$("pt_to").value, classes, note:$("pt_note").value.trim(), shift:"Morning", hideResults:$("pt_hide").checked};
   DB.ptms = DB.ptms || [];
   if(id) Object.assign(DB.ptms.find(y=>y.id===id), data);
   else DB.ptms.push({id:uid(), ...data, entries:{}, feedback:{}, createdOn:todayStr(), createdBy:myName() || ROLE_LABEL});

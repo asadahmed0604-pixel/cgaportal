@@ -50,6 +50,20 @@ const mine = (st) => (st.subjects || []).filter((x) => x && x.name);
    · behaviour & discipline (100 se: "Behaviour" remark −15, "Issue" −10, class bunk −10, "Appreciation" +5) · attendance & punctuality
    (Present 100, Late 50, Absent 0). Class + shift ke sab bache (Left nahi) jin ke us mahine marks hain; barabar score = aik position.
    index.html ka posParts bilkul yehi hisaab karta hai (report cards). */
+/* v103: PTM tak Morning ke results parents se chhupe (PTM par "Hide results until this PTM") — PTM ka waqt khatam hote hi khud wapas */
+const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const t12 = (t) => { const x = /^(\d{1,2}):(\d{2})$/.exec(String(t || "")); if (!x) return ""; const h = +x[1]; return `${((h + 11) % 12) + 1}:${x[2]} ${h < 12 ? "AM" : "PM"}`; };
+function resultsHold(db, st, now = Date.now()) {
+  if (!st || st.shift !== "Morning") return null;
+  const L = (db.ptms || []).filter((x) => x && x.hideResults && /^\d{4}-\d{2}-\d{2}$/.test(x.date || "") && (x.classes || []).some((c) => classesOf(st).includes(c)))
+    .map((x) => ({ x, end: Date.parse(`${x.date}T${/^\d{2}:\d{2}$/.test(x.to || "") ? x.to : "23:59"}:00+05:00`) }))
+    .filter((r) => r.end > now).sort((a, b) => a.end - b.end);
+  if (!L.length) return null;
+  const x = L[0].x, d = new Date(x.date + "T12:00:00Z"), when = `${DAYS[d.getUTCDay()]} ${d.getUTCDate()} ${MON[d.getUTCMonth()]}${x.from ? `, ${t12(x.from)}${x.to ? "–" + t12(x.to) : ""}` : ""}`;
+  return { date: x.date, from: x.from || "", to: x.to || "", title: x.title || "Parent-Teacher Meeting", when,
+    text: `Results will be announced at the PTM — ${when}. Please come to the school to collect your child's result.` };
+}
 const POS_W = { marks: 60, hw: 15, beh: 10, att: 15 };
 function posParts(db, st, month) {
   const L = (db.exams || []).filter((e) => e.studentId === st.id && +e.total > 0 && !e.absent && takesSubj(st, e.subject) && String(e.date).startsWith(month));
@@ -121,6 +135,7 @@ function studentReport(db, st, today) {
   exams.forEach((e) => { const k = e.subject || "General"; if (!e.absent) (bySub[k] = bySub[k] || []).push(p(e)); });
   const avg = (l) => (l.length ? Math.round(l.reduce((a, x) => a + x, 0) / l.length) : null);
 
+  const hold = resultsHold(db, st);                    // v103: PTM tak results band
   const classes = classesFor(db, st), wd = new Date(Date.parse(today + "T12:00:00Z")).getUTCDay();
   const todays = classes.map((c) => { const t = c.times.find((x) => x.d === wd); return t ? { subject: c.subject, course: c.course, teacher: c.teacher, from: t.from, to: t.to } : null; })
     .filter(Boolean).sort((a, b) => String(a.from).localeCompare(String(b.from)));
@@ -134,7 +149,7 @@ function studentReport(db, st, today) {
       bySubject: Object.entries(subj).map(([k, r]) => ({ subject: k, P: r.P, L: r.L, A: r.A, pct: pct(r.P + r.L, r.P + r.L + r.A) })),
     },
     classes, todayClasses: todays,
-    marks: {
+    marks: hold ? { hold, list: [], position: null, average: null, count: 0, bySubject: [] } : {
       list: exams.slice(0, 25).map((e) => ({ date: e.date, exam: e.exam || "Test", subject: e.subject || "", obtained: e.absent ? null : +e.obtained, total: +e.total,
         pct: p(e), absent: !!e.absent, comment: e.comment || "", by: e.byName || "" })),
       position: classPosition(db, st),           // v99
@@ -153,4 +168,4 @@ function studentReport(db, st, today) {
   };
 }
 
-module.exports = { studentReport, classesFor, homeworkOf, takesSubj, classPosition };
+module.exports = { studentReport, classesFor, homeworkOf, takesSubj, classPosition, resultsHold };

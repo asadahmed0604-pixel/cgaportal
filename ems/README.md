@@ -406,6 +406,13 @@ and the class position. Picking a date also ticks the student; clearing it untic
 - The server sends each staff member only their own KPIs and tasks; KPIs can only be changed by the Executive, and a staff
   member can only tick / note their own tasks and add or remove their own to-dos.
 
+## Hide Morning results until the PTM (v103)
+
+PTM form → **🔒 Hide these classes' exam results from parents until this PTM is over** (ticked by default). Until the PTM's
+end time, parents of those Morning classes see a banner — "Results will be announced at the PTM — Saturday 17 Oct,
+9:00 AM–12:00 PM" — instead of marks, averages and class position (My Report and chat). Results come back automatically
+when the PTM time is over. The PTM list shows "🔒 results hidden till PTM". Staff screens and report cards are not affected.
+
 ## Install as an app (v41)
 
 Staff (`/`), Teachers (`/teacher`) and Parents (`/parent`) — all three links can be installed as an app on a phone / computer
