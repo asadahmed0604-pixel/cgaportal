@@ -420,6 +420,14 @@ in Excel and save it as **CSV**: columns **KPI, Target, Weight, Score (0–5), N
 picks the month. Scores can be 0–5, a % (80 → 4), done / yes (5), not done (0) or n/a (blank). The KPI form opens filled in —
 check it and press **Save KPIs**. A different name in the file shows a warning.
 
+## Shift coordinators — Morning / Evening only (v105)
+
+Settings → Logins → Staff logins → **Shift (coordinator)**: Both / Morning only / Evening only. A Morning-only staff login
+(e.g. the Morning coordinator) never receives the Evening students' attendance, Evening class attendance or Evening
+"classes taken" — and the other way round. Their Attendance page, attendance summary, attendance report export, Classes
+Taken and dashboard show only their shift; Morning-only staff don't get the (Evening) Class Attendance page. When they
+save, the other shift's records are kept exactly as they are on the server.
+
 ## Install as an app (v41)
 
 Staff (`/`), Teachers (`/teacher`) and Parents (`/parent`) — all three links can be installed as an app on a phone / computer

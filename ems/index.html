@@ -1404,7 +1404,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v104 · 14 Oct 2026";
+const BUILD = "v105 · 14 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -1545,6 +1545,9 @@ const MY_TID = (SERVER && SERVER.tid) || "";
 /* v102: Admin / Fee Admin ka apna naam wala login (employee id + naam) */
 const MY_SID = (SERVER && SERVER.sid) || "";
 const MY_STAFF = (SERVER && SERVER.me) || "";
+/* v105: coordinator ki shift — Morning / Evening (khali = dono); server doosri shift ki attendance bhejta hi nahi */
+const MY_SCOPE = (SERVER && SERVER.scope) || "";
+const scopeShifts = () => MY_SCOPE ? [MY_SCOPE] : ["Morning","Evening"];
 const CAN_FEES = ROLE === "exec" || ROLE === "feeadmin";   // v32: Fee / Billing sirf Executive aur Fee Admin
 const TEACHER_PAGES = ["mydash","assign","tests","classatt","homework","ptm"];
 const ALL_PAGES = ["dashboard","mydash","staffdash","staffkpi","students","gallery","attendance","fees","homework","parents","ptm","inquiries","exams","tests","classatt","classlog","timetable","assign",
@@ -1839,6 +1842,7 @@ function renderPage(p){
   if(GATED_PAGES.includes(p) && !feeOpen()){ drawLock(p); return; }
   if(!IS_TEACHER && p === "mydash") p = "dashboard";
   if(p === "staffdash" && !MY_SID) p = IS_ADMIN ? "students" : "dashboard";
+  if(p === "classatt" && MY_SCOPE === "Morning") p = "attendance";
   ({dashboard:renderDashboard, students:renderStudents, gallery:renderGallery, attendance:loadAttendance,
     fees:renderFees, homework:renderHomework, ptm:renderPtm, staffdash:renderStaffDash, staffkpi:renderStaffKpi, inquiries:renderInquiries, exams:renderExams,
     employees:renderEmployees, inventory:renderInventory, issuance:renderIssuance,
@@ -2300,7 +2304,8 @@ function renderClassLog(){
   dI.min = m0 + "-01"; dI.max = todayStr();
   if(!dI.value || dI.value.slice(0,7) !== m0 || dI.value > todayStr()) dI.value = todayStr();
   const date = dI.value;
-  $("clShift").innerHTML = ["Morning","Evening"].map(x=>`<button class="${CL.shift===x?"on":""}" onclick="CL.shift='${x}';renderClassLog()">${x==="Morning"?"🌅":"🌆"} ${x}</button>`).join("");
+  if(MY_SCOPE) CL.shift = MY_SCOPE;
+  $("clShift").innerHTML = scopeShifts().map(x=>`<button class="${CL.shift===x?"on":""}" onclick="CL.shift='${x}';renderClassLog()">${x==="Morning"?"🌅":"🌆"} ${x}</button>`).join("");
   $("clView").innerHTML = [["subject","Subject-wise"],["class","Class-wise"]].map(([k,l])=>`<button class="${CL.view===k?"on":""}" onclick="CL.view='${k}';renderClassLog()">${l}</button>`).join("");
   const ts = $("clTeacher"), tv = ts.value, live = clLiveClasses(thisMonth()), T = DB.employees.filter(e=>(e.assignments||[]).some(a=>a.shift===CL.shift && String(a.subject||"").trim() && live.has(a.shift+"|"+a.course))).sort((a,b)=>a.name.localeCompare(b.name));
   ts.innerHTML = `<option value="">All teachers</option>` + T.map(e=>`<option value="${e.id}" ${e.id===tv?"selected":""}>${esc(e.name)}</option>`).join("");
@@ -3140,7 +3145,15 @@ function downloadProfile(id){
 
 /* ================= ATTENDANCE ================= */
 let attDraft = {};
+function applyScopeUI(){
+  if(!MY_SCOPE) return;
+  if($("attShift").value !== MY_SCOPE){ $("attShift").value = MY_SCOPE; [...$("attShiftSeg").children].forEach(b=>b.classList.toggle("on", b.textContent.includes(MY_SCOPE))); }
+  [...$("attShiftSeg").children, ...$("asSeg").children].forEach(b=>{ b.style.display = b.textContent.includes(MY_SCOPE) ? "" : "none"; });
+  AS_SHIFT = MY_SCOPE;
+  [...$("attRepShift").options].forEach(o=>{ if(o.value !== MY_SCOPE) o.remove(); });
+}
 function loadAttendance(){
+  applyScopeUI();
   setTimeout(drawAttSummary, 0);
   if(!$("attDate").value) $("attDate").value = wmDate();
   const date = $("attDate").value, shift = $("attShift").value;
@@ -3323,6 +3336,7 @@ async function reportCardPDF(d){
 }
 
 function setAttShift(sh){
+  if(MY_SCOPE) sh = MY_SCOPE;
   $("attShift").value = sh;
   [...$("attShiftSeg").children].forEach(b=>b.classList.toggle("on", b.textContent.includes(sh)));
   $("attClass").value = "";
@@ -3824,14 +3838,13 @@ function renderStaffDash(){
         !F.length ? `No challans generated for ${fmtM(m)} yet` : ""].filter(Boolean).map(x=>`<li>${x}</li>`).join("")}</ul>`;
     }
   }
-  cards += `<div class="card click" onclick="document.querySelector('#nav button[data-page=attendance]').click()"><div class="k">Attendance today</div><div class="v">${marked("Morning") + marked("Evening")}</div><div class="hint">Morning ${marked("Morning")}/${tot("Morning")} · Evening ${marked("Evening")}/${tot("Evening")}</div></div>
+  cards += `<div class="card click" onclick="document.querySelector('#nav button[data-page=attendance]').click()"><div class="k">Attendance today${MY_SCOPE ? " · " + MY_SCOPE : ""}</div><div class="v">${scopeShifts().reduce((a,sh)=>a + marked(sh), 0)}</div><div class="hint">${scopeShifts().map(sh=>`${sh} ${marked(sh)}/${tot(sh)}`).join(" · ")}</div></div>
     <div class="card click" onclick="document.querySelector('#nav button[data-page=inquiries]').click()"><div class="k">Follow-ups due</div><div class="v ${iq.length ? "red" : "green"}">${iq.length}</div><div class="hint">${iq.filter(i=>i.nextFollow < t0).length} overdue</div></div>
     <div class="card click" onclick="document.querySelector('#nav button[data-page=parents]').click()"><div class="k">Parent messages</div><div class="v ${msgs.length ? "red" : "green"}">${msgs.length}</div><div class="hint">waiting for a reply</div></div>`;
   $("sdCards").innerHTML = cards;
   const ptm = (DB.ptms||[]).filter(x=>x.date >= t0).sort((a,b)=>a.date.localeCompare(b.date))[0];
   work += `<ul style="margin:6px 0 0 18px;line-height:1.8">${[
-    tot("Morning") && marked("Morning") < tot("Morning") ? `Morning attendance: ${tot("Morning") - marked("Morning")} students not marked yet today` : "",
-    tot("Evening") && marked("Evening") < tot("Evening") ? `Evening attendance: ${tot("Evening") - marked("Evening")} students not marked yet today` : "",
+    ...scopeShifts().map(sh=>tot(sh) && marked(sh) < tot(sh) ? `${sh} attendance: ${tot(sh) - marked(sh)} students not marked yet today` : ""),
     iq.length ? `${iq.length} inquiry follow-up${iq.length>1?"s":""} due (${iq.filter(i=>i.nextFollow < t0).length} overdue)` : "",
     msgs.length ? `${msgs.length} parent message${msgs.length>1?"s":""} to answer` : "",
     ptm ? `PTM ${ptm.date === t0 ? "<b>today</b>" : "on " + fmtD(ptm.date)} — ${esc((ptm.classes||[]).join(", "))}` : "",
@@ -11013,8 +11026,8 @@ function renderLogins(){
     </tbody></table></div>
     <h3 style="margin:22px 0 6px">🪪 Staff logins — own name (Admin / Fee Admin)</h3>
     <p class="sub" style="margin-bottom:10px">Give each office person their <b>own Login ID + password</b> with <b>Admin</b> or <b>Fee Admin</b> access. They sign in on the Staff tab with their Login ID, get <b>My Dashboard</b> (their work, their KPIs and to-do list), and every change is logged with their name. Set their KPIs and tasks in <b>🎯 Staff KPIs & To-do</b>.</p>
-    <div class="tbl-wrap"><table><thead><tr><th>Name</th><th>Access</th><th>Login ID</th><th>Status</th><th></th></tr></thead><tbody>
-      ${staffPeople().map(e=>`<tr><td><b>${esc(e.name)}</b><br><span class="sub">${esc(e.category||"")}</span></td><td><span class="chip">${STAFF_ACCESS[e.access]}</span></td>
+    <div class="tbl-wrap"><table><thead><tr><th>Name</th><th>Access · shift</th><th>Login ID</th><th>Status</th><th></th></tr></thead><tbody>
+      ${staffPeople().map(e=>`<tr><td><b>${esc(e.name)}</b><br><span class="sub">${esc(e.category||"")}</span></td><td><span class="chip">${STAFF_ACCESS[e.access]}</span>${e.scope ? ` <span class="chip">${e.scope === "Morning" ? "🌅" : "🌆"} ${esc(e.scope)} only</span>` : ""}</td>
         <td>${e.login ? `<code>${esc(e.login.user)}</code>` : "—"}</td><td>${e.login ? `<span class="badge b-paid">On</span> <span class="sub">${fmtD(e.login.setOn)}</span>` : `<span class="sub">No password yet</span>`}</td>
         <td style="white-space:nowrap"><button class="btn-black btn-sm" onclick="openStaffLogin('${e.id}')">${e.login ? "Change" : "Set password"}</button>
           ${e.login ? `<button class="btn-line btn-sm" onclick="copyStaffLink('${e.id}')" title="Link + Login ID copy">📋</button>` : ""} <button class="btn-line btn-sm" onclick="removeStaffAccess('${e.id}')">Remove access</button></td></tr>`).join("")
@@ -11046,6 +11059,7 @@ function openStaffLogin(id){
       ${e ? "" : `<div class="field"><label>Person</label><select id="slWho" onchange="$('slNewWrap').style.display=this.value?'none':''"><option value="">➕ New person (type the name)</option>${others.map(x=>`<option value="${x.id}">${esc(x.name)} · ${esc(x.category||"")}</option>`).join("")}</select></div>
       <div class="field" id="slNewWrap"><label>Name *</label><input id="slName" placeholder="e.g. Miss Sara Khan"></div>`}
       <div class="field"><label>Access</label><select id="slAccess">${Object.entries(STAFF_ACCESS).map(([k,v])=>`<option value="${k}" ${e && e.access===k?"selected":""}>${v}${k==="feeadmin" ? " — Admin + Fee / Billing" : " — no fees"}</option>`).join("")}</select></div>
+      <div class="field"><label>Shift (coordinator)</label><select id="slScope">${[["","Both shifts"],["Morning","Morning only"],["Evening","Evening only"]].map(([v,l])=>`<option value="${v}" ${(e && (e.scope||"")) === v ? "selected" : ""}>${l}</option>`).join("")}</select></div>
       <div class="field"><label>Login ID (lowercase, no spaces)</label><input id="slUser" value="${esc((e&&e.login&&e.login.user)||"")}" autocomplete="off" placeholder="e.g. sara"></div>
       <div class="field"><label>Password (min 8)${e && e.login ? " — blank = keep" : ""}</label><input type="password" id="slPw" autocomplete="new-password"></div>
       <div class="field"><label>Repeat</label><input type="password" id="slPw2" autocomplete="new-password"></div>
@@ -11067,6 +11081,7 @@ async function saveStaffLogin(id){
   if(!keep && (!window.crypto || !crypto.subtle)){ toast("This browser cannot set passwords — use Chrome / Edge"); return; }
   if(!tgt){ e = {id:uid(), name, category:"Admin", shift:"Morning", phone:"", doj:todayStr(), salary:0, address:"", assignments:[], schedule:{}}; DB.employees.push(e); } else e = tgt;
   e.access = access;
+  const sc = $("slScope").value; if(sc) e.scope = sc; else delete e.scope;           // v105: Morning / Evening coordinator
   e.login = keep ? {...e.login, user} : {user, ...(await pinHash(x)), setOn:todayStr()};
   save(); closeModal(); renderLogins(); toast(`${e.name} — ${STAFF_ACCESS[access]} login ready · ID: ${user}`);
 }
@@ -12289,6 +12304,7 @@ if(IS_ADMIN){
     document.querySelector('#nav button[data-page="mydash"]').style.display = "";
     setTimeout(()=>{ const ev = eveTestStatus(wm()).filter(x=>x.need); if(ev.length) toast(`⏰ This month ${ev.map(x=>`${x.c}: ${x.n}/${EVE_TEST_TARGET} tests`).join(", ")} — take 2 tests in every Evening class`); }, 1200); }
   if(MY_SID) document.querySelector('#nav button[data-page="staffdash"]').style.display = "";
+  if(MY_SCOPE === "Morning"){ const b = document.querySelector('#nav button[data-page="classatt"]'); if(b) b.style.display = "none"; }   // v105: Evening class attendance
   document.querySelector(`#nav button[data-page="${IS_TEACHER ? "mydash" : MY_SID ? "staffdash" : "students"}"]`).click();
 }
 if(!SERVER){ const b = document.querySelector('#nav button[data-page="assign"]'); if(b) b.style.display = "none"; }   // v61: assignments sirf online
