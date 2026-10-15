@@ -201,8 +201,10 @@ function remarks(db, s, key) {
   const msgs = (db.parentMsgs || []).filter((m) => m.studentId === s.id && m.phone === key)
     .sort((a, b) => String(b.d).localeCompare(String(a.d))).slice(0, 3);
   const bk = bunksOf(db, s.id).slice(0, 5);
-  const out = [H(`💬 ${s.name} — Teacher remarks`)];
-  if (!rm.length && !comments.length && !bk.length) out.push(P("No remarks yet."));
+  const out = [H(`💬 ${s.name} — Behaviour & remarks`)];
+  const wl = (s.warnings || []).filter((w) => w && w.parentVisible !== false).sort((a, b) => String(b.d).localeCompare(String(a.d))).slice(0, 3);
+  if (wl.length) out.push(P("⚠ Warning letters:"), LI(wl.map((w) => `${fmtD(w.d)} · ${w.level || "1st"} warning${w.no ? ` (${w.no})` : ""}: ${w.reason}${w.note ? " — " + w.note : ""}`)));
+  if (!rm.length && !comments.length && !bk.length && !wl.length) out.push(P("No remarks yet."));
   if (bk.length) out.push(P("⚠ Class bunk:"), LI(bk.map(bunkLine)));
   if (rm.length) out.push(LI(rm.map((r) => `${fmtD(r.d)} · ${r.type || "Remark"}${r.by ? ` (${r.by})` : ""}: ${r.note}`)));
   if (comments.length) out.push(P("Test comments:"), LI(comments.map((e) => `${fmtD(e.date)} · ${e.exam}${e.subject ? ` (${e.subject})` : ""}: "${e.comment}"`)));
