@@ -479,6 +479,7 @@ label.chk input{width:auto}
     <button data-page="homework"><span class="ico">📚</span> Homework</button>
     <button data-page="parents"><span class="ico">👪</span> Parents</button>
     <button data-page="ptm"><span class="ico">🤝</span> PTM</button>
+    <button data-page="behaviour"><span class="ico">🧭</span> Behaviour & Discipline</button>
     <button data-page="inquiries"><span class="ico">☎</span> Inquiries</button>
     <button data-page="exams"><span class="ico">📝</span> Exams</button>
     <button data-page="tests"><span class="ico">🧪</span> Tests & Marks</button>
@@ -728,6 +729,13 @@ label.chk input{width:auto}
     <div class="toolbar" style="margin:0"><div class="field" style="margin:0"><label>Month</label><input type="month" id="skMonth" onchange="renderStaffKpi()"></div></div></div>
   <input type="file" id="skFile" accept=".csv,text/csv,.txt" style="display:none" onchange="importStaffKpi(this)">
   <div id="skList"></div>
+</section>
+
+<!-- ================= v106: BEHAVIOUR & DISCIPLINE ================= -->
+<section class="page" id="page-behaviour">
+  <div class="page-head"><div><h2>🧭 Behaviour & Discipline</h2><div class="sub">Teachers send remarks / issues about students → the Executive approves → parents see them in the app. Admin issues warning letters (print + parents' app).</div></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap" id="bhBtns"></div></div>
+  <div id="bhBody"></div>
 </section>
 
 <!-- ================= v92: PTM (Morning) ================= -->
@@ -1404,7 +1412,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v105 · 14 Oct 2026";
+const BUILD = "v106 · 15 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -1512,7 +1520,7 @@ function studentFee(s){
 }
 
 const DEFAULT_DB = {
-  students:[], inquiries:[], fees:[], exams:[], employees:[], txns:[], homework:[], ptms:[], staffKpis:[], staffTasks:[],
+  students:[], inquiries:[], fees:[], exams:[], employees:[], txns:[], homework:[], ptms:[], staffKpis:[], staffTasks:[], stuNotes:[],
   subjects:[],             // [{id, name, level, defaultFee}] — Settings se manage hoti hain
   inventory:[],            // [{id, name, type, qty, unitCost, issuedOpening, date, note}]
   issues:[],               // [{id, date, itemId, qty, toType, toId, toName, course, unitCost, charge, remarks}]
@@ -1549,8 +1557,8 @@ const MY_STAFF = (SERVER && SERVER.me) || "";
 const MY_SCOPE = (SERVER && SERVER.scope) || "";
 const scopeShifts = () => MY_SCOPE ? [MY_SCOPE] : ["Morning","Evening"];
 const CAN_FEES = ROLE === "exec" || ROLE === "feeadmin";   // v32: Fee / Billing sirf Executive aur Fee Admin
-const TEACHER_PAGES = ["mydash","assign","tests","classatt","homework","ptm"];
-const ALL_PAGES = ["dashboard","mydash","staffdash","staffkpi","students","gallery","attendance","fees","homework","parents","ptm","inquiries","exams","tests","classatt","classlog","timetable","assign",
+const TEACHER_PAGES = ["mydash","assign","tests","classatt","homework","ptm","behaviour"];
+const ALL_PAGES = ["dashboard","mydash","staffdash","staffkpi","behaviour","students","gallery","attendance","fees","homework","parents","ptm","inquiries","exams","tests","classatt","classlog","timetable","assign",
                    "audit","employees","inventory","issuance","finance","reports","biz","settings"];
 const ADMIN_HIDDEN = IS_TEACHER ? ALL_PAGES.filter(p=>!TEACHER_PAGES.includes(p))
   : ["dashboard","reports","biz","staffkpi"].concat(ROLE === "feeadmin" ? [] : ["finance"]).concat(CAN_FEES ? [] : ["fees"]);
@@ -1837,6 +1845,7 @@ function actPing(page){
   try{ fetch("/api/act", {method:"POST", credentials:"same-origin", headers:{"Content-Type":"application/json", "X-EMS-Me":encodeURIComponent(myName()||"")}, body:JSON.stringify({page})}).catch(()=>{}); }catch(e){}
 }
 function renderPage(p){
+  try{ bhBadge(); }catch(e){}
   if(IS_ADMIN && ADMIN_HIDDEN.includes(p)) p = IS_TEACHER ? "mydash" : "students";
   if(ROLE === "feeadmin") document.querySelectorAll(".page").forEach(x=>x.classList.remove("locked"));
   if(GATED_PAGES.includes(p) && !feeOpen()){ drawLock(p); return; }
@@ -1844,7 +1853,7 @@ function renderPage(p){
   if(p === "staffdash" && !MY_SID) p = IS_ADMIN ? "students" : "dashboard";
   if(p === "classatt" && MY_SCOPE === "Morning") p = "attendance";
   ({dashboard:renderDashboard, students:renderStudents, gallery:renderGallery, attendance:loadAttendance,
-    fees:renderFees, homework:renderHomework, ptm:renderPtm, staffdash:renderStaffDash, staffkpi:renderStaffKpi, inquiries:renderInquiries, exams:renderExams,
+    fees:renderFees, homework:renderHomework, ptm:renderPtm, staffdash:renderStaffDash, staffkpi:renderStaffKpi, behaviour:renderBehaviour, inquiries:renderInquiries, exams:renderExams,
     employees:renderEmployees, inventory:renderInventory, issuance:renderIssuance,
     finance:renderFinance, reports:renderReport, biz:renderBiz, audit:renderAudit, parents:renderParents,
     tests:renderTests, classatt:loadClassAtt, classlog:renderClassLog, timetable:renderTimetable, mydash:renderMyDash, assign:()=>{ if(SERVER) renderAssign(); },
@@ -3850,6 +3859,154 @@ function renderStaffDash(){
     ptm ? `PTM ${ptm.date === t0 ? "<b>today</b>" : "on " + fmtD(ptm.date)} — ${esc((ptm.classes||[]).join(", "))}` : "",
     late.length ? `<b style="color:var(--danger)">${late.length} of your tasks are overdue</b>` : ""].filter(Boolean).map(x=>`<li>${x}</li>`).join("") || "<li>All clear ✓</li>"}</ul>`;
   $("sdWork").innerHTML = work;
+}
+
+/* ================= v106: BEHAVIOUR & DISCIPLINE — teacher remarks (Executive approve) + warning letters =================
+   Teacher: kisi apne bache ke baare mein remark / issue bhejta hai → DB.stuNotes (pending). Sirf Executive approve / reject karta hai;
+   approve hote hi bache ke remarks mein (parents ko nazar) jata hai — parents app ka "Behaviour & discipline".
+   Admin / Executive: warning letter (1st / 2nd / Final) — st.warnings, number WL-YYYY-####, print, parents app mein bhi. */
+const NOTE_TYPES = ["Behaviour","Issue","Remark","Appreciation","Academic concern"];
+const WL_LEVELS = ["1st","2nd","Final"];
+const WL_REASONS = ["Repeated absence","Late arrival","Misbehaviour / indiscipline","Homework / classwork not done","Mobile phone in class","Uniform / dress code","Disrespect to teacher","Bunking classes","Other"];
+function bhBadge(){
+  const b = document.querySelector('#nav button[data-page="behaviour"]'); if(!b) return;
+  const n = IS_TEACHER ? 0 : (DB.stuNotes||[]).filter(x=>x.status === "pending").length;
+  b.innerHTML = `<span class="ico">🧭</span> Behaviour & Discipline${n ? ` <span class="badge b-unpaid" style="margin-left:4px">${n}</span>` : ""}`;
+}
+function myNoteStudents(){
+  if(!IS_TEACHER) return DB.students.filter(st=>st.status !== "Left");
+  const keys = [...myClassKeys()], so = mySubjMap();
+  return DB.students.filter(st=>st.status !== "Left" && keys.some(k=>teachesStu(st, k, so)));
+}
+function renderBehaviour(){
+  DB.stuNotes = DB.stuNotes || [];
+  bhBadge();
+  $("bhBtns").innerHTML = IS_TEACHER ? `<button class="btn-red" onclick="openStuNote()">+ Remark / issue about a student</button>`
+    : `<button class="btn-red" onclick="openWarning()">+ Issue warning letter</button>`;
+  const stat = n => n.status === "pending" ? `<span class="badge b-freeze">Waiting for approval</span>` : n.status === "approved" ? `<span class="badge b-paid">Approved — parents can see it</span>` : `<span class="badge b-left">Not approved</span>`;
+  const row = (n, acts) => { const st = stuById(n.studentId);
+    return `<tr><td style="white-space:nowrap">${fmtD(String(n.at||"").slice(0,10))}</td><td><b>${esc(st ? st.name : n.studentName)}</b><br><span class="sub">${st ? esc(classLabelOf(st) + " · " + st.shift) : ""}</span></td>
+      <td>${IS_TEACHER ? "" : esc(n.byName||"")}</td><td><b>${esc(n.type)}</b><div>${esc(n.note)}</div>${n.reason ? `<div class="sub">Executive: ${esc(n.reason)}</div>` : ""}</td><td>${stat(n)}</td><td style="white-space:nowrap">${acts || ""}</td></tr>`; };
+  const L = DB.stuNotes.slice().sort((a,b)=>String(b.at).localeCompare(String(a.at)));
+  let html = "";
+  if(IS_TEACHER){
+    html = `<div class="panel"><h3>My remarks / issues</h3><p class="sub" style="margin:4px 0 10px">The Executive checks each one; once approved it shows to the parents in the app under <b>Behaviour & discipline</b>.</p>
+      <div class="tbl-wrap"><table><thead><tr><th>Date</th><th>Student</th><th></th><th>Remark</th><th>Status</th><th></th></tr></thead><tbody>
+      ${L.length ? L.map(n=>row(n, n.status === "pending" ? `<button class="btn-line btn-sm" onclick="openStuNote('${n.id}')">Edit</button><button class="btn-danger btn-sm" onclick="delStuNote('${n.id}')">✕</button>` : "")).join("") : `<tr><td colspan="6" class="empty">Nothing sent yet — “+ Remark / issue about a student”.</td></tr>`}</tbody></table></div></div>`;
+  } else {
+    const P = L.filter(n=>n.status === "pending"), H = L.filter(n=>n.status !== "pending").slice(0, 30);
+    html = `<div class="panel"><h3>⏳ Teachers' remarks waiting for approval (${P.length})</h3>
+      <p class="sub" style="margin:4px 0 10px">${ROLE === "exec" ? "Approve to add it to the student's remarks — parents then see it in the app under Behaviour & discipline. You can edit the text before approving." : "Only the Executive can approve these."}</p>
+      <div class="tbl-wrap"><table><thead><tr><th>Date</th><th>Student</th><th>Teacher</th><th>Remark</th><th>Status</th><th></th></tr></thead><tbody>
+      ${P.length ? P.map(n=>row(n, ROLE === "exec" ? `<button class="btn-red btn-sm" onclick="openApproveNote('${n.id}')">Approve…</button><button class="btn-line btn-sm" onclick="rejectNote('${n.id}')">Reject</button>` : "")).join("") : `<tr><td colspan="6" class="empty">Nothing waiting ✓</td></tr>`}</tbody></table></div>
+      ${H.length ? `<details style="margin-top:10px"><summary class="sub" style="cursor:pointer">Recently decided (${H.length})</summary><div class="tbl-wrap" style="margin-top:6px"><table><tbody>${H.map(n=>row(n, "")).join("")}</tbody></table></div></details>` : ""}</div>`;
+    const W = []; DB.students.forEach(st=>(st.warnings||[]).forEach(w=>W.push({st, w})));
+    W.sort((a,b)=>String(b.w.d).localeCompare(String(a.w.d)) || String(b.w.no).localeCompare(String(a.w.no)));
+    html += `<div class="panel" style="margin-top:16px"><h3>⚠ Warning letters (${W.length})</h3>
+      <div class="tbl-wrap"><table><thead><tr><th>Date</th><th>Letter No</th><th>Student</th><th>Warning</th><th>Reason</th><th>Issued by</th><th></th></tr></thead><tbody>
+      ${W.length ? W.map(({st, w})=>`<tr><td>${fmtD(w.d)}</td><td><code>${esc(w.no||"")}</code></td><td><b>${esc(st.name)}</b><br><span class="sub">${esc(classLabelOf(st) + " · " + st.shift)}</span></td>
+        <td><span class="badge ${w.level === "Final" ? "b-unpaid" : "b-freeze"}">${esc(w.level)} warning</span>${w.parentVisible === false ? `<br><span class="sub">not in parents' app</span>` : ""}</td><td>${esc(w.reason)}${w.note ? `<div class="sub">${esc(w.note)}</div>` : ""}</td><td class="sub">${esc(w.by||"")}</td>
+        <td style="white-space:nowrap"><button class="btn-black btn-sm" onclick="printWarning('${st.id}','${w.id}')">🖨 Print</button><button class="btn-danger btn-sm" onclick="delWarning('${st.id}','${w.id}')">✕</button></td></tr>`).join("")
+        : `<tr><td colspan="7" class="empty">No warning letters issued.</td></tr>`}</tbody></table></div></div>`;
+  }
+  $("bhBody").innerHTML = html;
+}
+function stuPicker(id, list, sel){
+  return `<input id="${id}_q" placeholder="Search name / Reg No…" oninput="const q=this.value.toLowerCase();[...$('${id}').options].forEach(o=>o.hidden=!!q&&!o.textContent.toLowerCase().includes(q))" style="margin-bottom:6px">
+    <select id="${id}" size="6" style="height:auto">${list.sort((a,b)=>a.name.localeCompare(b.name)).map(st=>`<option value="${st.id}" ${st.id===sel?"selected":""}>${esc(st.name)} · ${esc(st.regNo||"")} · ${esc(classLabelOf(st))} (${st.shift})</option>`).join("")}</select>`;
+}
+function openStuNote(id){
+  const n = id ? DB.stuNotes.find(x=>x.id===id) : {};
+  const L = myNoteStudents();
+  if(!L.length){ toast("No students in your classes"); return; }
+  openModal(`<h3>${id ? "Edit remark" : "+ Remark / issue about a student"}</h3>
+    <div class="field"><label>Student *</label>${id ? `<input value="${esc(n.studentName)}" disabled><input type="hidden" id="sn_stu" value="${n.studentId}">` : stuPicker("sn_stu", L, "")}</div>
+    <div class="grid2"><div class="field"><label>Type</label><select id="sn_type">${NOTE_TYPES.map(t=>`<option ${n.type===t?"selected":""}>${t}</option>`).join("")}</select></div><div class="field"></div></div>
+    <div class="field"><label>Remark *</label><textarea id="sn_note" rows="4" placeholder="What happened / what the parents should know…">${esc(n.note||"")}</textarea></div>
+    <div class="note">Goes to the Executive for approval first. After approval the parents see it in the app.</div>
+    <div class="modal-foot"><button class="btn-line" onclick="closeModal()">Cancel</button><button class="btn-red" onclick="saveStuNote('${id||""}')">${id ? "Save" : "Send for approval"}</button></div>`);
+}
+function saveStuNote(id){
+  const sid = $("sn_stu").value, note = $("sn_note").value.trim(), type = $("sn_type").value, st = stuById(sid);
+  if(!st){ toast("Choose the student"); return; }
+  if(note.length < 3){ toast("Write the remark"); return; }
+  DB.stuNotes = DB.stuNotes || [];
+  if(id){ const n = DB.stuNotes.find(x=>x.id===id); if(n && n.status === "pending") Object.assign(n, {type, note}); }
+  else DB.stuNotes.push({id:uid(), studentId:sid, studentName:st.name, tid:MY_TID, byName: IS_TEACHER ? teacherName(MY_TID) : (myName()||ROLE_LABEL), type, note, at:new Date().toISOString(), status:"pending"});
+  save(); closeModal(); renderBehaviour(); toast(id ? "Updated" : `Sent for approval — ${st.name}`);
+}
+function delStuNote(id){ DB.stuNotes = (DB.stuNotes||[]).filter(n=>!(n.id===id && n.status==="pending")); save(); renderBehaviour(); toast("Removed"); }
+function openApproveNote(id){
+  if(ROLE !== "exec") return;
+  const n = DB.stuNotes.find(x=>x.id===id); if(!n) return;
+  openModal(`<h3>✓ Approve remark — ${esc(n.studentName)}</h3><p class="sub" style="margin-bottom:8px">From ${esc(n.byName||"teacher")} · ${fmtD(String(n.at).slice(0,10))}. You can correct the text before approving.</p>
+    <div class="grid2"><div class="field"><label>Type</label><select id="ap_type">${NOTE_TYPES.map(t=>`<option ${n.type===t?"selected":""}>${t}</option>`).join("")}</select></div>
+      <div class="field"><label>Visible to parents</label><select id="ap_vis"><option value="1">Yes — show in parents' app</option><option value="0">No — keep internal</option></select></div></div>
+    <div class="field"><label>Remark</label><textarea id="ap_note" rows="4">${esc(n.note)}</textarea></div>
+    <div class="modal-foot"><button class="btn-line" onclick="closeModal()">Cancel</button><button class="btn-red" onclick="approveNote('${id}')">Approve</button></div>`);
+}
+function approveNote(id){
+  const n = DB.stuNotes.find(x=>x.id===id), st = n && stuById(n.studentId); if(!st){ toast("Student not found"); return; }
+  const note = $("ap_note").value.trim(), type = $("ap_type").value; if(note.length < 3){ toast("Write the remark"); return; }
+  st.remarks = st.remarks || [];
+  st.remarks.push({id:uid(), d:todayStr(), type, note, by:n.byName || "Teacher", parentVisible:$("ap_vis").value === "1", src:"teacher", noteId:n.id});
+  Object.assign(n, {status:"approved", type, note, decidedOn:todayStr(), decidedBy:ROLE_LABEL});
+  save(); closeModal(); renderBehaviour(); toast(`✓ Approved — added to ${st.name}'s remarks`);
+}
+function rejectNote(id){
+  const n = DB.stuNotes.find(x=>x.id===id); if(!n || ROLE !== "exec") return;
+  openModal(`<h3>Reject remark — ${esc(n.studentName)}</h3><div class="field"><label>Reason (the teacher sees it)</label><input id="rj_reason" placeholder="optional"></div>
+    <div class="modal-foot"><button class="btn-line" onclick="closeModal()">Cancel</button><button class="btn-danger" onclick="const n=DB.stuNotes.find(x=>x.id==='${id}');Object.assign(n,{status:'rejected',reason:$('rj_reason').value.trim(),decidedOn:todayStr(),decidedBy:ROLE_LABEL});save();closeModal();renderBehaviour();toast('Not approved')">Reject</button></div>`);
+}
+/* ---- warning letters ---- */
+function openWarning(sid){
+  if(IS_TEACHER) return;
+  const L = DB.students.filter(st=>st.status !== "Left" && (!MY_SCOPE || st.shift === MY_SCOPE));
+  openModal(`<h3>⚠ Issue warning letter</h3>
+    <div class="field"><label>Student *</label>${stuPicker("wl_stu", L, sid||"")}</div>
+    <div class="grid2">
+      <div class="field"><label>Warning</label><select id="wl_level">${WL_LEVELS.map(l=>`<option value="${l}">${l} warning</option>`).join("")}</select></div>
+      <div class="field"><label>Date</label><input type="date" id="wl_date" value="${todayStr()}"></div>
+      <div class="field"><label>Reason *</label><select id="wl_reason">${WL_REASONS.map(r=>`<option>${r}</option>`).join("")}</select></div>
+      <div class="field"><label>Parents' app</label><select id="wl_vis"><option value="1">Show in parents' app</option><option value="0">Do not show</option></select></div></div>
+    <div class="field"><label>Details (written in the letter)</label><textarea id="wl_note" rows="4" placeholder="e.g. Absent 6 days this month without informing the school; late 4 times."></textarea></div>
+    <div class="modal-foot"><button class="btn-line" onclick="closeModal()">Cancel</button><button class="btn-red" onclick="saveWarning()">Issue & print</button></div>`);
+}
+function saveWarning(){
+  const st = stuById($("wl_stu").value); if(!st){ toast("Choose the student"); return; }
+  const d = $("wl_date").value || todayStr();
+  DB.counters = DB.counters || {}; DB.counters.wl = (+DB.counters.wl || 0) + 1;
+  const w = {id:uid(), d, no:`WL-${d.slice(0,4)}-${String(DB.counters.wl).padStart(4,"0")}`, level:$("wl_level").value, reason:$("wl_reason").value, note:$("wl_note").value.trim(),
+    by: myName() || ROLE_LABEL, parentVisible:$("wl_vis").value === "1"};
+  st.warnings = st.warnings || []; st.warnings.push(w);
+  save(); closeModal(); renderBehaviour(); toast(`⚠ ${w.level} warning ${w.no} issued — ${st.name}`); printWarning(st.id, w.id);
+}
+function delWarning(sid, wid){
+  const st = stuById(sid), w = st && (st.warnings||[]).find(x=>x.id===wid); if(!w) return;
+  askConfirm("Delete warning letter?", `${esc(w.no)} — ${esc(st.name)}. It will also disappear from the parents' app.`, ()=>{ st.warnings = st.warnings.filter(x=>x.id!==wid); save(); renderBehaviour(); toast("Deleted"); });
+}
+function printWarning(sid, wid){
+  const st = stuById(sid), w = st && (st.warnings||[]).find(x=>x.id===wid); if(!w) return;
+  const A = DB.settings, prev = (st.warnings||[]).filter(x=>x.id !== wid && x.d <= w.d);
+  const title = w.level === "Final" ? "FINAL WARNING LETTER" : `${w.level === "2nd" ? "SECOND" : "FIRST"} WARNING LETTER`;
+  $("challanPrint").innerHTML = `<div style="font-size:.95rem;line-height:1.6;max-width:720px;margin:0 auto;color:#12313D">
+    <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #174B60;padding-bottom:8px;margin-bottom:16px">
+      <div style="display:flex;gap:10px;align-items:center">${A.logo ? `<img src="${logoSrc()}" style="height:52px;width:auto;object-fit:contain">` : ""}<div><div style="font-size:1.25rem;font-weight:900">${esc(A.name||"Cambridge Grads Academy")}</div><div style="font-size:.75rem;color:#555">${esc(A.addr||"")}${A.phone ? " · " + esc(A.phone) : ""}</div></div></div>
+      <div style="text-align:right;font-size:.85rem">Ref: <b>${esc(w.no)}</b><br>Date: <b>${fmtD(w.d)}</b></div></div>
+    <div style="text-align:center;font-weight:900;font-size:1.15rem;letter-spacing:.06em;margin:6px 0 16px;color:${w.level === "Final" ? "#C0392B" : "#174B60"}">${title}</div>
+    <p>To,<br>The Parent / Guardian of <b>${esc(st.name)}</b>${st.fatherName ? ` (${esc(st.fatherName)})` : ""}<br>Reg No: <b>${esc(st.regNo||"—")}</b> · Class: <b>${esc(classLabelOf(st))}</b> · ${esc(st.shift)}</p>
+    <p><b>Subject: ${esc(w.reason)}</b></p>
+    <p>Dear Parent / Guardian,</p>
+    <p>This letter is to formally inform you that your child <b>${esc(st.name)}</b> has been issued a <b>${esc(w.level.toLowerCase())} warning</b> regarding <b>${esc(w.reason.toLowerCase())}</b>.</p>
+    ${w.note ? `<p style="border-left:4px solid #E0A526;padding:6px 12px;background:#FFF8E8">${esc(w.note)}</p>` : ""}
+    ${prev.length ? `<p>Previous warnings: ${prev.map(x=>`${esc(x.level)} (${fmtD(x.d)}, ${esc(x.reason)})`).join("; ")}.</p>` : ""}
+    <p>${w.level === "Final" ? "This is a <b>final warning</b>. Any further repetition may lead to serious disciplinary action, including suspension or withdrawal of admission." : "We request you to discuss this matter with your child and ensure that it is not repeated. Further repetition will lead to the next level of disciplinary action."}</p>
+    <p>Please sign this letter and return it to the school office, or meet the coordinator at your earliest convenience.</p>
+    <div style="display:flex;justify-content:space-between;margin-top:60px;font-size:.85rem">
+      <div style="text-align:center;border-top:1px solid #333;padding-top:4px;width:200px">Principal / Coordinator</div>
+      <div style="text-align:center;border-top:1px solid #333;padding-top:4px;width:200px">Parent / Guardian signature</div></div>
+    <div style="font-size:.72rem;color:#777;margin-top:24px">Issued by ${esc(w.by||"")} · ${esc(A.name||"Cambridge Grads Academy")}</div></div>`;
+  window.print();
 }
 
 /* ================= v92: PTM — Parent-Teacher Meeting (Morning) =================
@@ -8334,7 +8491,7 @@ function reportCardFor(sid, from, to){
 /* v100: class position — 4 cheezon ka score (student-report.js ka posParts bilkul yehi): marks 60 · homework waqt par 15
    · behaviour & discipline 10 · attendance & punctuality 15. Jo na ho us ka weight baqi mein bant jata hai. */
 const POS_W = {marks:60, hw:15, beh:10, att:15};
-const POS_LABEL = "Position based on: test & exam marks 60% · timely homework 15% · behaviour & discipline 10% · attendance & punctuality 15%";
+const POS_LABEL = "Position based on: test & exam marks 60% · timely homework 15% · behaviour & discipline 10% (remarks, bunks, warning letters) · attendance & punctuality 15%";
 function posParts(st, m, marks){
   if(marks === null || marks === undefined) return null;
   const t0 = todayStr();
@@ -8348,6 +8505,7 @@ function posParts(st, m, marks){
   Object.keys(att).forEach(d=>{ if(!d.startsWith(m)) return; const r = att[d] && att[d][st.id]; if(!r) return; if(r.s==="P") P++; else if(r.s==="L") La++; else if(r.s==="A") A++; });
   let beh = 100;
   (st.remarks||[]).forEach(r=>{ if(!String(r.d||"").startsWith(m)) return; beh += r.type==="Behaviour" ? -15 : r.type==="Issue" ? -10 : r.type==="Appreciation" ? 5 : 0; });
+  (st.warnings||[]).forEach(w=>{ if(String(w.d||"").startsWith(m)) beh -= w.level === "Final" ? 40 : w.level === "2nd" ? 30 : 20; });   // v106
   (DB.classAtt||[]).forEach(c=>{ if(!String(c.date).startsWith(m) || !c.marks || c.marks[st.id] !== "A") return; const g = att[c.date] && att[c.date][st.id]; if(g && (g.s==="P" || g.s==="L")) beh -= 10; });
   const parts = {marks, hw: hn ? Math.round(hs/hn) : null, beh: Math.max(0, Math.min(100, beh)), att: P+La+A ? Math.round((P + La*0.5)*100/(P+La+A)) : null};
   let w = 0, sum = 0; Object.entries(POS_W).forEach(([k,v])=>{ if(parts[k] !== null){ w += v; sum += v*parts[k]; } });
@@ -12310,6 +12468,7 @@ if(IS_ADMIN){
 if(!SERVER){ const b = document.querySelector('#nav button[data-page="assign"]'); if(b) b.style.display = "none"; }   // v61: assignments sirf online
 renderDashboard();
 buildTabs();
+try{ bhBadge(); }catch(e){}                      // v106: pending teacher remarks ki ginti
 if($("mtSub")) $("mtSub").textContent = (DB.settings.name || "Cambridge Grads Academy");
 if($("mtAv")) $("mtAv").textContent = initials(IS_TEACHER ? ROLE_LABEL : (myName() || ROLE_LABEL));
 maybeInstallBanner();

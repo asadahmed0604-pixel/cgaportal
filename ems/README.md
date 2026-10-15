@@ -428,6 +428,19 @@ Settings → Logins → Staff logins → **Shift (coordinator)**: Both / Morning
 Taken and dashboard show only their shift; Morning-only staff don't get the (Evening) Class Attendance page. When they
 save, the other shift's records are kept exactly as they are on the server.
 
+## Behaviour & Discipline — teacher remarks with approval, warning letters (v106)
+
+- **Teachers → 🧭 Behaviour & Discipline → + Remark / issue about a student** (only students of their own classes): type
+  (Behaviour, Issue, Remark, Appreciation, Academic concern) and the remark. It goes to the Executive; the teacher sees
+  "Waiting for approval / Approved / Not approved" and can edit or remove it while it is waiting.
+- **Executive → 🧭 Behaviour & Discipline** (menu shows how many are waiting): **Approve…** (edit the text, choose whether
+  parents see it) adds it to the student's remarks; **Reject** with a reason. Only the Executive can decide (server-checked).
+- **Warning letters** (Admin / Executive): **+ Issue warning letter** — student, 1st / 2nd / Final, reason, details, date →
+  letter number WL-YYYY-####, printed letter on the school letterhead (with previous warnings and signature lines), and it
+  shows in the parents' app. Warning letters lower the behaviour part of the class position (1st −20, 2nd −30, Final −40).
+- **Parents' app → My Report → 🧭 Behaviour & discipline** shows warning letters and approved remarks; the chat's
+  "Teacher Remarks" includes warning letters too.
+
 ## Install as an app (v41)
 
 Staff (`/`), Teachers (`/teacher`) and Parents (`/parent`) — all three links can be installed as an app on a phone / computer

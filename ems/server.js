@@ -318,6 +318,8 @@ function teacherView(d, tid) {
     ptms: (d.ptms || []).filter((x) => ptmSeen(x, cls)).map((x) => ({ id: x.id, title: x.title, date: x.date, from: x.from || "", to: x.to || "",
       shift: "Morning", note: x.note || "", classes: (x.classes || []).filter((c) => cls.has("Morning|" + c)),
       entries: Object.fromEntries(Object.entries(x.entries || {}).filter(([k]) => k.endsWith("|" + tid))), feedback: {} })),
+    /* v106: teacher ke bheje hue student remarks / issues (Executive approve karta hai) — sirf apne */
+    stuNotes: (d.stuNotes || []).filter((n) => n && n.tid === tid),
     classCosts: {}, parentAccess: [], studentAccess: [], parentMsgs: [], audits: (d.audits || []).filter((a) => a.teacherId === tid), counters: d.counters || {},
     settings: { name: s.name, addr: s.addr, phone: s.phone, logo: s.logo, latePolicy: s.latePolicy },
   };
@@ -380,7 +382,22 @@ function teacherMerge(data, tid) {
     });
     return { ...x, entries };
   });
-  return Object.assign(cur, { tests, exams, classAtt, homework, ptms });
+  /* v106: remark / issue requests — teacher naya bhej sakta hai (apni classes ke bache), apna pending badal / hata sakta hai;
+     faisla (approve / reject) sirf Executive ka */
+  const stuOk = (sid) => { const st = (cur.students || []).find((x) => x.id === sid); return !!st && st.status !== "Left" && stuClasses(st).some((c) => cls.has(st.shift + "|" + c)); };
+  const NT = ["Behaviour", "Issue", "Remark", "Appreciation", "Academic concern"];
+  const curN = arr(cur.stuNotes), newN = new Map(arr(data.stuNotes).map((n) => [n.id, n]));
+  const stuNotes = [];
+  curN.forEach((n) => {
+    if (n.tid !== tid || n.status !== "pending") return stuNotes.push(n);
+    const x = newN.get(n.id); if (!x) return;                                   // apna pending hataya
+    stuNotes.push({ ...n, type: NT.includes(x.type) ? x.type : n.type, note: String(x.note || n.note).slice(0, 1500) });
+  });
+  newN.forEach((x, id) => { if (curN.some((n) => n.id === id) || !stuOk(x.studentId) || String(x.note || "").trim().length < 3) return;
+    const st = (cur.students || []).find((y) => y.id === x.studentId);
+    stuNotes.push({ id, studentId: st.id, studentName: st.name, tid, byName: (me && me.name) || "", type: NT.includes(x.type) ? x.type : "Remark",
+      note: String(x.note).trim().slice(0, 1500), at: new Date().toISOString(), status: "pending" }); });
+  return Object.assign(cur, { tests, exams, classAtt, homework, ptms, stuNotes });
 }
 /* Admin ke save mein chhupaye hue hisse server wale hi rehte hain */
 const SALARY_CAT = "Salary & Wages";
@@ -389,6 +406,7 @@ function keepProtected(data, role, sid) {
   /* v102: staff KPIs sirf Executive badalta hai; to-do list mein staff sirf apne kaam ka status / note badal sakta hai
      aur apne liye naya kaam (own) jor / hata sakta hai — kisi aur ka nahi, aur Executive ke diye kaam mita nahi sakta */
   data.staffKpis = cur.staffKpis || [];
+  data.stuNotes = cur.stuNotes || [];                       // v106: teachers ke remarks ka faisla sirf Executive
   const curT = Array.isArray(cur.staffTasks) ? cur.staffTasks : [], newT = new Map((Array.isArray(data.staffTasks) ? data.staffTasks : []).filter((t) => t && t.id).map((t) => [t.id, t]));
   const tasks = [];
   curT.forEach((t) => {
@@ -555,7 +573,7 @@ const canon = (v) => JSON.stringify(v, (k, x) => x && typeof x === "object" && !
 /* Save se pehle aur baad ka data — kya badla, insaani zabaan mein */
 const ACT_COLS = { students: "Students", fees: "Fee challans", employees: "Employees", txns: "Income / Expense", inquiries: "Inquiries",
   exams: "Exam marks", tests: "Tests", homework: "Homework", inventory: "Inventory", issues: "Issuance", audits: "Class audits", kpis: "KPI checklists",
-  subjects: "Subjects", feeReceipts: "Fee receipts (app)", parentAccess: "Parent access", studentAccess: "Student logins (Evening)", parentMsgs: "Parent messages", classAtt: "Class attendance", ptms: "PTM", staffKpis: "Staff KPIs", staffTasks: "Staff to-do" };
+  subjects: "Subjects", feeReceipts: "Fee receipts (app)", parentAccess: "Parent access", studentAccess: "Student logins (Evening)", parentMsgs: "Parent messages", classAtt: "Class attendance", ptms: "PTM", staffKpis: "Staff KPIs", staffTasks: "Staff to-do", stuNotes: "Teacher remarks (approval)" };
 const ACT_SKIP_FIELDS = new Set(["hash", "salt", "iter"]);
 const recLabel = (r, col) => {
   if (!r || typeof r !== "object") return "?";

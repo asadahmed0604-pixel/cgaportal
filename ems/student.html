@@ -401,7 +401,10 @@ async function report(quiet) {
         <td><b>${esc(h.title)}</b>${h.subject ? ` <span class="sub">· ${esc(h.subject)}</span>` : ""}${h.teacher ? `<div class="sub">${esc(h.teacher)}</div>` : ""}${h.detail ? `<div class="sub">${esc(h.detail)}</div>` : ""}${h.due ? `<div class="sub">Due ${esc(fmtD(h.due))}</div>` : ""}</td>
         <td class="r">${{ done: `<span class="pill P">Submitted</span>`, late: `<span class="pill L">Late</span>`, missed: `<span class="pill A">Not submitted</span>`, pending: `<span class="pill E">Pending</span>`, submitted: `<span class="pill L">Sent — awaiting teacher</span>` }[h.state]}</td></tr>`).join("")}</tbody></table>`
       : `<p class="sub" style="margin:0">No homework given yet.</p>`}</div>
-    ${r.remarks.length ? `<div class="card"><h3>💬 Teacher remarks</h3><table class="rt"><tbody>${r.remarks.map((x) => `<tr><td style="white-space:nowrap">${esc(fmtD(x.d))}</td><td><b>${esc(x.type)}</b>${x.by ? ` <span class="sub">· ${esc(x.by)}</span>` : ""}<div>${esc(x.note)}</div></td></tr>`).join("")}</tbody></table></div>` : ""}`;
+    ${r.remarks.length || (r.warnings || []).length ? `<div class="card"><h3>🧭 Behaviour &amp; discipline</h3>
+      ${(r.warnings || []).map((w) => `<div style="border:1.5px solid ${w.level === "Final" ? "var(--red)" : "#E0A526"};background:${w.level === "Final" ? "#FDECEA" : "#FFF6E0"};border-radius:12px;padding:10px 12px;margin-bottom:8px">
+        <b>⚠ ${esc(w.level)} warning letter</b> <span class="sub">· ${esc(fmtD(w.d))}${w.no ? " · " + esc(w.no) : ""}</span><div><b>${esc(w.reason)}</b></div>${w.note ? `<div>${esc(w.note)}</div>` : ""}</div>`).join("")}
+      ${r.remarks.length ? `<table class="rt"><tbody>${r.remarks.map((x) => `<tr><td style="white-space:nowrap">${esc(fmtD(x.d))}</td><td><b>${esc(x.type)}</b>${x.by ? ` <span class="sub">· ${esc(x.by)}</span>` : ""}<div>${esc(x.note)}</div></td></tr>`).join("")}</tbody></table>` : ""}</div>` : ""}`;
   bindKids();
   const ts = $("#todoStat"); if (ts) ts.addEventListener("click", () => { tab = "asg"; try { localStorage.setItem("cgaTab", tab); } catch {} window.scrollTo(0, 0); list(); });
   if (quiet) window.scrollTo(0, y);

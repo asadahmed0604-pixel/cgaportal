@@ -80,6 +80,7 @@ function posParts(db, st, month) {
   let beh = 100;
   (st.remarks || []).forEach((r) => { if (!String(r.d || "").startsWith(month)) return;
     beh += r.type === "Behaviour" ? -15 : r.type === "Issue" ? -10 : r.type === "Appreciation" ? 5 : 0; });
+  (st.warnings || []).forEach((w) => { if (String(w.d || "").startsWith(month)) beh -= w.level === "Final" ? 40 : w.level === "2nd" ? 30 : 20; });   // v106: warning letter
   (db.classAtt || []).forEach((c) => { if (!String(c.date).startsWith(month) || !c.marks || c.marks[st.id] !== "A") return;
     const g = att[c.date] && att[c.date][st.id]; if (g && (g.s === "P" || g.s === "L")) beh -= 10; });
   const parts = { marks, hw: hn ? Math.round(hs / hn) : null, beh: Math.max(0, Math.min(100, beh)), att: P + La + A ? Math.round(((P + La * 0.5) * 100) / (P + La + A)) : null };
@@ -163,6 +164,9 @@ function studentReport(db, st, today) {
           teacher: h.teacherId ? ((db.employees || []).find((e) => e.id === h.teacherId) || {}).name || "" : "",
           state: d ? (typeof d === "string" && due && d > due ? "late" : "done") : due && due < today ? "missed" : "pending", on: typeof d === "string" ? d : "" };
       }),
+    /* v106: warning letters (Behaviour & discipline) */
+    warnings: (st.warnings || []).filter((w) => w && w.parentVisible !== false).sort((a, b) => String(b.d).localeCompare(String(a.d))).slice(0, 10)
+      .map((w) => ({ d: w.d, no: w.no || "", level: w.level || "1st", reason: w.reason || "", note: w.note || "", by: w.by || "" })),
     remarks: (st.remarks || []).filter((r) => r.parentVisible !== false).sort((a, b) => String(b.d).localeCompare(String(a.d))).slice(0, 8)
       .map((r) => ({ d: r.d, type: r.type || "Remark", note: r.note || "", by: r.by || "" })),
   };
