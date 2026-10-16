@@ -519,6 +519,21 @@ save, the other shift's records are kept exactly as they are on the server.
 - The challan (print and PDF) shows a line such as "Joining month — joined 15 Nov 2026: 16 of 30 days (monthly fee
   Rs 10,000)".
 
+## Skill Development Progress on the report card (v115)
+
+- The back page of the report card now has **Skill Development Progress** instead of teacher remarks and parent
+  comments: a table of skills with a tick under Excellent / Very Good / Good / Developing / Needs Support, the skill
+  teacher's comment and the skill development teacher's name and signature. The Coordinator's remarks stay at the end.
+  If nothing is entered, the boxes print empty so they can be ticked by hand.
+- **Who fills it:** the skill development teacher, from their own teacher login → **🌱 Skill Development**. A teacher is
+  the skill development teacher of a class when assigned a subject named **"Skill Development"** for that class
+  (Employees → Assign). They see all active students of those classes, pick the month, choose a level for each skill,
+  add an optional comment, and **Save**. The server only accepts entries for students of their skill classes.
+  The menu item is hidden for other teachers. The Executive / admins can also open the page and fill or correct it.
+- **Skills list:** Settings → 🌱 Skill development — one skill per line (default: communication, confidence & public
+  speaking, critical thinking, creativity, teamwork, leadership, time management, responsibility & discipline).
+- Saved per student per month (`DB.skillDev`); the report card for that month (print and PDF) uses it.
+
 ## Install as an app (v41)
 
 Staff (`/`), Teachers (`/teacher`) and Parents (`/parent`) — all three links can be installed as an app on a phone / computer

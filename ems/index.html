@@ -295,6 +295,16 @@ label.chk input{width:auto}
 .rc-key .rc-g{font-size:.6rem;min-width:0;padding:1px 6px}
 .rc-sign{display:flex;justify-content:space-between;margin-top:40px;font-size:.74rem;color:#555;gap:10px}
 .rc-sign span{border-top:1px solid #999;padding-top:4px;min-width:150px;text-align:center}
+.sk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:6px 12px;margin-top:8px}
+.sk-grid label{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:.8rem}
+.sk-grid select{max-width:130px}
+.rc-sk{width:100%;border-collapse:collapse;font-size:.74rem}
+.rc-sk th{background:#174B60;color:#fff;font-size:.62rem;text-transform:uppercase;letter-spacing:.04em;padding:5px 4px;text-align:center}
+.rc-sk th:first-child{text-align:left;padding-left:10px}
+.rc-sk td{border-bottom:1px solid #E1EAEE;padding:5px 4px;text-align:center;background:rgba(255,255,255,.6)}
+.rc-sk td:first-child{text-align:left;padding-left:10px;font-weight:600}
+.rc-sk .tick{display:inline-block;width:14px;height:14px;border:1.3px solid #9FB4BD;border-radius:3px;line-height:12px;font-size:.7rem;font-weight:900;color:#fff}
+.rc-sk .tick.on{background:#159670;border-color:#159670}
 .rc-p2{margin-top:18px}
 .rc-mini{display:flex;justify-content:space-between;align-items:center;gap:12px;border-bottom:3px solid #159670;padding-bottom:8px}
 .rc-mini img{height:40px;width:auto}
@@ -510,6 +520,7 @@ label.chk input{width:auto}
     <button data-page="parents"><span class="ico">👪</span> Parents</button>
     <button data-page="ptm"><span class="ico">🤝</span> PTM</button>
     <button data-page="behaviour"><span class="ico">🧭</span> Behaviour & Discipline</button>
+    <button data-page="skilldev"><span class="ico">🌱</span> Skill Development</button>
     <button data-page="inquiries"><span class="ico">☎</span> Inquiries</button>
     <button data-page="exams"><span class="ico">📝</span> Exams</button>
     <button data-page="tests"><span class="ico">🧪</span> Tests & Marks</button>
@@ -762,6 +773,11 @@ label.chk input{width:auto}
 </section>
 
 <!-- ================= v106: BEHAVIOUR & DISCIPLINE ================= -->
+<section class="page" id="page-skilldev">
+  <div class="page-head"><div><h2>🌱 Skill Development Progress</h2><div class="sub">The skill development teacher rates each student every month — printed on the back of the report card.</div></div></div>
+  <div id="skBody"></div>
+</section>
+
 <section class="page" id="page-behaviour">
   <div class="page-head"><div><h2>🧭 Behaviour & Discipline</h2><div class="sub">Teachers send remarks / issues about students → the Executive approves → parents see them in the app. Admin issues warning letters (print + parents' app).</div></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap" id="bhBtns"></div></div>
@@ -1333,6 +1349,13 @@ label.chk input{width:auto}
     <button class="btn-line" onclick="removeLogo()">Remove</button>
   </div>
 
+  <div class="panel" style="max-width:560px">
+    <h3>🌱 Skill development — skills on the report card</h3>
+    <p class="sub" style="margin-bottom:8px">One skill per line. The skill development teacher rates each one (Excellent · Very Good · Good · Developing · Needs Support). A teacher becomes the skill development teacher of a class by being assigned a subject named "Skill Development" (Employees → Assign).</p>
+    <textarea id="setSkills" rows="8" style="width:100%"></textarea>
+    <button class="btn-red" onclick="saveSkills()">Save skills</button>
+  </div>
+
   <div class="panel">
     <h3>Subjects Offered</h3>
     <p class="sub" style="margin-bottom:12px">This is the list shown in the subject dropdown during student enrollment — <b>filtered by the student's class</b>. <b>Compulsory</b> subjects are added automatically in the Morning shift; <b>Elective</b> subjects are chosen by the student (up to 3 in O Level, up to 4 in A Level). Use the "Classes" column to limit a subject to specific grades.</p>
@@ -1452,7 +1475,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v114 · 16 Oct 2026";
+const BUILD = "v115 · 16 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -1579,7 +1602,7 @@ function studentFee(s){
 }
 
 const DEFAULT_DB = {
-  students:[], inquiries:[], fees:[], exams:[], employees:[], txns:[], homework:[], ptms:[], staffKpis:[], staffTasks:[], stuNotes:[],
+  students:[], inquiries:[], fees:[], exams:[], employees:[], txns:[], homework:[], ptms:[], staffKpis:[], staffTasks:[], stuNotes:[], skillDev:[],
   subjects:[],             // [{id, name, level, defaultFee}] — Settings se manage hoti hain
   inventory:[],            // [{id, name, type, qty, unitCost, issuedOpening, date, note}]
   issues:[],               // [{id, date, itemId, qty, toType, toId, toName, course, unitCost, charge, remarks}]
@@ -1616,8 +1639,8 @@ const MY_STAFF = (SERVER && SERVER.me) || "";
 const MY_SCOPE = (SERVER && SERVER.scope) || "";
 const scopeShifts = () => MY_SCOPE ? [MY_SCOPE] : ["Morning","Evening"];
 const CAN_FEES = ROLE === "exec" || ROLE === "feeadmin";   // v32: Fee / Billing sirf Executive aur Fee Admin
-const TEACHER_PAGES = ["mydash","assign","tests","classatt","homework","ptm","behaviour"];
-const ALL_PAGES = ["dashboard","mydash","staffdash","staffkpi","behaviour","students","gallery","attendance","fees","homework","parents","ptm","inquiries","exams","tests","classatt","classlog","timetable","assign",
+const TEACHER_PAGES = ["mydash","assign","tests","classatt","homework","ptm","behaviour","skilldev"];
+const ALL_PAGES = ["dashboard","mydash","staffdash","staffkpi","behaviour","skilldev","students","gallery","attendance","fees","homework","parents","ptm","inquiries","exams","tests","classatt","classlog","timetable","assign",
                    "audit","employees","inventory","issuance","finance","reports","biz","settings"];
 const ADMIN_HIDDEN = IS_TEACHER ? ALL_PAGES.filter(p=>!TEACHER_PAGES.includes(p))
   : ["dashboard","reports","biz","staffkpi"].concat(ROLE === "feeadmin" ? [] : ["finance"]).concat(CAN_FEES ? [] : ["fees"]);
@@ -1912,7 +1935,7 @@ function renderPage(p){
   if(p === "staffdash" && !MY_SID) p = IS_ADMIN ? "students" : "dashboard";
   if(p === "classatt" && MY_SCOPE === "Morning") p = "attendance";
   ({dashboard:renderDashboard, students:renderStudents, gallery:renderGallery, attendance:loadAttendance,
-    fees:renderFees, homework:renderHomework, ptm:renderPtm, staffdash:renderStaffDash, staffkpi:renderStaffKpi, behaviour:renderBehaviour, inquiries:renderInquiries, exams:renderExams,
+    fees:renderFees, homework:renderHomework, ptm:renderPtm, staffdash:renderStaffDash, staffkpi:renderStaffKpi, behaviour:renderBehaviour, skilldev:renderSkillDev, inquiries:renderInquiries, exams:renderExams,
     employees:renderEmployees, inventory:renderInventory, issuance:renderIssuance,
     finance:renderFinance, reports:renderReport, biz:renderBiz, audit:renderAudit, parents:renderParents,
     tests:renderTests, classatt:loadClassAtt, classlog:renderClassLog, timetable:renderTimetable, mydash:renderMyDash, assign:()=>{ if(SERVER) renderAssign(); },
@@ -3439,13 +3462,26 @@ async function reportCardPDF(d){
     pdfWrap(POS_LABEL, 7, W - 24).forEach(l=>pl.push([l, 7, false, PC.muted])); }
   pl.push([`Attendance: ${d.att.pct}%  (Present ${d.att.P} · Absent ${d.att.A} · Late ${d.att.L})`, 9, true, PC.ink]);
   box(pl.length*12 + 12); pl.forEach(([t, sz, b, c], k)=>doc.text(t, x0 + 12, y + 16 + k*12, {size:sz, bold:b, color:c})); y += pl.length*12 + 26;
-  /* teacher remarks */
-  sec("Teacher remarks");
-  const tl = d.remarks && d.remarks.length ? d.remarks.flatMap(r=>pdfWrap("•  " + r.note, 8.5, W - 24)) : ["No teacher remarks this period - see the subject comments on page 1."];
-  box(tl.length*12 + 12); tl.forEach((t, k)=>doc.text(t, x0 + 12, y + 16 + k*12, {size:8.5, color: d.remarks && d.remarks.length ? PC.ink : PC.muted})); y += tl.length*12 + 26;
-  /* parent comments */
-  sec("Parent / Guardian comments");
-  box(3*20 + 12); rules(3, y); y += 3*20 + 26;
+  /* v115: Skill Development Progress (teacher remarks / parent comments ki jagah) */
+  sec("Skill development progress");
+  { const sk = d.skill || {}, rt = sk.ratings || {}, L = [...new Set([...skillList(), ...Object.keys(rt)])];
+    const c0 = 190, cw2 = (W - c0)/SK_LEVELS.length, rh = 15;
+    doc.rect(x0, y, W, 16, {fill:PC.navy});
+    doc.text("SKILL", x0 + 10, y + 11, {size:7, bold:true, color:"#FFFFFF"});
+    SK_LEVELS.forEach((l, i)=>doc.text(l.toUpperCase(), x0 + c0 + i*cw2 + cw2/2, y + 11, {size:6.5, bold:true, color:"#FFFFFF", align:"center"}));
+    y += 16;
+    L.forEach((k, r)=>{ if(r % 2) doc.rect(x0, y, W, rh, {fill:PC.soft, alpha:.7});
+      doc.text(k, x0 + 10, y + 10.5, {size:8, bold:true, color:PC.ink, maxW:c0 - 16});
+      SK_LEVELS.forEach((l, i)=>{ const bx = x0 + c0 + i*cw2 + cw2/2 - 5;
+        if(rt[k] === l){ doc.rect(bx, y + 2.5, 10, 10, {fill:PC.teal}); doc.text("X", bx + 5, y + 10.5, {size:7.5, bold:true, color:"#FFFFFF", align:"center"}); }
+        else doc.rect(bx, y + 2.5, 10, 10, {stroke:"#9FB4BD", lw:.8}); });
+      y += rh; doc.line(x0, y, x0 + W, y, {color:PC.line, lw:.5}); });
+    const nl = sk.note ? pdfWrap("Skill teacher's comment: " + sk.note, 8.5, W - 20) : [];
+    if(nl.length){ nl.forEach((t, i)=>doc.text(t, x0 + 10, y + 14 + i*11, {size:8.5, color:PC.ink})); y += nl.length*11 + 8; }
+    else { doc.text("Skill teacher's comment:", x0 + 10, y + 14, {size:8, bold:true, color:PC.ink}); rules(2, y + 2); y += 46; }
+    doc.text(`Skill Development Teacher: ${sk.by || "______________________"}`, x0 + 10, y + 10, {size:8, bold:!!sk.by, color:PC.ink});
+    doc.text("Signature: ______________________", x0 + W - 10, y + 10, {size:8, color:PC.ink, align:"right"});
+    y += 26; }
   /* coordinator — aakhir mein */
   sec("Coordinator's remarks");
   const cl = d.coord && d.coord.note ? String(d.coord.note).split(/\n+/).flatMap(p=>pdfWrap(p, 9, W - 30)) : [];
@@ -8597,7 +8633,50 @@ function reportCardData(){
   const x = exSum(ex);
   const att = attSummary(sid, s.doj);
   const remarks = (s.remarks||[]).filter(r=>r.parentVisible!==false && (!from || String(r.d).slice(0,7) >= from) && (!to || String(r.d).slice(0,7) <= to));
-  return {s, ex, obt:x.obt, tot:x.tot, pct:x.pct, sat:x.sat, abs:x.abs, att, from, to, remarks, coord: coordRemark(s, from, to)};
+  return {s, ex, obt:x.obt, tot:x.tot, pct:x.pct, sat:x.sat, abs:x.abs, att, from, to, remarks, coord: coordRemark(s, from, to), skill: skillFor(s, from, to)};
+}
+/* v115: Skill Development Progress — DB.skillDev = [{id:"<sid>|<YYYY-MM>", studentId, month, ratings:{skill:level}, note, tid, by, at}] */
+const SKILL_DEFAULT = ["Communication skills","Confidence & public speaking","Critical thinking & problem solving","Creativity","Teamwork & collaboration","Leadership","Time management & organisation","Responsibility & discipline"];
+const SK_LEVELS = ["Excellent","Very Good","Good","Developing","Needs Support"];
+const skillList = () => (Array.isArray(DB.settings.skills) && DB.settings.skills.length ? DB.settings.skills : SKILL_DEFAULT);
+const skillFor = (s, from, to) => from && from === to && s ? (DB.skillDev||[]).find(x=>x.studentId===s.id && x.month===from) || null : null;
+function mySkillKeys(){ const me = empById(MY_TID) || {}; return new Set((me.assignments||[]).filter(a=>/skill/i.test(a.subject||"")).map(a=>a.shift+"|"+a.course)); }
+function renderSkillDev(){
+  if(!DB.skillDev) DB.skillDev = [];
+  const st = window._sk || (window._sk = {m: wm(), k: ""});
+  const keys = IS_TEACHER ? [...mySkillKeys()] : [...new Set(DB.students.filter(x=>x.status==="Active" && (!MY_SCOPE || x.shift===MY_SCOPE)).flatMap(x=>classesOf(x).map(c=>x.shift+"|"+c)))].sort();
+  if(!keys.length){ $("skBody").innerHTML = `<div class="note">${IS_TEACHER ? "You are not assigned as a skill development teacher. Ask the admin to assign you the subject <b>Skill Development</b> for your classes (Employees → Assign)." : "No active students."}</div>`; return; }
+  if(!keys.includes(st.k)) st.k = keys[0];
+  const [sh, c] = st.k.split("|"), L = skillList();
+  const stus = DB.students.filter(x=>x.status==="Active" && x.shift===sh && inClass(x, c)).sort((a,b)=>a.name.localeCompare(b.name));
+  const done = stus.filter(x=>(DB.skillDev||[]).some(r=>r.id===x.id+"|"+st.m && Object.keys(r.ratings||{}).length)).length;
+  $("skBody").innerHTML = `
+    <div class="toolbar" style="align-items:flex-end">
+      <div class="field"><label>Month</label><input type="month" value="${st.m}" onchange="window._sk.m=this.value;renderSkillDev()"></div>
+      <div class="field"><label>Class</label><select onchange="window._sk.k=this.value;renderSkillDev()">${keys.map(k=>`<option value="${esc(k)}" ${k===st.k?"selected":""}>${esc(k.replace("|"," · "))}</option>`).join("")}</select></div>
+      <div class="sub" style="margin-bottom:8px">${done} / ${stus.length} students rated for ${fmtM(st.m)}</div>
+      <button class="btn-red" style="margin-left:auto" onclick="saveSkillDev()">💾 Save</button>
+    </div>
+    ${stus.length ? stus.map(x=>{ const r = (DB.skillDev||[]).find(y=>y.id===x.id+"|"+st.m) || {};
+      return `<div class="panel sk-card" data-sid="${x.id}"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><b>${esc(x.name)}</b><span class="sub">${esc(x.regNo||"")}${r.by ? ` · saved by ${esc(r.by)}${r.at ? " · " + fmtD(String(r.at).slice(0,10)) : ""}` : ""}</span></div>
+        <div class="sk-grid">${L.map(sk=>`<label><span>${esc(sk)}</span><select data-sk="${esc(sk)}"><option value="">—</option>${SK_LEVELS.map(l=>`<option ${(r.ratings||{})[sk]===l?"selected":""}>${l}</option>`).join("")}</select></label>`).join("")}</div>
+        <textarea rows="2" placeholder="Comment on ${esc(x.name.split(" ")[0])}'s skill development (optional)" style="width:100%;margin-top:6px">${esc(r.note||"")}</textarea></div>`; }).join("")
+      : `<div class="note">No active students in ${esc(c)} (${esc(sh)}).</div>`}
+    ${stus.length ? `<div style="text-align:right"><button class="btn-red" onclick="saveSkillDev()">💾 Save</button></div>` : ""}`;
+}
+function saveSkillDev(){
+  const m = window._sk.m; let n = 0;
+  document.querySelectorAll("#skBody .sk-card").forEach(card=>{
+    const sid = card.dataset.sid, id = sid + "|" + m, ratings = {};
+    card.querySelectorAll("select[data-sk]").forEach(x=>{ if(x.value) ratings[x.dataset.sk] = x.value; });
+    const note = card.querySelector("textarea").value.trim(), i = DB.skillDev.findIndex(r=>r.id===id), o = DB.skillDev[i];
+    if(!Object.keys(ratings).length && !note){ if(i >= 0){ DB.skillDev.splice(i, 1); n++; } return; }
+    if(o && o.note === note && JSON.stringify(o.ratings||{}) === JSON.stringify(ratings)) return;
+    const rec = {id, studentId:sid, month:m, ratings, note, tid:MY_TID||"", by: IS_TEACHER ? (empById(MY_TID)||{}).name || "Teacher" : (myName() || ROLE_LABEL), at:new Date().toISOString()};
+    if(i >= 0) DB.skillDev[i] = rec; else DB.skillDev.push(rec); n++;
+  });
+  if(n) save();
+  toast(n ? `Skill development saved — ${n} student${n>1?"s":""}` : "No changes"); renderSkillDev();
 }
 /* v111: Coordinator's remarks — har bache ka har mahine ka aik (st.coordRemarks["YYYY-MM"] = {note, by, d}) */
 /* v112: print ke baad hath se likhna ho to — coordinator box khaali lines ke saath (typed remarks print nahi hote); is browser mein yaad rehta hai */
@@ -8681,10 +8760,12 @@ function rcBackHTML(d, forPrint, range){
     <div class="rc-sec">Class position, attendance &amp; conduct</div>
     <div class="rc-box">${d.rank ? `<b>Class position ${d.rank} / ${d.rankOf}</b>${d.classAvg ? ` · class average ${d.classAvg}%` : ""}${d.pos ? `<br><span style="font-size:.72rem;color:#3b5560">${esc(posText(d.pos))}</span><br><span style="font-size:.66rem;color:#6B7C85">${POS_LABEL}</span>` : ""}<br>` : ""}
       <b>Attendance:</b> ${d.att.pct}% <span style="color:#6B7C85">(Present ${d.att.P} · Absent ${d.att.A} · Late ${d.att.L})</span></div>
-    <div class="rc-sec">Teacher remarks</div>
-    <div class="rc-box">${d.remarks && d.remarks.length ? d.remarks.map(r=>`<div>• ${esc(r.note)}</div>`).join("") : `<span style="color:#6B7C85">No teacher remarks this period — see the subject comments on page 1.</span>`}</div>
-    <div class="rc-sec">Parent / Guardian comments</div>
-    <div class="rc-box">${lines(3)}</div>
+    <div class="rc-sec">🌱 Skill development progress</div>
+    <div class="rc-box" style="padding:0;overflow:hidden">${(()=>{ const sk = d.skill || {}, rt = sk.ratings || {}, L = [...new Set([...skillList(), ...Object.keys(rt)])];
+      return `<table class="rc-sk"><thead><tr><th>Skill</th>${SK_LEVELS.map(l=>`<th>${l}</th>`).join("")}</tr></thead><tbody>
+        ${L.map(k=>`<tr><td>${esc(k)}</td>${SK_LEVELS.map(l=>`<td><span class="tick${rt[k]===l?" on":""}">${rt[k]===l?"✓":""}</span></td>`).join("")}</tr>`).join("")}</tbody></table>
+        <div style="padding:8px 12px"><b style="font-size:.72rem">Skill teacher's comment:</b> ${sk.note ? `<span style="white-space:pre-wrap">${esc(sk.note)}</span>` : lines(2)}
+        <div class="rc-by"><span>Skill Development Teacher: <b>${sk.by ? esc(sk.by) : "______________________"}</b></span><span>Signature: ______________________</span></div></div>`; })()}</div>
     <div class="rc-sec">Coordinator's remarks</div>
     <div class="rc-box coord">${d.coord && d.coord.note ? `<div style="white-space:pre-wrap">${esc(d.coord.note)}</div>${lines(2)}` : lines(6)}
       <div class="rc-by"><span>Coordinator: <b>${d.coord && d.coord.by ? esc(d.coord.by) : "______________________"}</b></span><span>Signature: ______________________</span><span>Date: ${d.coord && d.coord.d ? fmtD(d.coord.d) : "______________"}</span></div></div>
@@ -8711,7 +8792,7 @@ function reportCardFor(sid, from, to){
     return !(from && m < from) && !(to && m > to); }).sort((a,b)=>a.date.localeCompare(b.date));
   const x = exSum(ex);
   const remarks = (s.remarks||[]).filter(r=>r.parentVisible!==false && (!from || String(r.d).slice(0,7) >= from) && (!to || String(r.d).slice(0,7) <= to));
-  return {s, ex, obt:x.obt, tot:x.tot, pct:x.pct, sat:x.sat, abs:x.abs, att: attInRange(sid, from, to), from, to, remarks, coord: coordRemark(s, from, to)};
+  return {s, ex, obt:x.obt, tot:x.tot, pct:x.pct, sat:x.sat, abs:x.abs, att: attInRange(sid, from, to), from, to, remarks, coord: coordRemark(s, from, to), skill: skillFor(s, from, to)};
 }
 /* v100: class position — 4 cheezon ka score (student-report.js ka posParts bilkul yehi): marks 60 · homework waqt par 15
    · behaviour & discipline 10 · attendance & punctuality 15. Jo na ho us ka weight baqi mein bant jata hai. */
@@ -11629,6 +11710,7 @@ function loadSettings(){
   $("setName").value = DB.settings.name||"";
   $("setAddr").value = DB.settings.addr||"";
   $("setPhone").value = DB.settings.phone||"";
+  if($("setSkills")) $("setSkills").value = skillList().join("\n");
   if($("setJoinOn")){ const jr = joinRule(); $("setJoinOn").checked = jr.on; $("setJoinAfter").value = jr.after25; }
   drawLogo(); renderSubjectsAdmin();
   const pages = [...document.querySelectorAll("#nav button")].map(b=>b.textContent.trim());
@@ -11636,6 +11718,10 @@ function loadSettings(){
   $("setModules").textContent = pages.length;
   $("setModuleList").innerHTML = "<b>Pages:</b> " + esc(pages.join(" · ")) +
     "<br><b>Import types:</b> " + esc(Object.values(IMPORT_TYPES).map(x=>x.label).join(" · "));
+}
+function saveSkills(){
+  const L = [...new Set($("setSkills").value.split(/\n+/).map(x=>x.trim()).filter(Boolean))].slice(0, 15);
+  DB.settings.skills = L.length ? L : null; save(); $("setSkills").value = skillList().join("\n"); toast(`Skills saved — ${skillList().length}`);
 }
 function saveJoinRule(){
   DB.settings.joinFee = {on: $("setJoinOn").checked, after25: $("setJoinAfter").value};
@@ -12768,6 +12854,7 @@ if(IS_ADMIN){
   ADMIN_HIDDEN.forEach(pg=>{ const b = document.querySelector(`#nav button[data-page="${pg}"]`); if(b) b.style.display = "none"; });
   if(IS_TEACHER){ document.body.classList.add("role-teacher"); const me = empById(MY_TID); if(me) ROLE_LABEL = "Teacher · " + me.name;
     document.querySelector('#nav button[data-page="mydash"]').style.display = "";
+    if(!mySkillKeys().size) document.querySelector('#nav button[data-page="skilldev"]').style.display = "none";   // v115: sirf skill teacher
     setTimeout(()=>{ const ev = eveTestStatus(wm()).filter(x=>x.need); if(ev.length) toast(`⏰ This month ${ev.map(x=>`${x.c}: ${x.n}/${EVE_TEST_TARGET} tests`).join(", ")} — take 2 tests in every Evening class`); }, 1200); }
   if(MY_SID) document.querySelector('#nav button[data-page="staffdash"]').style.display = "";
   if(MY_SCOPE === "Morning"){ const b = document.querySelector('#nav button[data-page="classatt"]'); if(b) b.style.display = "none"; }   // v105: Evening class attendance
