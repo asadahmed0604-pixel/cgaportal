@@ -402,7 +402,13 @@ async function report(quiet) {
         <td><b>${esc(h.title)}</b>${h.subject ? ` <span class="sub">· ${esc(h.subject)}</span>` : ""}${h.teacher ? `<div class="sub">${esc(h.teacher)}</div>` : ""}${h.detail ? `<div class="sub">${esc(h.detail)}</div>` : ""}${h.due ? `<div class="sub">Due ${esc(fmtD(h.due))}</div>` : ""}</td>
         <td class="r">${{ done: `<span class="pill P">Submitted</span>`, late: `<span class="pill L">Late</span>`, missed: `<span class="pill A">Not submitted</span>`, pending: `<span class="pill E">Pending</span>`, submitted: `<span class="pill L">Sent — awaiting teacher</span>` }[h.state]}</td></tr>`).join("")}</tbody></table>`
       : `<p class="sub" style="margin:0">No homework given yet.</p>`}</div>
-    ${(r.skills || []).length ? `<div class="card"><h3>🌱 Skill development</h3>${r.skills.map((x) => `<div style="margin-bottom:10px">
+    ${(r.skills || []).length || (r.skillGroups || []).some((g) => g.projects.length) ? `<div class="card"><h3>🌱 Skill development</h3>
+      ${(r.skillGroups || []).filter((g) => g.projects.length).map((g) => `<div style="margin-bottom:12px"><b>🚀 ${esc(g.group)} — projects</b>${g.teacher ? ` <span class="sub">· ${esc(g.teacher)}</span>` : ""}
+        ${g.projects.map((p) => `<div style="border:1px solid var(--line,#E1EAEE);border-left:4px solid ${p.status === "Completed" ? "#159670" : p.status === "In progress" ? "#E0A526" : "#174B60"};border-radius:10px;padding:8px 10px;margin-top:6px">
+          <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start"><b>${esc(p.title)}</b><span class="pill ${p.status === "Completed" ? "P" : p.status === "In progress" ? "L" : "E"}">${p.status === "Completed" ? "✓ Completed" : esc(p.status)}</span></div>
+          <div class="sub">${p.status === "Completed" ? (p.doneOn ? "Completed " + esc(fmtD(p.doneOn)) : "") : [p.start ? "Starts " + esc(fmtD(p.start)) : "", p.due ? "Due " + esc(fmtD(p.due)) : ""].filter(Boolean).join(" · ")}</div>
+          ${p.detail ? `<div style="margin-top:4px">${esc(p.detail)}</div>` : ""}${p.outcome ? `<div class="sub" style="margin-top:4px;font-style:italic">Result: ${esc(p.outcome)}</div>` : ""}</div>`).join("")}</div>`).join("")}
+      ${(r.skills || []).map((x) => `<div style="margin-bottom:10px">
       <b>${esc(x.group || "Skill development")}</b> <span class="sub">· ${esc(fmtM(x.month))}${x.by ? " · " + esc(x.by) : ""}</span>
       <table class="rt"><tbody>${x.ratings.map((q) => `<tr><td>${esc(q.skill)}</td><td class="r"><span class="pill ${{ Excellent: "P", "Very Good": "P", Good: "E", Developing: "L", "Needs Support": "A" }[q.level] || "E"}">${esc(q.level)}</span></td></tr>`).join("")}</tbody></table>
       ${x.note ? `<div class="sub" style="font-style:italic;margin-top:4px">“${esc(x.note)}”</div>` : ""}</div>`).join("")}</div>` : ""}
