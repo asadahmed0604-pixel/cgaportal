@@ -1468,7 +1468,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v116 · 16 Oct 2026";
+const BUILD = "v117 · 16 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -3455,9 +3455,22 @@ async function reportCardPDF(d){
     pdfWrap(POS_LABEL, 7, W - 24).forEach(l=>pl.push([l, 7, false, PC.muted])); }
   pl.push([`Attendance: ${d.att.pct}%  (Present ${d.att.P} · Absent ${d.att.A} · Late ${d.att.L})`, 9, true, PC.ink]);
   box(pl.length*12 + 12); pl.forEach(([t, sz, b, c], k)=>doc.text(t, x0 + 12, y + 16 + k*12, {size:sz, bold:b, color:c})); y += pl.length*12 + 26;
-  /* v116: Skill Development — bache ke group(s) (sirf Morning) */
-  if(d.skills && !d.skills.length){ sec("Skill development progress"); box(22); doc.text("Not enrolled in a skill development group this term.", x0 + 12, y + 14, {size:8.5, color:PC.muted}); y += 36; }
-  (d.skills || []).forEach(({g, e})=>{
+  /* v117: abhi khaali box (hath se) — Skill Development page se "From the system" karein to neeche wala grid */
+  if(d.skills && skillMode() === "blank"){
+    sec("Skill development progress");
+    const gl = d.skills.map(({g})=>`Group ${g.code || ""}: ${g.name || ""}${skTeacher(g) ? " - led by " + skTeacher(g) : ""}`).join("   ·   ");
+    const bh = 5*20 + 30 + (gl ? 12 : 0);
+    box(bh, true);
+    if(gl) doc.text(gl, x0 + 16, y + 14, {size:7.5, color:PC.muted, maxW:W - 30});
+    rules(5, y + (gl ? 10 : 0));
+    const by2 = y + bh - 9;
+    doc.text("Teacher: ______________________", x0 + 16, by2, {size:8, color:PC.ink});
+    doc.text("Signature: ______________________", x0 + W/2 - 70, by2, {size:8, color:PC.ink});
+    doc.text("Date: ______________", x0 + W - 12, by2, {size:8, color:PC.ink, align:"right"});
+    y += bh + 20;
+  }
+  else if(d.skills && !d.skills.length){ sec("Skill development progress"); box(22); doc.text("Not enrolled in a skill development group this term.", x0 + 12, y + 14, {size:8.5, color:PC.muted}); y += 36; }
+  (skillMode() === "system" ? d.skills || [] : []).forEach(({g, e})=>{
     const rt = (e && e.ratings) || {}, L = [...new Set([...skSkills(g), ...Object.keys(rt)])], who = (e && e.by) || skTeacher(g);
     sec(`Skill development - Group ${g.code || ""}: ${g.name || ""}`);
     const c0 = 190, cw2 = (W - c0)/SK_LEVELS.length, rh = 15;
@@ -8655,7 +8668,11 @@ function renderSkillDev(){
   if(!DB.skillDev) DB.skillDev = [];
   if(!IS_TEACHER && !skGroups().length){ SKILL_SEED.forEach(x=>skGroups().push({id:uid(), ...x, tid:"", studentIds:[]})); save(); }
   const st = window._sk || (window._sk = {m: wm(), g: "", tab: IS_TEACHER ? "prog" : "groups"});
-  const tabs = IS_TEACHER ? "" : `<div class="seg" style="margin-bottom:12px"><button class="${st.tab==="groups"?"on":""}" onclick="window._sk.tab='groups';renderSkillDev()">👥 Groups &amp; students</button><button class="${st.tab==="prog"?"on":""}" onclick="window._sk.tab='prog';renderSkillDev()">📈 Progress</button></div>`;
+  const mode = IS_TEACHER ? "" : `<div class="panel" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:10px 14px">
+      <b>On report cards &amp; parents' app:</b>
+      <select onchange="setSkillMode(this.value)"><option value="blank" ${skillMode()==="blank"?"selected":""}>Blank box — fill by hand (for now)</option><option value="system" ${skillMode()==="system"?"selected":""}>Progress from the system (teachers' ratings)</option></select>
+      <span class="sub">${skillMode()==="blank" ? "Report cards print an empty Skill Development Progress box; parents don't see ratings yet." : "Report cards print each group's ratings; parents see them in the app (My Report)."}</span></div>`;
+  const tabs = IS_TEACHER ? "" : mode + `<div class="seg" style="margin-bottom:12px"><button class="${st.tab==="groups"?"on":""}" onclick="window._sk.tab='groups';renderSkillDev()">👥 Groups &amp; students</button><button class="${st.tab==="prog"?"on":""}" onclick="window._sk.tab='prog';renderSkillDev()">📈 Progress</button></div>`;
   $("skBody").innerHTML = tabs + (st.tab === "groups" && !IS_TEACHER ? skGroupsHTML() : skProgressHTML());
 }
 /* ---- admin: groups, teacher, students ---- */
@@ -8811,10 +8828,18 @@ function transcriptHTML(d, forPrint){
 }
 /* v111: report card ka doosra page (back side — front/back print): position & conduct, teacher remarks,
    aakhir mein Coordinator's remarks (type kiye hon to wohi, warna hath se likhne ki lines), parent ke comments, signatures */
+/* v117: abhi (PTM) report card par sirf khaali "Skill Development Progress" box — hath se bharne ke liye.
+   Admin Skill Development page se "From the system" kare to report card + parents app dono par system ki progress. */
+const skillMode = () => DB.settings.skillOnCard === "system" ? "system" : "blank";
+function setSkillMode(v){ DB.settings.skillOnCard = v === "system" ? "system" : "blank"; save();
+  toast(v === "system" ? "Skill progress from the system now shows on report cards and in the parents' app" : "Report cards show a blank Skill Development box (handwritten); parents' app hides it"); renderSkillDev(); }
 /* v116: report card ke peeche — bache ke skill group(s) ki progress (sirf Morning) */
 function rcSkillHTML(d){
   const B = d.skills; if(!B) return "";
   const lines = n => Array.from({length:n}, ()=>`<div class="rc-line"></div>`).join("");
+  if(skillMode() === "blank") return `<div class="rc-sec">🌱 Skill development progress</div>
+    <div class="rc-box coord">${B.length ? `<div style="font-size:.72rem;color:#3b5560">${B.map(({g})=>`Group ${esc(g.code||"")}: ${esc(g.name||"")}${skTeacher(g) ? " · led by " + esc(skTeacher(g)) : ""}`).join(" &nbsp;·&nbsp; ")}</div>` : ""}${lines(5)}
+      <div class="rc-by"><span>Teacher: ______________________</span><span>Signature: ______________________</span><span>Date: ______________</span></div></div>`;
   if(!B.length) return `<div class="rc-sec">🌱 Skill development progress</div><div class="rc-box"><span style="color:#6B7C85">Not enrolled in a skill development group this term.</span></div>`;
   return B.map(({g, e})=>{ const rt = (e && e.ratings) || {}, L = [...new Set([...skSkills(g), ...Object.keys(rt)])], who = (e && e.by) || skTeacher(g);
     return `<div class="rc-sec">🌱 Skill development · Group ${esc(g.code||"")}: ${esc(g.name||"")}</div>

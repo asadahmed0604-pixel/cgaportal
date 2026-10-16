@@ -162,6 +162,7 @@ label input{display:block;width:100%;margin-top:5px;border:1.5px solid var(--lin
 const $ = (s, r = document) => r.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const fmtD = (d) => d ? new Date(d + "T00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "";
+const fmtM = (m) => m ? new Date(m + "-01T00:00").toLocaleDateString("en-GB", { month: "long", year: "numeric" }) : "";
 /* v96: Cambridge grading — 90+ A*, 80–89 A, 66–79 B, 56–65 C, 50–55 D, 40–49 E, 40 se kam U */
 const grade = (p) => { p = Math.round(+p || 0); return p >= 90 ? "A*" : p >= 80 ? "A" : p >= 66 ? "B" : p >= 56 ? "C" : p >= 50 ? "D" : p >= 40 ? "E" : "U"; };
 const view = $("#view");
@@ -401,6 +402,10 @@ async function report(quiet) {
         <td><b>${esc(h.title)}</b>${h.subject ? ` <span class="sub">· ${esc(h.subject)}</span>` : ""}${h.teacher ? `<div class="sub">${esc(h.teacher)}</div>` : ""}${h.detail ? `<div class="sub">${esc(h.detail)}</div>` : ""}${h.due ? `<div class="sub">Due ${esc(fmtD(h.due))}</div>` : ""}</td>
         <td class="r">${{ done: `<span class="pill P">Submitted</span>`, late: `<span class="pill L">Late</span>`, missed: `<span class="pill A">Not submitted</span>`, pending: `<span class="pill E">Pending</span>`, submitted: `<span class="pill L">Sent — awaiting teacher</span>` }[h.state]}</td></tr>`).join("")}</tbody></table>`
       : `<p class="sub" style="margin:0">No homework given yet.</p>`}</div>
+    ${(r.skills || []).length ? `<div class="card"><h3>🌱 Skill development</h3>${r.skills.map((x) => `<div style="margin-bottom:10px">
+      <b>${esc(x.group || "Skill development")}</b> <span class="sub">· ${esc(fmtM(x.month))}${x.by ? " · " + esc(x.by) : ""}</span>
+      <table class="rt"><tbody>${x.ratings.map((q) => `<tr><td>${esc(q.skill)}</td><td class="r"><span class="pill ${{ Excellent: "P", "Very Good": "P", Good: "E", Developing: "L", "Needs Support": "A" }[q.level] || "E"}">${esc(q.level)}</span></td></tr>`).join("")}</tbody></table>
+      ${x.note ? `<div class="sub" style="font-style:italic;margin-top:4px">“${esc(x.note)}”</div>` : ""}</div>`).join("")}</div>` : ""}
     ${r.remarks.length || (r.warnings || []).length ? `<div class="card"><h3>🧭 Behaviour &amp; discipline</h3>
       ${(r.warnings || []).map((w) => `<div style="border:1.5px solid ${w.level === "Final" ? "var(--red)" : "#E0A526"};background:${w.level === "Final" ? "#FDECEA" : "#FFF6E0"};border-radius:12px;padding:10px 12px;margin-bottom:8px">
         <b>⚠ ${esc(w.level)} warning letter</b> <span class="sub">· ${esc(fmtD(w.d))}${w.no ? " · " + esc(w.no) : ""}</span><div><b>${esc(w.reason)}</b></div>${w.note ? `<div>${esc(w.note)}</div>` : ""}</div>`).join("")}
