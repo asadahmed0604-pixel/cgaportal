@@ -1299,6 +1299,16 @@ label.chk input{width:auto}
   </div>
 
   <div class="panel" style="max-width:560px">
+    <h3>New admission — first month fee</h3>
+    <p class="sub" style="margin-bottom:10px">Used when a challan is made for the month a student joined (Date of Joining):
+      joined on the <b>1st–9th</b> → full fee · <b>10th–15th</b> → fee for the days left in the month · <b>16th–25th</b> → half fee.</p>
+    <label class="chk"><input type="checkbox" id="setJoinOn"> Apply this rule to new admissions</label>
+    <div class="field"><label>Joined after the 25th</label><select id="setJoinAfter">
+      <option value="half">Half fee</option><option value="none">No fee for that month (billing starts next month)</option><option value="full">Full fee</option></select></div>
+    <button class="btn-red" onclick="saveJoinRule()">Save</button>
+  </div>
+
+  <div class="panel" style="max-width:560px">
     <h3>Which File Is This?</h3>
     <p class="sub" style="margin-bottom:10px">Downloads often collect several copies. If a new feature is not visible, check the version here.</p>
     <div class="cards" style="margin-bottom:0">
@@ -1442,7 +1452,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v113 · 16 Oct 2026";
+const BUILD = "v114 · 16 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -1543,6 +1553,25 @@ const subjectsTotal = s => (s && s.subjects || []).reduce((a,x)=>a+(+x.fee||0),0
 /* Student ki total monthly fee — Evening mein subject-wise total, warna uski apni monthly fee.
    Agar subjects par fees set hi nahi (sab 0) to monthly fee par wapas aate hain — warna
    purana data aur wo students jinki subject-wise fee abhi nahi lagi, 0 ban jate the. */
+/* v114: naye student ki PEHLI (joining) mahine ki fee — joining ki tareekh se:
+   1–9 tareekh: poori fee · 10–15: baqi dinon ke hisaab se (fee × baqi din / mahine ke din) · 16–25: aadhi fee
+   · 26 ke baad: Settings ke mutabiq (default aadhi). Sirf us mahine ke challan par jis mahine admission hua. */
+const joinRule = () => ({on:true, after25:"half", ...((DB.settings||{}).joinFee||{})});
+function joinFactor(s, m){
+  const d = String((s && s.doj) || ""), r = joinRule();
+  if(!r.on || !/^\d{4}-\d{2}-\d{2}/.test(d) || d.slice(0,7) !== m) return null;
+  const day = +d.slice(8,10), dim = new Date(+m.slice(0,4), +m.slice(5,7), 0).getDate();
+  if(day < 10) return null;
+  if(day <= 15){ const left = dim - day + 1; return {f:left/dim, label:`${left} of ${dim} days`}; }
+  if(day <= 25 || r.after25 === "half") return {f:.5, label:"half month"};
+  if(r.after25 === "none") return {f:0, label:"no fee — billing starts next month"};
+  return null;   // "full"
+}
+/* amount ko joining ke hisaab se — {amt, note} */
+function joinFee(s, m, amt){
+  const j = joinFactor(s, m); if(!j || !(+amt)) return {amt:+amt||0, note:"", j:null};
+  return {amt: Math.round((+amt)*j.f), note:`Joining month — joined ${fmtD(s.doj)}: ${j.label}`, j};
+}
 function studentFee(s){
   if(!s) return 0;
   if(s.shift==="Evening"){ const t = subjectsTotal(s); if(t) return t; }
@@ -4414,7 +4443,7 @@ let chMode = "Morning";   // selected student ki shift
 function openChallanForm(){
   chStus = DB.students.filter(s=>s.status==="Active"||s.status==="Freeze").sort((a,b)=>a.name.localeCompare(b.name));
   if(!chStus.length){ toast("Enroll a student first"); return; }
-  chItems = []; chSubs = []; chMode = "Morning";
+  chItems = []; chSubs = []; chMode = "Morning"; window._chJoin = null;
   openModal(`
     <h3>New Fee Challan</h3>
     <div class="field" style="position:relative"><label>Student * (type name / reg no)</label>
@@ -4423,7 +4452,7 @@ function openChallanForm(){
       <div class="sugg" id="c_stuList"></div>
     </div>
     <div class="grid2">
-      <div class="field"><label>Fee Month *</label><input type="month" id="c_month" value="${wm()}" onchange="prefDue()"></div>
+      <div class="field"><label>Fee Month *</label><input type="month" id="c_month" value="${wm()}" onchange="prefDue();chJoinApply();drawChSubs();chTotal()"></div>
       <div class="field"><label>Monthly Fee (Rs) *</label><input type="number" id="c_amt" value="" oninput="chTotal()"></div>
       <div class="field" id="c_discWrap"><label>Discount (Rs)</label><input type="number" id="c_disc" value="" placeholder="0" oninput="chTotal()"></div>
       <div class="field"><label>Due Date (fee payable by)</label><input type="date" id="c_due" value="${wm()}-10"></div>
@@ -4441,6 +4470,7 @@ function openChallanForm(){
     </div>
     <div class="chips" id="chItemChips"></div>
     <div style="text-align:right;margin-top:10px;line-height:1.7">
+      <div id="c_join" class="sub" style="color:#0F7B3D;font-weight:700"></div>
       <div id="c_discLine" class="sub"></div>
       <div style="font-size:1.05rem">Total: <b id="c_total" style="color:var(--red)">Rs 0</b></div>
     </div>
@@ -4465,11 +4495,19 @@ function chStuPick(id){
   $("c_stuSearch").value = s.name + " (" + s.regNo + ")";
   $("c_stuList").classList.remove("show");
   chMode = s.shift || "Morning";
-  chSubs = (s.subjects||[]).map(x=>({name:x.name, fee:+x.fee||0, disc:0, teacherId:x.teacherId||""}));
+  chJoinApply(s);
   if($("c_disc")) $("c_disc").value = "";
   drawChOneTime(s);
-  if(!chSubs.reduce((a,x)=>a+(+x.fee||0),0)) $("c_amt").value = studentFee(s) || "";
   drawChSubs(); chTotal();
+}
+/* v114: challan ke mahine aur joining date se fee (subjects ki fees bhi usi hisaab se) + note */
+function chJoinApply(s){
+  s = s || ($("c_stu") && stuById($("c_stu").value)); if(!s) return;
+  const m = ($("c_month") && $("c_month").value) || wm(), full = studentFee(s), jf = joinFee(s, m, full), k = full ? jf.amt/full : 1;
+  chSubs = (s.subjects||[]).map(x=>({name:x.name, fee:Math.round((+x.fee||0)*k), disc:0, teacherId:x.teacherId||""}));
+  if(!chSubs.reduce((a,x)=>a+(+x.fee||0),0)) $("c_amt").value = jf.amt || (jf.j ? 0 : "") ;
+  if($("c_join")) $("c_join").innerHTML = jf.j ? `🆕 ${esc(jf.note)} — ${money(jf.amt)} instead of ${money(full)}` : "";
+  window._chJoin = jf.j ? {note:jf.note, full} : null;
 }
 /* Student ke ek-dafa charges (admission, registration waghera) ek click mein challan par */
 function drawChOneTime(s){
@@ -4584,7 +4622,8 @@ function saveChallan(){
     subjects: chSubs.map(x=>({name:x.name, fee:+x.fee||0, disc:+x.disc||0, teacherId:x.teacherId||""})),
     course: st? st.course : "", group: st? groupOf(st) : "",
     dueDate:$("c_due").value||"", status, shift: st? st.shift : "",
-    paidDate: status==="Paid"? ($("c_paid").value||wmDate()) : ""
+    paidDate: status==="Paid"? ($("c_paid").value||wmDate()) : "",
+    ...(window._chJoin ? {joinNote:window._chJoin.note, fullFee:window._chJoin.full} : {})
   };
   if(t.arr) carryArrears(f);
   if(!chItems.some(i=>/registration/i.test(i.desc))) addRegFee(f, st);
@@ -4616,15 +4655,19 @@ function runBulkChallan(){
   const sh = $("bc_shift").value, due = $("bc_due").value||"";
   const withArr = !$("bc_arr") || $("bc_arr").checked;
   const act = DB.students.filter(s=>s.status==="Active" && (!sh || s.shift===sh));
-  let created=0, skipped=0, noFee=0, arrN=0, arrAmt=0;
+  let created=0, skipped=0, noFee=0, arrN=0, arrAmt=0, joinN=0, joinZero=0;
   act.forEach(s=>{
     if(DB.fees.some(f=>f.studentId===s.id && f.month===m)){ skipped++; return; }
-    const amt = studentFee(s);
-    if(!amt){ noFee++; return; }
+    const full = studentFee(s);
+    if(!full){ noFee++; return; }
+    const jf = joinFee(s, m, full), amt = jf.amt;     // v114: joining month
+    if(jf.j){ joinN++; if(!amt){ joinZero++; if(!(s.regFee && +s.regFee.amt > 0 && s.regFee.month === m)) return; } }
+    const k = full ? amt/full : 1;
     const f = {
       id:uid(), chNo:"CH-"+String(DB.counters.ch++).padStart(5,"0"),
       studentId:s.id, month:m, tuition:amt, items:[], amount:amt,
-      subjects:(s.subjects||[]).map(x=>({name:x.name, fee:+x.fee||0, teacherId:x.teacherId||""})),
+      subjects:(s.subjects||[]).map(x=>({name:x.name, fee:Math.round((+x.fee||0)*k), teacherId:x.teacherId||""})),
+      ...(jf.j ? {joinNote:jf.note, fullFee:full} : {}),
       course:s.course, group:groupOf(s),
       dueDate:due, status:"Unpaid", shift:s.shift, paidDate:""
     };
@@ -4638,13 +4681,14 @@ function runBulkChallan(){
   if(skipped) msg += ` · ${skipped} already exist (skipped)`;
   if(noFee) msg += ` · ${noFee} students have no fee set (skipped)`;
   if(arrN) msg += ` · ${money(arrAmt)} arrears added to ${arrN} challans`;
+  if(joinN) msg += ` · ${joinN} new admissions charged by joining date${joinZero ? ` (${joinZero} with no fee this month)` : ""}`;
   toast(msg);
 }
 /* v30: Kisi mahine ke challans ko bilkul student ki monthly fee par le aao — arrears / extra charges / discount hata kar.
    Sirf Unpaid challans badalte hain; arrears wapas purane challan par chale jate hain. */
 function feeOnlyPlan(m){
   return feesBilledIn(m).map(f=>{
-    const st = stuById(f.studentId), fee = studentFee(st);
+    const st = stuById(f.studentId), fee = joinFee(st, f.month, studentFee(st)).amt;   // v114: joining month
     const reg = (f.items||[]).filter(i=>i.regFee).reduce((a,i)=>a+(+i.amt||0),0);
     const extra = (+f.amount||0) !== fee + reg || (f.items||[]).some(i=>!i.regFee) || +f.arrears || +f.discount;
     return {f, st, fee, extra, paid: !!feeReceived(f) || f.status === "Paid"};
@@ -5413,6 +5457,7 @@ function challanCopyHTML(f, L, label){
     </div>
     <div class="cx-total${L.out ? "" : " done"}"><span>${L.out ? `BALANCE PAYABLE<small>after ${money(L.received)} already received</small>` : `PAID IN FULL <span class="cx-stamp">✓ PAID</span>`}</span><span>${money(L.out)}</span></div>`
     : `<div class="cx-total"><span>TOTAL PAYABLE</span><span>${money(L.out || L.total)}</span></div>`}
+    ${f.joinNote ? `<div class="cx-pay">${esc(f.joinNote)}${f.fullFee ? ` (monthly fee ${money(f.fullFee)})` : ""}</div>` : ""}
     ${f.remarks ? `<div class="cx-pay">Remarks: ${esc(f.remarks)}</div>` : ""}
     <div class="cx-foot"><span>Issued: ${fmtD(todayStr())}</span><span>Please pay the fee before the due date</span><span>Receiver signature: ______________</span></div>
   </div>`;
@@ -5629,6 +5674,7 @@ function pdfChallanCopy(doc, f, L, logo, y0, label){
   if(P.length && L.out) doc.text(`after ${money(L.received)} already received`, x0 + 20, ty2 + 20.5, {size:6.5, color:"#FFFFFF"});
   doc.text(money(P.length ? L.out : (L.out || L.total)), x0 + W - 20, ty2 + 17, {size:13.5, bold:true, color:"#FFFFFF", align:"right"});
   const notes = [];
+  if(f.joinNote) notes.push(f.joinNote + (f.fullFee ? ` (monthly fee ${money(f.fullFee)})` : ""));
   if(f.remarks) notes.push("Remarks: " + f.remarks);
   if(notes.length) doc.text(notes.join("   ·   "), x0 + 12, ty2 + 36, {size:7.5, color:PC.ink, maxW:W - 24});
   const fy = y0 + H - 10;
@@ -11583,12 +11629,17 @@ function loadSettings(){
   $("setName").value = DB.settings.name||"";
   $("setAddr").value = DB.settings.addr||"";
   $("setPhone").value = DB.settings.phone||"";
+  if($("setJoinOn")){ const jr = joinRule(); $("setJoinOn").checked = jr.on; $("setJoinAfter").value = jr.after25; }
   drawLogo(); renderSubjectsAdmin();
   const pages = [...document.querySelectorAll("#nav button")].map(b=>b.textContent.trim());
   $("setBuild").textContent   = BUILD;
   $("setModules").textContent = pages.length;
   $("setModuleList").innerHTML = "<b>Pages:</b> " + esc(pages.join(" · ")) +
     "<br><b>Import types:</b> " + esc(Object.values(IMPORT_TYPES).map(x=>x.label).join(" · "));
+}
+function saveJoinRule(){
+  DB.settings.joinFee = {on: $("setJoinOn").checked, after25: $("setJoinAfter").value};
+  save(); toast("First-month fee rule saved");
 }
 function saveSettings(){
   DB.settings.name  = $("setName").value.trim()||"Cambridge Grads Academy";

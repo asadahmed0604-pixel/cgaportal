@@ -504,6 +504,21 @@ save, the other shift's records are kept exactly as they are on the server.
 - PDF / WhatsApp PDF: the marks table rows and font shrink as needed so page 1 is one page; page 2 follows.
 - Tested with 3 to 30 tests per card: always exactly 2 pages per card.
 
+## New admission — first month fee by joining date (v114)
+
+- The challan for the month a student joined (their **Date of Joining**) is charged by the joining date:
+  - joined **1st–9th** → full monthly fee
+  - joined **10th–15th** → fee for the days left in the month (monthly fee × days left ÷ days in month, joining day
+    included) — e.g. joined 15 Nov (30 days): 16 days → Rs 10,000 × 16/30 = Rs 5,333
+  - joined **16th–25th** → half fee
+  - joined **after the 25th** → set in **Settings → New admission — first month fee** (half fee by default, or no fee
+    that month, or full fee). The rule can also be switched off there.
+- Applies to ⚡ Generate All Challans, a single new challan (the amount fills in automatically and a green line explains
+  it; changing the fee month recalculates), and "reset to monthly fee only". Evening per-subject fees are reduced in
+  the same proportion. Later months are always the full fee.
+- The challan (print and PDF) shows a line such as "Joining month — joined 15 Nov 2026: 16 of 30 days (monthly fee
+  Rs 10,000)".
+
 ## Install as an app (v41)
 
 Staff (`/`), Teachers (`/teacher`) and Parents (`/parent`) — all three links can be installed as an app on a phone / computer
