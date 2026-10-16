@@ -1427,7 +1427,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v109 · 16 Oct 2026";
+const BUILD = "v110 · 16 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -3153,7 +3153,7 @@ function downloadProfile(id){
         <td style="${cell};text-align:center"><b>${ePctT(e)}</b></td>
         <td style="${cell};text-align:center">${eGrade(e)}</td>
         <td style="${cell};text-align:center;font-weight:700;color:${eColor(e)}">${eResult(e)}</td>
-        <td style="${cell};font-size:.74rem">${esc(e.comment||"—")}</td>
+        <td style="${cell};font-size:.74rem">${esc(e.comment ? remarkText(e.comment, s.name, e.subject) : "—")}</td>
       </tr>`;}).join("") : `<tr><td colspan="10" style="${cell};text-align:center;color:#777">No exam records</td></tr>`}</tbody>
     </table>
     <div style="display:flex;justify-content:space-between;margin-top:40px;font-size:.78rem;color:#444">
@@ -3325,9 +3325,10 @@ function waReportCards(){
 async function reportCardPDF(d){
   const doc = new PDFDoc(), lj = await logoJpeg(), logo = lj ? {name:doc.addJpeg(lj), w:lj.w, h:lj.h} : null;
   const x0 = 30, W = PDF_W - 60, s = d.s;
-  doc.addPage();
-  if(logo){ const ww = 360, wh = ww*lj.h/lj.w, wy = Math.max(170, (PDF_H - wh)/2 + 10);   // v107: CGA logo watermark
-    doc.image(logo.name, (PDF_W - ww)/2, wy, ww, Math.min(wh, PDF_H - wy - 80), {alpha:.07}); }
+  const page = ()=>{ doc.addPage();
+    if(logo){ const ww = 360, wh = ww*lj.h/lj.w, wy = Math.max(170, (PDF_H - wh)/2 + 10);   // v107: CGA logo watermark
+      doc.image(logo.name, (PDF_W - ww)/2, wy, ww, Math.min(wh, PDF_H - wy - 80), {alpha:.07}); } };
+  page();
   pdfHeader(doc, logo, x0, 24, W, 70);
   doc.rect(x0, 94, W, 3, {fill:PC.teal});
   doc.rect(x0 + W - 134, 40, 120, 20, {fill:PC.teal});
@@ -3341,27 +3342,36 @@ async function reportCardPDF(d){
   doc.text("ACADEMIC PERFORMANCE", x0, y + 4, {size:7.5, bold:true, color:PC.navy}); doc.line(x0 + 98, y + 1.5, x0 + W, y + 1.5, {color:"#DCE6EA", lw:.6});
   y += 12;
   const cols = [["#",22],["Date",62],["Subject / Test",W-22-62-48-56-40-40-50],["Total",48],["Obtained",56],["%",40],["Grade",40],["Result",50]];
-  doc.rect(x0, y, W, 18, {fill:PC.navy});
-  let cx = x0; cols.forEach(([h,w])=>{ doc.text(h, cx + 5, y + 12, {size:7.5, bold:true, color:"#FFFFFF"}); cx += w; });
-  y += 18;
+  let cx;
+  const thead = ()=>{ doc.rect(x0, y, W, 18, {fill:PC.navy});
+    cx = x0; cols.forEach(([h,w])=>{ doc.text(h, cx + 5, y + 12, {size:7.5, bold:true, color:"#FFFFFF"}); cx += w; });
+    y += 18; };
+  thead();
+  /* v110: lambe remarks se jagah khatam ho to naya page (watermark + table heading dobara) */
+  const more = need=>{ if(y + need <= PDF_H - 80) return false;
+    page(); y = 30; doc.text(`${s.name} - report card (continued)`, x0, y + 8, {size:8, bold:true, color:PC.navy}); y += 16; return true; };
   const rows = d.ex.slice(0, 30);
   rows.forEach((e,i)=>{
-    const h = e.comment ? 26 : 18;
+    const cm = e.comment ? pdfWrap(`"${remarkText(e.comment, s.name, e.subject)}"`, 7, W - 22 - 62 - 10) : [];   // v110: tafseeli remark, poori chaurai mein
+    const h = 18 + cm.length*8.5 + (cm.length ? 2 : 0);
+    if(more(h)) thead();
     if(i % 2) doc.rect(x0, y, W, h, {fill:PC.soft, alpha:.7});
     const vals = [String(i+1), fmtD(e.date), e.subject || e.exam, String(e.total), String(eObt(e)), ePctT(e), eGrade(e), eResult(e)];
     cx = x0; vals.forEach((v,j)=>{
       if(j === 6){ const [gc, gb] = GRADE_TONE[v] || [PC.muted, "#EEF1F3"]; doc.rect(cx + 3, y + 3.5, cols[j][1] - 8, 11.5, {fill:gb}); doc.text(v, cx + 3 + (cols[j][1] - 8)/2, y + 12, {size:8, bold:true, color:gc, align:"center", maxW:cols[j][1] - 10}); }
       else doc.text(v, cx + 5, y + 12, {size:8.5, bold:j===2||j===4, color: j===7 ? (e.absent ? PC.muted : eP(e)>=PASS_PCT ? PC.green : PC.red) : PC.ink, maxW:cols[j][1] - 8});
       cx += cols[j][1]; });
-    if(e.comment) doc.text(`"${e.comment}"`, x0 + 22 + 62 + 5, y + 22, {size:7, color:PC.muted, maxW:cols[2][1] - 8});
+    cm.forEach((ln, k)=>doc.text(ln, x0 + 22 + 62 + 5, y + 22 + k*8.5, {size:7, color:PC.muted}));
     y += h; doc.line(x0, y, x0 + W, y, {color:PC.line, lw:.5});
   });
   if(!rows.length){ doc.text("No tests recorded in this period", x0 + W/2, y + 16, {size:9, color:PC.muted, align:"center"}); y += 34; }
+  const rem = d.remarks && d.remarks.length ? pdfWrap("Teacher remarks: " + d.remarks.map(r=>r.note).join(" · "), 8.5, W) : [];
+  more(30 + (d.rank && d.pos ? 20 : 0) + 8 + rem.length*11 + 75);   // summary + signatures aik saath
   if(rows.length){ doc.rect(x0, y, W, 20, {fill:PC.head, alpha:.9}); doc.line(x0, y, x0 + W, y, {color:PC.teal, lw:1.4}); doc.text(d.pct === null ? `Overall: absent in all ${d.ex.length} tests` : `Overall (${d.sat} tests${d.abs ? `, absent in ${d.abs}` : ""}): ${d.obt} / ${d.tot} = ${d.pct}%  ·  Grade ${gradeOf(d.pct)}${d.classAvg ? `  ·  Class avg ${d.classAvg}%` : ""}`, x0 + 10, y + 13.5, {size:9, bold:true, color:PC.ink, maxW:W - 20}); y += 30; }
   if(d.rank && d.pos){ doc.text(`Class position ${d.rank} / ${d.rankOf}: ${posText(d.pos)}`.replace(/→/g, "=").replace(/–/g, "-"), x0, y - 4, {size:7.5, bold:true, color:PC.ink, maxW:W}); y += 10;
     doc.text(POS_LABEL, x0, y - 4, {size:7, color:PC.muted, maxW:W}); y += 10; }
   doc.text(GRADE_KEY.replace(/–/g, "-"), x0, y - 4, {size:7, color:PC.muted, maxW:W}); y += 8;
-  if(d.remarks && d.remarks.length){ doc.text("Teacher remarks: " + d.remarks.map(r=>r.note).join(" · "), x0, y + 6, {size:8.5, color:PC.ink, maxW:W}); }
+  rem.forEach((ln, k)=>doc.text(ln, x0, y + 6 + k*11, {size:8.5, color:PC.ink}));
   const fy = PDF_H - 62;
   [["Class Teacher", x0], ["Principal / Admin", x0 + W/2 - 60], ["Parent / Guardian", x0 + W - 120]].forEach(([t, x])=>{ doc.line(x, fy, x + 120, fy, {color:"#999999", lw:.6}); doc.text(t, x + 60, fy + 12, {size:8, color:PC.muted, align:"center"}); });
   doc.rect(x0, PDF_H - 34, W, 1.6, {fill:PC.teal});
@@ -5368,6 +5378,14 @@ const PDF_WIN = {"€":128,"‚":130,"ƒ":131,"„":132,"…":133,"†":134,"‡
   "“":147,"”":148,"•":149,"–":150,"—":151,"˜":152,"™":153,"š":154,"›":155,"œ":156,"ž":158,"Ÿ":159,"−":45};
 const latin1 = str => { const b = new Uint8Array(str.length); for(let i = 0; i < str.length; i++) b[i] = str.charCodeAt(i) & 255; return b; };
 let _pdfCtx = null;
+/* v110: lambi line ko maxW ke andar lafzon par tod do */
+function pdfWrap(t, size, maxW, bold){
+  const out = []; let cur = "";
+  String(t || "").split(/\s+/).filter(Boolean).forEach(w=>{ const nx = cur ? cur + " " + w : w;
+    if(cur && pdfWidth(nx, size, bold) > maxW){ out.push(cur); cur = w; } else cur = nx; });
+  if(cur) out.push(cur);
+  return out;
+}
 function pdfWidth(t, size, bold){
   _pdfCtx = _pdfCtx || document.createElement("canvas").getContext("2d");
   _pdfCtx.font = `${bold ? "bold " : ""}100px Helvetica, Arial, "Liberation Sans", sans-serif`;
@@ -6970,6 +6988,44 @@ function examMarksCSV(id){
     rows.push([t.course, st.regNo||"", st.name, t.subject, teacherName(t.teacherId), t.date, t.total, e ? eObt(e) : "", e ? (e.absent ? "Absent" : eP(e)) : "", e ? eGrade(e) : "", e ? e.comment||"" : ""]); }));
   downloadCSV(`${fileSafe(ts[0].examName||ts[0].name)}-result.csv`.replace(/\s+/g,"-"), rows);
 }
+/* v110: chhote remarks → parents ke liye tafseeli jumla — remarks.js ki bilkul yehi copy (check.js dono ko milata hai) */
+const REMARK_FULL = {
+  excellent: (n, s) => `${n} has done excellent work ${s.in}. The concepts are clear and the answers were well presented and accurate. Keep up this standard, and keep practising past-paper questions to stay at the top.`,
+  verygood: (n, s) => `${n} has performed very well ${s.in} and shows a good grasp of the topics. With a little more attention to detail and regular revision, ${n} can move up to the top grade.`,
+  good: (n, s) => `${n} has done well ${s.in}. The basics are in place; more practice with exam-style questions will help turn this into even higher marks.`,
+  effort: (n, s) => `${n} has put in a good effort ${s.in}. The hard work is showing — regular revision and practice with exam-style questions will help turn this effort into higher marks.`,
+  satisfactory: (n, s) => `${n}'s performance ${s.in} is satisfactory. The main ideas are understood, but answers need more depth and accuracy. Regular revision at home and practice of past-paper questions are recommended.`,
+  improve: (n, s) => `${n} needs to improve ${s.in}. Some key topics are not yet clear. We recommend daily revision of class work, completing all homework on time, and asking the teacher for help with difficult topics — we will keep supporting ${n} in class.`,
+  revision: (n, s) => `${n} should revise the ${s.topics} covered in this test. Going over the class notes and re-attempting the questions that were missed will help strengthen these areas before the next assessment.`,
+  careless: (n, s) => `${n} understands most of the ${s.work} but lost marks to careless mistakes. Reading each question carefully, showing all working and checking answers before handing in the paper will make a clear difference.`,
+  concepts: (n, s) => `${n}'s basic concepts ${s.in} need strengthening. Extra practice on the fundamentals, along with help in class, is recommended so that ${n} can build confidence for the coming tests.`,
+  absent: (n, s) => `${n} was absent for this ${s.test}. Please make sure the missed topics are covered at home, and speak to the teacher about the work that was missed.`,
+  attempt: (n, s) => `${n} did not attempt the ${s.test} properly. Please encourage ${n} to attempt every question — marks are given for correct working even when the final answer is not complete.`,
+};
+const REMARK_KEYS = {
+  "excellent": "excellent", "excellent keep it up": "excellent", "excellent work": "excellent", "excellent performance": "excellent",
+  "outstanding": "excellent", "keep it up": "excellent", "brilliant": "excellent", "superb": "excellent",
+  "very good": "verygood", "v good": "verygood", "very good performance": "verygood", "very good work": "verygood", "well done": "verygood",
+  "good": "good", "good work": "good", "good performance": "good", "nice": "good", "nice work": "good",
+  "good effort": "effort", "good attempt": "effort", "hardworking": "effort", "hard working": "effort",
+  "satisfactory": "satisfactory", "average": "satisfactory", "fair": "satisfactory", "ok": "satisfactory",
+  "needs improvement": "improve", "need improvement": "improve", "needs to improve": "improve", "improvement needed": "improve",
+  "poor": "improve", "weak": "improve", "below average": "improve",
+  "needs revision": "revision", "need revision": "revision", "revise": "revision", "revision needed": "revision",
+  "careless mistakes attempt papers carefully": "careless", "careless mistakes": "careless", "careless": "careless",
+  "concepts weak extra practice": "concepts", "concepts weak": "concepts", "weak concepts": "concepts", "concepts not clear": "concepts",
+  "absent in test": "absent", "absent": "absent",
+  "did not attempt properly": "attempt", "not attempted properly": "attempt", "did not attempt": "attempt",
+};
+function remarkText(comment, studentName, subject) {
+  const c = String(comment || "").trim();
+  const k = REMARK_KEYS[c.toLowerCase().replace(/[^a-z]+/g, " ").trim()];
+  if (!k) return c;
+  const n = String(studentName || "").trim().split(/\s+/)[0] || "Your child";
+  const sj = String(subject || "").trim();
+  return REMARK_FULL[k](n, sj ? { in: `in ${sj}`, topics: `${sj} topics`, work: `${sj} work`, test: `${sj} test` }
+    : { in: "in this test", topics: "topics", work: "work", test: "test" });
+}
 const MK_REMARKS = ["Excellent — keep it up","Very good","Good effort","Satisfactory","Needs improvement","Needs revision",
   "Careless mistakes — attempt papers carefully","Concepts weak — extra practice","Absent in test","Did not attempt properly"];
 let MK = null;
@@ -8460,7 +8516,7 @@ function transcriptHTML(d, forPrint){
   const range = (d.from||d.to) ? (d.from && d.from === d.to ? fmtM(d.from) : `${d.from ? fmtM(d.from) : "Start"} — ${d.to ? fmtM(d.to) : "Now"}`) : "All Exams";
   const rows = ex.map((e,i)=>{ return `<tr>
       <td>${i+1}</td><td>${fmtD(e.date)}</td>
-      <td><b>${esc(e.subject || e.exam)}</b>${e.subject ? `<br><span style="font-size:.7rem;color:#6B7C85">${esc(e.exam)}</span>` : ""}${e.comment ? `<br><i style="font-size:.7rem;color:#3b5560">"${esc(e.comment)}"</i>` : ""}</td>
+      <td><b>${esc(e.subject || e.exam)}</b>${e.subject ? `<br><span style="font-size:.7rem;color:#6B7C85">${esc(e.exam)}</span>` : ""}${e.comment ? `<br><i style="font-size:.7rem;color:#3b5560">"${esc(remarkText(e.comment, s.name, e.subject))}"</i>` : ""}</td>
       <td>${e.total}</td><td><b>${eObt(e)}</b></td><td><b>${ePctT(e)}</b></td><td>${gradeChip(eGrade(e))}</td>
       <td style="color:${eColor(e)};font-weight:700">${eResult(e)}</td></tr>`; }).join("");
   const key = GRADE_KEY.replace(/^Grading:\s*/, "").split(" · ").map(t=>{ const g = t.split(" ")[0]; return `${gradeChip(g)} ${esc(t.slice(g.length).trim())}`; }).join(" ");

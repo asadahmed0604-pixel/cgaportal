@@ -52,6 +52,13 @@ checkJs("server.js");
 checkJs("assignments.js");
 checkJs("student-report.js");
 checkJs("ai.js");
+checkJs("remarks.js");
+/* v110: index.html ki REMARK_FULL / remarkText copy remarks.js jaisi honi chahiye */
+{
+  const r = fs.readFileSync(path.join(__dirname, "remarks.js"), "utf8"), h = fs.readFileSync(path.join(__dirname, "index.html"), "utf8");
+  const blk = r.slice(r.indexOf("const REMARK_FULL = {"), r.indexOf("module.exports"));
+  if (!h.includes(blk)) fail("index.html remark texts differ from remarks.js — copy REMARK_FULL / REMARK_KEYS / remarkText again");
+}
 
 if (failed) { console.error(`\n${failed} problem(s) found`); process.exit(1); }
 console.log("✓ EMS check passed — all button handlers point to real functions, all scripts parse");

@@ -456,6 +456,19 @@ save, the other shift's records are kept exactly as they are on the server.
   icon) instead of showing nothing. Upload your own logo in Settings to replace it.
 - Print waits until the logo and photos have loaded, so the printed / "Save as PDF" copy never misses the logo.
 
+## Detailed test remarks for parents (v110)
+
+- The short remarks teachers pick when entering marks ("Very good", "Good effort", "Needs revision", "Careless mistakes",
+  "Absent in test" …, and common typed ones like "excellent", "average", "weak") are shown to parents as a fuller,
+  personal sentence with the student's first name and the subject — e.g. "Very good" in Physics becomes
+  "Musab has performed very well in Physics and shows a good grasp of the topics. With a little more attention to
+  detail and regular revision, Musab can move up to the top grade."
+- Applies to report cards (screen, print, PDF / WhatsApp PDF), the parents' app (My Report), the parents' chat and the
+  downloaded student profile. Older marks are covered too, since the text is expanded when shown; the teacher's own
+  remark stays unchanged in the system, and remarks a teacher writes in their own words are shown as written.
+- The texts live in `ems/remarks.js` (with an identical copy in `index.html`; `check.js` makes sure they match).
+- Report card PDF: remarks wrap across the full width, and a long list continues on a second page.
+
 ## Install as an app (v41)
 
 Staff (`/`), Teachers (`/teacher`) and Parents (`/parent`) — all three links can be installed as an app on a phone / computer

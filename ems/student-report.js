@@ -3,6 +3,7 @@
    Server par har request pe live DB se banta hai (koi cache nahi) — teacher marks daale to agle refresh par nazar aate hain. */
 const WEEK = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const DAY_SET = { "Mon–Fri": [1, 2, 3, 4, 5], "Mon–Sat": [1, 2, 3, 4, 5, 6], "Mon, Wed, Fri": [1, 3, 5], "Tue, Thu, Sat": [2, 4, 6], "Sat–Sun": [6, 0], "Daily": [0, 1, 2, 3, 4, 5, 6] };
+const { remarkText } = require("./remarks");   // v110
 const keyOf = (x) => String(x || "").toLowerCase().replace(/[^a-z0-9]/g, "");
 const subjLike = (a, b) => { const x = keyOf(a), y = keyOf(b); return !!x && !!y && (x === y || x.includes(y) || y.includes(x)); };
 const classesOf = (st) => [st.course, st.shift === "Evening" ? st.course2 : ""].filter(Boolean);
@@ -152,7 +153,7 @@ function studentReport(db, st, today) {
     classes, todayClasses: todays,
     marks: hold ? { hold, list: [], position: null, average: null, count: 0, bySubject: [] } : {
       list: exams.slice(0, 25).map((e) => ({ date: e.date, exam: e.exam || "Test", subject: e.subject || "", obtained: e.absent ? null : +e.obtained, total: +e.total,
-        pct: p(e), absent: !!e.absent, comment: e.comment || "", by: e.byName || "" })),
+        pct: p(e), absent: !!e.absent, comment: remarkText(e.comment, st.name, e.subject), by: e.byName || "" })),
       position: classPosition(db, st),           // v99
       average: avg(exams.filter((e) => !e.absent).slice(0, 10).map(p)), count: exams.filter((e) => !e.absent).length,
       bySubject: Object.entries(bySub).map(([k, l]) => ({ subject: k, avg: avg(l), n: l.length, last: l[0] })).sort((a, b) => a.subject.localeCompare(b.subject)),
