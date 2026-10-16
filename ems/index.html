@@ -295,11 +295,26 @@ label.chk input{width:auto}
 .rc-key .rc-g{font-size:.6rem;min-width:0;padding:1px 6px}
 .rc-sign{display:flex;justify-content:space-between;margin-top:40px;font-size:.74rem;color:#555;gap:10px}
 .rc-sign span{border-top:1px solid #999;padding-top:4px;min-width:150px;text-align:center}
+.rc-p2{margin-top:18px}
+.rc-mini{display:flex;justify-content:space-between;align-items:center;gap:12px;border-bottom:3px solid #159670;padding-bottom:8px}
+.rc-mini img{height:40px;width:auto}
+.rc-mini .t{font-weight:800;font-size:1rem;color:#174B60}
+.rc-mini .r{text-align:right;font-size:.72rem;color:#3b5560}
+.rc-box{border:1px solid #DCE6EA;border-radius:10px;padding:10px 12px;background:rgba(255,255,255,.75);font-size:.8rem;line-height:1.5}
+.rc-box.coord{border:1.5px solid #174B60;border-left:5px solid #159670}
+.rc-line{border-bottom:1px solid #B9C9D0;height:26px}
+.rc-by{display:flex;justify-content:space-between;gap:10px;margin-top:8px;font-size:.7rem;color:#555}
+/* v111: ziada tests hon to page 1 compact — taake front/back print mein har card theek 2 pages rahe */
+@media print{.rc.rc-c .rc-tbl td{padding:3px 6px;line-height:1.2}.rc.rc-c .rc-tbl td i{font-size:.6rem !important}.rc.rc-c .rc-stu{margin:6px 0}.rc.rc-c .rc-sum{margin:6px 0}.rc.rc-c .rc-sum div{padding:4px 8px}.rc.rc-c .rc-sec{margin:8px 0 4px}
+  .rc.rc-cc{font-size:.76rem}.rc.rc-cc .rc-tbl td{padding:2px 6px;line-height:1.12}.rc.rc-cc .rc-tbl td i{font-size:.56rem !important}.rc.rc-cc .rc-tbl td span{display:none}
+  .rc.rc-cc .rc-tbl th{padding:4px 6px}.rc.rc-cc .rc-head{padding:6px 12px}.rc.rc-cc .rc-head .cx-logo img{height:44px}.rc.rc-cc .rc-stu img{width:60px;height:70px}.rc.rc-cc .rc-grid div{padding:3px 10px}.rc.rc-cc .rc-sum b{font-size:1rem}}
+@media print{.rc-p2{break-before:page;page-break-before:always;margin-top:0;min-height:262mm;display:flex;flex-direction:column}.rc-p2 .rc-sign{margin-top:auto;padding-top:30px}}
 .rc-foot{margin-top:12px;padding-top:6px;border-top:2px solid #159670;display:flex;justify-content:space-between;gap:8px;font-size:.6rem;color:#6B7C85}
 @media screen and (max-width:640px){.rc{overflow-x:auto}.rc-tbl th,.rc-tbl td{padding:5px 4px;font-size:.7rem}.rc-grid,.rc-sum{grid-template-columns:repeat(2,1fr)}.rc-stu img{width:64px;height:76px}.rc-sign span{min-width:0;flex:1}}
 @media print{
   body > *:not(#challanPrint){display:none !important}
   #challanPrint{display:block;position:static;width:100%}
+  html, body{padding:0 !important;margin:0 !important}   /* v111: upar ka khali hissa nahi — report card theek 2 pages */
   @page{size:A4;margin:8mm}
   /* 2 challans per page — compact sizing */
   .ch-sheet .challan{max-width:100%;font-size:.78rem;page-break-inside:avoid;break-inside:avoid}
@@ -1427,7 +1442,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v110 · 16 Oct 2026";
+const BUILD = "v111 · 16 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -3318,7 +3333,7 @@ function waReportCards(){
   waSender(`📲 Report cards — ${fmtM(m)} (${cards.length})`, cards.map(d=>({id:d.s.id, who:d.s.name, sub:`${classLabelOf(d.s)} · ${d.pct !== null ? d.pct + "%" : d.ex.length ? "absent" : "no tests"}`, phone:parentPhone(d.s),
     text:`Dear Parent,\n${A} — Report card ${fmtM(m)}\nStudent: ${d.s.name} (${classLabelOf(d.s)})\n` +
       (d.ex.length ? d.ex.map(e=>`• ${e.subject || e.exam}: ${e.absent ? "Absent" : `${e.obtained}/${e.total}`}`).join("\n") + (d.pct !== null ? `\nTotal: ${d.obt}/${d.tot} = ${d.pct}% (${gradeOf(d.pct)})${d.abs ? ` · absent in ${d.abs}` : ""}${d.rank ? `\nClass position: ${d.rank}/${d.rankOf}${d.pos ? ` (${posText(d.pos)})` : ""}` : ""}` : `\nAbsent in all tests`) : "No tests recorded this month") +
-      `\nAttendance: ${d.att.pct}% (P ${d.att.P} · A ${d.att.A})${d.remarks && d.remarks.length ? `\nTeacher remarks: ${d.remarks.map(r=>r.note).join("; ")}` : ""}\nThe full report card PDF is attached.`,
+      `\nAttendance: ${d.att.pct}% (P ${d.att.P} · A ${d.att.A})${d.remarks && d.remarks.length ? `\nTeacher remarks: ${d.remarks.map(r=>r.note).join("; ")}` : ""}${d.coord && d.coord.note ? `\nCoordinator's remarks: ${d.coord.note}` : ""}\nThe full report card PDF is attached.`,
     pdf: async()=>({name:`${fileSafe(d.s.name)} - Report Card ${fmtM(m)}.pdf`, bytes: await reportCardPDF(d)})})), "report-cards");
 }
 /* Report card PDF (challan wale PDF writer se) */
@@ -3352,7 +3367,8 @@ async function reportCardPDF(d){
     page(); y = 30; doc.text(`${s.name} - report card (continued)`, x0, y + 8, {size:8, bold:true, color:PC.navy}); y += 16; return true; };
   const rows = d.ex.slice(0, 30);
   rows.forEach((e,i)=>{
-    const cm = e.comment ? pdfWrap(`"${remarkText(e.comment, s.name, e.subject)}"`, 7, W - 22 - 62 - 10) : [];   // v110: tafseeli remark, poori chaurai mein
+    const cm = e.comment ? pdfWrap(`"${rows.length > 10 ? e.comment : remarkText(e.comment, s.name, e.subject)}"`, 7, W - 22 - 62 - 10) : [];   // 10 se ziada tests: chhota remark, taake 2 pages rahein
+       // v110: tafseeli remark, poori chaurai mein
     const h = 18 + cm.length*8.5 + (cm.length ? 2 : 0);
     if(more(h)) thead();
     if(i % 2) doc.rect(x0, y, W, h, {fill:PC.soft, alpha:.7});
@@ -3365,18 +3381,54 @@ async function reportCardPDF(d){
     y += h; doc.line(x0, y, x0 + W, y, {color:PC.line, lw:.5});
   });
   if(!rows.length){ doc.text("No tests recorded in this period", x0 + W/2, y + 16, {size:9, color:PC.muted, align:"center"}); y += 34; }
-  const rem = d.remarks && d.remarks.length ? pdfWrap("Teacher remarks: " + d.remarks.map(r=>r.note).join(" · "), 8.5, W) : [];
-  more(30 + (d.rank && d.pos ? 20 : 0) + 8 + rem.length*11 + 75);   // summary + signatures aik saath
+  more(38);
   if(rows.length){ doc.rect(x0, y, W, 20, {fill:PC.head, alpha:.9}); doc.line(x0, y, x0 + W, y, {color:PC.teal, lw:1.4}); doc.text(d.pct === null ? `Overall: absent in all ${d.ex.length} tests` : `Overall (${d.sat} tests${d.abs ? `, absent in ${d.abs}` : ""}): ${d.obt} / ${d.tot} = ${d.pct}%  ·  Grade ${gradeOf(d.pct)}${d.classAvg ? `  ·  Class avg ${d.classAvg}%` : ""}`, x0 + 10, y + 13.5, {size:9, bold:true, color:PC.ink, maxW:W - 20}); y += 30; }
-  if(d.rank && d.pos){ doc.text(`Class position ${d.rank} / ${d.rankOf}: ${posText(d.pos)}`.replace(/→/g, "=").replace(/–/g, "-"), x0, y - 4, {size:7.5, bold:true, color:PC.ink, maxW:W}); y += 10;
-    doc.text(POS_LABEL, x0, y - 4, {size:7, color:PC.muted, maxW:W}); y += 10; }
-  doc.text(GRADE_KEY.replace(/–/g, "-"), x0, y - 4, {size:7, color:PC.muted, maxW:W}); y += 8;
-  rem.forEach((ln, k)=>doc.text(ln, x0, y + 6 + k*11, {size:8.5, color:PC.ink}));
-  const fy = PDF_H - 62;
-  [["Class Teacher", x0], ["Principal / Admin", x0 + W/2 - 60], ["Parent / Guardian", x0 + W - 120]].forEach(([t, x])=>{ doc.line(x, fy, x + 120, fy, {color:"#999999", lw:.6}); doc.text(t, x + 60, fy + 12, {size:8, color:PC.muted, align:"center"}); });
-  doc.rect(x0, PDF_H - 34, W, 1.6, {fill:PC.teal});
-  doc.text("Issued: " + fmtD(todayStr()), x0, PDF_H - 22, {size:7, color:PC.muted});
-  doc.text(`${DB.settings.name || "Cambridge Grads Academy"} - computer-generated report card`, x0 + W, PDF_H - 22, {size:7, color:PC.muted, align:"right"});
+  doc.text(GRADE_KEY.replace(/–/g, "-"), x0, y - 4, {size:7, color:PC.muted, maxW:W});
+  const foot = (left, right)=>{ doc.rect(x0, PDF_H - 34, W, 1.6, {fill:PC.teal});
+    doc.text(left, x0, PDF_H - 22, {size:7, color:PC.muted}); doc.text(right, x0 + W, PDF_H - 22, {size:7, color:PC.muted, align:"right"}); };
+  foot("Issued: " + fmtD(todayStr()), "Page 1 · remarks continued overleaf");
+  /* v111: doosra page (back side) — position & conduct, teacher remarks, parent comments, aakhir mein Coordinator's remarks */
+  page(); y = 28;
+  if(logo){ const ih = 30, iw = Math.min(90, ih*lj.w/lj.h); doc.image(logo.name, x0, y, iw, ih); }
+  doc.text(DB.settings.name || "Cambridge Grads Academy", x0 + (logo ? Math.min(90, 30*lj.w/lj.h) + 10 : 0), y + 20, {size:13, bold:true, color:PC.navy});
+  doc.text(`REPORT CARD - ${d.from && d.from === d.to ? fmtM(d.from) : "All exams"}`, x0 + W, y + 12, {size:8, bold:true, color:PC.navy, align:"right"});
+  doc.text(`${s.name} · ${s.regNo || ""} · ${classLabelOf(s)} · ${s.shift}`, x0 + W, y + 24, {size:8, color:PC.ink, align:"right", maxW:W/2});
+  y += 38; doc.rect(x0, y, W, 2.5, {fill:PC.teal}); y += 16;
+  const sec = t=>{ doc.text(t.toUpperCase(), x0, y, {size:7.5, bold:true, color:PC.navy}); doc.line(x0 + pdfWidth(t.toUpperCase(), 7.5, true) + 8, y - 2.5, x0 + W, y - 2.5, {color:"#DCE6EA", lw:.6}); y += 8; };
+  const box = (h, strong)=>{ doc.rect(x0, y, W, h, {fill:"#FFFFFF", alpha:.75}); doc.rect(x0, y, W, h, {stroke: strong ? PC.navy : "#DCE6EA", lw: strong ? 1.1 : .6});
+    if(strong) doc.rect(x0, y, 4, h, {fill:PC.teal}); };
+  const rules = (n, y0)=>{ for(let k = 1; k <= n; k++) doc.line(x0 + 12, y0 + k*20, x0 + W - 12, y0 + k*20, {color:"#B9C9D0", lw:.5}); };
+  /* position & attendance */
+  sec("Class position, attendance & conduct");
+  const pl = [];
+  if(d.rank) pl.push([`Class position ${d.rank} / ${d.rankOf}${d.classAvg ? `  ·  class average ${d.classAvg}%` : ""}`, 9, true, PC.ink]);
+  if(d.rank && d.pos){ pdfWrap(posText(d.pos).replace(/→/g, "=").replace(/–/g, "-"), 7.5, W - 24).forEach(l=>pl.push([l, 7.5, false, PC.ink]));
+    pdfWrap(POS_LABEL, 7, W - 24).forEach(l=>pl.push([l, 7, false, PC.muted])); }
+  pl.push([`Attendance: ${d.att.pct}%  (Present ${d.att.P} · Absent ${d.att.A} · Late ${d.att.L})`, 9, true, PC.ink]);
+  box(pl.length*12 + 12); pl.forEach(([t, sz, b, c], k)=>doc.text(t, x0 + 12, y + 16 + k*12, {size:sz, bold:b, color:c})); y += pl.length*12 + 26;
+  /* teacher remarks */
+  sec("Teacher remarks");
+  const tl = d.remarks && d.remarks.length ? d.remarks.flatMap(r=>pdfWrap("•  " + r.note, 8.5, W - 24)) : ["No teacher remarks this period - see the subject comments on page 1."];
+  box(tl.length*12 + 12); tl.forEach((t, k)=>doc.text(t, x0 + 12, y + 16 + k*12, {size:8.5, color: d.remarks && d.remarks.length ? PC.ink : PC.muted})); y += tl.length*12 + 26;
+  /* parent comments */
+  sec("Parent / Guardian comments");
+  box(3*20 + 12); rules(3, y); y += 3*20 + 26;
+  /* coordinator — aakhir mein */
+  sec("Coordinator's remarks");
+  const cl = d.coord && d.coord.note ? String(d.coord.note).split(/\n+/).flatMap(p=>pdfWrap(p, 9, W - 30)) : [];
+  const ch = cl.length ? cl.length*13 + 20 + 20 : 6*20 + 12;
+  const bh = ch + 26;
+  box(bh, true);
+  if(cl.length){ cl.forEach((t, k)=>doc.text(t, x0 + 16, y + 18 + k*13, {size:9, color:PC.ink})); rules(1, y + cl.length*13 + 4); }
+  else rules(6, y);
+  const by = y + bh - 9;
+  doc.text(`Coordinator: ${d.coord && d.coord.by ? d.coord.by : "______________________"}`, x0 + 16, by, {size:8, bold:!!(d.coord && d.coord.by), color:PC.ink});
+  doc.text("Signature: ______________________", x0 + W/2 - 70, by, {size:8, color:PC.ink});
+  doc.text(`Date: ${d.coord && d.coord.d ? fmtD(d.coord.d) : "______________"}`, x0 + W - 12, by, {size:8, color:PC.ink, align:"right"});
+  y += bh + 10;
+  const fy = PDF_H - 62, sw = (W - 3*16)/4;
+  ["Class Teacher", "Coordinator", "Principal / Admin", "Parent / Guardian"].forEach((t, k)=>{ const x = x0 + k*(sw + 16); doc.line(x, fy, x + sw, fy, {color:"#999999", lw:.6}); doc.text(t, x + sw/2, fy + 12, {size:8, color:PC.muted, align:"center"}); });
+  foot("Issued: " + fmtD(todayStr()), `Page 2 · ${DB.settings.name || "Cambridge Grads Academy"} - computer-generated report card`);
   return doc.output();
 }
 
@@ -8493,8 +8545,11 @@ function reportCardData(){
   }).sort((a,b)=>a.date.localeCompare(b.date));
   const x = exSum(ex);
   const att = attSummary(sid, s.doj);
-  return {s, ex, obt:x.obt, tot:x.tot, pct:x.pct, sat:x.sat, abs:x.abs, att, from, to};
+  const remarks = (s.remarks||[]).filter(r=>r.parentVisible!==false && (!from || String(r.d).slice(0,7) >= from) && (!to || String(r.d).slice(0,7) <= to));
+  return {s, ex, obt:x.obt, tot:x.tot, pct:x.pct, sat:x.sat, abs:x.abs, att, from, to, remarks, coord: coordRemark(s, from, to)};
 }
+/* v111: Coordinator's remarks — har bache ka har mahine ka aik (st.coordRemarks["YYYY-MM"] = {note, by, d}) */
+const coordRemark = (s, from, to) => from && from === to && s && s.coordRemarks ? s.coordRemarks[from] || null : null;
 function rcRows(ex){
   return ex.map((e,i)=>{ return `<tr>
     <td style="border:1px solid #999;padding:5px 8px;text-align:center">${i+1}</td>
@@ -8516,12 +8571,12 @@ function transcriptHTML(d, forPrint){
   const range = (d.from||d.to) ? (d.from && d.from === d.to ? fmtM(d.from) : `${d.from ? fmtM(d.from) : "Start"} — ${d.to ? fmtM(d.to) : "Now"}`) : "All Exams";
   const rows = ex.map((e,i)=>{ return `<tr>
       <td>${i+1}</td><td>${fmtD(e.date)}</td>
-      <td><b>${esc(e.subject || e.exam)}</b>${e.subject ? `<br><span style="font-size:.7rem;color:#6B7C85">${esc(e.exam)}</span>` : ""}${e.comment ? `<br><i style="font-size:.7rem;color:#3b5560">"${esc(remarkText(e.comment, s.name, e.subject))}"</i>` : ""}</td>
+      <td><b>${esc(e.subject || e.exam)}</b>${e.subject ? `<br><span style="font-size:.7rem;color:#6B7C85">${esc(e.exam)}</span>` : ""}${e.comment ? `<br><i style="font-size:.7rem;color:#3b5560">"${esc(ex.length > 10 ? e.comment : remarkText(e.comment, s.name, e.subject))}"</i>` : ""}</td>
       <td>${e.total}</td><td><b>${eObt(e)}</b></td><td><b>${ePctT(e)}</b></td><td>${gradeChip(eGrade(e))}</td>
       <td style="color:${eColor(e)};font-weight:700">${eResult(e)}</td></tr>`; }).join("");
   const key = GRADE_KEY.replace(/^Grading:\s*/, "").split(" · ").map(t=>{ const g = t.split(" ")[0]; return `${gradeChip(g)} ${esc(t.slice(g.length).trim())}`; }).join(" ");
   return `
-  <div class="rc" style="${forPrint ? "padding:4px" : "border:1px solid var(--line);border-radius:10px;padding:14px;background:#fff"}">
+  <div class="rc${ex.length > 5 ? " rc-c" : ""}${ex.length > 8 ? " rc-cc" : ""}" style="${forPrint ? "padding:4px" : "border:1px solid var(--line);border-radius:10px;padding:14px;background:#fff"}">
     <div class="rc-wm"><img src="${logoSrc()}" alt=""></div>
     <div class="rc-head">
       <div class="cx-brand"><div class="cx-logo"><img src="${logoSrc()}"></div>
@@ -8554,10 +8609,31 @@ function transcriptHTML(d, forPrint){
         : `<tfoot><tr><td colspan="8" style="text-align:center">Absent in all tests</td></tr></tfoot>`) : ""}
     </table>
     <div class="rc-key"><b style="margin-right:2px">Grading:</b> ${key}</div>
-    ${d.rank && d.pos ? `<div class="rc-pos"><b>Class position ${d.rank} / ${d.rankOf}</b> — ${esc(posText(d.pos))}<br><span style="color:#6B7C85">${POS_LABEL}</span></div>` : ""}
-    ${d.remarks && d.remarks.length ? `<div class="rc-rem"><b>Teacher remarks:</b> ${d.remarks.map(r=>esc(r.note)).join(" · ")}</div>` : ""}
-    <div class="rc-sign"><span>Class Teacher</span><span>Principal / Admin</span><span>Parent / Guardian</span></div>
-    <div class="rc-foot"><span>Issued: ${fmtD(todayStr())}</span><span>${esc(A.name||"Cambridge Grads Academy")} · computer-generated report card</span></div>
+    <div class="rc-foot"><span>Issued: ${fmtD(todayStr())}</span><span>Page 1 of 2 · remarks continued overleaf →</span></div>
+  </div>
+  ${rcBackHTML(d, forPrint, range)}`;
+}
+/* v111: report card ka doosra page (back side — front/back print): position & conduct, teacher remarks,
+   aakhir mein Coordinator's remarks (type kiye hon to wohi, warna hath se likhne ki lines), parent ke comments, signatures */
+function rcBackHTML(d, forPrint, range){
+  const A = DB.settings, s = d.s, lines = n => Array.from({length:n}, ()=>`<div class="rc-line"></div>`).join("");
+  return `
+  <div class="rc rc-p2" style="${forPrint ? "padding:4px" : "border:1px solid var(--line);border-radius:10px;padding:14px;background:#fff"}">
+    <div class="rc-wm"><img src="${logoSrc()}" alt=""></div>
+    <div class="rc-mini"><div style="display:flex;align-items:center;gap:10px"><img src="${logoSrc()}" alt=""><div class="t">${esc(A.name||"Cambridge Grads Academy")}</div></div>
+      <div class="r"><b>REPORT CARD · ${esc(range)}</b><br>${esc(s.name)} · ${esc(s.regNo||"")} · ${esc(s.course)} · ${esc(s.shift)}</div></div>
+    <div class="rc-sec">Class position, attendance &amp; conduct</div>
+    <div class="rc-box">${d.rank ? `<b>Class position ${d.rank} / ${d.rankOf}</b>${d.classAvg ? ` · class average ${d.classAvg}%` : ""}${d.pos ? `<br><span style="font-size:.72rem;color:#3b5560">${esc(posText(d.pos))}</span><br><span style="font-size:.66rem;color:#6B7C85">${POS_LABEL}</span>` : ""}<br>` : ""}
+      <b>Attendance:</b> ${d.att.pct}% <span style="color:#6B7C85">(Present ${d.att.P} · Absent ${d.att.A} · Late ${d.att.L})</span></div>
+    <div class="rc-sec">Teacher remarks</div>
+    <div class="rc-box">${d.remarks && d.remarks.length ? d.remarks.map(r=>`<div>• ${esc(r.note)}</div>`).join("") : `<span style="color:#6B7C85">No teacher remarks this period — see the subject comments on page 1.</span>`}</div>
+    <div class="rc-sec">Parent / Guardian comments</div>
+    <div class="rc-box">${lines(3)}</div>
+    <div class="rc-sec">Coordinator's remarks</div>
+    <div class="rc-box coord">${d.coord && d.coord.note ? `<div style="white-space:pre-wrap">${esc(d.coord.note)}</div>${lines(1)}` : lines(6)}
+      <div class="rc-by"><span>Coordinator: <b>${d.coord && d.coord.by ? esc(d.coord.by) : "______________________"}</b></span><span>Signature: ______________________</span><span>Date: ${d.coord && d.coord.d ? fmtD(d.coord.d) : "______________"}</span></div></div>
+    <div class="rc-sign"><span>Class Teacher</span><span>Coordinator</span><span>Principal / Admin</span><span>Parent / Guardian</span></div>
+    <div class="rc-foot"><span>Issued: ${fmtD(todayStr())}</span><span>Page 2 of 2 · ${esc(A.name||"Cambridge Grads Academy")}</span></div>
   </div>`;
 }
 /* ================= v35: BULK REPORT CARDS — mahina + class-wise =================
@@ -8579,7 +8655,7 @@ function reportCardFor(sid, from, to){
     return !(from && m < from) && !(to && m > to); }).sort((a,b)=>a.date.localeCompare(b.date));
   const x = exSum(ex);
   const remarks = (s.remarks||[]).filter(r=>r.parentVisible!==false && (!from || String(r.d).slice(0,7) >= from) && (!to || String(r.d).slice(0,7) <= to));
-  return {s, ex, obt:x.obt, tot:x.tot, pct:x.pct, sat:x.sat, abs:x.abs, att: attInRange(sid, from, to), from, to, remarks};
+  return {s, ex, obt:x.obt, tot:x.tot, pct:x.pct, sat:x.sat, abs:x.abs, att: attInRange(sid, from, to), from, to, remarks, coord: coordRemark(s, from, to)};
 }
 /* v100: class position — 4 cheezon ka score (student-report.js ka posParts bilkul yehi): marks 60 · homework waqt par 15
    · behaviour & discipline 10 · attendance & punctuality 15. Jo na ho us ka weight baqi mein bant jata hai. */
@@ -8634,11 +8710,11 @@ function bulkRcPreview(){
   $("brc_print").disabled = !cards.length; $("brc_csv").disabled = !cards.length;
   $("brc_print").textContent = cards.length ? `🖨 ${cards.length} report cards — Print / PDF` : "🖨 Print / PDF";
 }
-function openBulkReportCards(){
-  window._brcClass = "";
+function openBulkReportCards(keep){
+  const st = keep && window._brcState; if(!st) window._brcClass = "";
   openModal(`
     <h3>🗂 Bulk report cards — by month and class</h3>
-    <p class="sub" style="margin-bottom:8px">A separate page per student: that month's tests, attendance, class position / average and teacher remarks. Choose <b>"Save as PDF"</b> in the print window to get one PDF.</p>
+    <p class="sub" style="margin-bottom:8px">Two pages per student — print <b>front / back</b> (double-sided): page 1 has that month's tests and grades, page 2 has class position, attendance, teacher remarks, parent comments and, at the end, the <b>Coordinator's remarks</b>. Choose <b>"Save as PDF"</b> in the print window to get one PDF.</p>
     <div class="toolbar">
       <div class="field"><label>Month</label><input type="month" id="brc_month" value="${wm()}" onchange="bulkRcPreview()"></div>
       <div class="field"><label>Shift</label><select id="brc_shift" onchange="bulkRcPreview()"><option value="">Dono</option><option>Morning</option><option>Evening</option></select></div>
@@ -8648,11 +8724,65 @@ function openBulkReportCards(){
     <div id="brc_prev"></div>
     <div class="modal-foot">
       <button class="btn-line" onclick="closeModal()">Close</button>
+      <button class="btn-black" id="brc_coord" onclick="openCoordRemarks()">✍ Coordinator remarks</button>
       <button class="btn-black" id="brc_csv" onclick="bulkRcCSV()">⬇ Class result CSV</button>
       <button class="btn-black" onclick="waReportCards()">📲 WhatsApp</button>
       <button class="btn-red" id="brc_print" onclick="bulkRcPrint()">🖨 Print / PDF</button>
     </div>`, true);
+  if(st){ $("brc_month").value = st.m; $("brc_shift").value = st.sh; $("brc_onlyex").checked = st.onlyEx; }
+  else if(MY_SCOPE) $("brc_shift").value = MY_SCOPE;
   bulkRcPreview();
+}
+/* v111: Coordinator's remarks — chune hue mahine / class ke har bache ke liye; report card ke page 2 ke aakhir mein chhapte hain */
+function openCoordRemarks(){
+  const cards = bulkRcList(), m = $("brc_month").value;
+  if(!cards.length){ toast("No report cards for this selection"); return; }
+  window._brcState = {m, sh:$("brc_shift").value, onlyEx:$("brc_onlyex").checked};
+  window._crCards = cards;
+  openModal(`
+    <h3>✍ Coordinator's remarks — ${fmtM(m)}${window._brcClass ? " · " + esc(window._brcClass) : ""}</h3>
+    <p class="sub" style="margin-bottom:8px">Printed at the end of page 2 of each report card. Leave blank to get empty lines for a handwritten remark.
+      <b>✨ Draft</b> writes a starting remark from the student's marks, strongest / weakest subject, attendance and position — edit it as you like.</p>
+    <div class="toolbar"><button class="btn-black btn-sm" onclick="coordDraftAll()">✨ Draft all empty ones</button></div>
+    <div class="tbl-wrap"><table class="ptm-tbl"><thead><tr><th>Student</th><th>Result</th><th>Coordinator's remark</th></tr></thead><tbody>
+      ${cards.map(d=>`<tr><td data-l="Student"><b>${esc(d.s.name)}</b><div class="sub">${esc(d.s.course)} · ${esc(d.s.shift)}</div></td>
+        <td data-l="Result">${d.pct !== null ? `${d.pct}% · ${gradeOf(d.pct)}` : d.ex.length ? "Absent" : "No tests"}${d.rank ? `<div class="sub">Position ${d.rank}/${d.rankOf}</div>` : ""}<div class="sub">Attendance ${d.att.pct}%</div></td>
+        <td data-l="Remark" style="min-width:260px"><textarea id="cr_${d.s.id}" rows="3" style="width:100%">${esc(((d.s.coordRemarks||{})[m]||{}).note||"")}</textarea>
+          <button class="btn-line btn-sm" onclick="coordDraftOne('${d.s.id}')">✨ Draft</button></td></tr>`).join("")}
+    </tbody></table></div>
+    <div class="modal-foot">
+      <button class="btn-line" onclick="openBulkReportCards(true)">← Back</button>
+      <button class="btn-red" onclick="saveCoordRemarks()">💾 Save remarks</button>
+    </div>`, true);
+}
+function coordDraft(d){
+  const n = String(d.s.name||"").trim().split(/\s+/)[0] || "The student", p = d.pct, out = [];
+  if(p === null) out.push(d.ex.length ? `${n} was absent for the tests this month, so no result could be recorded. Please make sure the missed work is covered at home and discuss it with the subject teachers.` : `No tests were recorded for ${n} this month.`);
+  else {
+    out.push(p >= 80 ? `${n} has had an excellent month, achieving ${p}% overall (grade ${gradeOf(p)}).` : p >= 66 ? `${n} has performed well this month with ${p}% overall (grade ${gradeOf(p)}).`
+      : p >= 50 ? `${n} has achieved ${p}% overall this month (grade ${gradeOf(p)}), a fair result with clear room to grow.` : `${n} scored ${p}% overall this month (grade ${gradeOf(p)}), which is below the level we expect.`);
+    const sc = d.ex.filter(e=>!e.absent && +e.total).map(e=>({sj:e.subject || e.exam, p:eP(e)})).sort((a,b)=>b.p - a.p);
+    if(sc.length > 1){ const hi = sc[0], lo = sc[sc.length-1];
+      out.push(`The strongest subject was ${hi.sj} (${hi.p}%)` + (lo.p < 66 && lo.sj !== hi.sj ? `, while ${lo.sj} (${lo.p}%) needs more attention and regular practice.` : ".")); }
+    if(d.rank) out.push(`${n} stands ${d.rank} of ${d.rankOf} in class.`);
+  }
+  const a = d.att.pct, marked = d.att.P + d.att.A + d.att.L;
+  if(marked) out.push(a >= 90 ? `Attendance has been regular (${a}%).` : a >= 75 ? `Attendance (${a}%) is acceptable but should improve.` : `Attendance (${a}%) is a concern and must improve, as missed classes directly affect results.`);
+  out.push(p !== null && p >= 66 ? `We encourage ${n} to keep up this effort.` : `We request parents' support with daily revision at home, and we will continue to work closely with ${n}.`);
+  return out.join(" ");
+}
+function coordDraftOne(sid){ const d = (window._crCards||[]).find(x=>x.s.id===sid), t = $("cr_"+sid); if(d && t) t.value = coordDraft(d); }
+function coordDraftAll(){ let n = 0; (window._crCards||[]).forEach(d=>{ const t = $("cr_"+d.s.id); if(t && !t.value.trim()){ t.value = coordDraft(d); n++; } }); toast(n ? `${n} remarks drafted — check and edit, then Save` : "No empty remarks to draft"); }
+function saveCoordRemarks(){
+  const m = window._brcState && window._brcState.m; if(!m) return;
+  let n = 0;
+  (window._crCards||[]).forEach(d=>{ const t = $("cr_"+d.s.id), st = stuById(d.s.id); if(!t || !st) return;
+    const note = t.value.trim(), cur = (st.coordRemarks||{})[m];
+    if(note){ if(!cur || cur.note !== note){ st.coordRemarks = st.coordRemarks || {}; st.coordRemarks[m] = {note, by: myName() || ROLE_LABEL, d: todayStr()}; n++; } }
+    else if(cur){ delete st.coordRemarks[m]; n++; } });
+  if(n) save();
+  toast(n ? `Coordinator remarks saved — ${n} updated` : "No changes");
+  openBulkReportCards(true);
 }
 async function bulkRcPrint(){
   await logoJpeg();
@@ -8671,9 +8801,9 @@ function printWhenReady(){
 function bulkRcCSV(){
   const cards = bulkRcList(), m = $("brc_month").value;
   downloadCSV(`report-cards-${m}${window._brcClass?"-"+window._brcClass.replace(/\W+/g,""):""}.csv`, [
-    ["Class","Shift","Reg No","Student","Tests","Obtained","Total","%","Grade","Position","Class Avg %","Attendance %","Present","Absent","Late","Leave"],
+    ["Class","Shift","Reg No","Student","Tests","Obtained","Total","%","Grade","Position","Class Avg %","Attendance %","Present","Absent","Late","Leave","Coordinator remark"],
     ...cards.map(d=>[d.s.course, d.s.shift, d.s.regNo, d.s.name, d.ex.length, d.obt, d.tot, d.pct!==null?d.pct:(d.ex.length?"Absent":""), d.pct!==null?gradeOf(d.pct):(d.ex.length?"Absent":""), d.rank||"", d.classAvg||"",
-      d.att.pct, d.att.P, d.att.A, d.att.L, d.att.E])]);
+      d.att.pct, d.att.P, d.att.A, d.att.L, d.att.E, d.coord ? d.coord.note : ""])]);
 }
 
 function renderReportCard(){ $("rcBody").innerHTML = transcriptHTML(reportCardData(), false); }
