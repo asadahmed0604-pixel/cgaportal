@@ -610,6 +610,20 @@ save, the other shift's records are kept exactly as they are on the server.
   one click. Anyone with a login or class assignments is never removed.
 - The Employees import now skips such names ("looks like an attendance-machine user number") instead of creating them.
 
+## Staff attendance import — attendance machine or Excel (v122)
+
+- **Employees → 👥 Staff Attendance → ⬆ Import (machine / CSV)** — a CSV from the attendance machine or from Excel
+  (File → Save as → CSV). Both layouts work:
+  - one row per punch: user ID / name + date & time (e.g. `AC-No., Name, Date Time`) — the first punch of the day is
+    the arrival time;
+  - one row per day: name, date, time in, status (Present / Absent / Late / Leave / Uninformed).
+- People are matched by **Attendance machine ID** (new field on the employee form — "5" and "User 5" both work) or by
+  name. Unmatched IDs are listed with an employee drop-down; once chosen, the ID is saved as that employee's machine ID
+  so the next import matches by itself.
+- Shift: the employee's shift (for "Both", before 1 PM = Morning), or force Morning / Evening. Late is worked out from
+  each person's work time, like manual marking. Days already marked are skipped unless "Overwrite" is ticked.
+  Salaries are recalculated after the import.
+
 ## Install as an app (v41)
 
 Staff (`/`), Teachers (`/teacher`) and Parents (`/parent`) — all three links can be installed as an app on a phone / computer
