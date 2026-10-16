@@ -534,6 +534,24 @@ save, the other shift's records are kept exactly as they are on the server.
   speaking, critical thinking, creativity, teamwork, leadership, time management, responsibility & discipline).
 - Saved per student per month (`DB.skillDev`); the report card for that month (print and PDF) uses it.
 
+## Skill Development groups (v116 — replaces the class-based setup of v115)
+
+- Skill development runs in **groups, Morning only**, with students mixed from any class (O1, O2, O3, FT1, FT2 …).
+  Four groups are created automatically the first time the page is opened: **A Communication Skills, B Arts and Crafts,
+  C AI Automation, D Practical and STEM Projects**, each with its own list of skills (editable).
+- **Executive / Admin → 🌱 Skill Development → 👥 Groups & students:** for each group choose the teacher who leads it
+  ("Led by"), add students from the dropdown (all active Morning students, grouped by class; it shows if a student is
+  already in another group) or add a whole class at once, remove with ✕, rename, edit the skills, add or delete groups.
+- **Teacher login → 🌱 Skill Development:** the teacher sees only the group(s) they lead, with the group's students
+  (even students of classes they do not teach), picks the month and rates each skill (Excellent … Needs Support) with an
+  optional comment, then Save. The server accepts entries only for students of that teacher's own groups. The menu item
+  is hidden for teachers who lead no group. Admins can also fill progress (📈 Progress tab).
+- **Report card back page:** "Skill development · Group C: AI Automation" with the group's skills ticked, the teacher's
+  comment and "Led by" with the teacher's name. Morning students in no group show "Not enrolled in a skill development
+  group"; Evening report cards have no skill section.
+- Data: `DB.skillGroups` = [{id, code, name, tid, skills, studentIds}], `DB.skillDev` entries keyed
+  "<studentId>|<YYYY-MM>|<groupId>".
+
 ## Install as an app (v41)
 
 Staff (`/`), Teachers (`/teacher`) and Parents (`/parent`) — all three links can be installed as an app on a phone / computer

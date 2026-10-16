@@ -1349,13 +1349,6 @@ label.chk input{width:auto}
     <button class="btn-line" onclick="removeLogo()">Remove</button>
   </div>
 
-  <div class="panel" style="max-width:560px">
-    <h3>🌱 Skill development — skills on the report card</h3>
-    <p class="sub" style="margin-bottom:8px">One skill per line. The skill development teacher rates each one (Excellent · Very Good · Good · Developing · Needs Support). A teacher becomes the skill development teacher of a class by being assigned a subject named "Skill Development" (Employees → Assign).</p>
-    <textarea id="setSkills" rows="8" style="width:100%"></textarea>
-    <button class="btn-red" onclick="saveSkills()">Save skills</button>
-  </div>
-
   <div class="panel">
     <h3>Subjects Offered</h3>
     <p class="sub" style="margin-bottom:12px">This is the list shown in the subject dropdown during student enrollment — <b>filtered by the student's class</b>. <b>Compulsory</b> subjects are added automatically in the Morning shift; <b>Elective</b> subjects are chosen by the student (up to 3 in O Level, up to 4 in A Level). Use the "Classes" column to limit a subject to specific grades.</p>
@@ -1475,7 +1468,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v115 · 16 Oct 2026";
+const BUILD = "v116 · 16 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -1602,7 +1595,7 @@ function studentFee(s){
 }
 
 const DEFAULT_DB = {
-  students:[], inquiries:[], fees:[], exams:[], employees:[], txns:[], homework:[], ptms:[], staffKpis:[], staffTasks:[], stuNotes:[], skillDev:[],
+  students:[], inquiries:[], fees:[], exams:[], employees:[], txns:[], homework:[], ptms:[], staffKpis:[], staffTasks:[], stuNotes:[], skillDev:[], skillGroups:[],
   subjects:[],             // [{id, name, level, defaultFee}] — Settings se manage hoti hain
   inventory:[],            // [{id, name, type, qty, unitCost, issuedOpening, date, note}]
   issues:[],               // [{id, date, itemId, qty, toType, toId, toName, course, unitCost, charge, remarks}]
@@ -3462,9 +3455,11 @@ async function reportCardPDF(d){
     pdfWrap(POS_LABEL, 7, W - 24).forEach(l=>pl.push([l, 7, false, PC.muted])); }
   pl.push([`Attendance: ${d.att.pct}%  (Present ${d.att.P} · Absent ${d.att.A} · Late ${d.att.L})`, 9, true, PC.ink]);
   box(pl.length*12 + 12); pl.forEach(([t, sz, b, c], k)=>doc.text(t, x0 + 12, y + 16 + k*12, {size:sz, bold:b, color:c})); y += pl.length*12 + 26;
-  /* v115: Skill Development Progress (teacher remarks / parent comments ki jagah) */
-  sec("Skill development progress");
-  { const sk = d.skill || {}, rt = sk.ratings || {}, L = [...new Set([...skillList(), ...Object.keys(rt)])];
+  /* v116: Skill Development — bache ke group(s) (sirf Morning) */
+  if(d.skills && !d.skills.length){ sec("Skill development progress"); box(22); doc.text("Not enrolled in a skill development group this term.", x0 + 12, y + 14, {size:8.5, color:PC.muted}); y += 36; }
+  (d.skills || []).forEach(({g, e})=>{
+    const rt = (e && e.ratings) || {}, L = [...new Set([...skSkills(g), ...Object.keys(rt)])], who = (e && e.by) || skTeacher(g);
+    sec(`Skill development - Group ${g.code || ""}: ${g.name || ""}`);
     const c0 = 190, cw2 = (W - c0)/SK_LEVELS.length, rh = 15;
     doc.rect(x0, y, W, 16, {fill:PC.navy});
     doc.text("SKILL", x0 + 10, y + 11, {size:7, bold:true, color:"#FFFFFF"});
@@ -3476,12 +3471,13 @@ async function reportCardPDF(d){
         if(rt[k] === l){ doc.rect(bx, y + 2.5, 10, 10, {fill:PC.teal}); doc.text("X", bx + 5, y + 10.5, {size:7.5, bold:true, color:"#FFFFFF", align:"center"}); }
         else doc.rect(bx, y + 2.5, 10, 10, {stroke:"#9FB4BD", lw:.8}); });
       y += rh; doc.line(x0, y, x0 + W, y, {color:PC.line, lw:.5}); });
-    const nl = sk.note ? pdfWrap("Skill teacher's comment: " + sk.note, 8.5, W - 20) : [];
+    const nl = e && e.note ? pdfWrap("Teacher's comment: " + e.note, 8.5, W - 20) : [];
     if(nl.length){ nl.forEach((t, i)=>doc.text(t, x0 + 10, y + 14 + i*11, {size:8.5, color:PC.ink})); y += nl.length*11 + 8; }
-    else { doc.text("Skill teacher's comment:", x0 + 10, y + 14, {size:8, bold:true, color:PC.ink}); rules(2, y + 2); y += 46; }
-    doc.text(`Skill Development Teacher: ${sk.by || "______________________"}`, x0 + 10, y + 10, {size:8, bold:!!sk.by, color:PC.ink});
+    else { doc.text("Teacher's comment:", x0 + 10, y + 14, {size:8, bold:true, color:PC.ink}); rules(d.skills.length > 1 ? 1 : 2, y + 2); y += d.skills.length > 1 ? 26 : 46; }
+    doc.text(`Led by: ${who || "______________________"}`, x0 + 10, y + 10, {size:8, bold:!!who, color:PC.ink});
     doc.text("Signature: ______________________", x0 + W - 10, y + 10, {size:8, color:PC.ink, align:"right"});
-    y += 26; }
+    y += 26;
+  });
   /* coordinator — aakhir mein */
   sec("Coordinator's remarks");
   const cl = d.coord && d.coord.note ? String(d.coord.note).split(/\n+/).flatMap(p=>pdfWrap(p, 9, W - 30)) : [];
@@ -8633,46 +8629,111 @@ function reportCardData(){
   const x = exSum(ex);
   const att = attSummary(sid, s.doj);
   const remarks = (s.remarks||[]).filter(r=>r.parentVisible!==false && (!from || String(r.d).slice(0,7) >= from) && (!to || String(r.d).slice(0,7) <= to));
-  return {s, ex, obt:x.obt, tot:x.tot, pct:x.pct, sat:x.sat, abs:x.abs, att, from, to, remarks, coord: coordRemark(s, from, to), skill: skillFor(s, from, to)};
+  return {s, ex, obt:x.obt, tot:x.tot, pct:x.pct, sat:x.sat, abs:x.abs, att, from, to, remarks, coord: coordRemark(s, from, to), skills: skillBlocks(s, from, to)};
 }
-/* v115: Skill Development Progress — DB.skillDev = [{id:"<sid>|<YYYY-MM>", studentId, month, ratings:{skill:level}, note, tid, by, at}] */
-const SKILL_DEFAULT = ["Communication skills","Confidence & public speaking","Critical thinking & problem solving","Creativity","Teamwork & collaboration","Leadership","Time management & organisation","Responsibility & discipline"];
+/* v116: Skill Development — sirf Morning. Groups (admin banata hai): DB.skillGroups = [{id, code, name, tid, skills:[], studentIds:[]}]
+   (bache kisi bhi class ke — O1, O2, FT… mix). Group ka teacher apne login se har mahine progress bharta hai:
+   DB.skillDev = [{id:"<sid>|<YYYY-MM>|<groupId>", studentId, month, groupId, ratings:{skill:level}, note, tid, by, at}] → report card ka back page. */
 const SK_LEVELS = ["Excellent","Very Good","Good","Developing","Needs Support"];
-const skillList = () => (Array.isArray(DB.settings.skills) && DB.settings.skills.length ? DB.settings.skills : SKILL_DEFAULT);
-const skillFor = (s, from, to) => from && from === to && s ? (DB.skillDev||[]).find(x=>x.studentId===s.id && x.month===from) || null : null;
-function mySkillKeys(){ const me = empById(MY_TID) || {}; return new Set((me.assignments||[]).filter(a=>/skill/i.test(a.subject||"")).map(a=>a.shift+"|"+a.course)); }
+const SKILL_DEFAULT = ["Participation & effort","Understanding of concepts","Practical skills","Creativity","Teamwork","Confidence"];
+const SKILL_SEED = [
+  {code:"A", name:"Communication Skills", skills:["Speaking clearly & confidently","Listening skills","Presentation skills","Vocabulary & expression","Group discussion & debate"]},
+  {code:"B", name:"Arts and Crafts", skills:["Creativity & imagination","Technique & neatness","Use of colours & materials","Following instructions","Completing projects on time"]},
+  {code:"C", name:"AI Automation", skills:["Understanding AI concepts","Using AI tools effectively","Logical thinking & problem solving","Building automations / projects","Responsible & ethical use of AI"]},
+  {code:"D", name:"Practical and STEM Projects", skills:["Scientific curiosity","Hands-on practical skills","Design & problem solving","Teamwork in projects","Project completion & presentation"]}];
+const skGroups = () => DB.skillGroups || (DB.skillGroups = []);
+const skSkills = g => (g && Array.isArray(g.skills) && g.skills.length ? g.skills : SKILL_DEFAULT);
+const skTeacher = g => g && g.tid ? ((empById(g.tid)||{}).name || "") : "";
+const skStudents = g => (g.studentIds||[]).map(stuById).filter(x=>x && x.status==="Active").sort((a,b)=>a.name.localeCompare(b.name));
+/* report card ke liye: bache ke group(s) + us mahine ki progress */
+function skillBlocks(s, from, to){
+  if(!s || s.shift !== "Morning") return null;
+  const m = from && from === to ? from : "";
+  return skGroups().filter(g=>(g.studentIds||[]).includes(s.id)).map(g=>({g, e: m ? (DB.skillDev||[]).find(x=>x.id===s.id+"|"+m+"|"+g.id) || null : null}));
+}
 function renderSkillDev(){
   if(!DB.skillDev) DB.skillDev = [];
-  const st = window._sk || (window._sk = {m: wm(), k: ""});
-  const keys = IS_TEACHER ? [...mySkillKeys()] : [...new Set(DB.students.filter(x=>x.status==="Active" && (!MY_SCOPE || x.shift===MY_SCOPE)).flatMap(x=>classesOf(x).map(c=>x.shift+"|"+c)))].sort();
-  if(!keys.length){ $("skBody").innerHTML = `<div class="note">${IS_TEACHER ? "You are not assigned as a skill development teacher. Ask the admin to assign you the subject <b>Skill Development</b> for your classes (Employees → Assign)." : "No active students."}</div>`; return; }
-  if(!keys.includes(st.k)) st.k = keys[0];
-  const [sh, c] = st.k.split("|"), L = skillList();
-  const stus = DB.students.filter(x=>x.status==="Active" && x.shift===sh && inClass(x, c)).sort((a,b)=>a.name.localeCompare(b.name));
-  const done = stus.filter(x=>(DB.skillDev||[]).some(r=>r.id===x.id+"|"+st.m && Object.keys(r.ratings||{}).length)).length;
-  $("skBody").innerHTML = `
+  if(!IS_TEACHER && !skGroups().length){ SKILL_SEED.forEach(x=>skGroups().push({id:uid(), ...x, tid:"", studentIds:[]})); save(); }
+  const st = window._sk || (window._sk = {m: wm(), g: "", tab: IS_TEACHER ? "prog" : "groups"});
+  const tabs = IS_TEACHER ? "" : `<div class="seg" style="margin-bottom:12px"><button class="${st.tab==="groups"?"on":""}" onclick="window._sk.tab='groups';renderSkillDev()">👥 Groups &amp; students</button><button class="${st.tab==="prog"?"on":""}" onclick="window._sk.tab='prog';renderSkillDev()">📈 Progress</button></div>`;
+  $("skBody").innerHTML = tabs + (st.tab === "groups" && !IS_TEACHER ? skGroupsHTML() : skProgressHTML());
+}
+/* ---- admin: groups, teacher, students ---- */
+function skGroupsHTML(){
+  const morning = DB.students.filter(x=>x.status==="Active" && x.shift==="Morning").sort((a,b)=>(a.course+a.name).localeCompare(b.course+b.name));
+  const inG = new Map(); skGroups().forEach(g=>(g.studentIds||[]).forEach(id=>inG.set(id, g)));
+  const free = morning.filter(x=>!inG.has(x.id));
+  const teachers = DB.employees.filter(e=>e.status !== "Left").sort((a,b)=>a.name.localeCompare(b.name));
+  const byClass = L => [...new Set(L.map(x=>x.course))].sort().map(c=>`<optgroup label="${esc(c)}">${L.filter(x=>x.course===c).map(x=>`<option value="${x.id}">${esc(x.name)} (${esc(x.regNo||"")})${inG.has(x.id) ? " — in Group " + esc(inG.get(x.id).code||"") : ""}</option>`).join("")}</optgroup>`).join("");
+  const classes = [...new Set(morning.map(x=>x.course))].sort();
+  return `<div class="note">Morning only · ${morning.length} active Morning students · <b>${free.length}</b> not in any group yet. Students from any class (O1, O2, O3, FT1, FT2…) can be in a group. The teacher you choose sees the group's students on their own login and fills their progress every month.</div>
+    ${skGroups().map(g=>{ const L = skStudents(g);
+      return `<div class="panel">
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+          <div class="field" style="width:80px"><label>Group</label><input value="${esc(g.code||"")}" onchange="skSet('${g.id}','code',this.value)"></div>
+          <div class="field" style="flex:1;min-width:200px"><label>Name</label><input value="${esc(g.name||"")}" onchange="skSet('${g.id}','name',this.value)"></div>
+          <div class="field" style="min-width:220px"><label>Led by (teacher)</label><select onchange="skSet('${g.id}','tid',this.value)"><option value="">— choose teacher —</option>${teachers.map(e=>`<option value="${e.id}" ${e.id===g.tid?"selected":""}>${esc(e.name)}${e.login && e.login.user ? "" : " (no login)"}</option>`).join("")}</select></div>
+          <button class="btn-line btn-sm" onclick="skDelGroup('${g.id}')">🗑</button>
+        </div>
+        <details style="margin:6px 0"><summary class="sub" style="cursor:pointer">Skills rated for this group (${skSkills(g).length})</summary>
+          <textarea rows="5" style="width:100%" onchange="skSet('${g.id}','skills',this.value)">${esc(skSkills(g).join("\n"))}</textarea><div class="sub">One skill per line.</div></details>
+        <div class="sub" style="margin:6px 0 4px"><b>${L.length} students</b>${L.length ? " · " + [...new Set(L.map(x=>x.course))].sort().map(c=>`${esc(c)} ${L.filter(x=>x.course===c).length}`).join(" · ") : ""}</div>
+        <div class="chips">${L.map(x=>`<span class="chip">${esc(x.name)} <span class="sub">${esc(x.course)}</span> <a href="#" onclick="skRemove('${g.id}','${x.id}');return false" title="Remove">✕</a></span>`).join("") || `<span class="sub">No students yet</span>`}</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;align-items:flex-end">
+          <div class="field" style="flex:1;min-width:240px;margin:0"><label>Add student (Morning)</label><select id="ska_${g.id}"><option value="">— choose student —</option>${byClass(morning.filter(x=>!(g.studentIds||[]).includes(x.id)))}</select></div>
+          <button class="btn-black btn-sm" onclick="skAdd('${g.id}')">+ Add</button>
+          <div class="field" style="margin:0"><label>or add a whole class</label><select id="skc_${g.id}"><option value="">— class —</option>${classes.map(c=>`<option>${esc(c)}</option>`).join("")}</select></div>
+          <button class="btn-line btn-sm" onclick="skAddClass('${g.id}')">+ Add class</button>
+        </div></div>`; }).join("")}
+    <button class="btn-black" onclick="skNewGroup()">+ Add group</button>`;
+}
+const skG = id => skGroups().find(g=>g.id===id);
+function skSet(id, k, v){ const g = skG(id); if(!g) return;
+  if(k === "skills") g.skills = [...new Set(String(v).split(/\n+/).map(x=>x.trim()).filter(Boolean))].slice(0, 15);
+  else g[k] = String(v).trim();
+  save(); if(k === "tid") toast(g.tid ? `${skTeacher(g) || "Teacher"} now leads ${g.name}` : "Teacher removed"); renderSkillDev(); }
+function skAdd(id){ const g = skG(id), sid = $("ska_"+id).value; if(!g || !sid) return;
+  const other = skGroups().find(x=>x.id!==id && (x.studentIds||[]).includes(sid));
+  g.studentIds = [...new Set([...(g.studentIds||[]), sid])]; save();
+  toast(`${stuById(sid).name} added to Group ${g.code}${other ? ` (also in Group ${other.code})` : ""}`); renderSkillDev(); }
+function skAddClass(id){ const g = skG(id), c = $("skc_"+id).value; if(!g || !c) return;
+  const add = DB.students.filter(x=>x.status==="Active" && x.shift==="Morning" && x.course===c && !(g.studentIds||[]).includes(x.id)).map(x=>x.id);
+  g.studentIds = [...(g.studentIds||[]), ...add]; save(); toast(`${add.length} students of ${c} added to Group ${g.code}`); renderSkillDev(); }
+function skRemove(id, sid){ const g = skG(id); if(!g) return; g.studentIds = (g.studentIds||[]).filter(x=>x!==sid); save(); renderSkillDev(); }
+function skNewGroup(){ const n = skGroups().length; skGroups().push({id:uid(), code:String.fromCharCode(65 + n), name:"New group", tid:"", skills:[...SKILL_DEFAULT], studentIds:[]}); save(); renderSkillDev(); }
+function skDelGroup(id){ const g = skG(id); if(!g) return;
+  if(!confirm(`Delete Group ${g.code} — ${g.name}? Its students are removed from the group (saved progress stays).`)) return;
+  DB.skillGroups = skGroups().filter(x=>x.id!==id); save(); renderSkillDev(); }
+/* ---- progress (teacher: apne group; admin: koi bhi group) ---- */
+function skProgressHTML(){
+  const st = window._sk, list = IS_TEACHER ? skGroups().filter(g=>g.tid===MY_TID) : skGroups();
+  if(!list.length) return `<div class="note">${IS_TEACHER ? "You do not lead a skill development group yet — the admin assigns groups on the Skill Development page." : "No groups yet."}</div>`;
+  if(!list.some(g=>g.id===st.g)) st.g = list[0].id;
+  const g = skG(st.g), L = skSkills(g), stus = skStudents(g);
+  const done = stus.filter(x=>(DB.skillDev||[]).some(r=>r.id===x.id+"|"+st.m+"|"+g.id && Object.keys(r.ratings||{}).length)).length;
+  return `
     <div class="toolbar" style="align-items:flex-end">
       <div class="field"><label>Month</label><input type="month" value="${st.m}" onchange="window._sk.m=this.value;renderSkillDev()"></div>
-      <div class="field"><label>Class</label><select onchange="window._sk.k=this.value;renderSkillDev()">${keys.map(k=>`<option value="${esc(k)}" ${k===st.k?"selected":""}>${esc(k.replace("|"," · "))}</option>`).join("")}</select></div>
+      <div class="field"><label>Group</label><select onchange="window._sk.g=this.value;renderSkillDev()">${list.map(x=>`<option value="${x.id}" ${x.id===g.id?"selected":""}>Group ${esc(x.code||"")} · ${esc(x.name||"")}${!IS_TEACHER && skTeacher(x) ? " — " + esc(skTeacher(x)) : ""}</option>`).join("")}</select></div>
       <div class="sub" style="margin-bottom:8px">${done} / ${stus.length} students rated for ${fmtM(st.m)}</div>
       <button class="btn-red" style="margin-left:auto" onclick="saveSkillDev()">💾 Save</button>
     </div>
-    ${stus.length ? stus.map(x=>{ const r = (DB.skillDev||[]).find(y=>y.id===x.id+"|"+st.m) || {};
-      return `<div class="panel sk-card" data-sid="${x.id}"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><b>${esc(x.name)}</b><span class="sub">${esc(x.regNo||"")}${r.by ? ` · saved by ${esc(r.by)}${r.at ? " · " + fmtD(String(r.at).slice(0,10)) : ""}` : ""}</span></div>
+    ${stus.length ? stus.map(x=>{ const r = (DB.skillDev||[]).find(y=>y.id===x.id+"|"+st.m+"|"+g.id) || {};
+      return `<div class="panel sk-card" data-sid="${x.id}"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><b>${esc(x.name)} <span class="sub">${esc(x.course)}</span></b><span class="sub">${esc(x.regNo||"")}${r.by ? ` · saved by ${esc(r.by)}${r.at ? " · " + fmtD(String(r.at).slice(0,10)) : ""}` : ""}</span></div>
         <div class="sk-grid">${L.map(sk=>`<label><span>${esc(sk)}</span><select data-sk="${esc(sk)}"><option value="">—</option>${SK_LEVELS.map(l=>`<option ${(r.ratings||{})[sk]===l?"selected":""}>${l}</option>`).join("")}</select></label>`).join("")}</div>
-        <textarea rows="2" placeholder="Comment on ${esc(x.name.split(" ")[0])}'s skill development (optional)" style="width:100%;margin-top:6px">${esc(r.note||"")}</textarea></div>`; }).join("")
-      : `<div class="note">No active students in ${esc(c)} (${esc(sh)}).</div>`}
+        <textarea rows="2" placeholder="Comment on ${esc(x.name.split(" ")[0])}'s progress in ${esc(g.name||"")} (optional)" style="width:100%;margin-top:6px">${esc(r.note||"")}</textarea></div>`; }).join("")
+      : `<div class="note">No students in this group yet${IS_TEACHER ? " — the admin adds them" : " — add them under 👥 Groups &amp; students"}.</div>`}
     ${stus.length ? `<div style="text-align:right"><button class="btn-red" onclick="saveSkillDev()">💾 Save</button></div>` : ""}`;
 }
 function saveSkillDev(){
-  const m = window._sk.m; let n = 0;
+  const m = window._sk.m, gid = window._sk.g; let n = 0;
   document.querySelectorAll("#skBody .sk-card").forEach(card=>{
-    const sid = card.dataset.sid, id = sid + "|" + m, ratings = {};
+    const sid = card.dataset.sid, id = sid + "|" + m + "|" + gid, ratings = {};
     card.querySelectorAll("select[data-sk]").forEach(x=>{ if(x.value) ratings[x.dataset.sk] = x.value; });
     const note = card.querySelector("textarea").value.trim(), i = DB.skillDev.findIndex(r=>r.id===id), o = DB.skillDev[i];
     if(!Object.keys(ratings).length && !note){ if(i >= 0){ DB.skillDev.splice(i, 1); n++; } return; }
     if(o && o.note === note && JSON.stringify(o.ratings||{}) === JSON.stringify(ratings)) return;
-    const rec = {id, studentId:sid, month:m, ratings, note, tid:MY_TID||"", by: IS_TEACHER ? (empById(MY_TID)||{}).name || "Teacher" : (myName() || ROLE_LABEL), at:new Date().toISOString()};
+    const rec = {id, studentId:sid, month:m, groupId:gid, ratings, note, tid:MY_TID||"", by: IS_TEACHER ? (empById(MY_TID)||{}).name || "Teacher" : (myName() || ROLE_LABEL), at:new Date().toISOString()};
     if(i >= 0) DB.skillDev[i] = rec; else DB.skillDev.push(rec); n++;
   });
   if(n) save();
@@ -8750,6 +8811,18 @@ function transcriptHTML(d, forPrint){
 }
 /* v111: report card ka doosra page (back side — front/back print): position & conduct, teacher remarks,
    aakhir mein Coordinator's remarks (type kiye hon to wohi, warna hath se likhne ki lines), parent ke comments, signatures */
+/* v116: report card ke peeche — bache ke skill group(s) ki progress (sirf Morning) */
+function rcSkillHTML(d){
+  const B = d.skills; if(!B) return "";
+  const lines = n => Array.from({length:n}, ()=>`<div class="rc-line"></div>`).join("");
+  if(!B.length) return `<div class="rc-sec">🌱 Skill development progress</div><div class="rc-box"><span style="color:#6B7C85">Not enrolled in a skill development group this term.</span></div>`;
+  return B.map(({g, e})=>{ const rt = (e && e.ratings) || {}, L = [...new Set([...skSkills(g), ...Object.keys(rt)])], who = (e && e.by) || skTeacher(g);
+    return `<div class="rc-sec">🌱 Skill development · Group ${esc(g.code||"")}: ${esc(g.name||"")}</div>
+    <div class="rc-box" style="padding:0;overflow:hidden"><table class="rc-sk"><thead><tr><th>Skill</th>${SK_LEVELS.map(l=>`<th>${l}</th>`).join("")}</tr></thead><tbody>
+      ${L.map(k=>`<tr><td>${esc(k)}</td>${SK_LEVELS.map(l=>`<td><span class="tick${rt[k]===l?" on":""}">${rt[k]===l?"✓":""}</span></td>`).join("")}</tr>`).join("")}</tbody></table>
+      <div style="padding:8px 12px"><b style="font-size:.72rem">Teacher's comment:</b> ${e && e.note ? `<span style="white-space:pre-wrap">${esc(e.note)}</span>` : lines(B.length > 1 ? 1 : 2)}
+      <div class="rc-by"><span>Led by: <b>${who ? esc(who) : "______________________"}</b></span><span>Signature: ______________________</span></div></div></div>`; }).join("");
+}
 function rcBackHTML(d, forPrint, range){
   const A = DB.settings, s = d.s, lines = n => Array.from({length:n}, ()=>`<div class="rc-line"></div>`).join("");
   return `
@@ -8760,12 +8833,7 @@ function rcBackHTML(d, forPrint, range){
     <div class="rc-sec">Class position, attendance &amp; conduct</div>
     <div class="rc-box">${d.rank ? `<b>Class position ${d.rank} / ${d.rankOf}</b>${d.classAvg ? ` · class average ${d.classAvg}%` : ""}${d.pos ? `<br><span style="font-size:.72rem;color:#3b5560">${esc(posText(d.pos))}</span><br><span style="font-size:.66rem;color:#6B7C85">${POS_LABEL}</span>` : ""}<br>` : ""}
       <b>Attendance:</b> ${d.att.pct}% <span style="color:#6B7C85">(Present ${d.att.P} · Absent ${d.att.A} · Late ${d.att.L})</span></div>
-    <div class="rc-sec">🌱 Skill development progress</div>
-    <div class="rc-box" style="padding:0;overflow:hidden">${(()=>{ const sk = d.skill || {}, rt = sk.ratings || {}, L = [...new Set([...skillList(), ...Object.keys(rt)])];
-      return `<table class="rc-sk"><thead><tr><th>Skill</th>${SK_LEVELS.map(l=>`<th>${l}</th>`).join("")}</tr></thead><tbody>
-        ${L.map(k=>`<tr><td>${esc(k)}</td>${SK_LEVELS.map(l=>`<td><span class="tick${rt[k]===l?" on":""}">${rt[k]===l?"✓":""}</span></td>`).join("")}</tr>`).join("")}</tbody></table>
-        <div style="padding:8px 12px"><b style="font-size:.72rem">Skill teacher's comment:</b> ${sk.note ? `<span style="white-space:pre-wrap">${esc(sk.note)}</span>` : lines(2)}
-        <div class="rc-by"><span>Skill Development Teacher: <b>${sk.by ? esc(sk.by) : "______________________"}</b></span><span>Signature: ______________________</span></div></div>`; })()}</div>
+    ${rcSkillHTML(d)}
     <div class="rc-sec">Coordinator's remarks</div>
     <div class="rc-box coord">${d.coord && d.coord.note ? `<div style="white-space:pre-wrap">${esc(d.coord.note)}</div>${lines(2)}` : lines(6)}
       <div class="rc-by"><span>Coordinator: <b>${d.coord && d.coord.by ? esc(d.coord.by) : "______________________"}</b></span><span>Signature: ______________________</span><span>Date: ${d.coord && d.coord.d ? fmtD(d.coord.d) : "______________"}</span></div></div>
@@ -8792,7 +8860,7 @@ function reportCardFor(sid, from, to){
     return !(from && m < from) && !(to && m > to); }).sort((a,b)=>a.date.localeCompare(b.date));
   const x = exSum(ex);
   const remarks = (s.remarks||[]).filter(r=>r.parentVisible!==false && (!from || String(r.d).slice(0,7) >= from) && (!to || String(r.d).slice(0,7) <= to));
-  return {s, ex, obt:x.obt, tot:x.tot, pct:x.pct, sat:x.sat, abs:x.abs, att: attInRange(sid, from, to), from, to, remarks, coord: coordRemark(s, from, to), skill: skillFor(s, from, to)};
+  return {s, ex, obt:x.obt, tot:x.tot, pct:x.pct, sat:x.sat, abs:x.abs, att: attInRange(sid, from, to), from, to, remarks, coord: coordRemark(s, from, to), skills: skillBlocks(s, from, to)};
 }
 /* v100: class position — 4 cheezon ka score (student-report.js ka posParts bilkul yehi): marks 60 · homework waqt par 15
    · behaviour & discipline 10 · attendance & punctuality 15. Jo na ho us ka weight baqi mein bant jata hai. */
@@ -11710,7 +11778,6 @@ function loadSettings(){
   $("setName").value = DB.settings.name||"";
   $("setAddr").value = DB.settings.addr||"";
   $("setPhone").value = DB.settings.phone||"";
-  if($("setSkills")) $("setSkills").value = skillList().join("\n");
   if($("setJoinOn")){ const jr = joinRule(); $("setJoinOn").checked = jr.on; $("setJoinAfter").value = jr.after25; }
   drawLogo(); renderSubjectsAdmin();
   const pages = [...document.querySelectorAll("#nav button")].map(b=>b.textContent.trim());
@@ -11718,10 +11785,6 @@ function loadSettings(){
   $("setModules").textContent = pages.length;
   $("setModuleList").innerHTML = "<b>Pages:</b> " + esc(pages.join(" · ")) +
     "<br><b>Import types:</b> " + esc(Object.values(IMPORT_TYPES).map(x=>x.label).join(" · "));
-}
-function saveSkills(){
-  const L = [...new Set($("setSkills").value.split(/\n+/).map(x=>x.trim()).filter(Boolean))].slice(0, 15);
-  DB.settings.skills = L.length ? L : null; save(); $("setSkills").value = skillList().join("\n"); toast(`Skills saved — ${skillList().length}`);
 }
 function saveJoinRule(){
   DB.settings.joinFee = {on: $("setJoinOn").checked, after25: $("setJoinAfter").value};
@@ -12854,7 +12917,7 @@ if(IS_ADMIN){
   ADMIN_HIDDEN.forEach(pg=>{ const b = document.querySelector(`#nav button[data-page="${pg}"]`); if(b) b.style.display = "none"; });
   if(IS_TEACHER){ document.body.classList.add("role-teacher"); const me = empById(MY_TID); if(me) ROLE_LABEL = "Teacher · " + me.name;
     document.querySelector('#nav button[data-page="mydash"]').style.display = "";
-    if(!mySkillKeys().size) document.querySelector('#nav button[data-page="skilldev"]').style.display = "none";   // v115: sirf skill teacher
+    if(!(DB.skillGroups||[]).some(g=>g.tid===MY_TID)) document.querySelector('#nav button[data-page="skilldev"]').style.display = "none";   // v116: sirf skill group ka teacher
     setTimeout(()=>{ const ev = eveTestStatus(wm()).filter(x=>x.need); if(ev.length) toast(`⏰ This month ${ev.map(x=>`${x.c}: ${x.n}/${EVE_TEST_TARGET} tests`).join(", ")} — take 2 tests in every Evening class`); }, 1200); }
   if(MY_SID) document.querySelector('#nav button[data-page="staffdash"]').style.display = "";
   if(MY_SCOPE === "Morning"){ const b = document.querySelector('#nav button[data-page="classatt"]'); if(b) b.style.display = "none"; }   // v105: Evening class attendance

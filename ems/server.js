@@ -264,11 +264,9 @@ function activeNow(d) {
 }
 const ptmSeen = (x, cls) => !!x && Array.isArray(x.classes) && x.classes.some((c) => cls.has("Morning|" + c));
 const hwSeen = (h, tid, cls, me) => !!h && cls.has(h.shift + "|" + h.course) && (!h.teacherId || h.teacherId === tid || asgCovers(me, h.shift, h.course, h.subject));
-/* v115: Skill Development teacher — jis class mein assignment ka subject "Skill…" ho, us class ke sab bache
-   (Skill Development Progress report card ke peeche wale page par; teacher khud bharta hai) */
-const SKILL_RE = /skill/i;
-const skillClasses = (d, tid) => { const me = (d.employees || []).find((e) => e.id === tid) || {}, ok = teachShifts(me);
-  return new Set((me.assignments || []).filter((a) => ok.includes(a.shift) && SKILL_RE.test(a.subject || "")).map((a) => a.shift + "|" + a.course)); };
+/* v116: Skill Development groups (sirf Morning) — admin group banata hai, teacher lagata hai, bache (kisi bhi class ke) daalta hai.
+   Teacher sirf apne group(s) ke bachon ki progress bharta hai — report card ke peeche wale page par chhapti hai. */
+const myGroups = (d, tid) => (d.skillGroups || []).filter((g) => g && g.tid === tid);
 const SK_LEVELS = ["Excellent", "Very Good", "Good", "Developing", "Needs Support"];
 function teacherView(d, tid) {
   const cls = teacherClasses(d, tid), me = meOf(d, tid);
@@ -288,8 +286,8 @@ function teacherView(d, tid) {
   /* v94: Morning O1 / O2 bhi subject-wise (Evening ki tarah); baqi Morning classes poori. Subjects darj na hon to bacha dikhao. */
   const wholeK = (k) => k.startsWith("Morning|") && !O_MORNING.includes(k.slice(8));
   const noSubjO = (st) => st.shift === "Morning" && !(st.subjects || []).length && keys(st).some((k) => O_MORNING.includes(k.slice(8)));
-  const skc = skillClasses(d, tid), skillK = (st) => stuClasses(st).some((c) => skc.has(st.shift + "|" + c));
-  const students = (d.students || []).filter((st) => act(st) && keys(st).length && (keys(st).some((k) => wholeK(k) || !subjOf(k)) || noSubjO(st) || mine(st).length || skillK(st)));
+  const grps = myGroups(d, tid), grpS = new Set(grps.flatMap((g) => g.studentIds || []));
+  const students = (d.students || []).filter((st) => act(st) && ((keys(st).length && (keys(st).some((k) => wholeK(k) || !subjOf(k)) || noSubjO(st) || mine(st).length)) || grpS.has(st.id)));
   /* teacher ke apne subjects — Create test / homework ki list mein sirf yehi */
   const mySub = new Set();
   [...cls].forEach((k) => { const x = subjOf(k); if (x) x.forEach((v) => mySub.add(v)); });
@@ -327,9 +325,10 @@ function teacherView(d, tid) {
       entries: Object.fromEntries(Object.entries(x.entries || {}).filter(([k]) => k.endsWith("|" + tid))), feedback: {} })),
     /* v106: teacher ke bheje hue student remarks / issues (Executive approve karta hai) — sirf apne */
     stuNotes: (d.stuNotes || []).filter((n) => n && n.tid === tid),
-    skillDev: (d.skillDev || []).filter((x) => x && students.some((st) => st.id === x.studentId && skillK(st))),   // v115
+    skillGroups: grps,                                                                                  // v116
+    skillDev: (d.skillDev || []).filter((x) => x && grps.some((g) => g.id === x.groupId)),
     classCosts: {}, parentAccess: [], studentAccess: [], parentMsgs: [], audits: (d.audits || []).filter((a) => a.teacherId === tid), counters: d.counters || {},
-    settings: { name: s.name, addr: s.addr, phone: s.phone, logo: s.logo, latePolicy: s.latePolicy, skills: s.skills },
+    settings: { name: s.name, addr: s.addr, phone: s.phone, logo: s.logo, latePolicy: s.latePolicy },
   };
 }
 /* Teacher ke save se sirf us ke apne hisse badalte hain — baaki sab server wala hi rehta hai */
@@ -405,19 +404,18 @@ function teacherMerge(data, tid) {
     const st = (cur.students || []).find((y) => y.id === x.studentId);
     stuNotes.push({ id, studentId: st.id, studentName: st.name, tid, byName: (me && me.name) || "", type: NT.includes(x.type) ? x.type : "Remark",
       note: String(x.note).trim().slice(0, 1500), at: new Date().toISOString(), status: "pending" }); });
-  /* v115: Skill Development Progress — sirf skill teacher, sirf us ki skill classes ke bache; id = "<studentId>|<YYYY-MM>" */
-  const skc = skillClasses(cur, tid);
-  const skOk = (sid) => { const st = (cur.students || []).find((x) => x.id === sid); return !!st && st.status !== "Left" && stuClasses(st).some((c) => skc.has(st.shift + "|" + c)); };
+  /* v116: Skill Development Progress — sirf apne group(s) ke bache; id = "<studentId>|<YYYY-MM>|<groupId>"; groups khud admin ke */
+  const gr = myGroups(cur, tid), gOf = new Map(gr.map((g) => [g.id, g]));
+  const skOk = (x) => { const g = gOf.get(x.groupId); return !!g && (g.studentIds || []).includes(x.studentId); };
   const newSk = new Map(arr(data.skillDev).map((x) => [x.id, x]));
-  const skillDev = arr(cur.skillDev).filter((x) => !skOk(x.studentId) || x.tid !== tid || newSk.has(x.id))      // apna hi hata sakta hai
-    .filter((x) => !(skOk(x.studentId) && newSk.has(x.id)));
+  const skillDev = arr(cur.skillDev).filter((x) => !gOf.has(x.groupId) || (!newSk.has(x.id) && x.tid !== tid));   // apna hi hata sakta hai
   newSk.forEach((x) => {
-    if (!skOk(x.studentId) || !/^\d{4}-\d{2}$/.test(String(x.month || "")) || x.id !== x.studentId + "|" + x.month) return;
+    if (!skOk(x) || !/^\d{4}-\d{2}$/.test(String(x.month || "")) || x.id !== x.studentId + "|" + x.month + "|" + x.groupId) return;
     const ratings = {};
     Object.entries(x.ratings && typeof x.ratings === "object" ? x.ratings : {}).slice(0, 30).forEach(([k, v]) => { if (SK_LEVELS.includes(v)) ratings[String(k).slice(0, 80)] = v; });
     const note = String(x.note || "").slice(0, 1500), o = arr(cur.skillDev).find((y) => y.id === x.id);
     if (o && o.note === note && JSON.stringify(o.ratings || {}) === JSON.stringify(ratings)) return skillDev.push(o);     // badla nahi — likhne wala wohi
-    skillDev.push({ id: x.id, studentId: x.studentId, month: x.month, ratings, note, tid, by: (me && me.name) || "", at: new Date().toISOString() });
+    skillDev.push({ id: x.id, studentId: x.studentId, month: x.month, groupId: x.groupId, ratings, note, tid, by: (me && me.name) || "", at: new Date().toISOString() });
   });
   return Object.assign(cur, { tests, exams, classAtt, homework, ptms, stuNotes, skillDev });
 }
@@ -595,7 +593,7 @@ const canon = (v) => JSON.stringify(v, (k, x) => x && typeof x === "object" && !
 /* Save se pehle aur baad ka data — kya badla, insaani zabaan mein */
 const ACT_COLS = { students: "Students", fees: "Fee challans", employees: "Employees", txns: "Income / Expense", inquiries: "Inquiries",
   exams: "Exam marks", tests: "Tests", homework: "Homework", inventory: "Inventory", issues: "Issuance", audits: "Class audits", kpis: "KPI checklists",
-  subjects: "Subjects", feeReceipts: "Fee receipts (app)", parentAccess: "Parent access", studentAccess: "Student logins (Evening)", parentMsgs: "Parent messages", classAtt: "Class attendance", ptms: "PTM", staffKpis: "Staff KPIs", staffTasks: "Staff to-do", stuNotes: "Teacher remarks (approval)", skillDev: "Skill development progress" };
+  subjects: "Subjects", feeReceipts: "Fee receipts (app)", parentAccess: "Parent access", studentAccess: "Student logins (Evening)", parentMsgs: "Parent messages", classAtt: "Class attendance", ptms: "PTM", staffKpis: "Staff KPIs", staffTasks: "Staff to-do", stuNotes: "Teacher remarks (approval)", skillDev: "Skill development progress", skillGroups: "Skill development groups" };
 const ACT_SKIP_FIELDS = new Set(["hash", "salt", "iter"]);
 const recLabel = (r, col) => {
   if (!r || typeof r !== "object") return "?";
