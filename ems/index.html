@@ -1118,7 +1118,8 @@ label.chk input{width:auto}
 <section class="page" id="page-employees">
   <div class="page-head">
     <div><h2>Employees</h2><div class="sub">Admin · Teachers · Coordinator · Supportive Staff</div></div>
-    <div><button class="btn-line" onclick="openImport('employees')">⬆ Import CSV (Excel)</button>
+    <div><button class="btn-danger" id="empJunkBtn" style="display:none" onclick="openEmpJunk()"></button>
+      <button class="btn-line" onclick="openImport('employees')">⬆ Import CSV (Excel)</button>
       <button class="btn-red" onclick="openEmpForm()">+ New Employee</button></div>
   </div>
   <div class="toolbar">
@@ -1472,7 +1473,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v120 · 16 Oct 2026";
+const BUILD = "v121 · 16 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -9265,7 +9266,31 @@ async function printReportCard(){ await logoJpeg(); $("challanPrint").innerHTML 
 
 /* ================= EMPLOYEES ================= */
 let asgDraft = [];
+/* v121: attendance machine ki sheet se galti se bane "User 1", "User 2" … employees — pehchan kar ek click mein hatao.
+   Jis ka login ho ya class assignment ho wo kabhi nahi hatta. Aage se import aise naam khud chhor deta hai. */
+const EMP_JUNK_RE = /^\s*(user|usr|emp(loyee)?|staff|id)\s*[-_#.:]?\s*\d+\s*$/i;
+const empJunk = () => DB.employees.filter(e=>EMP_JUNK_RE.test(e.name||""));
+const empJunkSafe = e => !e.login && !(e.assignments||[]).length && !STAFF_ACCESS[e.access];
+function empJunkBtn(){ const b = $("empJunkBtn"); if(!b) return; const n = empJunk().filter(empJunkSafe).length; b.style.display = n ? "" : "none"; b.textContent = `🧹 Remove ${n} placeholder employee${n>1?"s":""} (User 1, User 2…)`; }
+function openEmpJunk(){
+  const L = empJunk(), del = L.filter(empJunkSafe), keep = L.filter(e=>!empJunkSafe(e));
+  const att = Object.values(DB.empAttendance||{}).reduce((a,day)=>a + del.filter(e=>day && day[e.id] !== undefined).length, 0);
+  openModal(`<h3>🧹 Remove placeholder employees</h3>
+    <p class="sub" style="margin-bottom:8px">These records came from an attendance-machine sheet where people are named like <b>User 1, User 2…</b> instead of real names.</p>
+    <div class="note"><b>${del.length}</b> employees will be deleted, together with <b>${att}</b> staff-attendance entries of theirs. Real employees are not touched.</div>
+    <div class="chips" style="max-height:180px;overflow:auto;margin:8px 0">${del.map(e=>`<span class="chip">${esc(e.name)}</span>`).join("")}</div>
+    ${keep.length ? `<div class="sub">Kept (they have a login or class assignments): ${keep.map(e=>esc(e.name)).join(", ")}</div>` : ""}
+    <div class="modal-foot"><button class="btn-line" onclick="closeModal()">Cancel</button><button class="btn-danger" onclick="delEmpJunk()">Delete ${del.length}</button></div>`);
+}
+function delEmpJunk(){
+  const ids = new Set(empJunk().filter(empJunkSafe).map(e=>e.id)); if(!ids.size){ closeModal(); return; }
+  DB.employees = DB.employees.filter(e=>!ids.has(e.id));
+  let a = 0;
+  Object.keys(DB.empAttendance||{}).forEach(d=>{ const day = DB.empAttendance[d]; if(!day) return; ids.forEach(id=>{ if(day[id] !== undefined){ delete day[id]; a++; } }); if(!Object.keys(day).length) delete DB.empAttendance[d]; });
+  save(); closeModal(); renderEmployees(); toast(`✓ ${ids.size} placeholder employees removed (${a} attendance entries)`);
+}
 function renderEmployees(){
+  try{ empJunkBtn(); }catch(e){}
   const fc = $("empFCat").value, fs = $("empFShift") ? $("empFShift").value : "";
   const q = ($("empSearch") ? $("empSearch").value : "").toLowerCase();
   const rows = DB.employees.filter(e=>{
@@ -11368,6 +11393,7 @@ function runImport(){
     }
 
     else if(impType === "employees"){
+      if(EMP_JUNK_RE.test(name)){ skipped++; note(line, `"${name}" looks like an attendance-machine user number, not a real name — skipped`); return; }   // v121
       const cats = ["Admin","Teacher","Coordinator","Supportive Staff"];
       const raw = g("category");
       const cat = cats.find(c=>keyify(c) === keyify(raw)) || cats.find(c=>keyify(raw) && keyify(c).includes(keyify(raw))) || "Teacher";

@@ -603,6 +603,13 @@ save, the other shift's records are kept exactly as they are on the server.
   the giver sees "📤 Tasks I assigned" with done / not done today / overdue, and can edit or remove it. The server only
   lets the giver change or remove a task they gave, and the assignee only its status and note.
 
+## Remove placeholder employees from an attendance-machine import (v121)
+
+- If an attendance-machine sheet was imported as Employees, people named like **User 1, User 2 …** were created.
+  **Employees → 🧹 Remove N placeholder employees** lists them and deletes them with their staff-attendance entries in
+  one click. Anyone with a login or class assignments is never removed.
+- The Employees import now skips such names ("looks like an attendance-machine user number") instead of creating them.
+
 ## Install as an app (v41)
 
 Staff (`/`), Teachers (`/teacher`) and Parents (`/parent`) — all three links can be installed as an app on a phone / computer
