@@ -617,6 +617,9 @@ save, the other shift's records are kept exactly as they are on the server.
   - one row per punch: user ID / name + date & time (e.g. `AC-No., Name, Date Time`) — the first punch of the day is
     the arrival time;
   - one row per day: name, date, time in, status (Present / Absent / Late / Leave / Uninformed).
+- **⬇ Templates (v123)** in the import window: **daily sheet** — every employee with their machine ID and today's date;
+  fill Time In (e.g. 08:55) or Status (Absent / Leave / Uninformed) and import it back (rows left blank are skipped,
+  not marked absent); **machine punches** — a sample of the one-row-per-punch layout.
 - People are matched by **Attendance machine ID** (new field on the employee form — "5" and "User 5" both work) or by
   name. Unmatched IDs are listed with an employee drop-down; once chosen, the ID is saved as that employee's machine ID
   so the next import matches by itself.

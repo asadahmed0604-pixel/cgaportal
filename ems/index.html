@@ -1474,7 +1474,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v122 · 16 Oct 2026";
+const BUILD = "v123 · 16 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -9486,11 +9486,22 @@ function openStaffAttImport(){
   SAI = null;
   openModal(`<h3>⬆ Import staff attendance</h3>
     <p class="sub" style="margin-bottom:8px">CSV from the attendance machine or Excel (<b>File → Save as → CSV</b>). Either <b>one row per punch</b> (User ID / name + date & time) or <b>one row per day</b> (name, date, time in, status). The first punch of the day is the arrival time; Late is worked out from each person's work time.</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px"><button class="btn-black btn-sm" onclick="saiTemplate('daily')">⬇ Template — daily sheet (all staff)</button>
+      <button class="btn-line btn-sm" onclick="saiTemplate('punch')">⬇ Template — machine punches</button></div>
     <div class="grid2"><div class="field"><label>CSV file *</label><input type="file" id="sai_f" accept=".csv,text/csv,.txt" onchange="saiRead(this)"></div>
       <div class="field"><label>Shift</label><select id="sai_sh" onchange="saiDraw()"><option value="">Auto — employee's shift (Both: before 1 PM = Morning)</option><option>Morning</option><option>Evening</option></select></div></div>
     <label class="chk"><input type="checkbox" id="sai_ow" onchange="saiDraw()"> Overwrite days that are already marked</label>
     <div id="sai_prev"></div>
     <div class="modal-foot"><button class="btn-line" onclick="closeModal()">Cancel</button><button class="btn-red" id="sai_go" disabled onclick="saiImport()">Import</button></div>`, true);
+}
+/* v123: template — daily: har employee ki aik row (machine ID, naam, date, time in, status); punch: machine jaisi misaal */
+function saiTemplate(kind){
+  const d = todayStr(), E = [...DB.employees].filter(e=>e.status !== "Left").sort((a,b)=>a.name.localeCompare(b.name));
+  if(kind === "punch") downloadCSV("staff-attendance-machine-template.csv", [["User ID","Name","Date Time"],
+    ...E.slice(0, 3).flatMap((e,i)=>[[e.machineId || String(i+1), e.name, `${d} 0${8+i}:5${i} AM`], [e.machineId || String(i+1), e.name, `${d} 02:0${i} PM`]])]);
+  else downloadCSV(`staff-attendance-${d}.csv`, [["Machine ID","Employee Name","Date","Time In","Status"],
+    ...E.map(e=>[e.machineId||"", e.name, d, "", ""])]);
+  toast(kind === "punch" ? "Machine template downloaded — one row per punch" : "Template downloaded — fill Time In (e.g. 08:55) or Status (Absent / Leave / Uninformed), then import");
 }
 function saiRead(input){
   const f = input.files && input.files[0]; if(!f) return;
@@ -9511,6 +9522,7 @@ function saiRead(input){
       const raw = g(c.dt) || g(c.date), date = cleanDate(raw.split(/[ T]+/)[0]) || cleanDate(raw); if(!date) return;
       const t = saiTime(g(c.tin)) || saiTime(c.dt >= 0 ? g(c.dt).split(/[ T]+/).slice(1).join(" ") : "") || (c.tin < 0 && c.dt < 0 ? saiTime(g(c.date)) : "");
       const st = saiStatus(g(c.st));
+      if(!t && !st) return;                     // v123: template ki khali row — chhor do (Absent nahi)
       const k = key.toLowerCase(), o = map.get(k) || {key, name:g(c.name), days:{}};
       const d = o.days[date] || (o.days[date] = {t:"", s:""});
       if(t && (!d.t || t < d.t)) d.t = t;
