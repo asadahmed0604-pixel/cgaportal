@@ -450,6 +450,12 @@ save, the other shift's records are kept exactly as they are on the server.
   U red, Absent grey), the grading key shown as chips, the class-position note in its own box, signature lines for
   Class Teacher, Principal / Admin and Parent / Guardian, and a footer with the issue date.
 
+## Report card logo — always shown (v109)
+
+- If no logo is uploaded in Settings, report cards, challans and the watermark now use the built-in CGA logo (the app
+  icon) instead of showing nothing. Upload your own logo in Settings to replace it.
+- Print waits until the logo and photos have loaded, so the printed / "Save as PDF" copy never misses the logo.
+
 ## Install as an app (v41)
 
 Staff (`/`), Teachers (`/teacher`) and Parents (`/parent`) — all three links can be installed as an app on a phone / computer

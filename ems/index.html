@@ -1427,7 +1427,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v108 · 16 Oct 2026";
+const BUILD = "v109 · 16 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -3356,7 +3356,7 @@ async function reportCardPDF(d){
     if(e.comment) doc.text(`"${e.comment}"`, x0 + 22 + 62 + 5, y + 22, {size:7, color:PC.muted, maxW:cols[2][1] - 8});
     y += h; doc.line(x0, y, x0 + W, y, {color:PC.line, lw:.5});
   });
-  if(!rows.length){ doc.text("No tests recorded in this period", x0 + W/2, y + 16, {size:9, color:PC.muted, align:"center"}); y += 26; }
+  if(!rows.length){ doc.text("No tests recorded in this period", x0 + W/2, y + 16, {size:9, color:PC.muted, align:"center"}); y += 34; }
   if(rows.length){ doc.rect(x0, y, W, 20, {fill:PC.head, alpha:.9}); doc.line(x0, y, x0 + W, y, {color:PC.teal, lw:1.4}); doc.text(d.pct === null ? `Overall: absent in all ${d.ex.length} tests` : `Overall (${d.sat} tests${d.abs ? `, absent in ${d.abs}` : ""}): ${d.obt} / ${d.tot} = ${d.pct}%  ·  Grade ${gradeOf(d.pct)}${d.classAvg ? `  ·  Class avg ${d.classAvg}%` : ""}`, x0 + 10, y + 13.5, {size:9, bold:true, color:PC.ink, maxW:W - 20}); y += 30; }
   if(d.rank && d.pos){ doc.text(`Class position ${d.rank} / ${d.rankOf}: ${posText(d.pos)}`.replace(/→/g, "=").replace(/–/g, "-"), x0, y - 4, {size:7.5, bold:true, color:PC.ink, maxW:W}); y += 10;
     doc.text(POS_LABEL, x0, y - 4, {size:7, color:PC.muted, maxW:W}); y += 10; }
@@ -4017,7 +4017,7 @@ function printWarning(sid, wid){
   const title = w.level === "Final" ? "FINAL WARNING LETTER" : `${w.level === "2nd" ? "SECOND" : "FIRST"} WARNING LETTER`;
   $("challanPrint").innerHTML = `<div style="font-size:.95rem;line-height:1.6;max-width:720px;margin:0 auto;color:#12313D">
     <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #174B60;padding-bottom:8px;margin-bottom:16px">
-      <div style="display:flex;gap:10px;align-items:center">${A.logo ? `<img src="${logoSrc()}" style="height:52px;width:auto;object-fit:contain">` : ""}<div><div style="font-size:1.25rem;font-weight:900">${esc(A.name||"Cambridge Grads Academy")}</div><div style="font-size:.75rem;color:#555">${esc(A.addr||"")}${A.phone ? " · " + esc(A.phone) : ""}</div></div></div>
+      <div style="display:flex;gap:10px;align-items:center"><img src="${logoSrc()}" style="height:52px;width:auto;object-fit:contain"><div><div style="font-size:1.25rem;font-weight:900">${esc(A.name||"Cambridge Grads Academy")}</div><div style="font-size:.75rem;color:#555">${esc(A.addr||"")}${A.phone ? " · " + esc(A.phone) : ""}</div></div></div>
       <div style="text-align:right;font-size:.85rem">Ref: <b>${esc(w.no)}</b><br>Date: <b>${fmtD(w.d)}</b></div></div>
     <div style="text-align:center;font-weight:900;font-size:1.15rem;letter-spacing:.06em;margin:6px 0 16px;color:${w.level === "Final" ? "#C0392B" : "#174B60"}">${title}</div>
     <p>To,<br>The Parent / Guardian of <b>${esc(st.name)}</b>${st.fatherName ? ` (${esc(st.fatherName)})` : ""}<br>Reg No: <b>${esc(st.regNo||"—")}</b> · Class: <b>${esc(classLabelOf(st))}</b> · ${esc(st.shift)}</p>
@@ -5323,7 +5323,7 @@ function challanCopyHTML(f, L, label){
   return `
   <div class="cx">
     <div class="cx-head">
-      <div class="cx-brand">${A.logo ? `<div class="cx-logo"><img src="${logoSrc()}"></div>` : ""}
+      <div class="cx-brand"><div class="cx-logo"><img src="${logoSrc()}"></div>
         <div><div class="cx-name">${esc(A.name||"Cambridge Grads Academy")}</div><div class="cx-addr">${esc(A.addr||"")}${A.phone ? " · "+esc(A.phone) : ""}</div></div></div>
       <div><div class="cx-pill">FEE CHALLAN</div><div class="cx-copy">${label}</div></div>
     </div>
@@ -5443,9 +5443,10 @@ class PDFDoc{
 }
 /* Logo → JPEG (safed background, faltu khali kinare kaat kar) — aik dafa ban kar yaad */
 let PDF_LOGO = null;
+/* v109: Settings mein logo upload na ho to CGA ka default logo (app icon) — report card / challan / watermark kabhi khali nahi */
+const schoolLogo = () => DB.settings.logo || (SERVER ? "/icons/cga-512.png" : "icons/icon-512.png");
 function logoJpeg(){
-  const src = DB.settings.logo;
-  if(!src) return Promise.resolve(null);
+  const src = schoolLogo();
   if(PDF_LOGO && PDF_LOGO.src === src) return Promise.resolve(PDF_LOGO);
   return new Promise(res=>{
     const im = new Image();
@@ -5475,7 +5476,7 @@ function logoJpeg(){
   });
 }
 /* Print (HTML) ke liye bhi wohi kinare kata logo — tayyar na ho to asal */
-const logoSrc = () => (PDF_LOGO && PDF_LOGO.src === DB.settings.logo) ? PDF_LOGO.url : DB.settings.logo;
+const logoSrc = () => (PDF_LOGO && PDF_LOGO.src === schoolLogo()) ? PDF_LOGO.url : schoolLogo();
 const PC = {navy:"#174B60", teal:"#159670", ink:"#12313D", muted:"#6B7C85", soft:"#EEF5F7", head:"#DCEEEA", line:"#E1EAEE", red:"#C0392B", green:"#0F7B3D", pale:"#CFE3EA"};
 function pdfHeader(doc, logo, x0, y0, W, h){
   const A = DB.settings;
@@ -7478,7 +7479,7 @@ function printKpi(id){
   const c = kpiCalc(k), A = DB.settings, cell = "border:1px solid #c9d6dc;padding:4px 6px";
   const label = v => v === "na" ? "N/A" : v === 0 ? "Not done (0)" : v === undefined || v === "" ? "—" : v;
   $("challanPrint").innerHTML = `<div class="rc" style="font-size:.72rem">
-    <div class="rc-head"><div class="cx-brand">${A.logo ? `<div class="cx-logo"><img src="${logoSrc()}"></div>` : ""}<div><div class="cx-name">${esc(A.name||"Cambridge Grads Academy")}</div><div class="cx-addr">${esc(A.addr||"")}</div></div></div>
+    <div class="rc-head"><div class="cx-brand"><div class="cx-logo"><img src="${logoSrc()}"></div><div><div class="cx-name">${esc(A.name||"Cambridge Grads Academy")}</div><div class="cx-addr">${esc(A.addr||"")}</div></div></div>
       <div><div class="rc-title">MONTHLY TEACHER PERFORMANCE CHECKLIST</div><div class="cx-copy">${fmtM(k.month)}</div></div></div>
     <div class="rc-grid" style="margin:10px 0"><div><small>Teacher</small><b>${esc(teacherName(k.teacherId))}</b></div><div><small>Subject</small><b>${esc(k.subject||"—")}</b></div><div><small>Class / Grade</small><b>${esc(k.classes||"—")}</b></div>
       <div><small>Coordinator</small><b>${esc(k.coordinator||"—")}</b></div><div><small>Date reviewed</small><b>${fmtD(k.reviewed)}</b></div><div><small>Overall</small><b>${c.got} / ${c.max} · ${c.pct ?? "—"}% · ${kpiRating(c.pct)}</b></div></div>
@@ -8465,9 +8466,9 @@ function transcriptHTML(d, forPrint){
   const key = GRADE_KEY.replace(/^Grading:\s*/, "").split(" · ").map(t=>{ const g = t.split(" ")[0]; return `${gradeChip(g)} ${esc(t.slice(g.length).trim())}`; }).join(" ");
   return `
   <div class="rc" style="${forPrint ? "padding:4px" : "border:1px solid var(--line);border-radius:10px;padding:14px;background:#fff"}">
-    ${A.logo ? `<div class="rc-wm"><img src="${logoSrc()}" alt=""></div>` : ""}
+    <div class="rc-wm"><img src="${logoSrc()}" alt=""></div>
     <div class="rc-head">
-      <div class="cx-brand">${A.logo ? `<div class="cx-logo"><img src="${logoSrc()}"></div>` : ""}
+      <div class="cx-brand"><div class="cx-logo"><img src="${logoSrc()}"></div>
         <div><div class="cx-name" style="font-size:1.3rem">${esc(A.name||"Cambridge Grads Academy")}</div><div class="cx-addr">${esc(A.addr||"")}${A.phone ? " · "+esc(A.phone) : ""}</div></div></div>
       <div><div class="rc-title">REPORT CARD</div><div class="cx-copy">${esc(range)}</div></div>
     </div>
@@ -8597,10 +8598,19 @@ function openBulkReportCards(){
     </div>`, true);
   bulkRcPreview();
 }
-function bulkRcPrint(){
+async function bulkRcPrint(){
+  await logoJpeg();
   const cards = bulkRcList(); if(!cards.length) return;
   $("challanPrint").innerHTML = cards.map((d,i)=>`<div style="${i < cards.length-1 ? "page-break-after:always;break-after:page;" : ""}padding:6px 2px">${transcriptHTML(d, true)}</div>`).join("");
-  window.print();
+  printWhenReady();
+}
+/* v109: print tab karo jab logo / tasveerein load ho chuki hon (warna print mein logo / watermark khali reh jata) */
+function printWhenReady(){
+  const imgs = [...$("challanPrint").querySelectorAll("img")].filter(im=>!im.complete);
+  if(!imgs.length){ window.print(); return; }
+  let done = false; const go = ()=>{ if(!done){ done = true; window.print(); } };
+  Promise.all(imgs.map(im=>new Promise(r=>{ im.onload = im.onerror = r; }))).then(go);
+  setTimeout(go, 2500);
 }
 function bulkRcCSV(){
   const cards = bulkRcList(), m = $("brc_month").value;
@@ -8611,7 +8621,7 @@ function bulkRcCSV(){
 }
 
 function renderReportCard(){ $("rcBody").innerHTML = transcriptHTML(reportCardData(), false); }
-function printReportCard(){ $("challanPrint").innerHTML = transcriptHTML(reportCardData(), true); window.print(); }
+async function printReportCard(){ await logoJpeg(); $("challanPrint").innerHTML = transcriptHTML(reportCardData(), true); printWhenReady(); }
 
 /* ================= EMPLOYEES ================= */
 let asgDraft = [];
