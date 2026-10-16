@@ -441,6 +441,15 @@ save, the other shift's records are kept exactly as they are on the server.
 - **Parents' app → My Report → 🧭 Behaviour & discipline** shows warning letters and approved remarks; the chat's
   "Teacher Remarks" includes warning letters too.
 
+## Report card — CGA logo watermark & new layout (v107)
+
+- Every report card (single print, bulk print, PDF and the WhatsApp PDF) now carries the **CGA logo as a faint watermark**
+  in the middle of the page, behind the marks (taken from Settings → logo).
+- Cleaner layout: a teal band under the header, a highlighted Percentage · Grade box (with PASS / FAIL), an
+  "Academic performance" section heading, rounded marks table, **coloured grade chips** (A*/A green, B/C teal, D/E amber,
+  U red, Absent grey), the grading key shown as chips, the class-position note in its own box, signature lines for
+  Class Teacher, Principal / Admin and Parent / Guardian, and a footer with the issue date.
+
 ## Install as an app (v41)
 
 Staff (`/`), Teachers (`/teacher`) and Parents (`/parent`) — all three links can be installed as an app on a phone / computer
