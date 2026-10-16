@@ -469,6 +469,21 @@ save, the other shift's records are kept exactly as they are on the server.
 - The texts live in `ems/remarks.js` (with an identical copy in `index.html`; `check.js` makes sure they match).
 - Report card PDF: remarks wrap across the full width, and a long list continues on a second page.
 
+## Two-page report cards with Coordinator's remarks (v111)
+
+- Every report card is now **two pages, made for front / back (double-sided) printing**:
+  - **Page 1 (front):** header, student details, summary, the marks table with grades and subject comments, grading key.
+  - **Page 2 (back):** class position & attendance, teacher remarks, parent / guardian comments (blank lines), and at the
+    end the **Coordinator's remarks**, followed by signature lines for Class Teacher, Coordinator, Principal / Admin and
+    Parent / Guardian.
+- **Writing coordinator remarks:** Exams → 🗂 Bulk report cards → choose month / shift / class → **✍ Coordinator remarks**.
+  Type a remark per student, or use **✨ Draft** / **✨ Draft all empty ones** to get a starting remark written from the
+  student's overall result, strongest and weakest subject, class position and attendance, then edit and **Save**.
+  Remarks are kept per student per month and also appear on the single report card for that month, the WhatsApp
+  message and the class result CSV. Left blank, the box prints with empty lines for a handwritten remark.
+- Printing is set up so each card stays exactly two pages (up to about 14 tests a month): with many tests the front page
+  is printed more compactly, and above 10 tests the front shows the teacher's short subject comments.
+
 ## Install as an app (v41)
 
 Staff (`/`), Teachers (`/teacher`) and Parents (`/parent`) — all three links can be installed as an app on a phone / computer
