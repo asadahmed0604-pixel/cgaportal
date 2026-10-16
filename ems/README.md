@@ -349,7 +349,7 @@ left out of the totals, percentage, average and class position ("absent in 1"); 
 ## Grading scale (v96)
 
 All grades (report cards, class result, exam CSV, student profile, student portal, AI assignment check) use the Cambridge
-scale: **A\*** 90%+ · **A** 75–89 · **B** 66–74 · **C** 56–65 · **D** 50–55 · **E** 40–49 · **U** below 40 (percent rounded).
+scale: **A\*** 90%+ · **A** 80–89 · **B** 66–79 · **C** 56–65 · **D** 50–55 · **E** 40–49 · **U** below 40 (percent rounded; v108: A 80–89, B 66–79).
 A\*–E is **Pass**, U is **Fail** (pass mark 40%). The scale is printed at the bottom of every report card.
 
 ## Morning — subjects a student doesn't take are hidden (v97)

@@ -1427,7 +1427,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v107 · 16 Oct 2026";
+const BUILD = "v108 · 16 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -8313,10 +8313,10 @@ function caOpen(id){
 }
 
 /* ---------- Grades ---------- */
-/* v96: Cambridge grading — 90+ A*, 75–89 A, 66–74 B, 56–65 C, 50–55 D, 40–49 E, 40 se kam U. A*–E pass, U fail. */
+/* v96: Cambridge grading — 90+ A*, 80–89 A, 66–79 B, 56–65 C, 50–55 D, 40–49 E, 40 se kam U. A*–E pass, U fail. */
 const PASS_PCT = 40;
-const GRADE_KEY = "Grading: A* 90%+ · A 75–89 · B 66–74 · C 56–65 · D 50–55 · E 40–49 · U below 40";
-function gradeOf(p){ p = Math.round(+p || 0); return p>=90?"A*":p>=75?"A":p>=66?"B":p>=56?"C":p>=50?"D":p>=40?"E":"U"; }
+const GRADE_KEY = "Grading: A* 90%+ · A 80–89 · B 66–79 · C 56–65 · D 50–55 · E 40–49 · U below 40";
+function gradeOf(p){ p = Math.round(+p || 0); return p>=90?"A*":p>=80?"A":p>=66?"B":p>=56?"C":p>=50?"D":p>=40?"E":"U"; }
 /* v95: absent bacha — grade / % / Pass-Fail nahi, sirf "Absent"; total aur percentage mein woh paper gina hi nahi jata */
 const eP = e => e.absent ? null : (+e.total ? Math.round((+e.obtained||0)*100/+e.total) : 0);
 const eObt = e => e.absent ? "Absent" : e.obtained;
