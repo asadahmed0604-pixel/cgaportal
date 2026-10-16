@@ -1141,6 +1141,7 @@ label.chk input{width:auto}
       <div class="field"><label>Shift</label><div class="mchips" id="empAttShiftBtns" style="margin:0"></div></div>
       <button class="btn-black" onclick="empMarkAll('P')">All Present</button>
       <button class="btn-red" onclick="saveEmpAttendance()">Save Attendance</button>
+      <button class="btn-line" onclick="openStaffAttImport()">⬆ Import (machine / CSV)</button>
     </div>
     <div id="lateBox" class="note" style="margin:0 0 10px"></div>
     <div id="empAttWarn"></div>
@@ -1473,7 +1474,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v121 · 16 Oct 2026";
+const BUILD = "v122 · 16 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -9464,6 +9465,103 @@ function empMarkAll(st){
   if(!empAttDraft){ toast("Attendance is not marked on off days"); return; }
   for(const eid in empAttDraft) empMark(eid, st);
 }
+/* ================= v122: STAFF ATTENDANCE IMPORT — attendance machine ya Excel (CSV) =================
+   Har punch ki aik row (ID/naam + date-time) ya har din ki aik row (naam, date, time in, status) — dono chalte hain.
+   Log machine ID ("5", "User 5"), naam se milte hain; na milein to import ke waqt employee chunein (machine ID yaad ho jata hai).
+   Pehla punch = aane ka waqt; Late Employees ke work time se khud lagta hai. Shift: employee ki shift, "Both" ho to 1 PM se pehle Morning. */
+let SAI = null;
+const midNorm = v => String(v||"").toLowerCase().replace(/^\s*(user|usr|emp(loyee)?|staff|id|no)\s*[-_#.:]?\s*/,"").replace(/\s+/g,"");
+function saiTime(v){
+  const m = String(v||"").match(/(\d{1,2}):(\d{2})(?::\d{2})?\s*([ap]\.?m\.?)?/i); if(!m) return "";
+  let h = +m[1]; const ap = (m[3]||"").toLowerCase();
+  if(ap.startsWith("p") && h < 12) h += 12; if(ap.startsWith("a") && h === 12) h = 0;
+  return h < 24 ? pad2(h) + ":" + m[2] : "";
+}
+function saiStatus(v){
+  const t = String(v||"").trim().toLowerCase(); if(!t) return "";
+  if(/late/.test(t)) return "L"; if(/uninform|unpaid/.test(t)) return "U"; if(/leave|^lv|^el$|informed/.test(t)) return "E";
+  if(/absent|^a$|^ab$/.test(t)) return "A"; if(/present|^p$|^ok$/.test(t)) return "P"; return "";
+}
+function openStaffAttImport(){
+  SAI = null;
+  openModal(`<h3>⬆ Import staff attendance</h3>
+    <p class="sub" style="margin-bottom:8px">CSV from the attendance machine or Excel (<b>File → Save as → CSV</b>). Either <b>one row per punch</b> (User ID / name + date & time) or <b>one row per day</b> (name, date, time in, status). The first punch of the day is the arrival time; Late is worked out from each person's work time.</p>
+    <div class="grid2"><div class="field"><label>CSV file *</label><input type="file" id="sai_f" accept=".csv,text/csv,.txt" onchange="saiRead(this)"></div>
+      <div class="field"><label>Shift</label><select id="sai_sh" onchange="saiDraw()"><option value="">Auto — employee's shift (Both: before 1 PM = Morning)</option><option>Morning</option><option>Evening</option></select></div></div>
+    <label class="chk"><input type="checkbox" id="sai_ow" onchange="saiDraw()"> Overwrite days that are already marked</label>
+    <div id="sai_prev"></div>
+    <div class="modal-foot"><button class="btn-line" onclick="closeModal()">Cancel</button><button class="btn-red" id="sai_go" disabled onclick="saiImport()">Import</button></div>`, true);
+}
+function saiRead(input){
+  const f = input.files && input.files[0]; if(!f) return;
+  const rd = new FileReader();
+  rd.onload = () => {
+    const rows = parseCSV(rd.result); if(!rows.length){ toast("The file is empty"); return; }
+    const hi = rows.findIndex(r=>r.some(c=>/name|date|time|user|id|emp|punch/i.test(String(c)))), H = (hi >= 0 ? rows[hi] : []).map(c=>String(c).trim().toLowerCase());
+    const col = (re, not) => H.findIndex(h=>re.test(h) && !(not && not.test(h)));
+    const c = {id: col(/user ?id|emp(loyee)? ?(id|no|code)|ac-?no|enroll|badge|card|machine|^no\.?$|^id$|^user$/),
+      name: col(/name|employee|staff|person/, /id|no\b|code/), dt: col(/date.?time|time.?stamp|punch|check.?time|log.?time|record/),
+      date: col(/date|day/, /time/), tin: col(/in\b|in time|arrival|clock.?in|check.?in|first|^time$/, /out/), st: col(/status|attend|remark/)};
+    if(c.name < 0 && c.id < 0){ toast("Could not find a name or user ID column — the first row must have headings"); return; }
+    if(c.dt < 0 && c.date < 0){ toast("Could not find a date column"); return; }
+    const map = new Map();
+    rows.slice(hi + 1).forEach(r=>{
+      const g = i => i >= 0 ? String(r[i]??"").trim() : "";
+      const key = g(c.id) || g(c.name); if(!key) return;
+      const raw = g(c.dt) || g(c.date), date = cleanDate(raw.split(/[ T]+/)[0]) || cleanDate(raw); if(!date) return;
+      const t = saiTime(g(c.tin)) || saiTime(c.dt >= 0 ? g(c.dt).split(/[ T]+/).slice(1).join(" ") : "") || (c.tin < 0 && c.dt < 0 ? saiTime(g(c.date)) : "");
+      const st = saiStatus(g(c.st));
+      const k = key.toLowerCase(), o = map.get(k) || {key, name:g(c.name), days:{}};
+      const d = o.days[date] || (o.days[date] = {t:"", s:""});
+      if(t && (!d.t || t < d.t)) d.t = t;
+      if(st && (!d.s || d.s === "P")) d.s = st;
+      map.set(k, o);
+    });
+    const E = DB.employees;
+    SAI = {people:[...map.values()].map(p=>{
+      const n = midNorm(p.key), e = E.find(x=>x.machineId && midNorm(x.machineId) === n)
+        || (p.name && E.find(x=>keyify(x.name) === keyify(p.name))) || E.find(x=>keyify(x.name) === keyify(p.key))
+        || (p.name && E.map(x=>({x, sc:nameScore(p.name, x.name)})).filter(z=>z.sc >= .85).sort((a,b)=>b.sc - a.sc).map(z=>z.x)[0]);
+      return {...p, eid: e ? e.id : ""}; })};
+    saiDraw();
+  };
+  rd.readAsText(f);
+}
+function saiPlan(){
+  const sel = $("sai_sh").value, ow = $("sai_ow").checked, out = [];
+  SAI.people.forEach(p=>{ const e = empById(p.eid); if(!e) return;
+    Object.entries(p.days).forEach(([date, d])=>{
+      const sh = sel || (e.shift === "Evening" ? "Evening" : e.shift === "Both" ? (d.t && d.t >= "13:00" ? "Evening" : "Morning") : "Morning");
+      const had = empRecs((DB.empAttendance||{})[date], e.id, sh).length > 0;
+      out.push({e, date, sh, t:d.t, s:d.s || (d.t ? "P" : "A"), skip: had && !ow}); }); });
+  return out;
+}
+function saiDraw(){
+  if(!SAI) return;
+  const P = SAI.people, plan = saiPlan(), dates = [...new Set(plan.map(x=>x.date))].sort();
+  const opts = id => `<option value="">— skip —</option>` + [...DB.employees].sort((a,b)=>a.name.localeCompare(b.name)).map(e=>`<option value="${e.id}" ${e.id===id?"selected":""}>${esc(e.name)}</option>`).join("");
+  $("sai_prev").innerHTML = `<div class="note" style="margin-top:8px">${P.length} people in the file · <b>${P.filter(p=>p.eid).length}</b> matched to employees · ${plan.filter(x=>!x.skip).length} day-entries to import${plan.filter(x=>x.skip).length ? ` · ${plan.filter(x=>x.skip).length} already marked (skipped)` : ""}${dates.length ? ` · ${fmtD(dates[0])} – ${fmtD(dates[dates.length-1])}` : ""}</div>
+    ${P.some(p=>!p.eid) ? `<div class="sub" style="margin:4px 0">Pick the employee for each unmatched ID — it is remembered as their machine ID for next time.</div>` : ""}
+    <div class="tbl-wrap" style="max-height:330px;overflow:auto"><table><thead><tr><th>In the file</th><th style="text-align:right">Days</th><th>Employee</th></tr></thead><tbody>
+      ${P.map((p,i)=>`<tr><td><b>${esc(p.key)}</b>${p.name && p.name !== p.key ? ` <span class="sub">${esc(p.name)}</span>` : ""}</td><td style="text-align:right">${Object.keys(p.days).length}</td>
+        <td><select onchange="SAI.people[${i}].eid=this.value;saiDraw()" style="${p.eid ? "" : "border-color:var(--danger)"}">${opts(p.eid)}</select></td></tr>`).join("")}</tbody></table></div>`;
+  $("sai_go").disabled = !plan.some(x=>!x.skip);
+}
+function saiImport(){
+  const plan = saiPlan().filter(x=>!x.skip); if(!plan.length) return;
+  let n = 0, late = 0, ids = 0;
+  plan.forEach(x=>{
+    DB.empAttendance[x.date] = DB.empAttendance[x.date] || {};
+    const day = DB.empAttendance[x.date], old = day[x.e.id], rec = old && !old.s ? {...old} : {};
+    if(old && old.s) rec[x.e.shift === "Evening" ? "Evening" : "Morning"] = {s:old.s, t:old.t};
+    let st = x.s; const lm = (st === "P" || st === "L") && x.t ? lateMinsFor(x.e, x.sh, x.date, x.t) : 0;
+    if(lm > 0){ st = "L"; late++; }
+    rec[x.sh] = {s:st, ...(x.t ? {t:x.t} : {}), ...(lm ? {lm} : {}), src:"import"}; day[x.e.id] = rec; n++;
+  });
+  SAI.people.forEach(p=>{ const e = empById(p.eid); if(e && !e.machineId && (p.key !== e.name)){ e.machineId = p.key; ids++; } });
+  save(); try{ syncSalaries(); }catch(e){} closeModal(); loadEmpAttendance();
+  toast(`✓ Staff attendance imported — ${n} entries${late ? ` (${late} late)` : ""}${ids ? ` · ${ids} machine IDs remembered` : ""}`);
+}
 function saveEmpAttendance(){
   if(!empAttDraft){ toast("Attendance cannot be saved on an off day"); return; }
   const date = $("empAttDate").value, sh = EMP_ATT_SHIFT, m = date.slice(0,7);
@@ -9570,6 +9668,7 @@ function openEmpForm(id){
       <div class="field"><label>Category *</label><select id="m_cat" onchange="toggleAsg()">${["Admin","Teacher","Coordinator","Supportive Staff"].map(c=>`<option ${e.category===c?"selected":""}>${c}</option>`).join("")}</select></div>
       <div class="field"><label>Shift</label><select id="m_shift" onchange="schedShiftSync();if(this.value==='Online')$('m_teach').value='Online'">${[["Morning","Morning"],["Evening","Evening"],["Both","Both (Morning + Evening)"],["Online","Online"]].map(([v,l])=>`<option value="${v}" ${e.shift===v?"selected":""}>${l}</option>`).join("")}</select></div>
       <div class="field"><label>Phone</label><input id="m_phone" value="${esc(e.phone||"")}"></div>
+      <div class="field"><label>Attendance machine ID</label><input id="m_mid" value="${esc(e.machineId||"")}" placeholder="e.g. 5 or User 5"></div>
       <div class="field"><label>Joining Date</label><input type="date" id="m_doj" value="${e.doj||wmDate()}"></div>
       <div class="field" ${IS_ADMIN?'style="display:none"':""}><label>Monthly Salary (Rs)</label><input type="number" id="m_sal" value="${e.salary||""}"></div>
       <div class="field"><label>Teaching</label><select id="m_teach" onchange="if(this.value!=='Online'&&$('m_shift').value==='Online')$('m_shift').value='Evening',schedShiftSync()">${TEACH_MODES.map(([v,l])=>`<option value="${v}" ${teachMode(e)===v?"selected":""}>${l}</option>`).join("")}</select></div>
@@ -9717,7 +9816,7 @@ function saveEmp(id){
   const cat = $("m_cat").value;
   const schedule = readSched($("m_shift").value);
   if(Object.values(schedule).some(sc=>Object.values(sc).some(x=>x.from && x.to && x.to <= x.from))){ toast("A work day's end time must be after its start time"); return; }
-  const data = {schedule, schedAuto: $("schedAuto") ? $("schedAuto").checked : true, name, category:cat, shift:$("m_shift").value, phone:$("m_phone").value.trim(), doj:$("m_doj").value||"", salary:$("m_sal").value||0, address:$("m_addr").value.trim(), photo:photoTemp, assignments: cat==="Teacher"? asgDraft : [], teach: $("m_teach").value, online: $("m_teach").value !== "Onsite"};
+  const data = {schedule, schedAuto: $("schedAuto") ? $("schedAuto").checked : true, name, category:cat, shift:$("m_shift").value, phone:$("m_phone").value.trim(), doj:$("m_doj").value||"", salary:$("m_sal").value||0, address:$("m_addr").value.trim(), photo:photoTemp, assignments: cat==="Teacher"? asgDraft : [], teach: $("m_teach").value, online: $("m_teach").value !== "Onsite", machineId: ($("m_mid") ? $("m_mid").value.trim() : "")};
   if(id) Object.assign(empById(id), data);
   else { data.id=uid(); DB.employees.push(data); }
   save(); syncSalaries(); closeModal(); renderEmployees(); toast("Employee saved");
