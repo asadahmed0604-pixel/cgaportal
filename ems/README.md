@@ -552,6 +552,24 @@ save, the other shift's records are kept exactly as they are on the server.
 - Data: `DB.skillGroups` = [{id, code, name, tid, skills, studentIds}], `DB.skillDev` entries keyed
   "<studentId>|<YYYY-MM>|<groupId>".
 
+## Skill development on report cards — blank box for now, system progress after the PTM (v117)
+
+- **🌱 Skill Development page (Executive / Admin) → "On report cards & parents' app":**
+  - **Blank box — fill by hand (for now)** (default): the back of every Morning report card shows an empty
+    **Skill Development Progress** box (lines, Teacher / Signature / Date, and the student's group and teacher if known),
+    just above the Coordinator's remarks. The parents' app shows no skill ratings.
+  - **Progress from the system:** report cards print each group's ratings grid (as in v116) and the parents' app
+    (My Report → 🌱 Skill development) shows the last three months of ratings with the teacher's comment.
+- Groups, teachers and the teachers' monthly ratings keep working the same way in both modes — switch to "from the
+  system" after the PTM when the classes have progress to show.
+
+## Skill development in the parents' app now (v118)
+
+- The parents' app (My Report → 🌱 Skill development) now always shows the skill teachers' ratings for Morning
+  students (last three months, with the teacher's comment) — it no longer waits for the report card switch.
+- The "blank box / from the system" choice on the Skill Development page now only decides what the **report card**
+  prints (blank handwritten box for now).
+
 ## Install as an app (v41)
 
 Staff (`/`), Teachers (`/teacher`) and Parents (`/parent`) — all three links can be installed as an app on a phone / computer
