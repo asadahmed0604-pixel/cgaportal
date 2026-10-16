@@ -484,6 +484,16 @@ save, the other shift's records are kept exactly as they are on the server.
 - Printing is set up so each card stays exactly two pages (up to about 14 tests a month): with many tests the front page
   is printed more compactly, and above 10 tests the front shows the teacher's short subject comments.
 
+## Handwritten coordinator remarks (v112)
+
+- Bulk report cards and the single Report Card screen have **"Coordinator's remarks on print"**:
+  - **Print typed remarks** (default) — typed remarks are printed (with two extra lines for a handwritten addition);
+    students without a typed remark get empty lines.
+  - **Leave blank — handwrite after printing** — every card prints the Coordinator's box with empty lines, coordinator
+    name / signature / date left blank, so the coordinator writes by hand after printing. Typed remarks stay saved and
+    can be printed later by switching back.
+- The choice is remembered in that browser. WhatsApp PDFs always use the typed remark.
+
 ## Install as an app (v41)
 
 Staff (`/`), Teachers (`/teacher`) and Parents (`/parent`) — all three links can be installed as an app on a phone / computer

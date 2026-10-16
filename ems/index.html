@@ -1442,7 +1442,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v111 · 16 Oct 2026";
+const BUILD = "v112 · 16 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -8524,6 +8524,7 @@ function openReportCard(preId){
       <div class="field" style="flex:1"><label>Student</label><select id="rc_stu" onchange="renderReportCard()">${stus.map(s=>`<option value="${s.id}" ${s.id===preId?"selected":""}>${esc(s.name)} (${esc(s.regNo)}) — ${esc(s.course)}</option>`).join("")}</select></div>
       <div class="field"><label>From Month</label><input type="month" id="rc_from" onchange="renderReportCard()"></div>
       <div class="field"><label>To Month</label><input type="month" id="rc_to" value="${thisMonth()}" onchange="renderReportCard()"></div>
+      ${rcHandPick()}
     </div>
     <div class="sub" style="margin-bottom:10px">Leave From/To blank to include all exams · For a one-month report select the same month in both</div>
     <div id="rcBody"></div>
@@ -8549,6 +8550,11 @@ function reportCardData(){
   return {s, ex, obt:x.obt, tot:x.tot, pct:x.pct, sat:x.sat, abs:x.abs, att, from, to, remarks, coord: coordRemark(s, from, to)};
 }
 /* v111: Coordinator's remarks — har bache ka har mahine ka aik (st.coordRemarks["YYYY-MM"] = {note, by, d}) */
+/* v112: print ke baad hath se likhna ho to — coordinator box khaali lines ke saath (typed remarks print nahi hote); is browser mein yaad rehta hai */
+const rcHand = () => { try{ return localStorage.getItem("rcCoordHand") === "1"; }catch(e){ return false; } };
+function setRcHand(v){ try{ localStorage.setItem("rcCoordHand", v ? "1" : "0"); }catch(e){} document.querySelectorAll(".rc-hand").forEach(x=>x.value = v ? "1" : "0"); if($("rcBody")) renderReportCard(); }
+const rcHandPick = () => `<div class="field"><label>Coordinator's remarks on print</label><select class="rc-hand" onchange="setRcHand(this.value==='1')">
+  <option value="0" ${rcHand() ? "" : "selected"}>Print typed remarks (blank lines if none)</option><option value="1" ${rcHand() ? "selected" : ""}>Leave blank — handwrite after printing</option></select></div>`;
 const coordRemark = (s, from, to) => from && from === to && s && s.coordRemarks ? s.coordRemarks[from] || null : null;
 function rcRows(ex){
   return ex.map((e,i)=>{ return `<tr>
@@ -8630,7 +8636,7 @@ function rcBackHTML(d, forPrint, range){
     <div class="rc-sec">Parent / Guardian comments</div>
     <div class="rc-box">${lines(3)}</div>
     <div class="rc-sec">Coordinator's remarks</div>
-    <div class="rc-box coord">${d.coord && d.coord.note ? `<div style="white-space:pre-wrap">${esc(d.coord.note)}</div>${lines(1)}` : lines(6)}
+    <div class="rc-box coord">${d.coord && d.coord.note ? `<div style="white-space:pre-wrap">${esc(d.coord.note)}</div>${lines(2)}` : lines(6)}
       <div class="rc-by"><span>Coordinator: <b>${d.coord && d.coord.by ? esc(d.coord.by) : "______________________"}</b></span><span>Signature: ______________________</span><span>Date: ${d.coord && d.coord.d ? fmtD(d.coord.d) : "______________"}</span></div></div>
     <div class="rc-sign"><span>Class Teacher</span><span>Coordinator</span><span>Principal / Admin</span><span>Parent / Guardian</span></div>
     <div class="rc-foot"><span>Issued: ${fmtD(todayStr())}</span><span>Page 2 of 2 · ${esc(A.name||"Cambridge Grads Academy")}</span></div>
@@ -8719,6 +8725,7 @@ function openBulkReportCards(keep){
       <div class="field"><label>Month</label><input type="month" id="brc_month" value="${wm()}" onchange="bulkRcPreview()"></div>
       <div class="field"><label>Shift</label><select id="brc_shift" onchange="bulkRcPreview()"><option value="">Dono</option><option>Morning</option><option>Evening</option></select></div>
       <div class="field" id="brc_classWrap"></div>
+      ${rcHandPick()}
     </div>
     <label class="chk"><input type="checkbox" id="brc_onlyex" checked onchange="bulkRcPreview()"> Only students with tests this month</label>
     <div id="brc_prev"></div>
@@ -8741,7 +8748,7 @@ function openCoordRemarks(){
   window._crCards = cards;
   openModal(`
     <h3>✍ Coordinator's remarks — ${fmtM(m)}${window._brcClass ? " · " + esc(window._brcClass) : ""}</h3>
-    <p class="sub" style="margin-bottom:8px">Printed at the end of page 2 of each report card. Leave blank to get empty lines for a handwritten remark.
+    <p class="sub" style="margin-bottom:8px">Printed at the end of page 2 of each report card. Leave blank to get empty lines for a handwritten remark — or choose <b>"Leave blank — handwrite after printing"</b> on the Bulk report cards screen to print every card with empty lines, even where a remark is typed here.
       <b>✨ Draft</b> writes a starting remark from the student's marks, strongest / weakest subject, attendance and position — edit it as you like.</p>
     <div class="toolbar"><button class="btn-black btn-sm" onclick="coordDraftAll()">✨ Draft all empty ones</button></div>
     <div class="tbl-wrap"><table class="ptm-tbl"><thead><tr><th>Student</th><th>Result</th><th>Coordinator's remark</th></tr></thead><tbody>
@@ -8787,7 +8794,7 @@ function saveCoordRemarks(){
 async function bulkRcPrint(){
   await logoJpeg();
   const cards = bulkRcList(); if(!cards.length) return;
-  $("challanPrint").innerHTML = cards.map((d,i)=>`<div style="${i < cards.length-1 ? "page-break-after:always;break-after:page;" : ""}padding:6px 2px">${transcriptHTML(d, true)}</div>`).join("");
+  $("challanPrint").innerHTML = cards.map((d,i)=>`<div style="${i < cards.length-1 ? "page-break-after:always;break-after:page;" : ""}padding:6px 2px">${transcriptHTML(rcForPrint(d), true)}</div>`).join("");
   printWhenReady();
 }
 /* v109: print tab karo jab logo / tasveerein load ho chuki hon (warna print mein logo / watermark khali reh jata) */
@@ -8806,8 +8813,9 @@ function bulkRcCSV(){
       d.att.pct, d.att.P, d.att.A, d.att.L, d.att.E, d.coord ? d.coord.note : ""])]);
 }
 
-function renderReportCard(){ $("rcBody").innerHTML = transcriptHTML(reportCardData(), false); }
-async function printReportCard(){ await logoJpeg(); $("challanPrint").innerHTML = transcriptHTML(reportCardData(), true); printWhenReady(); }
+const rcForPrint = d => rcHand() ? {...d, coord:null} : d;   // v112
+function renderReportCard(){ $("rcBody").innerHTML = transcriptHTML(rcForPrint(reportCardData()), false); }
+async function printReportCard(){ await logoJpeg(); $("challanPrint").innerHTML = transcriptHTML(rcForPrint(reportCardData()), true); printWhenReady(); }
 
 /* ================= EMPLOYEES ================= */
 let asgDraft = [];
