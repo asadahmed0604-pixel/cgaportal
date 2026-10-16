@@ -28,7 +28,8 @@ function childrenOf(db, key) {
     s.status !== "Left" && [s.fatherPhone, s.motherPhone, s.phone].some((p) => phoneKeys(p).includes(key)));
 }
 
-const { takesSubj, classPosition, resultsHold } = require("./student-report");     // v97: Morning — na liya hua subject
+const { takesSubj, classPosition, resultsHold } = require("./student-report");
+const { remarkText } = require("./remarks");   // v110: chhote remarks → tafseeli     // v97: Morning — na liya hua subject
 const pad = (n) => String(n).padStart(2, "0");
 const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -128,7 +129,7 @@ function tests(db, s) {
   const avg = sat.length ? Math.round(sat.reduce((a, e) => a + pc(e), 0) / sat.length) : null;
   return [
     H(`📝 ${s.name} — Last ${last.length} tests`),
-    LI(last.map((e) => `${fmtD(e.date)} · ${e.exam}${e.subject ? ` (${e.subject})` : ""}: ${e.absent ? "Absent" : `${+e.obtained}/${+e.total} = ${pc(e)}%`}${e.comment ? ` — "${e.comment}"` : ""}`)),
+    LI(last.map((e) => `${fmtD(e.date)} · ${e.exam}${e.subject ? ` (${e.subject})` : ""}: ${e.absent ? "Absent" : `${+e.obtained}/${+e.total} = ${pc(e)}%`}${e.comment ? ` — "${remarkText(e.comment, s.name, e.subject)}"` : ""}`)),
     P(avg === null ? "Absent in these tests." : `Average: ${avg}%${sat.length < last.length ? ` (absent in ${last.length - sat.length} — not counted)` : ""}`),
     ...(() => { const ps = classPosition(db, s);                         // v99: class mein position
       if (!ps) return [];
@@ -207,7 +208,7 @@ function remarks(db, s, key) {
   if (!rm.length && !comments.length && !bk.length && !wl.length) out.push(P("No remarks yet."));
   if (bk.length) out.push(P("⚠ Class bunk:"), LI(bk.map(bunkLine)));
   if (rm.length) out.push(LI(rm.map((r) => `${fmtD(r.d)} · ${r.type || "Remark"}${r.by ? ` (${r.by})` : ""}: ${r.note}`)));
-  if (comments.length) out.push(P("Test comments:"), LI(comments.map((e) => `${fmtD(e.date)} · ${e.exam}${e.subject ? ` (${e.subject})` : ""}: "${e.comment}"`)));
+  if (comments.length) out.push(P("Test comments:"), LI(comments.map((e) => `${fmtD(e.date)} · ${e.exam}${e.subject ? ` (${e.subject})` : ""}: "${remarkText(e.comment, s.name, e.subject)}"`)));
   if (msgs.length) {
     out.push(P("Your messages:"));
     out.push(LI(msgs.map((m) => `${fmtD(m.d)}: "${m.text}" — ${m.reply ? `School's reply (${fmtD(m.repliedOn)}): ${m.reply}` : m.status === "Resolved" ? "resolved ✓" : "awaiting reply"}`)));
