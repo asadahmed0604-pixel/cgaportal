@@ -169,11 +169,19 @@ function codeOk(code) {
 const redactCache = {};
 const keyOf = (x) => String(x || "").toLowerCase().replace(/[^a-z0-9]/g, "");
 /* v102: staff KPIs / to-do — har shakhs ko sirf apne (sid); bina naam wale shared admin login ko kisi ke nahi */
+const { feeCountStats } = require("./fee-stats");
+/* v120: staff ko fee collection ki sirf ginti (challans issued / wasool) — is aur pichle mahine ki, shift-wise */
+function feeStatsFor(d) {
+  const today = pktToday(), cur = today.slice(0, 7), [y, mo] = cur.split("-").map(Number), prev = mo === 1 ? `${y - 1}-12` : `${y}-${String(mo - 1).padStart(2, "0")}`;
+  const sm = new Map((d.students || []).map((st) => [st.id, st.shift]));
+  return { [cur]: feeCountStats(d.fees, (id) => sm.get(id), cur, today), [prev]: feeCountStats(d.fees, (id) => sm.get(id), prev, today) };
+}
 function withStaff(text, sid) {
   if (!text.startsWith("{") || text === "{}") return text;
   const d = dbNow() || {};
-  const k = sid ? (d.staffKpis || []).filter((x) => x && x.sid === sid) : [], t = sid ? (d.staffTasks || []).filter((x) => x && x.sid === sid) : [];
-  return text.slice(0, -1) + `,"staffKpis":${JSON.stringify(k)},"staffTasks":${JSON.stringify(t)}}`;
+  /* v120: apne kaam + jo kaam is ne doosron ko diye (from) */
+  const k = sid ? (d.staffKpis || []).filter((x) => x && x.sid === sid) : [], t = sid ? (d.staffTasks || []).filter((x) => x && (x.sid === sid || x.from === sid)) : [];
+  return text.slice(0, -1) + `,"staffKpis":${JSON.stringify(k)},"staffTasks":${JSON.stringify(t)},"feeStats":${JSON.stringify(feeStatsFor(d))}}`;
 }
 function dataFor(role, tid, sid) {
   if (role === "exec") return state.dataText;
@@ -437,18 +445,28 @@ function keepProtected(data, role, sid) {
   /* v102: staff KPIs sirf Executive badalta hai; to-do list mein staff sirf apne kaam ka status / note badal sakta hai
      aur apne liye naya kaam (own) jor / hata sakta hai — kisi aur ka nahi, aur Executive ke diye kaam mita nahi sakta */
   data.staffKpis = cur.staffKpis || [];
+  delete data.feeStats;                                     // v120: sirf dikhane ke liye (server har dafa banata hai)
   data.stuNotes = cur.stuNotes || [];                       // v106: teachers ke remarks ka faisla sirf Executive
   const curT = Array.isArray(cur.staffTasks) ? cur.staffTasks : [], newT = new Map((Array.isArray(data.staffTasks) ? data.staffTasks : []).filter((t) => t && t.id).map((t) => [t.id, t]));
-  const tasks = [];
+  const tasks = [], meName = sid ? ((staffById(sid) || {}).name || "") : "", cl = (v, n) => String(v || "").slice(0, n);
   curT.forEach((t) => {
-    const n = newT.get(t.id);
-    if (!sid || t.sid !== sid) return tasks.push(t);
-    if (!n) { if (!t.own) tasks.push(t); return; }                       // apna (own) kaam hi hata sakta hai
-    tasks.push({ ...t, status: n.status === "done" ? "done" : "open", doneOn: n.status === "done" ? String(n.doneOn || "").slice(0, 10) : "",
-      staffNote: String(n.staffNote || "").slice(0, 500), ...(t.own ? { title: String(n.title || t.title).slice(0, 200), due: String(n.due || "").slice(0, 10) } : {}) });
+    const n = newT.get(t.id), asg = sid && t.sid === sid, frm = sid && t.from === sid;
+    if (!sid || (!asg && !frm)) return tasks.push(t);
+    if (!n) { if ((asg && t.own) || frm) return; return tasks.push(t); }      // apna (own) ya apna diya hua kaam hi hata sakta hai
+    let x = { ...t };
+    if (asg) x = { ...x, status: n.status === "done" ? "done" : "open", doneOn: n.status === "done" ? cl(n.doneOn, 10) : "", staffNote: cl(n.staffNote, 500) };
+    if (asg && t.own) x = { ...x, title: cl(n.title || t.title, 200), due: cl(n.due, 10) };
+    if (frm) x = { ...x, title: cl(n.title || t.title, 200), due: cl(n.due, 10), note: cl(n.note, 500), priority: n.priority === "High" ? "High" : "", daily: !!n.daily };   // v120: dene wala badal sakta hai
+    tasks.push(x);
   });
-  if (sid) newT.forEach((n, id) => { if (!curT.some((t) => t.id === id) && n.sid === sid) tasks.push({ id, sid, own: true, title: String(n.title || "").slice(0, 200),
-    due: String(n.due || "").slice(0, 10), status: n.status === "done" ? "done" : "open", doneOn: String(n.doneOn || "").slice(0, 10), staffNote: "", created: String(n.created || "").slice(0, 10), by: "self" }); });
+  if (sid) newT.forEach((n, id) => {
+    if (curT.some((t) => t.id === id)) return;
+    if (n.sid === sid) return tasks.push({ id, sid, own: true, title: cl(n.title, 200), due: cl(n.due, 10), status: n.status === "done" ? "done" : "open",
+      doneOn: cl(n.doneOn, 10), staffNote: "", created: cl(n.created, 10), by: "self", daily: !!n.daily });
+    /* v120: coordinator apna kaam kisi aur staff login ko de sakta hai (delegate) */
+    if (n.from === sid && n.sid !== sid && staffById(n.sid)) tasks.push({ id, sid: n.sid, from: sid, fromName: meName, title: cl(n.title, 200), due: cl(n.due, 10),
+      note: cl(n.note, 500), priority: n.priority === "High" ? "High" : "", daily: !!n.daily, status: "open", doneOn: "", staffNote: "", created: cl(n.created, 10), by: meName });
+  });
   data.staffTasks = tasks;
   /* v105: shift wala staff — doosri shift ka attendance / class attendance / classes-taken server wala hi */
   const sc = scopeOf(sid);
