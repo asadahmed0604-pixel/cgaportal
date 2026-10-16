@@ -349,7 +349,7 @@ left out of the totals, percentage, average and class position ("absent in 1"); 
 ## Grading scale (v96)
 
 All grades (report cards, class result, exam CSV, student profile, student portal, AI assignment check) use the Cambridge
-scale: **A\*** 90%+ · **A** 75–89 · **B** 66–74 · **C** 56–65 · **D** 50–55 · **E** 40–49 · **U** below 40 (percent rounded).
+scale: **A\*** 90%+ · **A** 80–89 · **B** 66–79 · **C** 56–65 · **D** 50–55 · **E** 40–49 · **U** below 40 (percent rounded; v108: A 80–89, B 66–79).
 A\*–E is **Pass**, U is **Fail** (pass mark 40%). The scale is printed at the bottom of every report card.
 
 ## Morning — subjects a student doesn't take are hidden (v97)
@@ -440,6 +440,15 @@ save, the other shift's records are kept exactly as they are on the server.
   shows in the parents' app. Warning letters lower the behaviour part of the class position (1st −20, 2nd −30, Final −40).
 - **Parents' app → My Report → 🧭 Behaviour & discipline** shows warning letters and approved remarks; the chat's
   "Teacher Remarks" includes warning letters too.
+
+## Report card — CGA logo watermark & new layout (v107)
+
+- Every report card (single print, bulk print, PDF and the WhatsApp PDF) now carries the **CGA logo as a faint watermark**
+  in the middle of the page, behind the marks (taken from Settings → logo).
+- Cleaner layout: a teal band under the header, a highlighted Percentage · Grade box (with PASS / FAIL), an
+  "Academic performance" section heading, rounded marks table, **coloured grade chips** (A*/A green, B/C teal, D/E amber,
+  U red, Absent grey), the grading key shown as chips, the class-position note in its own box, signature lines for
+  Class Teacher, Principal / Admin and Parent / Guardian, and a footer with the issue date.
 
 ## Install as an app (v41)
 

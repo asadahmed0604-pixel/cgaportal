@@ -257,31 +257,46 @@ label.chk input{width:auto}
 .cx-cut{text-align:center;color:#888;font-size:.66rem;margin:12px auto;border-top:1.5px dashed #aaa;padding-top:3px;max-width:720px}
 .cx-ok{color:#0F7B3D}.cx-due{color:#C0392B}
 /* v36: report card */
-.rc{color:#12313D;font-size:.82rem;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.rc{color:#12313D;font-size:.82rem;position:relative;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 .rc *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
-.rc-head{display:flex;justify-content:space-between;align-items:center;background:#174B60;color:#fff;border-radius:8px;padding:12px 16px;gap:12px}
+.rc > :not(.rc-wm){position:relative;z-index:1}
+/* v107: CGA logo watermark — beech mein, halka sa, content ke peeche */
+.rc-wm{position:absolute;inset:0;overflow:hidden;display:flex;align-items:center;justify-content:center;z-index:0;pointer-events:none}
+.rc-wm img{width:62%;max-width:430px;height:auto;opacity:.075;filter:grayscale(.15)}
+.rc-head{display:flex;justify-content:space-between;align-items:center;background:linear-gradient(120deg,#174B60 0%,#1d5b73 100%);color:#fff;border-radius:10px;padding:12px 16px;gap:12px;border-bottom:4px solid #159670}
 .rc-head .cx-logo img{height:58px}
-.rc-title{background:#159670;color:#fff;font-weight:800;border-radius:5px;padding:5px 14px;font-size:.8rem;letter-spacing:.06em;text-align:center}
+.rc-title{background:#159670;color:#fff;font-weight:800;border-radius:5px;padding:5px 14px;font-size:.8rem;letter-spacing:.12em;text-align:center}
 .rc-stu{display:flex;gap:14px;align-items:stretch;margin:12px 0}
 .rc-stu img{width:84px;height:96px;object-fit:cover;border-radius:8px;border:2px solid #174B60}
-.rc-grid{flex:1;display:grid;grid-template-columns:repeat(3,1fr);background:#EEF5F7;border-radius:8px;padding:4px 0}
+.rc-grid{flex:1;display:grid;grid-template-columns:repeat(3,1fr);background:rgba(238,245,247,.88);border:1px solid #DCE6EA;border-radius:10px;padding:4px 0}
 .rc-grid div{padding:5px 12px}
 .rc-grid small{display:block;font-size:.58rem;color:#6B7C85;font-weight:700;text-transform:uppercase;letter-spacing:.06em}
 .rc-grid b{font-size:.86rem}
-.rc-tbl{width:100%;border-collapse:collapse}
-.rc-tbl th{background:#174B60;color:#fff;font-size:.66rem;text-transform:uppercase;letter-spacing:.05em;padding:6px 8px;text-align:center}
+.rc-sec{display:flex;align-items:center;gap:8px;font-size:.66rem;font-weight:800;color:#174B60;text-transform:uppercase;letter-spacing:.1em;margin:14px 0 6px}
+.rc-sec:after{content:"";flex:1;height:1px;background:#DCE6EA}
+.rc-tbl{width:100%;border-collapse:separate;border-spacing:0;border:1px solid #DCE6EA;border-radius:10px;overflow:hidden}
+.rc-tbl th{background:#174B60;color:#fff;font-size:.66rem;text-transform:uppercase;letter-spacing:.05em;padding:7px 8px;text-align:center}
 .rc-tbl th:nth-child(3){text-align:left}
-.rc-tbl td{border-bottom:1px solid #E1EAEE;padding:6px 8px;text-align:center}
+.rc-tbl td{border-bottom:1px solid #E1EAEE;padding:6px 8px;text-align:center;background:rgba(255,255,255,.55)}
+.rc-tbl tbody tr:last-child td{border-bottom:0}
 .rc-tbl tbody td:nth-child(3){text-align:left}
-.rc-tbl tbody tr:nth-child(even) td{background:#F6FAFB}
-.rc-tbl tfoot td{background:#DCEEEA;font-weight:800}
+.rc-tbl tbody tr:nth-child(even) td{background:rgba(238,245,247,.7)}
+.rc-tbl tfoot td{background:#DCEEEA;font-weight:800;border-top:2px solid #159670;border-bottom:0}
+.rc-g{display:inline-block;min-width:30px;padding:2px 7px;border-radius:999px;font-weight:800;font-size:.72rem;line-height:1.3}
 .rc-sum{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:12px 0}
-.rc-sum div{border:1px solid #DCE6EA;border-radius:8px;padding:8px 10px;text-align:center}
+.rc-sum div{border:1px solid #DCE6EA;border-top:3px solid #159670;border-radius:10px;padding:8px 10px;text-align:center;background:rgba(255,255,255,.75)}
+.rc-sum div.hl{background:#174B60;border-color:#174B60;border-top-color:#159670;color:#fff}
+.rc-sum div.hl small,.rc-sum div.hl span{color:#CFE3EA !important}
 .rc-sum small{display:block;font-size:.58rem;color:#6B7C85;font-weight:700;text-transform:uppercase;letter-spacing:.06em}
 .rc-sum b{font-size:1.15rem}
-.rc-rem{border-left:4px solid #159670;background:#F2F8F6;padding:8px 12px;border-radius:0 8px 8px 0;margin-top:10px;font-size:.78rem}
+.rc-rem{border-left:4px solid #159670;background:rgba(242,248,246,.9);padding:8px 12px;border-radius:0 8px 8px 0;margin-top:10px;font-size:.78rem}
+.rc-pos{border:1px dashed #9FC3CF;border-radius:8px;padding:7px 11px;margin-top:10px;font-size:.7rem;color:#3b5560;background:rgba(255,255,255,.7)}
+.rc-key{display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin-top:8px;font-size:.62rem;color:#6B7C85}
+.rc-key .rc-g{font-size:.6rem;min-width:0;padding:1px 6px}
 .rc-sign{display:flex;justify-content:space-between;margin-top:40px;font-size:.74rem;color:#555;gap:10px}
 .rc-sign span{border-top:1px solid #999;padding-top:4px;min-width:150px;text-align:center}
+.rc-foot{margin-top:12px;padding-top:6px;border-top:2px solid #159670;display:flex;justify-content:space-between;gap:8px;font-size:.6rem;color:#6B7C85}
+@media screen and (max-width:640px){.rc{overflow-x:auto}.rc-tbl th,.rc-tbl td{padding:5px 4px;font-size:.7rem}.rc-grid,.rc-sum{grid-template-columns:repeat(2,1fr)}.rc-stu img{width:64px;height:76px}.rc-sign span{min-width:0;flex:1}}
 @media print{
   body > *:not(#challanPrint){display:none !important}
   #challanPrint{display:block;position:static;width:100%}
@@ -1412,7 +1427,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v106 · 15 Oct 2026";
+const BUILD = "v108 · 16 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -3311,15 +3326,20 @@ async function reportCardPDF(d){
   const doc = new PDFDoc(), lj = await logoJpeg(), logo = lj ? {name:doc.addJpeg(lj), w:lj.w, h:lj.h} : null;
   const x0 = 30, W = PDF_W - 60, s = d.s;
   doc.addPage();
+  if(logo){ const ww = 360, wh = ww*lj.h/lj.w, wy = Math.max(170, (PDF_H - wh)/2 + 10);   // v107: CGA logo watermark
+    doc.image(logo.name, (PDF_W - ww)/2, wy, ww, Math.min(wh, PDF_H - wy - 80), {alpha:.07}); }
   pdfHeader(doc, logo, x0, 24, W, 70);
+  doc.rect(x0, 94, W, 3, {fill:PC.teal});
   doc.rect(x0 + W - 134, 40, 120, 20, {fill:PC.teal});
   doc.text("REPORT CARD", x0 + W - 74, 54, {size:10.5, bold:true, color:"#FFFFFF", align:"center"});
   doc.text(d.from && d.from === d.to ? fmtM(d.from) : "", x0 + W - 74, 76, {size:8, bold:true, color:PC.pale, align:"center"});
   let y = 104, cw = W/3;
-  doc.rect(x0, y, W, 56, {fill:PC.soft});
+  doc.rect(x0, y, W, 56, {fill:PC.soft, alpha:.85}); doc.rect(x0, y, W, 56, {stroke:"#DCE6EA", lw:.6});
   [["STUDENT", s.name], ["REG NO", s.regNo || "-"], ["CLASS · SHIFT", `${classLabelOf(s)} · ${s.shift}`], ["FATHER NAME", s.fatherName || "-"], ["ATTENDANCE", `${d.att.pct}%  (P ${d.att.P} · A ${d.att.A} · L ${d.att.L})`], ["RESULT", d.pct !== null ? `${d.pct}% · ${gradeOf(d.pct)}${d.rank ? ` · Position ${d.rank}/${d.rankOf}` : ""}` : d.ex.length ? "Absent" : "-"]]
     .forEach(([k,v],i)=>{ const cx = x0 + (i%3)*cw + 10, ry = y + 6 + Math.floor(i/3)*25; doc.text(k, cx, ry + 8, {size:6.5, bold:true, color:PC.muted}); doc.text(v, cx, ry + 20, {size:9.5, bold:true, color:PC.ink, maxW:cw - 16}); });
-  y += 70;
+  y += 68;
+  doc.text("ACADEMIC PERFORMANCE", x0, y + 4, {size:7.5, bold:true, color:PC.navy}); doc.line(x0 + 98, y + 1.5, x0 + W, y + 1.5, {color:"#DCE6EA", lw:.6});
+  y += 12;
   const cols = [["#",22],["Date",62],["Subject / Test",W-22-62-48-56-40-40-50],["Total",48],["Obtained",56],["%",40],["Grade",40],["Result",50]];
   doc.rect(x0, y, W, 18, {fill:PC.navy});
   let cx = x0; cols.forEach(([h,w])=>{ doc.text(h, cx + 5, y + 12, {size:7.5, bold:true, color:"#FFFFFF"}); cx += w; });
@@ -3327,20 +3347,26 @@ async function reportCardPDF(d){
   const rows = d.ex.slice(0, 30);
   rows.forEach((e,i)=>{
     const h = e.comment ? 26 : 18;
-    if(i % 2) doc.rect(x0, y, W, h, {fill:"#F6FAFB"});
+    if(i % 2) doc.rect(x0, y, W, h, {fill:PC.soft, alpha:.7});
     const vals = [String(i+1), fmtD(e.date), e.subject || e.exam, String(e.total), String(eObt(e)), ePctT(e), eGrade(e), eResult(e)];
-    cx = x0; vals.forEach((v,j)=>{ doc.text(v, cx + 5, y + 12, {size:8.5, bold:j===2||j===4, color: j===7 ? (e.absent ? PC.muted : eP(e)>=PASS_PCT ? PC.green : PC.red) : PC.ink, maxW:cols[j][1] - 8}); cx += cols[j][1]; });
+    cx = x0; vals.forEach((v,j)=>{
+      if(j === 6){ const [gc, gb] = GRADE_TONE[v] || [PC.muted, "#EEF1F3"]; doc.rect(cx + 3, y + 3.5, cols[j][1] - 8, 11.5, {fill:gb}); doc.text(v, cx + 3 + (cols[j][1] - 8)/2, y + 12, {size:8, bold:true, color:gc, align:"center", maxW:cols[j][1] - 10}); }
+      else doc.text(v, cx + 5, y + 12, {size:8.5, bold:j===2||j===4, color: j===7 ? (e.absent ? PC.muted : eP(e)>=PASS_PCT ? PC.green : PC.red) : PC.ink, maxW:cols[j][1] - 8});
+      cx += cols[j][1]; });
     if(e.comment) doc.text(`"${e.comment}"`, x0 + 22 + 62 + 5, y + 22, {size:7, color:PC.muted, maxW:cols[2][1] - 8});
     y += h; doc.line(x0, y, x0 + W, y, {color:PC.line, lw:.5});
   });
   if(!rows.length){ doc.text("No tests recorded in this period", x0 + W/2, y + 16, {size:9, color:PC.muted, align:"center"}); y += 26; }
-  if(rows.length){ doc.rect(x0, y, W, 20, {fill:PC.head}); doc.text(d.pct === null ? `Overall: absent in all ${d.ex.length} tests` : `Overall (${d.sat} tests${d.abs ? `, absent in ${d.abs}` : ""}): ${d.obt} / ${d.tot} = ${d.pct}%  ·  Grade ${gradeOf(d.pct)}${d.classAvg ? `  ·  Class avg ${d.classAvg}%` : ""}`, x0 + 10, y + 13.5, {size:9, bold:true, color:PC.ink, maxW:W - 20}); y += 30; }
+  if(rows.length){ doc.rect(x0, y, W, 20, {fill:PC.head, alpha:.9}); doc.line(x0, y, x0 + W, y, {color:PC.teal, lw:1.4}); doc.text(d.pct === null ? `Overall: absent in all ${d.ex.length} tests` : `Overall (${d.sat} tests${d.abs ? `, absent in ${d.abs}` : ""}): ${d.obt} / ${d.tot} = ${d.pct}%  ·  Grade ${gradeOf(d.pct)}${d.classAvg ? `  ·  Class avg ${d.classAvg}%` : ""}`, x0 + 10, y + 13.5, {size:9, bold:true, color:PC.ink, maxW:W - 20}); y += 30; }
   if(d.rank && d.pos){ doc.text(`Class position ${d.rank} / ${d.rankOf}: ${posText(d.pos)}`.replace(/→/g, "=").replace(/–/g, "-"), x0, y - 4, {size:7.5, bold:true, color:PC.ink, maxW:W}); y += 10;
     doc.text(POS_LABEL, x0, y - 4, {size:7, color:PC.muted, maxW:W}); y += 10; }
   doc.text(GRADE_KEY.replace(/–/g, "-"), x0, y - 4, {size:7, color:PC.muted, maxW:W}); y += 8;
   if(d.remarks && d.remarks.length){ doc.text("Teacher remarks: " + d.remarks.map(r=>r.note).join(" · "), x0, y + 6, {size:8.5, color:PC.ink, maxW:W}); }
-  const fy = PDF_H - 50;
-  [["Issued: " + fmtD(todayStr()), x0], ["Class Teacher", x0 + W/2 - 60], ["Principal / Admin", x0 + W - 120]].forEach(([t, x])=>{ doc.line(x, fy, x + 120, fy, {color:"#999999", lw:.6}); doc.text(t, x + 60, fy + 12, {size:8, color:PC.muted, align:"center"}); });
+  const fy = PDF_H - 62;
+  [["Class Teacher", x0], ["Principal / Admin", x0 + W/2 - 60], ["Parent / Guardian", x0 + W - 120]].forEach(([t, x])=>{ doc.line(x, fy, x + 120, fy, {color:"#999999", lw:.6}); doc.text(t, x + 60, fy + 12, {size:8, color:PC.muted, align:"center"}); });
+  doc.rect(x0, PDF_H - 34, W, 1.6, {fill:PC.teal});
+  doc.text("Issued: " + fmtD(todayStr()), x0, PDF_H - 22, {size:7, color:PC.muted});
+  doc.text(`${DB.settings.name || "Cambridge Grads Academy"} - computer-generated report card`, x0 + W, PDF_H - 22, {size:7, color:PC.muted, align:"right"});
   return doc.output();
 }
 
@@ -5359,10 +5385,12 @@ function pdfEsc(t){
 const pdfRGB = hex => { const n = parseInt(String(hex).slice(1), 16); return [n>>16&255, n>>8&255, n&255].map(v=>(v/255).toFixed(3)).join(" "); };
 const pf = n => (+n).toFixed(2);
 class PDFDoc{
-  constructor(){ this.pages = []; this.imgs = []; }
+  constructor(){ this.pages = []; this.imgs = []; this.gs = []; }
   addPage(){ this.cur = []; this.pages.push(this.cur); return this; }
+  /* v107: transparency (ExtGState /ca) — watermark aur us ke upar halki fills ke liye */
+  alpha(a){ a = Math.max(0, Math.min(1, +a)); let i = this.gs.indexOf(a); if(i < 0){ this.gs.push(a); i = this.gs.length - 1; } return `/GA${i+1} gs `; }
   rect(x, y, w, h, o = {}){
-    let q = "q ";
+    let q = "q " + (o.alpha !== undefined ? this.alpha(o.alpha) : "");
     if(o.fill) q += pdfRGB(o.fill) + " rg ";
     if(o.stroke) q += pdfRGB(o.stroke) + " RG " + (o.lw || .8) + " w ";
     if(o.dash) q += "[3 2] 0 d ";
@@ -5381,7 +5409,7 @@ class PDFDoc{
     return w;
   }
   addJpeg(img){ const name = "Im" + (this.imgs.length + 1); this.imgs.push({name, ...img}); return name; }
-  image(name, x, y, w, h){ this.cur.push(`q ${pf(w)} 0 0 ${pf(h)} ${pf(x)} ${pf(PDF_H-y-h)} cm /${name} Do Q`); }
+  image(name, x, y, w, h, o = {}){ this.cur.push(`q ${o.alpha !== undefined ? this.alpha(o.alpha) : ""}${pf(w)} 0 0 ${pf(h)} ${pf(x)} ${pf(PDF_H-y-h)} cm /${name} Do Q`); }
   output(){
     const chunks = [], offs = []; let len = 0;
     const push = b => { if(typeof b === "string") b = latin1(b); chunks.push(b); len += b.length; };
@@ -5397,7 +5425,8 @@ class PDFDoc{
       push(`<< /Type /XObject /Subtype /Image /Width ${im.w} /Height ${im.h} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${im.bytes.length} >>\nstream\n`);
       push(im.bytes); push("\nendstream");
     }));
-    const xo = I ? `/XObject << ${this.imgs.map((im, i)=>`/${im.name} ${5 + i} 0 R`).join(" ")} >>` : "";
+    const xo = (I ? `/XObject << ${this.imgs.map((im, i)=>`/${im.name} ${5 + i} 0 R`).join(" ")} >>` : "") +
+      (this.gs.length ? ` /ExtGState << ${this.gs.map((a, i)=>`/GA${i+1} << /ca ${a} /CA ${a} >>`).join(" ")} >>` : "");
     this.pages.forEach((ops, i)=>{
       const content = ops.join("\n");
       obj(pageNo(i), ()=>push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PDF_W} ${PDF_H}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> ${xo} >> /Contents ${pageNo(i) + 1} 0 R >>`));
@@ -8284,10 +8313,10 @@ function caOpen(id){
 }
 
 /* ---------- Grades ---------- */
-/* v96: Cambridge grading — 90+ A*, 75–89 A, 66–74 B, 56–65 C, 50–55 D, 40–49 E, 40 se kam U. A*–E pass, U fail. */
+/* v96: Cambridge grading — 90+ A*, 80–89 A, 66–79 B, 56–65 C, 50–55 D, 40–49 E, 40 se kam U. A*–E pass, U fail. */
 const PASS_PCT = 40;
-const GRADE_KEY = "Grading: A* 90%+ · A 75–89 · B 66–74 · C 56–65 · D 50–55 · E 40–49 · U below 40";
-function gradeOf(p){ p = Math.round(+p || 0); return p>=90?"A*":p>=75?"A":p>=66?"B":p>=56?"C":p>=50?"D":p>=40?"E":"U"; }
+const GRADE_KEY = "Grading: A* 90%+ · A 80–89 · B 66–79 · C 56–65 · D 50–55 · E 40–49 · U below 40";
+function gradeOf(p){ p = Math.round(+p || 0); return p>=90?"A*":p>=80?"A":p>=66?"B":p>=56?"C":p>=50?"D":p>=40?"E":"U"; }
 /* v95: absent bacha — grade / % / Pass-Fail nahi, sirf "Absent"; total aur percentage mein woh paper gina hi nahi jata */
 const eP = e => e.absent ? null : (+e.total ? Math.round((+e.obtained||0)*100/+e.total) : 0);
 const eObt = e => e.absent ? "Absent" : e.obtained;
@@ -8421,6 +8450,9 @@ function rcRows(ex){
     <td style="border:1px solid #999;padding:5px 8px;text-align:center;color:${eColor(e)};font-weight:700">${eResult(e)}</td>
   </tr>`; }).join("");
 }
+/* v107: grade ka rang — A-star aur A hara, B/C teal, D/E amber, U laal, Absent grey */
+const GRADE_TONE = {"A*":["#0F7B3D","#E3F4EA"], A:["#0F7B3D","#E3F4EA"], B:["#127A79","#E0F2F1"], C:["#127A79","#E0F2F1"], D:["#A86400","#FFF1D6"], E:["#A86400","#FFF1D6"], U:["#C0392B","#FBE3E0"]};
+const gradeChip = g => { const [c, b] = GRADE_TONE[g] || ["#6B7C85","#EEF1F3"]; return `<span class="rc-g" style="color:${c};background:${b}">${esc(g)}</span>`; };
 function transcriptHTML(d, forPrint){
   const {s, ex, obt, tot, pct, att} = d;
   const A = DB.settings;
@@ -8428,10 +8460,12 @@ function transcriptHTML(d, forPrint){
   const rows = ex.map((e,i)=>{ return `<tr>
       <td>${i+1}</td><td>${fmtD(e.date)}</td>
       <td><b>${esc(e.subject || e.exam)}</b>${e.subject ? `<br><span style="font-size:.7rem;color:#6B7C85">${esc(e.exam)}</span>` : ""}${e.comment ? `<br><i style="font-size:.7rem;color:#3b5560">"${esc(e.comment)}"</i>` : ""}</td>
-      <td>${e.total}</td><td><b>${eObt(e)}</b></td><td><b>${ePctT(e)}</b></td><td>${eGrade(e)}</td>
+      <td>${e.total}</td><td><b>${eObt(e)}</b></td><td><b>${ePctT(e)}</b></td><td>${gradeChip(eGrade(e))}</td>
       <td style="color:${eColor(e)};font-weight:700">${eResult(e)}</td></tr>`; }).join("");
+  const key = GRADE_KEY.replace(/^Grading:\s*/, "").split(" · ").map(t=>{ const g = t.split(" ")[0]; return `${gradeChip(g)} ${esc(t.slice(g.length).trim())}`; }).join(" ");
   return `
-  <div class="rc" style="${forPrint ? "" : "border:1px solid var(--line);border-radius:10px;padding:14px"}">
+  <div class="rc" style="${forPrint ? "padding:4px" : "border:1px solid var(--line);border-radius:10px;padding:14px;background:#fff"}">
+    ${A.logo ? `<div class="rc-wm"><img src="${logoSrc()}" alt=""></div>` : ""}
     <div class="rc-head">
       <div class="cx-brand">${A.logo ? `<div class="cx-logo"><img src="${logoSrc()}"></div>` : ""}
         <div><div class="cx-name" style="font-size:1.3rem">${esc(A.name||"Cambridge Grads Academy")}</div><div class="cx-addr">${esc(A.addr||"")}${A.phone ? " · "+esc(A.phone) : ""}</div></div></div>
@@ -8451,20 +8485,22 @@ function transcriptHTML(d, forPrint){
     <div class="rc-sum">
       <div><small>Tests</small><b>${ex.length}</b>${d.abs ? `<span style="display:block;font-size:.66rem;color:#6B7C85">absent in ${d.abs}</span>` : ""}</div>
       <div><small>Marks</small><b>${pct !== null ? `${obt} / ${tot}` : "—"}</b></div>
-      <div><small>Percentage · Grade</small><b>${pct !== null ? pct+"% · "+gradeOf(pct) : ex.length ? "Absent" : "—"}</b></div>
+      <div class="hl"><small>Percentage · Grade</small><b>${pct !== null ? pct+"% · "+gradeOf(pct) : ex.length ? "Absent" : "—"}</b>${pct !== null ? `<span style="display:block;font-size:.66rem">${pct>=PASS_PCT ? "PASS" : "FAIL"}</span>` : ""}</div>
       <div><small>${d.rank ? "Class position" : "Result"}</small><b>${d.rank ? `${d.rank} / ${d.rankOf}` : pct !== null ? (pct>=PASS_PCT ? "PASS" : "FAIL") : ex.length ? "ABSENT" : "—"}</b>${d.rank ? `<span style="display:block;font-size:.66rem;color:#6B7C85">Class avg ${d.classAvg}%</span>` : ""}</div>
     </div>
+    <div class="rc-sec">Academic performance</div>
     <table class="rc-tbl">
       <thead><tr>${["#","Date","Subject / Test","Total","Obtained","%","Grade","Result"].map(h=>`<th>${h}</th>`).join("")}</tr></thead>
       <tbody>${ex.length ? rows : `<tr><td colspan="8" style="padding:14px;color:#777">No exam records in this period</td></tr>`}</tbody>
-      ${ex.length ? (pct !== null ? `<tfoot><tr><td colspan="3" style="text-align:right">Overall (${d.sat} tests${d.abs ? `, absent in ${d.abs}` : ""})</td><td>${tot}</td><td>${obt}</td><td>${pct}%</td><td>${gradeOf(pct)}</td>
+      ${ex.length ? (pct !== null ? `<tfoot><tr><td colspan="3" style="text-align:right">Overall (${d.sat} tests${d.abs ? `, absent in ${d.abs}` : ""})</td><td>${tot}</td><td>${obt}</td><td>${pct}%</td><td>${gradeChip(gradeOf(pct))}</td>
         <td style="color:${pct>=PASS_PCT?"#0F7B3D":"#C0392B"}">${pct>=PASS_PCT?"PASS":"FAIL"}</td></tr></tfoot>`
         : `<tfoot><tr><td colspan="8" style="text-align:center">Absent in all tests</td></tr></tfoot>`) : ""}
     </table>
+    <div class="rc-key"><b style="margin-right:2px">Grading:</b> ${key}</div>
+    ${d.rank && d.pos ? `<div class="rc-pos"><b>Class position ${d.rank} / ${d.rankOf}</b> — ${esc(posText(d.pos))}<br><span style="color:#6B7C85">${POS_LABEL}</span></div>` : ""}
     ${d.remarks && d.remarks.length ? `<div class="rc-rem"><b>Teacher remarks:</b> ${d.remarks.map(r=>esc(r.note)).join(" · ")}</div>` : ""}
-    ${d.rank && d.pos ? `<div style="font-size:.7rem;color:#3b5560;margin-top:6px"><b>Class position ${d.rank} / ${d.rankOf}</b> — ${esc(posText(d.pos))}<br>${POS_LABEL}</div>` : ""}
-    <div style="font-size:.68rem;color:#6B7C85;margin-top:6px">${GRADE_KEY}</div>
-    <div class="rc-sign"><span>Issued: ${fmtD(todayStr())}</span><span>Class Teacher</span><span>Principal / Admin</span></div>
+    <div class="rc-sign"><span>Class Teacher</span><span>Principal / Admin</span><span>Parent / Guardian</span></div>
+    <div class="rc-foot"><span>Issued: ${fmtD(todayStr())}</span><span>${esc(A.name||"Cambridge Grads Academy")} · computer-generated report card</span></div>
   </div>`;
 }
 /* ================= v35: BULK REPORT CARDS — mahina + class-wise =================
