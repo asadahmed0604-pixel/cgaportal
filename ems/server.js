@@ -266,6 +266,14 @@ const ptmSeen = (x, cls) => !!x && Array.isArray(x.classes) && x.classes.some((c
 const hwSeen = (h, tid, cls, me) => !!h && cls.has(h.shift + "|" + h.course) && (!h.teacherId || h.teacherId === tid || asgCovers(me, h.shift, h.course, h.subject));
 /* v116: Skill Development groups (sirf Morning) — admin group banata hai, teacher lagata hai, bache (kisi bhi class ke) daalta hai.
    Teacher sirf apne group(s) ke bachon ki progress bharta hai — report card ke peeche wale page par chhapti hai. */
+const PJ_STATUS = ["Upcoming", "In progress", "Completed"];
+const dOk = (v) => (/^\d{4}-\d{2}-\d{2}$/.test(String(v || "")) ? String(v) : "");
+function cleanProjects(L, me) {
+  return (Array.isArray(L) ? L : []).filter((p) => p && p.id && String(p.title || "").trim()).slice(0, 100).map((p) => ({
+    id: String(p.id).slice(0, 40), title: String(p.title).trim().slice(0, 200), detail: String(p.detail || "").slice(0, 1500),
+    start: dOk(p.start), due: dOk(p.due), status: PJ_STATUS.includes(p.status) ? p.status : "Upcoming", doneOn: dOk(p.doneOn),
+    outcome: String(p.outcome || "").slice(0, 1500), by: String(p.by || (me && me.name) || "").slice(0, 80), at: String(p.at || "").slice(0, 30) }));
+}
 const myGroups = (d, tid) => (d.skillGroups || []).filter((g) => g && g.tid === tid);
 const SK_LEVELS = ["Excellent", "Very Good", "Good", "Developing", "Needs Support"];
 function teacherView(d, tid) {
@@ -417,7 +425,10 @@ function teacherMerge(data, tid) {
     if (o && o.note === note && JSON.stringify(o.ratings || {}) === JSON.stringify(ratings)) return skillDev.push(o);     // badla nahi — likhne wala wohi
     skillDev.push({ id: x.id, studentId: x.studentId, month: x.month, groupId: x.groupId, ratings, note, tid, by: (me && me.name) || "", at: new Date().toISOString() });
   });
-  return Object.assign(cur, { tests, exams, classAtt, homework, ptms, stuNotes, skillDev });
+  /* v119: group ke projects — teacher sirf apne group(s) ke projects badal sakta hai (group ka naam / bache / teacher admin ka) */
+  const newG = new Map(arr(data.skillGroups).map((g) => [g.id, g]));
+  const skillGroups = arr(cur.skillGroups).map((g) => (g.tid === tid && newG.has(g.id) ? { ...g, projects: cleanProjects(newG.get(g.id).projects, me) } : g));
+  return Object.assign(cur, { tests, exams, classAtt, homework, ptms, stuNotes, skillDev, skillGroups });
 }
 /* Admin ke save mein chhupaye hue hisse server wale hi rehte hain */
 const SALARY_CAT = "Salary & Wages";

@@ -168,6 +168,13 @@ function studentReport(db, st, today) {
     /* v106: warning letters (Behaviour & discipline) */
     warnings: (st.warnings || []).filter((w) => w && w.parentVisible !== false).sort((a, b) => String(b.d).localeCompare(String(a.d))).slice(0, 10)
       .map((w) => ({ d: w.d, no: w.no || "", level: w.level || "1st", reason: w.reason || "", note: w.note || "", by: w.by || "" })),
+    /* v119: bache ke skill group(s) aur un ke projects (upcoming / in progress / completed) */
+    skillGroups: st.shift === "Morning" ? (db.skillGroups || []).filter((g) => g && (g.studentIds || []).includes(st.id)).map((g) => ({
+      group: [g.code ? "Group " + g.code : "", g.name || ""].filter(Boolean).join(": "),
+      teacher: g.tid ? ((db.employees || []).find((e) => e.id === g.tid) || {}).name || "" : "",
+      projects: (g.projects || []).filter((p) => p && p.title).sort((a, b) => (a.status === "Completed") - (b.status === "Completed")
+        || (a.status === "Completed" ? String(b.doneOn || b.due).localeCompare(String(a.doneOn || a.due)) : String(a.due || a.start || "9").localeCompare(String(b.due || b.start || "9")))).slice(0, 12)
+        .map((p) => ({ title: p.title, detail: p.detail || "", start: p.start || "", due: p.due || "", status: p.status || "Upcoming", doneOn: p.doneOn || "", outcome: p.outcome || "" })) })) : [],
     /* v117: Skill Development progress — parents app mein hamesha (report card ka "blank / system" sirf card ke liye); taaza 3 mahine */
     skills: st.shift === "Morning" ? (db.skillDev || []).filter((x) => x && x.studentId === st.id && Object.keys(x.ratings || {}).length)
       .sort((a, b) => String(b.month).localeCompare(String(a.month))).slice(0, 3).map((x) => { const g = (db.skillGroups || []).find((y) => y.id === x.groupId) || {};

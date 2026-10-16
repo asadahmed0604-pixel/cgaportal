@@ -1468,7 +1468,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v118 · 16 Oct 2026";
+const BUILD = "v119 · 16 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -8668,12 +8668,14 @@ function renderSkillDev(){
   if(!DB.skillDev) DB.skillDev = [];
   if(!IS_TEACHER && !skGroups().length){ SKILL_SEED.forEach(x=>skGroups().push({id:uid(), ...x, tid:"", studentIds:[]})); save(); }
   const st = window._sk || (window._sk = {m: wm(), g: "", tab: IS_TEACHER ? "prog" : "groups"});
+  if(IS_TEACHER && st.tab === "groups") st.tab = "prog";
   const mode = IS_TEACHER ? "" : `<div class="panel" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:10px 14px">
       <b>On report cards:</b>
       <select onchange="setSkillMode(this.value)"><option value="blank" ${skillMode()==="blank"?"selected":""}>Blank box — fill by hand (for now)</option><option value="system" ${skillMode()==="system"?"selected":""}>Progress from the system (teachers' ratings)</option></select>
       <span class="sub">${skillMode()==="blank" ? "Report cards print an empty Skill Development Progress box (filled by hand). Parents already see the ratings in the app (My Report)." : "Report cards print each group's ratings. Parents also see them in the app (My Report)."}</span></div>`;
-  const tabs = IS_TEACHER ? "" : mode + `<div class="seg" style="margin-bottom:12px"><button class="${st.tab==="groups"?"on":""}" onclick="window._sk.tab='groups';renderSkillDev()">👥 Groups &amp; students</button><button class="${st.tab==="prog"?"on":""}" onclick="window._sk.tab='prog';renderSkillDev()">📈 Progress</button></div>`;
-  $("skBody").innerHTML = tabs + (st.tab === "groups" && !IS_TEACHER ? skGroupsHTML() : skProgressHTML());
+  const tb = (k, t) => `<button class="${st.tab===k?"on":""}" onclick="window._sk.tab='${k}';renderSkillDev()">${t}</button>`;
+  const tabs = mode + `<div class="seg" style="margin-bottom:12px">${IS_TEACHER ? "" : tb("groups","👥 Groups &amp; students")}${tb("prog","📈 Progress")}${tb("proj","🚀 Projects")}</div>`;
+  $("skBody").innerHTML = tabs + (st.tab === "groups" && !IS_TEACHER ? skGroupsHTML() : st.tab === "proj" ? skProjectsHTML() : skProgressHTML());
 }
 /* ---- admin: groups, teacher, students ---- */
 function skGroupsHTML(){
@@ -8742,6 +8744,52 @@ function skProgressHTML(){
       : `<div class="note">No students in this group yet${IS_TEACHER ? " — the admin adds them" : " — add them under 👥 Groups &amp; students"}.</div>`}
     ${stus.length ? `<div style="text-align:right"><button class="btn-red" onclick="saveSkillDev()">💾 Save</button></div>` : ""}`;
 }
+/* ---- v119: group projects — upcoming / in progress / completed (admin + group ka teacher); parents app mein dikhte hain ---- */
+const PJ_STATUS = ["Upcoming","In progress","Completed"];
+function skProjectsHTML(){
+  const st = window._sk, list = IS_TEACHER ? skGroups().filter(g=>g.tid===MY_TID) : skGroups();
+  if(!list.length) return `<div class="note">${IS_TEACHER ? "You do not lead a skill development group yet." : "No groups yet."}</div>`;
+  if(!list.some(g=>g.id===st.g)) st.g = list[0].id;
+  const g = skG(st.g), P = (g.projects||[]).slice().sort((a,b)=>(a.status==="Completed")-(b.status==="Completed") || String(a.due||a.start||"9").localeCompare(String(b.due||b.start||"9")));
+  const pill = x => { const [c, bg] = x==="Completed" ? ["#0F7B3D","#E3F4EA"] : x==="In progress" ? ["#7a5600","#FFF1D0"] : ["#174B60","#E3EEF2"];
+    return `<span class="badge" style="color:${c};background:${bg}">${x==="Completed"?"✓ Completed":esc(x)}</span>`; };
+  return `<div class="toolbar" style="align-items:flex-end">
+      <div class="field"><label>Group</label><select onchange="window._sk.g=this.value;renderSkillDev()">${list.map(x=>`<option value="${x.id}" ${x.id===g.id?"selected":""}>Group ${esc(x.code||"")} · ${esc(x.name||"")}</option>`).join("")}</select></div>
+      <div class="sub" style="margin-bottom:8px">${P.filter(p=>p.status!=="Completed").length} upcoming / ongoing · ${P.filter(p=>p.status==="Completed").length} completed — parents of this group's students see these in the app</div>
+      <button class="btn-red" style="margin-left:auto" onclick="openProject('${g.id}')">+ New project</button></div>
+    ${P.length ? P.map(p=>`<div class="panel" style="border-left:4px solid ${p.status==="Completed"?"#159670":p.status==="In progress"?"#E0A526":"#174B60"}">
+      <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><b>${esc(p.title)}</b>${pill(p.status)}</div>
+      <div class="sub">${[p.start?"Starts "+fmtD(p.start):"", p.due?"Due "+fmtD(p.due):"", p.status==="Completed"&&p.doneOn?"Completed "+fmtD(p.doneOn):"", p.by?"by "+esc(p.by):""].filter(Boolean).join(" · ")}</div>
+      ${p.detail?`<div style="margin-top:4px">${esc(p.detail)}</div>`:""}${p.outcome?`<div class="sub" style="margin-top:4px"><b>Result:</b> ${esc(p.outcome)}</div>`:""}
+      <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
+        ${p.status!=="Completed"?`<button class="btn-red btn-sm" onclick="openProject('${g.id}','${p.id}',true)">✓ Mark completed</button>`:""}
+        <button class="btn-line btn-sm" onclick="openProject('${g.id}','${p.id}')">✏ Edit</button>
+        <button class="btn-line btn-sm" onclick="delProject('${g.id}','${p.id}')">🗑</button></div></div>`).join("")
+      : `<div class="note">No projects yet for Group ${esc(g.code||"")} — add upcoming projects so parents know what is coming.</div>`}`;
+}
+function openProject(gid, pid, complete){
+  const g = skG(gid); if(!g) return; const p = (g.projects||[]).find(x=>x.id===pid) || {status:"Upcoming"};
+  if(complete) p.status = "Completed";
+  openModal(`<h3>🚀 ${pid ? (complete ? "Mark project completed" : "Edit project") : "New project"} — Group ${esc(g.code||"")}: ${esc(g.name||"")}</h3>
+    <div class="field"><label>Project title *</label><input id="pj_t" value="${esc(p.title||"")}" placeholder="e.g. Build a WhatsApp reminder bot"></div>
+    <div class="field"><label>Details (what students will do)</label><textarea id="pj_d" rows="3">${esc(p.detail||"")}</textarea></div>
+    <div class="grid2"><div class="field"><label>Start date</label><input type="date" id="pj_s" value="${p.start||""}"></div>
+      <div class="field"><label>Due / presentation date</label><input type="date" id="pj_u" value="${p.due||""}"></div></div>
+    <div class="grid2"><div class="field"><label>Status</label><select id="pj_st" onchange="$('pj_doneW').style.display=this.value==='Completed'?'':'none'">${PJ_STATUS.map(x=>`<option ${x===p.status?"selected":""}>${x}</option>`).join("")}</select></div>
+      <div class="field" id="pj_doneW" style="${p.status==="Completed"?"":"display:none"}"><label>Completed on</label><input type="date" id="pj_c" value="${p.doneOn||todayStr()}"></div></div>
+    <div class="field"><label>Result / outcome (shown to parents when completed)</label><textarea id="pj_o" rows="2" placeholder="e.g. All students presented their bots on 20 Oct">${esc(p.outcome||"")}</textarea></div>
+    <div class="modal-foot"><button class="btn-line" onclick="closeModal()">Cancel</button><button class="btn-red" onclick="saveProject('${gid}','${pid||""}')">Save</button></div>`);
+}
+function saveProject(gid, pid){
+  const g = skG(gid); if(!g) return; const t = $("pj_t").value.trim(); if(!t){ toast("Enter a project title"); return; }
+  g.projects = g.projects || []; const st = $("pj_st").value;
+  const rec = {id: pid || uid(), title:t, detail:$("pj_d").value.trim(), start:$("pj_s").value, due:$("pj_u").value, status:st,
+    doneOn: st === "Completed" ? ($("pj_c").value || todayStr()) : "", outcome:$("pj_o").value.trim(),
+    by: IS_TEACHER ? (empById(MY_TID)||{}).name || "Teacher" : (myName() || ROLE_LABEL), at:new Date().toISOString()};
+  const i = g.projects.findIndex(x=>x.id===pid); if(i >= 0) g.projects[i] = rec; else g.projects.push(rec);
+  save(); closeModal(); toast(st === "Completed" ? "Project marked completed ✓" : "Project saved"); renderSkillDev();
+}
+function delProject(gid, pid){ const g = skG(gid); if(!g || !confirm("Delete this project?")) return; g.projects = (g.projects||[]).filter(x=>x.id!==pid); save(); renderSkillDev(); }
 function saveSkillDev(){
   const m = window._sk.m, gid = window._sk.g; let n = 0;
   document.querySelectorAll("#skBody .sk-card").forEach(card=>{

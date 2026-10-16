@@ -570,6 +570,16 @@ save, the other shift's records are kept exactly as they are on the server.
 - The "blank box / from the system" choice on the Skill Development page now only decides what the **report card**
   prints (blank handwritten box for now).
 
+## Skill development projects (v119)
+
+- **🌱 Skill Development → 🚀 Projects** (Executive / Admin for every group; the group's teacher for their own group):
+  **+ New project** — title, details, start date, due / presentation date, status (Upcoming / In progress / Completed).
+  **✓ Mark completed** records the completion date and a result / outcome; projects can be edited or deleted.
+- **Parents' app → My Report → 🌱 Skill development** shows the student's group projects: upcoming and ongoing first
+  (with start / due dates), then completed ones with the completion date and result.
+- The server lets a teacher change only the projects of the groups they lead — never the group's name, students or
+  teacher, and never another group.
+
 ## Install as an app (v41)
 
 Staff (`/`), Teachers (`/teacher`) and Parents (`/parent`) — all three links can be installed as an app on a phone / computer
