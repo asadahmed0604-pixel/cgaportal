@@ -757,12 +757,16 @@ label.chk input{width:auto}
 <!-- ================= v102: STAFF — apna dashboard + Executive ka KPIs / to-do page ================= -->
 <section class="page" id="page-staffdash">
   <div class="page-head"><div><h2 id="sdTitle">My Dashboard</h2><div class="sub" id="sdSub"></div></div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn-red" onclick="openOwnTask()">+ Add my to-do</button></div></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn-black" onclick="openDelegate()">📤 Assign a task</button><button class="btn-red" onclick="openOwnTask()">+ Add my to-do</button></div></div>
+  <div id="sdAlerts"></div>
   <div class="cards" id="sdCards"></div>
+  <div id="sdFee"></div>
+  <div id="sdCoord"></div>
   <div class="grid2" style="align-items:start;gap:16px">
     <div class="panel"><h3>✅ My to-do list</h3><div id="sdTasks"></div></div>
     <div class="panel"><h3>🎯 My KPIs — <span id="sdKpiM"></span></h3><div id="sdKpi"></div></div>
   </div>
+  <div class="panel" style="margin-top:16px" id="sdDelegP"><h3>📤 Tasks I assigned</h3><div id="sdDeleg"></div></div>
   <div class="panel" style="margin-top:16px"><h3 id="sdWorkH">📋 Today's work</h3><div id="sdWork"></div></div>
 </section>
 <section class="page" id="page-staffkpi">
@@ -1468,7 +1472,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v119 · 16 Oct 2026";
+const BUILD = "v120 · 16 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -3809,9 +3813,11 @@ const STAFF_ACCESS = {admin:"Admin", feeadmin:"Fee Admin"};
 const staffPeople = () => DB.employees.filter(e=>STAFF_ACCESS[e.access]).sort((a,b)=>a.name.localeCompare(b.name));
 const KPI_TPL = {
   admin: [["Daily attendance marked on time","Morning & Evening by 9:30 AM"],["Inquiry follow-ups on time","No overdue follow-ups"],["Parent messages answered","Within 24 hours"],
-          ["Student records up to date","Profiles, phones, subjects complete"],["Homework / exams / PTM data entered","On the day"]],
+          ["Student records up to date","Profiles, phones, subjects complete"],["Homework / exams / PTM data entered","On the day"],
+          ["Fee collection by the 15th","65% of challans received","fee15"],["Fee collection by the 27th","98% of challans received","fee27"]],
   feeadmin: [["Challans generated on time","By the 1st of the month"],["Fee collection","90% of the month's billing"],["Parents' app receipts verified","Within 24 hours"],
-             ["Defaulter follow-ups","All defaulters called every week"],["Daily cash / bank reconciliation","Every working day"]]
+             ["Defaulter follow-ups","All defaulters called every week"],["Daily cash / bank reconciliation","Every working day"],
+             ["Fee collection by the 15th","65% of challans received","fee15"],["Fee collection by the 27th","98% of challans received","fee27"]]
 };
 const kpiOf = (sid, m) => (DB.staffKpis||[]).find(k=>k.sid===sid && k.month===m);
 function staffKpiPct(k){
@@ -3820,18 +3826,21 @@ function staffKpiPct(k){
   return w ? Math.round(got*100/w) : null;
 }
 const tasksOf = sid => (DB.staffTasks||[]).filter(t=>t.sid===sid);
-const taskLate = t => t.status !== "done" && t.due && t.due < todayStr();
+/* v120: "daily" kaam roz naya — aaj tick hua to done, warna open */
+const taskDone = t => t.daily ? t.doneOn === todayStr() : t.status === "done";
+const taskLate = t => !taskDone(t) && !t.daily && t.due && t.due < todayStr();
 function taskRow(t, canTick, canEdit){
-  return `<div style="display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px dashed var(--line);${t.status==="done" ? "opacity:.6" : ""}">
-    ${canTick ? `<input type="checkbox" style="width:22px;height:22px;margin-top:2px" ${t.status==="done"?"checked":""} onchange="tickTask('${t.id}',this.checked)">` : `<span>${t.status==="done" ? "✅" : "⬜"}</span>`}
-    <div style="flex:1"><b style="${t.status==="done" ? "text-decoration:line-through" : ""}">${esc(t.title)}</b>
-      ${t.priority === "High" ? ` <span class="badge b-unpaid">High</span>` : ""}${t.own ? ` <span class="chip">my own</span>` : ""}
+  const dn = taskDone(t);
+  return `<div style="display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px dashed var(--line);${dn ? "opacity:.6" : ""}">
+    ${canTick ? `<input type="checkbox" style="width:22px;height:22px;margin-top:2px" ${dn?"checked":""} onchange="tickTask('${t.id}',this.checked)">` : `<span>${dn ? "✅" : "⬜"}</span>`}
+    <div style="flex:1"><b style="${dn ? "text-decoration:line-through" : ""}">${esc(t.title)}</b>
+      ${t.priority === "High" ? ` <span class="badge b-unpaid">High</span>` : ""}${t.own ? ` <span class="chip">my own</span>` : ""}${t.daily ? ` <span class="chip">🔁 daily</span>` : ""}${t.from && t.from !== MY_SID ? ` <span class="chip">from ${esc(t.fromName||"")}</span>` : ""}
       <div class="sub">${t.due ? `${taskLate(t) ? `<b style="color:var(--danger)">Overdue — due ${fmtD(t.due)}</b>` : `Due ${fmtD(t.due)}`}` : "No due date"}${t.status==="done" && t.doneOn ? ` · done ${fmtD(t.doneOn)}` : ""}${t.note ? ` · ${esc(t.note)}` : ""}</div>
       ${t.staffNote ? `<div class="sub">💬 ${esc(t.staffNote)}</div>` : ""}</div>
     ${canEdit ? `<span style="white-space:nowrap"><button class="btn-line btn-sm" onclick="openStaffTask('${t.sid}','${t.id}')">Edit</button><button class="btn-danger btn-sm" onclick="delStaffTask('${t.id}')">✕</button></span>`
       : t.own && MY_SID ? `<button class="btn-line btn-sm" onclick="delOwnTask('${t.id}')">✕</button>` : canTick ? `<button class="btn-line btn-sm" onclick="noteTask('${t.id}')" title="Add a note for the Executive">💬</button>` : ""}</div>`;
 }
-const taskSort = (a,b)=>(a.status==="done") - (b.status==="done") || String(a.due||"9999").localeCompare(String(b.due||"9999")) || String(a.title).localeCompare(String(b.title));
+const taskSort = (a,b)=>taskDone(a) - taskDone(b) || String(a.due||"9999").localeCompare(String(b.due||"9999")) || String(a.title).localeCompare(String(b.title));
 function tickTask(id, on){
   const t = (DB.staffTasks||[]).find(x=>x.id===id); if(!t) return;
   t.status = on ? "done" : "open"; t.doneOn = on ? todayStr() : "";
@@ -3858,6 +3867,7 @@ function delOwnTask(id){ DB.staffTasks = (DB.staffTasks||[]).filter(t=>!(t.id===
 
 /* ---------- Executive: 🎯 Staff KPIs & To-do ---------- */
 function renderStaffKpi(){
+  try{ staffFeeKpiSync(); }catch(e){}
   if(!$("skMonth").value) $("skMonth").value = wm();
   const m = $("skMonth").value, L = staffPeople();
   $("skList").innerHTML = L.length ? L.map(e=>{
@@ -3877,7 +3887,7 @@ let SKD = null;
 function openStaffKpi(sid){
   const e = empById(sid), m = $("skMonth").value || wm(), k = kpiOf(sid, m);
   const prev = (DB.staffKpis||[]).filter(x=>x.sid===sid && x.month < m).sort((a,b)=>b.month.localeCompare(a.month))[0];
-  SKD = {sid, m, items: k ? structuredClone(k.items||[]) : (prev ? prev.items.map(it=>({...it, id:uid(), score:"", note:""})) : (KPI_TPL[e.access]||KPI_TPL.admin).map(([title,target])=>({id:uid(), title, target, weight:20, score:"", note:""}))), review: k ? k.review||"" : ""};
+  SKD = {sid, m, items: k ? structuredClone(k.items||[]) : (prev ? prev.items.map(it=>({...it, id:uid(), score:"", note:""})) : (KPI_TPL[e.access]||KPI_TPL.admin).map(([title,target,auto])=>({id:uid(), title, target, weight:auto ? 10 : 20, score:"", note:"", ...(auto ? {auto} : {})}))), review: k ? k.review||"" : ""};
   drawStaffKpi();
 }
 function drawStaffKpi(){
@@ -3906,7 +3916,7 @@ let SK_IMP = "";
 function pickStaffKpiFile(sid){ SK_IMP = sid; const f = $("skFile"); if(f){ f.value = ""; f.click(); } }
 function staffKpiTemplate(sid){
   const e = empById(sid), m = ($("skMonth") && $("skMonth").value) || wm(), k = kpiOf(sid, m);
-  const items = k ? k.items : (KPI_TPL[e.access]||KPI_TPL.admin).map(([title,target])=>({title, target, weight:20, score:"", note:""}));
+  const items = k ? k.items : (KPI_TPL[e.access]||KPI_TPL.admin).map(([title,target,auto])=>({title, target, weight:auto ? 10 : 20, score:"", note:"", ...(auto ? {auto} : {})}));
   downloadCSV(`KPIs ${e.name} ${fmtM(m)}.csv`, [["Name", e.name], ["Month", fmtM(m)], [],
     ["KPI","Target","Weight","Score (0-5)","Note"], ...items.map(it=>[it.title, it.target||"", it.weight, it.score === "" || it.score === undefined ? "" : it.score, it.note||""])]);
 }
@@ -3979,7 +3989,7 @@ function renderStaffDash(){
   const me = empById(MY_SID) || {name:MY_STAFF}, m = wm(), t0 = todayStr(), fee = ROLE === "feeadmin";
   $("sdTitle").textContent = `Welcome, ${me.name || MY_STAFF}`;
   $("sdSub").textContent = `${STAFF_ACCESS[ROLE] || ROLE} · ${new Date().toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long",year:"numeric"})}`;
-  const T = tasksOf(MY_SID).sort(taskSort), open = T.filter(t=>t.status!=="done"), late = open.filter(taskLate);
+  const T = tasksOf(MY_SID).sort(taskSort), open = T.filter(t=>!taskDone(t)), late = open.filter(taskLate);
   const k = kpiOf(MY_SID, m), pct = staffKpiPct(k);
   $("sdKpiM").textContent = fmtM(m);
   $("sdKpi").innerHTML = k ? `<div style="display:flex;align-items:center;gap:14px;margin-bottom:8px"><div style="font-size:2rem;font-weight:900;${scoreColor(pct)}">${pct === null ? "—" : pct + "%"}</div>
@@ -4025,7 +4035,158 @@ function renderStaffDash(){
     ptm ? `PTM ${ptm.date === t0 ? "<b>today</b>" : "on " + fmtD(ptm.date)} — ${esc((ptm.classes||[]).join(", "))}` : "",
     late.length ? `<b style="color:var(--danger)">${late.length} of your tasks are overdue</b>` : ""].filter(Boolean).map(x=>`<li>${x}</li>`).join("") || "<li>All clear ✓</li>"}</ul>`;
   $("sdWork").innerHTML = work;
+  sdExtras();
 }
+
+/* ================= v120: staff dashboard — fee collection (ginti), coordinator checklist, Evening tests, delegation ================= */
+function feeCountStats(fees, shiftOf, m, today) {
+  const has = (v) => v !== undefined && v !== null && v !== "";
+  const out = {};
+  const day = (n) => m + "-" + String(n).padStart(2, "0");
+  (fees || []).forEach((f) => {
+    if (!f || f.month !== m || !((+f.amount || 0) - (+f.arrears || 0) > 0)) return;
+    const sh = f.shift || shiftOf(f.studentId) || "Morning";
+    const o = out[sh] || (out[sh] = { issued: 0, now: 0, by15: 0, by27: 0 });
+    o.issued++;
+    const got = has(f.paidAmount) ? +f.paidAmount || 0 : f.status === "Paid" ? +f.amount || 0 : 0;
+    const left = f.carriedTo ? 1 : has(f.balance) ? Math.max(0, +f.balance || 0) : f.status === "Unpaid" ? +f.amount || 0 : 0;
+    if (left > 0 || !(got > 0 || f.status === "Paid")) return;
+    const pays = f.payments && f.payments.length ? f.payments : [{ date: f.paidDate || m + "-01" }];
+    const on = pays.map((p) => String(p.date || "")).sort().pop() || m + "-01";
+    if (on <= today) o.now++;
+    if (on <= day(15)) o.by15++;
+    if (on <= day(27)) o.by27++;
+  });
+  return out;
+}
+/* fee ki ginti: Executive / khula Fee Admin khud hisaab lagate hain; baqi staff ko server ginti bhejta hai (raqam nahi) */
+function feeStatsOf(m){
+  if(ROLE === "exec" || (ROLE === "feeadmin" && feeOpen() && (DB.fees||[]).length)){ const sm = new Map(DB.students.map(x=>[x.id, x.shift])); return feeCountStats(DB.fees, id=>sm.get(id), m, todayStr()); }
+  return (DB.feeStats||{})[m] || null;
+}
+const FEE_CP = [{k:"fee15", day:15, pct:65}, {k:"fee27", day:27, pct:98}];
+function feeTrack(m, shifts){
+  const S = feeStatsOf(m); if(!S) return null;
+  const sum = {issued:0, now:0, by15:0, by27:0}; shifts.forEach(sh=>{ const o = S[sh]; if(o) Object.keys(sum).forEach(k=>sum[k] += o[k]); });
+  const t0 = todayStr(), pc = (a, b) => b ? Math.round(a*100/b) : 0;
+  const cps = FEE_CP.map(c=>{ const d = m + "-" + String(c.day).padStart(2,"0"), past = t0 > d, got = c.day === 15 ? sum.by15 : sum.by27, p = past ? pc(got, sum.issued) : pc(sum.now, sum.issued);
+    const left = Math.round((new Date(d+"T00:00") - new Date(t0+"T00:00"))/864e5);
+    return {...c, date:d, past, p, ok: p >= c.pct, left, need: Math.max(0, Math.ceil(sum.issued*c.pct/100) - (past ? got : sum.now))}; });
+  return {...sum, pct: pc(sum.now, sum.issued), cps};
+}
+function feeTrackHTML(m){
+  const sh = scopeShifts(), F = feeTrack(m, sh);
+  if(!F) return `<div class="panel"><h3>💰 Fee collection — ${fmtM(m)}</h3><p class="sub">Fee figures for ${fmtM(m)} are not available here.</p></div>`;
+  if(!F.issued) return `<div class="panel"><h3>💰 Fee collection — ${fmtM(m)}${MY_SCOPE ? " · " + MY_SCOPE : ""}</h3><p class="sub">No challans issued for ${fmtM(m)} yet.</p></div>`;
+  return `<div class="panel"><h3>💰 Fee collection — ${fmtM(m)}${MY_SCOPE ? " · " + MY_SCOPE : ""}</h3>
+    <div class="cards" style="margin:6px 0 10px"><div class="card"><div class="k">Challans issued</div><div class="v">${F.issued}</div></div>
+      <div class="card"><div class="k">Received (fully paid)</div><div class="v green">${F.now}</div><div class="hint">${F.issued - F.now} still unpaid</div></div>
+      <div class="card"><div class="k">Collection</div><div class="v" style="${scoreColor(F.pct)}">${F.pct}%</div><div class="hint">of challans received</div></div></div>
+    ${F.cps.map(c=>`<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:8px 10px;border-radius:8px;margin-bottom:6px;background:${c.past ? (c.ok ? "#E3F4EA" : "#FBE3E0") : (c.ok ? "#E3F4EA" : "#FFF6E0")}">
+      <span><b>Target ${c.pct}% by ${fmtD(c.date)}</b> — ${c.past ? `${c.p}% received by then` : `${c.p}% so far · ${c.left} day${c.left===1?"":"s"} left`}</span>
+      <b style="color:${c.past ? (c.ok ? "#0F7B3D" : "#C0392B") : (c.ok ? "#0F7B3D" : "#A86400")}">${c.past ? (c.ok ? "✓ KPI achieved" : "✗ KPI not achieved") : (c.ok ? "On track ✓" : `Behind — ${c.need} more challans needed`)}</b></div>`).join("")}
+    <div class="sub">Counts only — challans of ${fmtM(m)} that are fully paid. The KPI is scored automatically at each date.</div></div>`;
+}
+/* Executive: staff KPIs ke "fee15 / fee27" items khud score (5 = achieved, 0 = not) */
+function staffFeeKpiSync(){
+  if(ROLE !== "exec" || !DB.staffKpis) return 0;
+  let ch = 0; const cm = thisMonth();
+  DB.staffKpis.forEach(k=>{ const e = empById(k.sid); if(!e || !STAFF_ACCESS[e.access]) return;
+    k.items = k.items || [];
+    if(k.month >= cm) (KPI_TPL[e.access]||KPI_TPL.admin).filter(x=>x[2]).forEach(([title,target,auto])=>{ if(!k.items.some(it=>it.auto===auto)){ k.items.push({id:uid(), title, target, weight:10, score:"", note:"", auto}); ch++; } });
+    const F = k.items.some(it=>it.auto) ? feeTrack(k.month, e.scope ? [e.scope] : ["Morning","Evening"]) : null;
+    k.items.filter(it=>it.auto).forEach(it=>{ const c = F && F.issued ? F.cps.find(x=>x.k===it.auto) : null; if(!c) return;
+      const score = c.past ? (c.ok ? 5 : 0) : "", note = c.past ? `Auto — ${c.p}% of challans received by ${fmtD(c.date)} (target ${c.pct}%)` : `Auto — ${c.p}% so far, checked on ${fmtD(c.date)}`;
+      if(it.score !== score || it.note !== note){ it.score = score; it.note = note; ch++; } }); });
+  if(ch) save();
+  return ch;
+}
+/* ---- coordinator checklist (shift-wise): attendance, staff attendance, classes taken, homework, homework checking, audits, inquiries ---- */
+function coordChecks(sh){
+  const t0 = todayStr(), m = thisMonth(), wd = !isWeekend(t0), act = DB.students.filter(x=>x.status==="Active" && x.shift===sh);
+  const day = (DB.attendance||{})[t0] || {}, sMarked = act.filter(x=>day[x.id]).length;
+  const emps = DB.employees.filter(e=>empWorksOn(e, sh, t0)), eday = (DB.empAttendance||{})[t0] || {}, eMarked = emps.filter(e=>empRecs(eday, e.id, sh).length).length;
+  const rows = typeof clRowsFor === "function" ? clRowsFor(t0, sh) : [], clU = rows.filter(r=>!r.rec).length;
+  const live = [...clLiveClasses(m)].filter(k=>k.startsWith(sh+"|")).map(k=>k.split("|")[1]);
+  const wk = new Date(Date.now() - 7*864e5).toISOString().slice(0,10);
+  const hw = (DB.homework||[]).filter(h=>h.shift===sh);
+  const hwClasses = live.filter(c=>hw.some(h=>h.course===c && String(h.dateGiven||"") >= wk));
+  const unchecked = hw.filter(h=>h.dueDate && h.dueDate < t0 && h.dueDate >= m + "-01" && !h.checkedOn);
+  const aud = (DB.audits||[]).filter(a=>a.shift===sh && String(a.date).startsWith(m)), audC = live.filter(c=>!aud.some(a=>a.course===c));
+  const iq = (DB.inquiries||[]).filter(i=>INQ_OPEN(i.stage) && i.nextFollow && i.nextFollow <= t0 && (!i.shift || i.shift === sh));
+  const it = (ok, title, detail, page, warnLevel) => ({ok, title, detail, page, lvl: ok ? "ok" : warnLevel || "warn"});
+  return [
+    it(!wd || !act.length || sMarked >= act.length, "Students' attendance today", wd ? `${sMarked} / ${act.length} marked` : "Weekend", "attendance"),
+    it(!emps.length || eMarked >= emps.length, "Staff attendance today", emps.length ? `${eMarked} / ${emps.length} staff marked${emps.length - eMarked ? " — " + emps.filter(e=>!empRecs(eday, e.id, sh).length).slice(0,4).map(e=>esc(e.name)).join(", ") : ""}` : "No staff scheduled today", "employees"),
+    it(!rows.length || !clU, "Classes taken updated", rows.length ? `${rows.length - clU} / ${rows.length} classes marked today` : "No classes scheduled today", "classlog"),
+    it(!live.length || hwClasses.length >= live.length, "Homework assigned (last 7 days)", `${hwClasses.length} / ${live.length} classes${live.length - hwClasses.length ? " — none in: " + live.filter(c=>!hwClasses.includes(c)).map(esc).join(", ") : ""}`, "homework"),
+    it(!unchecked.length, "Teachers checking homework", unchecked.length ? `${unchecked.length} homework past due not checked — ${[...new Set(unchecked.map(h=>teacherName(h.teacherId)).filter(Boolean))].slice(0,4).map(esc).join(", ")}` : "All past-due homework checked ✓", "homework", "bad"),
+    it(!live.length || !audC.length, "Class audits this month", `${aud.length} audit${aud.length===1?"":"s"} · ${live.length - audC.length} / ${live.length} classes audited${audC.length ? " — not yet: " + audC.slice(0,6).map(esc).join(", ") : ""}`, "audit"),
+    it(!iq.length, "Inquiries followed up", iq.length ? `${iq.length} follow-up${iq.length>1?"s":""} due (${iq.filter(i=>i.nextFollow < t0).length} overdue)` : "No follow-ups due ✓", "inquiries", iq.some(i=>i.nextFollow < t0) ? "bad" : "warn")];
+}
+/* Sir Kamran: Evening mein har teacher kam az kam 2 test har class mein — track record */
+function eveTestRecord(m){
+  const out = [];
+  DB.employees.forEach(e=>(e.assignments||[]).forEach(a=>{ if(a.shift !== "Evening" || !a.course) return;
+    const n = DB.tests.filter(t=>t.shift==="Evening" && t.course===a.course && String(t.date).startsWith(m) && (t.teacherId===e.id || (!t.teacherId && a.subject && subjLike(t.subject, a.subject))) && (!a.subject || !t.subject || subjLike(t.subject, a.subject))).length;
+    if(!out.some(x=>x.tid===e.id && x.c===a.course && x.s===(a.subject||""))) out.push({tid:e.id, name:e.name, c:a.course, s:a.subject||"", n}); }));
+  return out.sort((a,b)=>a.n - b.n || a.name.localeCompare(b.name));
+}
+function sdExtras(){
+  const m = wm(), sh = scopeShifts(), go = p => `document.querySelector('#nav button[data-page=${p}]')&&document.querySelector('#nav button[data-page=${p}]').click()`;
+  $("sdFee").innerHTML = feeTrackHTML(m);
+  const coord = ROLE === "admin";
+  let alerts = [];
+  if(coord){
+    $("sdCoord").innerHTML = sh.map(s=>{ const C = coordChecks(s); C.filter(x=>!x.ok).forEach(x=>alerts.push(`${s}: ${x.title} — ${x.detail}`));
+      return `<div class="panel"><h3>📋 ${s} coordinator checklist — today</h3>${C.map(x=>`<div style="display:flex;gap:10px;align-items:center;padding:7px 0;border-bottom:1px dashed var(--line)">
+        <span style="font-size:1.1rem">${x.ok ? "✅" : x.lvl === "bad" ? "🔴" : "🟠"}</span><div style="flex:1"><b>${x.title}</b><div class="sub">${x.detail}</div></div>
+        <button class="btn-line btn-sm" onclick="${go(x.page)}">Open</button></div>`).join("")}</div>`; }).join("")
+      + (sh.includes("Evening") ? (()=>{ const R = eveTestRecord(m), low = R.filter(r=>r.n < EVE_TEST_TARGET);
+          if(low.length && new Date().getDate() >= 15) alerts.push(`Evening tests: ${low.length} teacher-class${low.length>1?"es":""} below ${EVE_TEST_TARGET} tests this month`);
+          return `<div class="panel"><h3>🧪 Evening tests — ${fmtM(m)} (target ${EVE_TEST_TARGET} per class)</h3>${R.length ? `<div class="tbl-wrap"><table><thead><tr><th>Teacher</th><th>Class</th><th>Subject</th><th style="text-align:right">Tests</th><th>Status</th></tr></thead><tbody>
+            ${R.map(r=>`<tr><td><b>${esc(r.name)}</b></td><td>${esc(r.c)}</td><td>${esc(r.s||"—")}</td><td style="text-align:right"><b>${r.n}</b></td><td>${r.n >= EVE_TEST_TARGET ? `<span class="badge b-paid">✓ Done</span>` : `<span class="badge b-unpaid">${EVE_TEST_TARGET - r.n} more needed</span>`}</td></tr>`).join("")}</tbody></table></div>
+            <div class="sub" style="margin-top:6px">${R.filter(r=>r.n >= EVE_TEST_TARGET).length} / ${R.length} done</div>` : `<p class="sub">No Evening class assignments found (Employees → Assign).</p>`}</div>`; })() : "");
+  } else $("sdCoord").innerHTML = "";
+  const F = feeTrack(m, sh); if(F && F.issued) F.cps.forEach(c=>{ if(!c.ok && (c.past || c.left <= 5)) alerts.push(`Fee collection ${c.past ? "missed" : "behind"}: ${c.p}% vs ${c.pct}% target by ${fmtD(c.date)}`); });
+  const mine = (DB.staffTasks||[]).filter(t=>t.sid===MY_SID && !taskDone(t));
+  mine.filter(taskLate).forEach(t=>alerts.push(`Overdue task: ${esc(t.title)} (due ${fmtD(t.due)})`));
+  mine.filter(t=>!t.daily && t.due === todayStr()).forEach(t=>alerts.push(`Due today: ${esc(t.title)}`));
+  const given = (DB.staffTasks||[]).filter(t=>t.from === MY_SID).sort(taskSort);
+  given.filter(taskLate).forEach(t=>alerts.push(`${esc((empById(t.sid)||{}).name||"Staff")} has not done: ${esc(t.title)} (due ${fmtD(t.due)})`));
+  $("sdAlerts").innerHTML = alerts.length ? `<div class="panel" style="border-left:5px solid var(--danger)"><h3>🔔 Reminders</h3><ul style="margin:0 0 0 18px;line-height:1.8">${alerts.map(a=>`<li>${a}</li>`).join("")}</ul></div>` : "";
+  $("sdDelegP").style.display = given.length ? "" : "none";
+  $("sdDeleg").innerHTML = given.map(t=>{ const who = (empById(t.sid)||{}).name || "Staff";
+    return `<div style="display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px dashed var(--line)"><span>${taskDone(t) ? "✅" : taskLate(t) ? "🔴" : "⬜"}</span>
+      <div style="flex:1"><b>${esc(t.title)}</b> <span class="chip">→ ${esc(who)}</span>${t.daily ? ` <span class="chip">🔁 daily</span>` : ""}${t.priority==="High" ? ` <span class="badge b-unpaid">High</span>` : ""}
+        <div class="sub">${t.daily ? (taskDone(t) ? "done today ✓" : `not done today${t.doneOn ? " · last done " + fmtD(t.doneOn) : ""}`) : t.due ? (taskLate(t) ? `<b style="color:var(--danger)">Overdue — due ${fmtD(t.due)}</b>` : `Due ${fmtD(t.due)}`) : "No due date"}${!t.daily && taskDone(t) && t.doneOn ? ` · done ${fmtD(t.doneOn)}` : ""}${t.note ? " · " + esc(t.note) : ""}</div>
+        ${t.staffNote ? `<div class="sub">💬 ${esc(t.staffNote)}</div>` : ""}</div>
+      <span style="white-space:nowrap"><button class="btn-line btn-sm" onclick="openDelegate('${t.id}')">Edit</button><button class="btn-danger btn-sm" onclick="delDelegate('${t.id}')">✕</button></span></div>`; }).join("");
+}
+/* ---- delegation: coordinator apna kaam kisi aur staff login ko de (deadline / daily) ---- */
+const DUTIES = ["Mark students' attendance","Mark staff attendance","Update classes taken","Check homework is assigned in every class","Follow up teachers on homework checking","Class audit","Inquiry follow-ups","Evening tests follow-up","Fee defaulter calls"];
+function openDelegate(id){
+  const t = id ? (DB.staffTasks||[]).find(x=>x.id===id) || {} : {}, L = staffPeople().filter(e=>e.id !== MY_SID);
+  if(!L.length){ toast("No other staff with a login yet — the Executive adds staff logins in Settings → Logins"); return; }
+  openModal(`<h3>📤 ${id ? "Edit assigned task" : "Assign a task"}</h3>
+    <div class="grid2"><div class="field"><label>Assign to *</label><select id="dg_to" ${id ? "disabled" : ""}>${L.map(e=>`<option value="${e.id}" ${e.id===t.sid?"selected":""}>${esc(e.name)} (${STAFF_ACCESS[e.access]})</option>`).join("")}</select></div>
+      <div class="field"><label>Quick pick</label><select onchange="if(this.value)$('dg_t').value=this.value"><option value="">— duty —</option>${DUTIES.map(x=>`<option>${esc(x)}</option>`).join("")}</select></div></div>
+    <div class="field"><label>Task *</label><input id="dg_t" value="${esc(t.title||"")}" placeholder="e.g. Mark Morning staff attendance by 9:00 AM"></div>
+    <div class="grid2"><div class="field"><label>Due date</label><input type="date" id="dg_due" value="${esc(t.due||todayStr())}"></div>
+      <div class="field"><label>Priority</label><select id="dg_p"><option value="">Normal</option><option ${t.priority==="High"?"selected":""}>High</option></select></div></div>
+    <label class="chk"><input type="checkbox" id="dg_daily" ${t.daily?"checked":""}> 🔁 Daily duty — must be ticked every day (shows "not done today" until ticked)</label>
+    <div class="field"><label>Note</label><input id="dg_n" value="${esc(t.note||"")}" placeholder="details / how"></div>
+    <div class="modal-foot"><button class="btn-line" onclick="closeModal()">Cancel</button><button class="btn-red" onclick="saveDelegate('${id||""}')">${id ? "Save" : "Assign"}</button></div>`);
+}
+function saveDelegate(id){
+  const title = $("dg_t").value.trim(); if(!title){ toast("Write the task"); return; }
+  DB.staffTasks = DB.staffTasks || [];
+  const data = {title, due:$("dg_due").value||"", priority:$("dg_p").value, daily:$("dg_daily").checked, note:$("dg_n").value.trim()};
+  if(id){ const t = DB.staffTasks.find(x=>x.id===id); if(t) Object.assign(t, data); }
+  else { const to = $("dg_to").value; DB.staffTasks.push({id:uid(), sid:to, from:MY_SID || "", fromName:(empById(MY_SID)||{}).name || myName() || ROLE_LABEL, ...data, status:"open", doneOn:"", staffNote:"", created:todayStr(), by:(empById(MY_SID)||{}).name || ROLE_LABEL}); }
+  save(); closeModal(); renderStaffDash(); toast(id ? "Task updated" : `Task assigned to ${(empById($("dg_to") ? $("dg_to").value : "")||{}).name || "staff"}`);
+}
+function delDelegate(id){ askConfirm("Remove this task?", "", ()=>{ DB.staffTasks = (DB.staffTasks||[]).filter(t=>!(t.id===id && t.from===MY_SID)); save(); renderStaffDash(); toast("Removed"); }); }
 
 /* ================= v106: BEHAVIOUR & DISCIPLINE — teacher remarks (Executive approve) + warning letters =================
    Teacher: kisi apne bache ke baare mein remark / issue bhejta hai → DB.stuNotes (pending). Sirf Executive approve / reject karta hai;
@@ -12898,6 +13059,7 @@ const modalOpen = () => $("modalOverlay").classList.contains("show");
 const typing = () => { const a = document.activeElement; return !!a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && !!a.closest(".main, .modal"); };
 
 /* v93: guzri hui marks deadlines → KPI (admin / executive ke browser se; har 10 minute aur shuru mein) */
+if(ROLE === "exec") setTimeout(()=>{ try{ staffFeeKpiSync(); }catch(e){} }, 6000);   // v120: staff fee KPIs khud score
 if(!IS_TEACHER) { setTimeout(()=>{ try{ kpiDeadlineSync(); }catch(e){} }, 5000); setInterval(()=>{ try{ kpiDeadlineSync(); }catch(e){} }, 10*60e3); }
 
 /* Server ka naya data screen par lagao (jo page khula hai wahi dobara banao) */

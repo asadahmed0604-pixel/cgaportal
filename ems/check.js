@@ -53,6 +53,13 @@ checkJs("assignments.js");
 checkJs("student-report.js");
 checkJs("ai.js");
 checkJs("remarks.js");
+checkJs("fee-stats.js");
+/* v120: index.html ki feeCountStats copy fee-stats.js jaisi */
+{
+  const r = fs.readFileSync(path.join(__dirname, "fee-stats.js"), "utf8"), h = fs.readFileSync(path.join(__dirname, "index.html"), "utf8");
+  const blk = r.slice(r.indexOf("function feeCountStats("), r.indexOf("if (typeof module"));
+  if (!h.includes(blk)) fail("index.html feeCountStats differs from fee-stats.js — copy it again");
+}
 /* v110: index.html ki REMARK_FULL / remarkText copy remarks.js jaisi honi chahiye */
 {
   const r = fs.readFileSync(path.join(__dirname, "remarks.js"), "utf8"), h = fs.readFileSync(path.join(__dirname, "index.html"), "utf8");

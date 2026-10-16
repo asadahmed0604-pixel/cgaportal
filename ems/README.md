@@ -580,6 +580,29 @@ save, the other shift's records are kept exactly as they are on the server.
 - The server lets a teacher change only the projects of the groups they lead — never the group's name, students or
   teacher, and never another group.
 
+## Staff dashboards — fee collection KPI, coordinator checklist, Evening tests, delegation (v120)
+
+- **💰 Fee collection (counts only, no amounts)** on every staff dashboard, for the staff member's shift (Morning
+  coordinator → Morning, Evening coordinator → Evening, Fee Admin with no shift → both): challans issued for the working
+  month, how many are fully paid and the percentage. Two targets:
+  **65% of challans received by the 15th** and **98% by the 27th** — before the date it shows "on track" or "behind — N
+  more challans needed", after the date "KPI achieved / not achieved". Admins get only these counts from the server.
+- **Staff KPIs:** two automatic items, "Fee collection by the 15th" and "Fee collection by the 27th" (added to the
+  templates and to KPIs of the current month). The Executive's app scores them by itself after each date: 5/5 when
+  achieved, 0/5 when not, with a note such as "Auto — 50% of challans received by 15 Oct (target 65%)".
+- **📋 Coordinator checklist (Admin logins, per shift)** — today's students' attendance, staff attendance, classes taken
+  marked, homework given in every class in the last 7 days, past-due homework not checked by teachers (with names),
+  class audits this month (classes not yet audited) and inquiry follow-ups; each with an Open button.
+- **🧪 Evening tests** (Evening coordinator): every Evening teacher × class with the number of tests this month against
+  the target of 2, and how many more are needed.
+- **🔔 Reminders** at the top: unfinished checklist items, fee targets missed or close, overdue / due-today tasks, and
+  overdue tasks given to others.
+- **📤 Assign a task (delegation):** any staff login can give a task to another staff login (e.g. the Morning
+  coordinator to a helper, the Evening coordinator to the Fee Admin) — quick-pick duties, due date, priority, note and
+  **🔁 daily duty** (must be ticked every day). The other person sees it in their to-do list ("from …") and ticks it;
+  the giver sees "📤 Tasks I assigned" with done / not done today / overdue, and can edit or remove it. The server only
+  lets the giver change or remove a task they gave, and the assignee only its status and note.
+
 ## Install as an app (v41)
 
 Staff (`/`), Teachers (`/teacher`) and Parents (`/parent`) — all three links can be installed as an app on a phone / computer
