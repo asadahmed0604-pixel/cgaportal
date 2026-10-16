@@ -494,6 +494,16 @@ save, the other shift's records are kept exactly as they are on the server.
     can be printed later by switching back.
 - The choice is remembered in that browser. WhatsApp PDFs always use the typed remark.
 
+## Report card front always on one page (v113)
+
+- However many subjects / tests a student has, the **front page (marks) always fits on one A4 page** and the back page
+  (remarks, Coordinator's remarks) is always the second page — so double-sided printing lines up for every card.
+- Print / bulk print: just before printing, each card's front is measured at A4 width; if it is too long, the page is
+  scaled down (smaller font) to fit. Many tests also switch to a compact table (smaller rows, exam name hidden), and
+  above 12 tests the teacher's short subject comments are shown instead of the detailed sentences.
+- PDF / WhatsApp PDF: the marks table rows and font shrink as needed so page 1 is one page; page 2 follows.
+- Tested with 3 to 30 tests per card: always exactly 2 pages per card.
+
 ## Install as an app (v41)
 
 Staff (`/`), Teachers (`/teacher`) and Parents (`/parent`) — all three links can be installed as an app on a phone / computer

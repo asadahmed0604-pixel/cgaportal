@@ -305,8 +305,8 @@ label.chk input{width:auto}
 .rc-line{border-bottom:1px solid #B9C9D0;height:26px}
 .rc-by{display:flex;justify-content:space-between;gap:10px;margin-top:8px;font-size:.7rem;color:#555}
 /* v111: ziada tests hon to page 1 compact — taake front/back print mein har card theek 2 pages rahe */
-@media print{.rc.rc-c .rc-tbl td{padding:3px 6px;line-height:1.2}.rc.rc-c .rc-tbl td i{font-size:.6rem !important}.rc.rc-c .rc-stu{margin:6px 0}.rc.rc-c .rc-sum{margin:6px 0}.rc.rc-c .rc-sum div{padding:4px 8px}.rc.rc-c .rc-sec{margin:8px 0 4px}
-  .rc.rc-cc{font-size:.76rem}.rc.rc-cc .rc-tbl td{padding:2px 6px;line-height:1.12}.rc.rc-cc .rc-tbl td i{font-size:.56rem !important}.rc.rc-cc .rc-tbl td span{display:none}
+@media all{.rc.rc-c .rc-tbl td{padding:3px 6px;line-height:1.2}.rc.rc-c .rc-tbl td i{font-size:.6rem !important}.rc.rc-c .rc-stu{margin:6px 0}.rc.rc-c .rc-sum{margin:6px 0}.rc.rc-c .rc-sum div{padding:4px 8px}.rc.rc-c .rc-sec{margin:8px 0 4px}
+  .rc.rc-cc{font-size:.76rem}.rc.rc-cc .rc-tbl td{padding:2px 6px;line-height:1.12}.rc.rc-cc .rc-tbl td i{font-size:.56rem !important}.rc.rc-cc .rc-tbl td .rc-ex{display:none}
   .rc.rc-cc .rc-tbl th{padding:4px 6px}.rc.rc-cc .rc-head{padding:6px 12px}.rc.rc-cc .rc-head .cx-logo img{height:44px}.rc.rc-cc .rc-stu img{width:60px;height:70px}.rc.rc-cc .rc-grid div{padding:3px 10px}.rc.rc-cc .rc-sum b{font-size:1rem}}
 @media print{.rc-p2{break-before:page;page-break-before:always;margin-top:0;min-height:262mm;display:flex;flex-direction:column}.rc-p2 .rc-sign{margin-top:auto;padding-top:30px}}
 .rc-foot{margin-top:12px;padding-top:6px;border-top:2px solid #159670;display:flex;justify-content:space-between;gap:8px;font-size:.6rem;color:#6B7C85}
@@ -1442,7 +1442,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v112 · 16 Oct 2026";
+const BUILD = "v113 · 16 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -3366,18 +3366,22 @@ async function reportCardPDF(d){
   const more = need=>{ if(y + need <= PDF_H - 80) return false;
     page(); y = 30; doc.text(`${s.name} - report card (continued)`, x0, y + 8, {size:8, bold:true, color:PC.navy}); y += 16; return true; };
   const rows = d.ex.slice(0, 30);
+  /* v113: page 1 hamesha aik page — subjects ziada hon to font / row chhote (scale k); coordinator remarks waghera back side pe */
+  const cmOf = (e, k)=>e.comment ? pdfWrap(`"${rows.length > 12 ? e.comment : remarkText(e.comment, s.name, e.subject)}"`, 7*k, W - 22 - 62 - 10) : [];
+  const rowH = (e, k)=>{ const n = cmOf(e, k).length; return (18 + n*8.5 + (n ? 2 : 0))*k; };
+  const avail = PDF_H - 74 - 38 - y;
+  let k = 1; while(k > .5 && rows.reduce((a, e)=>a + rowH(e, k), 0) > avail) k = Math.round((k - .03)*100)/100;
   rows.forEach((e,i)=>{
-    const cm = e.comment ? pdfWrap(`"${rows.length > 10 ? e.comment : remarkText(e.comment, s.name, e.subject)}"`, 7, W - 22 - 62 - 10) : [];   // 10 se ziada tests: chhota remark, taake 2 pages rahein
-       // v110: tafseeli remark, poori chaurai mein
-    const h = 18 + cm.length*8.5 + (cm.length ? 2 : 0);
+    const cm = cmOf(e, k);
+    const h = rowH(e, k);
     if(more(h)) thead();
     if(i % 2) doc.rect(x0, y, W, h, {fill:PC.soft, alpha:.7});
     const vals = [String(i+1), fmtD(e.date), e.subject || e.exam, String(e.total), String(eObt(e)), ePctT(e), eGrade(e), eResult(e)];
     cx = x0; vals.forEach((v,j)=>{
-      if(j === 6){ const [gc, gb] = GRADE_TONE[v] || [PC.muted, "#EEF1F3"]; doc.rect(cx + 3, y + 3.5, cols[j][1] - 8, 11.5, {fill:gb}); doc.text(v, cx + 3 + (cols[j][1] - 8)/2, y + 12, {size:8, bold:true, color:gc, align:"center", maxW:cols[j][1] - 10}); }
-      else doc.text(v, cx + 5, y + 12, {size:8.5, bold:j===2||j===4, color: j===7 ? (e.absent ? PC.muted : eP(e)>=PASS_PCT ? PC.green : PC.red) : PC.ink, maxW:cols[j][1] - 8});
+      if(j === 6){ const [gc, gb] = GRADE_TONE[v] || [PC.muted, "#EEF1F3"]; doc.rect(cx + 3, y + 3.5*k, cols[j][1] - 8, 11.5*k, {fill:gb}); doc.text(v, cx + 3 + (cols[j][1] - 8)/2, y + 12*k, {size:8*k, bold:true, color:gc, align:"center", maxW:cols[j][1] - 10}); }
+      else doc.text(v, cx + 5, y + 12*k, {size:8.5*k, bold:j===2||j===4, color: j===7 ? (e.absent ? PC.muted : eP(e)>=PASS_PCT ? PC.green : PC.red) : PC.ink, maxW:cols[j][1] - 8});
       cx += cols[j][1]; });
-    cm.forEach((ln, k)=>doc.text(ln, x0 + 22 + 62 + 5, y + 22 + k*8.5, {size:7, color:PC.muted}));
+    cm.forEach((ln, q)=>doc.text(ln, x0 + 22 + 62 + 5, y + (22 + q*8.5)*k, {size:7*k, color:PC.muted}));
     y += h; doc.line(x0, y, x0 + W, y, {color:PC.line, lw:.5});
   });
   if(!rows.length){ doc.text("No tests recorded in this period", x0 + W/2, y + 16, {size:9, color:PC.muted, align:"center"}); y += 34; }
@@ -8577,12 +8581,12 @@ function transcriptHTML(d, forPrint){
   const range = (d.from||d.to) ? (d.from && d.from === d.to ? fmtM(d.from) : `${d.from ? fmtM(d.from) : "Start"} — ${d.to ? fmtM(d.to) : "Now"}`) : "All Exams";
   const rows = ex.map((e,i)=>{ return `<tr>
       <td>${i+1}</td><td>${fmtD(e.date)}</td>
-      <td><b>${esc(e.subject || e.exam)}</b>${e.subject ? `<br><span style="font-size:.7rem;color:#6B7C85">${esc(e.exam)}</span>` : ""}${e.comment ? `<br><i style="font-size:.7rem;color:#3b5560">"${esc(ex.length > 10 ? e.comment : remarkText(e.comment, s.name, e.subject))}"</i>` : ""}</td>
+      <td><b>${esc(e.subject || e.exam)}</b>${e.subject ? `<span class="rc-ex"><br><span style="font-size:.7rem;color:#6B7C85">${esc(e.exam)}</span></span>` : ""}${e.comment ? `<br><i style="font-size:.7rem;color:#3b5560">"${esc(ex.length > 12 ? e.comment : remarkText(e.comment, s.name, e.subject))}"</i>` : ""}</td>
       <td>${e.total}</td><td><b>${eObt(e)}</b></td><td><b>${ePctT(e)}</b></td><td>${gradeChip(eGrade(e))}</td>
       <td style="color:${eColor(e)};font-weight:700">${eResult(e)}</td></tr>`; }).join("");
   const key = GRADE_KEY.replace(/^Grading:\s*/, "").split(" · ").map(t=>{ const g = t.split(" ")[0]; return `${gradeChip(g)} ${esc(t.slice(g.length).trim())}`; }).join(" ");
   return `
-  <div class="rc${ex.length > 5 ? " rc-c" : ""}${ex.length > 8 ? " rc-cc" : ""}" style="${forPrint ? "padding:4px" : "border:1px solid var(--line);border-radius:10px;padding:14px;background:#fff"}">
+  <div class="rc rc-front${ex.length > 5 ? " rc-c" : ""}${ex.length > 8 ? " rc-cc" : ""}" style="${forPrint ? "padding:4px" : "border:1px solid var(--line);border-radius:10px;padding:14px;background:#fff"}">
     <div class="rc-wm"><img src="${logoSrc()}" alt=""></div>
     <div class="rc-head">
       <div class="cx-brand"><div class="cx-logo"><img src="${logoSrc()}"></div>
@@ -8797,11 +8801,24 @@ async function bulkRcPrint(){
   $("challanPrint").innerHTML = cards.map((d,i)=>`<div style="${i < cards.length-1 ? "page-break-after:always;break-after:page;" : ""}padding:6px 2px">${transcriptHTML(rcForPrint(d), true)}</div>`).join("");
   printWhenReady();
 }
+/* v113: report card ka front page hamesha AIK A4 page — print ki chaurai par naap kar, lamba ho to poora page chhota (zoom).
+   Is tarah har card front pe marks aur back pe coordinator remarks — front/back print hamesha theek. */
+const RC_PAGE_PX = 1012;   // A4 (297mm) − 8mm margins − wrapper padding, 96 dpi par thori gunjaish ke saath
+function fitRcPages(){
+  const fr = $("challanPrint").querySelectorAll(".rc-front, .rc-p2"); if(!fr.length) return;
+  const host = document.createElement("div");
+  host.style.cssText = "position:absolute;left:-10000px;top:0;width:729px;visibility:hidden";
+  host.className = "rc-measure"; document.body.appendChild(host);
+  fr.forEach(rc=>{ rc.style.zoom = ""; host.innerHTML = ""; const c = rc.cloneNode(true); host.appendChild(c);
+    const h = c.getBoundingClientRect().height;
+    if(h > RC_PAGE_PX) rc.style.zoom = Math.max(.4, RC_PAGE_PX/h).toFixed(3); });
+  host.remove();
+}
 /* v109: print tab karo jab logo / tasveerein load ho chuki hon (warna print mein logo / watermark khali reh jata) */
 function printWhenReady(){
   const imgs = [...$("challanPrint").querySelectorAll("img")].filter(im=>!im.complete);
-  if(!imgs.length){ window.print(); return; }
-  let done = false; const go = ()=>{ if(!done){ done = true; window.print(); } };
+  if(!imgs.length){ fitRcPages(); window.print(); return; }
+  let done = false; const go = ()=>{ if(!done){ done = true; fitRcPages(); window.print(); } };
   Promise.all(imgs.map(im=>new Promise(r=>{ im.onload = im.onerror = r; }))).then(go);
   setTimeout(go, 2500);
 }
