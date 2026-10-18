@@ -627,6 +627,17 @@ save, the other shift's records are kept exactly as they are on the server.
   each person's work time, like manual marking. Days already marked are skipped unless "Overwrite" is ticked.
   Salaries are recalculated after the import.
 
+## Promote a student / undo a wrong class change (v124)
+
+- **Student profile → ⬆ Promote to new class:** choose the new shift / class (and second class for Evening) and the
+  date the student starts in it. The old class is saved in the student's class history (until the day before), so
+  **tests, marks entry, report cards and class position before that date stay in the old class**; from that date the
+  student is in the new class. **↩ Undo last promotion** puts the student back. The profile shows the class history.
+- **↩ Undo class change:** if someone changes a student's class directly in Edit (no promotion), the profile shows
+  "Undo class change (back to FT1 · Morning)" with who changed it and when — one click puts everything back, because
+  marks and report cards follow the student's class.
+- Use Promote for real promotions (keeps history); use Edit only to correct a mistake.
+
 ## Install as an app (v41)
 
 Staff (`/`), Teachers (`/teacher`) and Parents (`/parent`) — all three links can be installed as an app on a phone / computer

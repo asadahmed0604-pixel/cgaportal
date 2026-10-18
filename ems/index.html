@@ -1437,6 +1437,14 @@ const levelOfClass = c => CLASS_LEVEL[c] || "O Level";
 const classesOf = s => !s ? [] : [s.course, s.shift === "Evening" ? s.course2 : ""].filter(Boolean);
 const inClass = (s, c) => classesOf(s).includes(c);
 const classLabelOf = s => classesOf(s).join(" + ");
+/* v124: class history — promotion se pehle ki class st.classHist = [{course, course2, shift, until:"YYYY-MM-DD" (us class ka aakhri din), at, by}].
+   Purani tareekh ke tests, report cards aur class position us waqt ki class mein ginay jate hain. */
+const monthEnd = m => m ? m + "-" + String(new Date(+m.slice(0,4), +m.slice(5,7), 0).getDate()).padStart(2,"0") : "";
+function classAt(st, date){
+  if(!st || !date || !(st.classHist||[]).length) return null;
+  return [...st.classHist].filter(h=>h && h.until).sort((a,b)=>a.until.localeCompare(b.until)).find(h=>String(date).slice(0,10) <= h.until) || null;
+}
+const stuAt = (st, date) => { const h = classAt(st, date); return h ? {...st, course:h.course, course2:h.course2||"", shift:h.shift||st.shift} : st; };
 
 /* ---------- Subjects offered (Settings se edit ho sakti hain) ----------
    C = Compulsory (Morning mein khud add ho jate hain) · E = Elective (student chunta hai) */
@@ -1474,7 +1482,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v123 · 16 Oct 2026";
+const BUILD = "v124 · 18 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -2940,6 +2948,9 @@ function saveStudent(id){
   if(id){
     const old = stuById(id);
     if(old.status !== data.status) data.statusSince = todayStr();   // v26: dashboard ke purane mahinon ke liye
+    /* v124: class seedha badli (promote ke baghair) — purani class yaad rakho taake "Undo" ho sake */
+    if(old.course !== data.course || (old.course2||"") !== (data.course2||"") || old.shift !== data.shift)
+      data.prevClass = {course:old.course, course2:old.course2||"", shift:old.shift, at:todayStr(), by:myName() || ROLE_LABEL};
     Object.assign(old, data); toast("Student updated");
   }
   else{
@@ -3076,6 +3087,10 @@ function openProfile(id){
         <label>Change Status</label>
         <select onchange="changeStatus('${id}',this.value)">${["Active","Graduate","Left","Freeze"].map(x=>`<option ${s.status===x?"selected":""}>${x}</option>`).join("")}</select>
         <button class="btn-black btn-sm" style="margin-top:10px;width:100%" onclick="closeModal();openReportCard('${id}')">🎓 Report Card</button>
+        ${IS_TEACHER ? "" : `<button class="btn-line btn-sm" style="margin-top:8px;width:100%" onclick="openPromote('${id}')">⬆ Promote to new class</button>`}
+        ${!IS_TEACHER && s.prevClass && (s.prevClass.course !== s.course || s.prevClass.shift !== s.shift) ? `<button class="btn-line btn-sm" style="margin-top:8px;width:100%" onclick="undoClassChange('${id}')">↩ Undo class change (back to ${esc(s.prevClass.course)} · ${esc(s.prevClass.shift)})</button>` : ""}
+        ${!IS_TEACHER && (s.classHist||[]).length ? `<button class="btn-line btn-sm" style="margin-top:8px;width:100%" onclick="undoPromote('${id}')">↩ Undo last promotion</button>
+          <div class="sub" style="margin-top:6px">Class history: ${s.classHist.map(h=>`${esc(h.course)} · ${esc(h.shift)} until ${fmtD(h.until)}`).join(" → ")} → ${esc(s.course)}</div>` : ""}
         <button class="btn-red btn-sm" style="margin-top:8px;width:100%" onclick="downloadProfile('${id}')">⬇ Download Profile</button>
       </div>
     </div>
@@ -7034,7 +7049,7 @@ function takesSubject(st, subject){
 function testStudents(t){
   const m = String(t.date||wm()).slice(0,7), RM = rosterMonths();
   const has = new Set(testMarks(t).map(e=>e.studentId));
-  return DB.students.filter(st=>(has.has(st.id) && !morningSkip(st, t.subject)) || (st.shift===t.shift && inClass(st, t.course) && st.status!=="Left" && inMonth(st, m, RM)
+  return DB.students.filter(st=>(has.has(st.id) && !morningSkip(st, t.subject)) || ((x=>x.shift===t.shift && inClass(x, t.course))(stuAt(st, t.date)) && st.status!=="Left" && inMonth(st, m, RM)
       && takesSubject(st, t.subject)))
     .sort((a,b)=>a.name.localeCompare(b.name));
 }
@@ -8794,7 +8809,7 @@ function openReportCard(preId){
 }
 function reportCardData(){
   const sid=$("rc_stu").value, from=$("rc_from").value, to=$("rc_to").value;
-  const s = stuById(sid);
+  const s = stuAt(stuById(sid), monthEnd(to));
   const ex = DB.exams.filter(e=>{
     if(e.studentId!==sid || !examShown(e)) return false;
     const m = e.date.slice(0,7);
@@ -9090,8 +9105,41 @@ function attInRange(sid, from, to){
   const marked = P+A+L+E;
   return {P, A, L, E, pct: marked ? Math.round((P+L)*100/marked) : 0};
 }
+/* v124: Promote — nayi class aaj (ya chuni hui tareekh) se; us se pehle ka sab purani class mein hi rehta hai */
+function openPromote(id){
+  const s = stuById(id); if(!s) return;
+  openModal(`<h3>⬆ Promote — ${esc(s.name)}</h3>
+    <p class="sub" style="margin-bottom:8px">Now in <b>${esc(classLabelOf(s))} · ${esc(s.shift)}</b>. Tests, marks, report cards and class position <b>before the start date</b> stay in the old class; from the start date the student is in the new class.</p>
+    <div class="grid2"><div class="field"><label>New shift</label><select id="pr_sh" onchange="$('pr_c').innerHTML=courseOptions('',this.value);$('pr_c2w').style.display=this.value==='Evening'?'':'none'"><option ${s.shift==="Morning"?"selected":""}>Morning</option><option ${s.shift==="Evening"?"selected":""}>Evening</option></select></div>
+      <div class="field"><label>New class *</label><select id="pr_c">${courseOptions("", s.shift)}</select></div></div>
+    <div class="grid2"><div class="field" id="pr_c2w" style="${s.shift==="Evening"?"":"display:none"}"><label>Second class (Evening, optional)</label><select id="pr_c2"><option value="">—</option>${courseOptions("", "Evening")}</select></div>
+      <div class="field"><label>In the new class from *</label><input type="date" id="pr_d" value="${todayStr()}"></div></div>
+    <div class="modal-foot"><button class="btn-line" onclick="closeModal()">Cancel</button><button class="btn-red" onclick="savePromote('${id}')">Promote</button></div>`);
+}
+function savePromote(id){
+  const s = stuById(id), c = $("pr_c").value, sh = $("pr_sh").value, d = $("pr_d").value; if(!s || !c || !d) { toast("Choose the new class and the date"); return; }
+  const c2 = sh === "Evening" && $("pr_c2").value !== c ? $("pr_c2").value : "";
+  if(c === s.course && sh === s.shift && c2 === (s.course2||"")){ toast("That is the current class"); return; }
+  const until = new Date(Date.parse(d + "T00:00:00Z") - 864e5).toISOString().slice(0,10);   // nayi class se aik din pehle tak purani
+  s.classHist = [...(s.classHist||[]), {course:s.course, course2:s.course2||"", shift:s.shift, until, at:todayStr(), by:myName() || ROLE_LABEL}];
+  s.course = c; s.course2 = c2; s.shift = sh; delete s.prevClass;
+  save(); closeModal(); toast(`✓ ${s.name} promoted to ${classLabelOf(s)} from ${fmtD(d)} — earlier records stay in ${s.classHist[s.classHist.length-1].course}`);
+  try{ renderStudents(); }catch(e){} openProfile(id);
+}
+function undoPromote(id){
+  const s = stuById(id), h = s && (s.classHist||[]).slice(-1)[0]; if(!h) return;
+  askConfirm(`Undo the last promotion of ${s.name}?`, `Back to ${esc(h.course)} · ${esc(h.shift)} (now ${esc(classLabelOf(s))})`, ()=>{
+    s.course = h.course; s.course2 = h.course2||""; s.shift = h.shift; s.classHist = s.classHist.slice(0, -1); if(!s.classHist.length) delete s.classHist;
+    save(); closeModal(); toast(`↩ ${s.name} is back in ${h.course}`); try{ renderStudents(); }catch(e){} openProfile(id); });
+}
+function undoClassChange(id){
+  const s = stuById(id), p = s && s.prevClass; if(!p) return;
+  askConfirm(`Put ${s.name} back in ${p.course}?`, `The class was changed to ${esc(classLabelOf(s))} on ${fmtD(p.at)}${p.by ? " by " + esc(p.by) : ""}. All marks and report cards follow the class again.`, ()=>{
+    s.course = p.course; s.course2 = p.course2||""; s.shift = p.shift; delete s.prevClass;
+    save(); closeModal(); toast(`↩ ${s.name} is back in ${p.course}`); try{ renderStudents(); }catch(e){} openProfile(id); });
+}
 function reportCardFor(sid, from, to){
-  const s = stuById(sid);
+  const s = stuAt(stuById(sid), monthEnd(to));                 // v124: us mahine ki class
   const ex = DB.exams.filter(e=>{ if(e.studentId!==sid || !examShown(e)) return false; const m = String(e.date).slice(0,7);
     return !(from && m < from) && !(to && m > to); }).sort((a,b)=>a.date.localeCompare(b.date));
   const x = exSum(ex);
@@ -9125,7 +9173,7 @@ const posText = x => x ? `marks ${x.marks}%${x.hw !== null ? ` · homework ${x.h
 function bulkRcList(){
   const m = $("brc_month").value, sh = $("brc_shift").value, cl = window._brcClass || "", onlyEx = $("brc_onlyex").checked;
   const RM = rosterMonths();
-  const stus = DB.students.filter(st=>st.status!=="Left" && inMonth(st, m, RM) && (!sh || st.shift===sh) && (!cl || inClass(st, cl)));
+  const stus = DB.students.map(st=>stuAt(st, monthEnd(m))).filter(st=>st.status!=="Left" && inMonth(st, m, RM) && (!sh || st.shift===sh) && (!cl || inClass(st, cl)));
   const cards = stus.map(st=>reportCardFor(st.id, m, m)).filter(d=>!onlyEx || d.ex.length);
   /* position aur average — class + shift ke andar, sirf jin ke tests hain */
   const groups = {};
