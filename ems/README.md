@@ -637,6 +637,11 @@ save, the other shift's records are kept exactly as they are on the server.
   "Undo class change (back to FT1 · Morning)" with who changed it and when — one click puts everything back, because
   marks and report cards follow the student's class.
 - Use Promote for real promotions (keeps history); use Edit only to correct a mistake.
+- **Hidden marks (v125):** in the Morning, marks only show for subjects in the student's subject list. Changing the
+  class in Edit removes subjects the new class doesn't offer, so after changing it back some marks were hidden. The
+  profile now warns "N marks hidden — subjects not in this student's list: …" with **➕ Add these subjects back**.
+  "Undo class change" and "Undo last promotion" also restore the subjects, and a promotion keeps the old subject list
+  in the class history so marks from before the promotion always show.
 
 ## Install as an app (v41)
 
