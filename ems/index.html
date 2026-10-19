@@ -1482,7 +1482,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v125 · 18 Oct 2026";
+const BUILD = "v126 · 19 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -7194,7 +7194,7 @@ function guessTeacher(sh, c, subj){
 }
 function examGroups(fm, fs, keys){
   const by = {};
-  DB.tests.filter(t=>t.examId && (!fm || String(t.date).startsWith(fm)) && (!fs || t.shift===fs) && (!IS_TEACHER || keys.includes(t.shift+"|"+t.course))).forEach(t=>{
+  DB.tests.filter(t=>t.examId && (!fm || testRcMonth(t) === fm) && (!fs || t.shift===fs) && (!IS_TEACHER || keys.includes(t.shift+"|"+t.course))).forEach(t=>{
     const g = by[t.examId] = by[t.examId] || {id:t.examId, name:t.examName || t.name, shift:t.shift, tests:[], from:t.date, to:t.date};
     g.tests.push(t); if(t.date < g.from) g.from = t.date; if(t.date > g.to) g.to = t.date;
   });
@@ -8814,7 +8814,7 @@ function reportCardData(){
   const s = stuAt(stuById(sid), monthEnd(to));
   const ex = DB.exams.filter(e=>{
     if(e.studentId!==sid || !examShown(e)) return false;
-    const m = e.date.slice(0,7);
+    const m = rcMonthOf(e);
     if(from && m<from) return false;
     if(to && m>to) return false;
     return true;
@@ -9148,9 +9148,21 @@ function undoClassChange(id){
     s.course = p.course; s.course2 = p.course2||""; s.shift = p.shift; if(p.subjects && p.subjects.length) s.subjects = p.subjects; delete s.prevClass;
     save(); closeModal(); toast(`↩ ${s.name} is back in ${p.course}`); try{ renderStudents(); }catch(e){} openProfile(id); });
 }
+/* v126: exam ka har paper exam ke mahine mein ginta hai (jis mahine us ke zyada papers hon) — jaise "October Exams" ka 30 Sep wala
+   paper October ke report card mein. Akele tests apni tareekh ke mahine mein. */
+let EXM_C = {at:0, month:null, test:null};
+function exmCache(){
+  if(EXM_C.month && Date.now() - EXM_C.at < 1500) return EXM_C;
+  const by = {}, month = {}, test = new Map();
+  DB.tests.forEach(t=>{ test.set(t.id, t); if(!t.examId) return; const m = String(t.date||"").slice(0,7); const c = by[t.examId] = by[t.examId] || {}; c[m] = (c[m]||0) + 1; });
+  Object.entries(by).forEach(([id, c])=>{ month[id] = Object.entries(c).sort((a,b)=>b[1]-a[1] || b[0].localeCompare(a[0]))[0][0]; });
+  return EXM_C = {at:Date.now(), month, test};
+}
+const testRcMonth = t => (t.examId && exmCache().month[t.examId]) || String(t.date||"").slice(0,7);
+const rcMonthOf = e => { const t = e.testId && exmCache().test.get(e.testId); return t ? testRcMonth(t) : String(e.date||"").slice(0,7); };
 function reportCardFor(sid, from, to){
   const s = stuAt(stuById(sid), monthEnd(to));                 // v124: us mahine ki class
-  const ex = DB.exams.filter(e=>{ if(e.studentId!==sid || !examShown(e)) return false; const m = String(e.date).slice(0,7);
+  const ex = DB.exams.filter(e=>{ if(e.studentId!==sid || !examShown(e)) return false; const m = rcMonthOf(e);
     return !(from && m < from) && !(to && m > to); }).sort((a,b)=>a.date.localeCompare(b.date));
   const x = exSum(ex);
   const remarks = (s.remarks||[]).filter(r=>r.parentVisible!==false && (!from || String(r.d).slice(0,7) >= from) && (!to || String(r.d).slice(0,7) <= to));

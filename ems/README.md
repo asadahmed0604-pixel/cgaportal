@@ -643,6 +643,14 @@ save, the other shift's records are kept exactly as they are on the server.
   "Undo class change" and "Undo last promotion" also restore the subjects, and a promotion keeps the old subject list
   in the class history so marks from before the promotion always show.
 
+## Exam papers count in the exam's month (v126)
+
+- A paper that belongs to an exam (created under Exams, e.g. "October Exams") now counts in **the exam's month** on
+  report cards — the month in which most of that exam's papers were taken — even if that paper's own date is in
+  another month. Example: October Exams with one paper on 30 Sep and the rest in October → all papers are on the
+  October report card (single, bulk, PDF / WhatsApp) and in the October class position, also in the parents' app.
+- Stand-alone tests still count in the month of their own date. The Exams page month filter uses the same rule.
+
 ## Install as an app (v41)
 
 Staff (`/`), Teachers (`/teacher`) and Parents (`/parent`) — all three links can be installed as an app on a phone / computer
