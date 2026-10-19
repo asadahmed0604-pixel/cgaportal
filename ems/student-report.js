@@ -66,8 +66,21 @@ function resultsHold(db, st, now = Date.now()) {
     text: `Results will be announced at the PTM — ${when}. Please come to the school to collect your child's result.` };
 }
 const POS_W = { marks: 60, hw: 15, beh: 10, att: 15 };
+/* v126: exam ka har paper exam ke mahine mein (jis mahine us ke zyada papers) — index.html ke rcMonthOf jaisa */
+const exmCache = new WeakMap();
+function rcMonthOf(db, e) {
+  let c = exmCache.get(db);
+  if (!c) {
+    const by = {}, month = {}, test = new Map();
+    (db.tests || []).forEach((t) => { if (!t) return; test.set(t.id, t); if (!t.examId) return; const m = String(t.date || "").slice(0, 7); const o = by[t.examId] = by[t.examId] || {}; o[m] = (o[m] || 0) + 1; });
+    Object.entries(by).forEach(([id, o]) => { month[id] = Object.entries(o).sort((a, b) => b[1] - a[1] || b[0].localeCompare(a[0]))[0][0]; });
+    exmCache.set(db, (c = { month, test }));
+  }
+  const t = e.testId && c.test.get(e.testId);
+  return (t && ((t.examId && c.month[t.examId]) || String(t.date || "").slice(0, 7))) || String(e.date || "").slice(0, 7);
+}
 function posParts(db, st, month) {
-  const L = (db.exams || []).filter((e) => e.studentId === st.id && +e.total > 0 && !e.absent && takesSubj(st, e.subject) && String(e.date).startsWith(month));
+  const L = (db.exams || []).filter((e) => e.studentId === st.id && +e.total > 0 && !e.absent && takesSubj(st, e.subject) && rcMonthOf(db, e) === month);
   const tot = L.reduce((a, e) => a + +e.total, 0), obt = L.reduce((a, e) => a + (+e.obtained || 0), 0);
   const marks = tot ? Math.round((obt * 100) / tot) : null;
   if (marks === null) return null;
@@ -90,7 +103,7 @@ function posParts(db, st, month) {
 }
 function classPosition(db, st) {
   const months = [...new Set((db.exams || []).filter((e) => e.studentId === st.id && +e.total > 0 && !e.absent && takesSubj(st, e.subject))
-    .map((e) => String(e.date || "").slice(0, 7)).filter(Boolean))].sort();
+    .map((e) => rcMonthOf(db, e)).filter(Boolean))].sort();
   const month = months.pop(); if (!month) return null;
   const rows = (db.students || []).filter((s) => s.shift === st.shift && s.course === st.course && s.status !== "Left")
     .map((s) => ({ id: s.id, x: posParts(db, s, month) })).filter((r) => r.x).sort((a, b) => b.x.score - a.x.score);
