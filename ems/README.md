@@ -651,6 +651,17 @@ save, the other shift's records are kept exactly as they are on the server.
   October report card (single, bulk, PDF / WhatsApp) and in the October class position, also in the parents' app.
 - Stand-alone tests still count in the month of their own date. The Exams page month filter uses the same rule.
 
+## Review late times & fines (v127)
+
+- **Employees → 👥 Staff Attendance → ⏰ Review late times & fines:** pick the month (and shift) to see every late
+  entry — date, employee, start time, arrival time and late minutes — with a per-employee total and fine.
+  - **Wrong arrival time:** change the time; the late minutes and fine update on screen; **💾 Save changes**.
+  - **Excuse:** tick to make that day not late (stays excused even if the day is saved again).
+  - **🔄 Recalculate month:** if an employee's start time was set wrong, correct it in Employees → Edit → Work days &
+    times, then recalculate — every arrival in the month is re-measured against the current start times (late minutes
+    are otherwise fixed when the attendance is saved).
+- Salaries / fines are recalculated after every change.
+
 ## Install as an app (v41)
 
 Staff (`/`), Teachers (`/teacher`) and Parents (`/parent`) — all three links can be installed as an app on a phone / computer

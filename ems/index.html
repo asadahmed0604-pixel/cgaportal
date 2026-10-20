@@ -1142,6 +1142,7 @@ label.chk input{width:auto}
       <button class="btn-black" onclick="empMarkAll('P')">All Present</button>
       <button class="btn-red" onclick="saveEmpAttendance()">Save Attendance</button>
       <button class="btn-line" onclick="openStaffAttImport()">⬆ Import (machine / CSV)</button>
+      <button class="btn-line" onclick="openLateReview()">⏰ Review late times & fines</button>
     </div>
     <div id="lateBox" class="note" style="margin:0 0 10px"></div>
     <div id="empAttWarn"></div>
@@ -1482,7 +1483,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v126 · 19 Oct 2026";
+const BUILD = "v127 · 20 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -9507,6 +9508,69 @@ function empSetTime(eid, t){
   else if(!lm && d.s === "L" && empSlot(e, EMP_ATT_SHIFT, date)) empMark(eid, "P");
   const c = $("elate_" + eid); if(c) c.innerHTML = empLateCell(e, EMP_ATT_SHIFT, date, d) + "<br>" + empLateLine(eid, date.slice(0,7));
 }
+/* ================= v127: late times & fines — mahine ki saari late entries, time theek karo / maaf karo / dobara hisaab =================
+   lm (late minutes) save ke waqt banta hai — employee ka start time baad mein theek ho to "Recalculate" se pura mahina naye time se. */
+let LR = null;
+function lateRecs(m, sh){
+  const out = [];
+  Object.keys(DB.empAttendance||{}).filter(d=>d.startsWith(m)).sort().forEach(d=>{
+    const day = DB.empAttendance[d] || {};
+    Object.keys(day).forEach(eid=>{ const e = empById(eid); if(!e) return;
+      empRecs(day, eid).forEach(x=>{ if(sh && x.shift !== sh) return; if(!(+x.lm > 0) && !x.excused) return;
+        const sl = empSlot(e, x.shift, d);
+        out.push({k:`${d}|${eid}|${x.shift}`, d, eid, name:e.name, sh:x.shift, start: sl ? sl.from : "", t:x.t||"", lm:+x.lm||0, excused:!!x.excused}); }); }); });
+  return out;
+}
+function lrSet(d, eid, sh, fn){                      // record ko shift-wise format mein laa kar badlo
+  const day = DB.empAttendance[d]; if(!day || !day[eid]) return;
+  const old = day[eid], rec = old.s ? {[(empById(eid)||{}).shift === "Evening" ? "Evening" : "Morning"]: {s:old.s, t:old.t, ...(old.lm ? {lm:old.lm} : {})}} : {...old};
+  if(!rec[sh]) return; rec[sh] = fn({...rec[sh]}); day[eid] = rec;
+}
+function openLateReview(){
+  LR = {m: (($("empAttDate")||{}).value || wmDate()).slice(0,7), sh: EMP_ATT_SHIFT || "", edits:{}};
+  openModal(`<h3>⏰ Late times & fines</h3>
+    <p class="sub" style="margin-bottom:8px">Every late entry of the month. Correct a wrong arrival time, or tick <b>Excuse</b> to make it not late. If an employee's <b>start time</b> was set wrong, fix it in Employees → Edit → Work days & times, then press <b>Recalculate month</b>.</p>
+    <div class="toolbar" style="align-items:flex-end"><div class="field"><label>Month</label><input type="month" id="lr_m" value="${LR.m}" onchange="LR.m=this.value;LR.edits={};lrDraw()"></div>
+      <div class="field"><label>Shift</label><select id="lr_sh" onchange="LR.sh=this.value;lrDraw()"><option value="">Both</option><option ${LR.sh==="Morning"?"selected":""}>Morning</option><option ${LR.sh==="Evening"?"selected":""}>Evening</option></select></div>
+      ${IS_ADMIN && ROLE !== "admin" ? "" : `<button class="btn-black btn-sm" onclick="lrRecalc()" title="Work out late minutes again for the whole month from each employee's current start time">🔄 Recalculate month</button>`}</div>
+    <div id="lr_body"></div>
+    <div class="modal-foot"><button class="btn-line" onclick="closeModal()">Close</button><button class="btn-red" onclick="lrSave()">💾 Save changes</button></div>`, true);
+  lrDraw();
+}
+function lrDraw(){
+  const L = lateRecs(LR.m, LR.sh), p = latePolicy();
+  const rows = L.map(r=>{ const ed = LR.edits[r.k] || {}, t = ed.t !== undefined ? ed.t : r.t, ex = ed.excused !== undefined ? ed.excused : r.excused;
+    const e = empById(r.eid), lm = ex ? 0 : lateMinsFor(e, r.sh, r.d, t); return {...r, t, ex, lmNew:lm}; });
+  const per = {}; rows.forEach(r=>{ const o = per[r.eid] = per[r.eid] || {name:r.name, tot:0, n:0}; o.tot += r.lmNew; if(r.lmNew > 0) o.n++; });
+  const fine = tot => Math.max(0, tot - p.allow) * p.rate;
+  $("lr_body").innerHTML = !rows.length ? `<div class="note">No late entries in ${fmtM(LR.m)}${LR.sh ? " (" + LR.sh + ")" : ""}.</div>` : `
+    <div class="tbl-wrap" style="margin-bottom:10px"><table><thead><tr><th>Employee</th><th style="text-align:right">Late days</th><th style="text-align:right">Late minutes</th><th style="text-align:right">Fine</th></tr></thead><tbody>
+      ${Object.values(per).sort((a,b)=>b.tot-a.tot).map(o=>`<tr><td><b>${esc(o.name)}</b></td><td style="text-align:right">${o.n}</td><td style="text-align:right">${o.tot} min</td><td style="text-align:right"><b style="color:${fine(o.tot)?"var(--danger)":"inherit"}">${money(fine(o.tot))}</b></td></tr>`).join("")}</tbody></table>
+      <div class="sub">${p.allow} late minutes a month allowed, then Rs ${p.rate} per minute (this table counts only the rows below — late entries).</div></div>
+    <div class="tbl-wrap" style="max-height:360px;overflow:auto"><table><thead><tr><th>Date</th><th>Employee</th><th>Shift</th><th>Start time</th><th>Arrived</th><th style="text-align:right">Late</th><th>Excuse</th></tr></thead><tbody>
+      ${rows.map(r=>`<tr ${LR.edits[r.k] ? 'style="background:#FFF6E0"' : ""}><td style="white-space:nowrap">${fmtD(r.d)}</td><td><b>${esc(r.name)}</b></td><td>${r.sh}</td><td>${r.start ? fmtT(r.start) : `<span class="sub">not set</span>`}</td>
+        <td><input type="time" value="${esc(r.t)}" onchange="(LR.edits['${r.k}']=LR.edits['${r.k}']||{}).t=this.value;lrDraw()" style="width:115px"></td>
+        <td style="text-align:right"><b style="color:${r.lmNew ? "var(--danger)" : "var(--ok)"}">${r.lmNew} min</b>${r.lmNew !== r.lm ? `<div class="sub">was ${r.lm}</div>` : ""}</td>
+        <td><input type="checkbox" ${r.ex ? "checked" : ""} onchange="(LR.edits['${r.k}']=LR.edits['${r.k}']||{}).excused=this.checked;lrDraw()"></td></tr>`).join("")}</tbody></table></div>`;
+}
+function lrSave(){
+  const ks = Object.keys(LR.edits||{}); if(!ks.length){ toast("No changes"); return; }
+  ks.forEach(k=>{ const [d, eid, sh] = k.split("|"), ed = LR.edits[k], e = empById(eid);
+    lrSet(d, eid, sh, r=>{ if(ed.t !== undefined) r.t = ed.t; if(ed.excused !== undefined){ if(ed.excused) r.excused = true; else delete r.excused; }
+      const lm = r.excused ? 0 : lateMinsFor(e, sh, d, r.t); if(lm) r.lm = lm; else delete r.lm;
+      if(r.s === "L" || r.s === "P") r.s = lm ? "L" : "P"; return r; }); });
+  save(); try{ syncSalaries(); }catch(e){} LR.edits = {}; lrDraw(); try{ loadEmpAttendance(); }catch(e){}
+  toast(`✓ ${ks.length} late entr${ks.length>1?"ies":"y"} updated — fines recalculated`);
+}
+function lrRecalc(){
+  const m = LR.m; let n = 0, before = 0, after = 0;
+  Object.keys(DB.empAttendance||{}).filter(d=>d.startsWith(m)).forEach(d=>Object.keys(DB.empAttendance[d]||{}).forEach(eid=>{ const e = empById(eid); if(!e) return;
+    empRecs(DB.empAttendance[d], eid).forEach(x=>{ if(!x.t || !(x.s === "P" || x.s === "L")) return;
+      const lm = x.excused ? 0 : lateMinsFor(e, x.shift, d, x.t); before += +x.lm||0; after += lm;
+      if(lm !== (+x.lm||0)){ n++; lrSet(d, eid, x.shift, r=>{ if(lm) r.lm = lm; else delete r.lm; r.s = lm ? "L" : "P"; return r; }); } }); }));
+  save(); try{ syncSalaries(); }catch(e){} lrDraw(); try{ loadEmpAttendance(); }catch(e){}
+  toast(n ? `✓ ${fmtM(m)} recalculated from current start times — ${n} entries changed (late minutes ${before} → ${after})` : "Nothing changed — late minutes already match the start times");
+}
 function drawLateBox(){
   const b = $("lateBox"); if(!b) return;
   const p = latePolicy();
@@ -9657,9 +9721,11 @@ function saveEmpAttendance(){
     const old = day[eid], rec = old && !old.s ? {...old} : {};
     if(old && old.s){ const e = empById(eid); rec[e && e.shift === "Evening" ? "Evening" : "Morning"] = {s:old.s, t:old.t}; }
     const e = empById(eid);
-    let st = r.s, lm = (st === "P" || st === "L") ? lateMinsFor(e, sh, date, r.t) : 0;
+    const ex = rec[sh] && rec[sh].excused && rec[sh].t === r.t;          // v127: maaf kiya hua late wapas na lage
+    let st = r.s, lm = (st === "P" || st === "L") && !ex ? lateMinsFor(e, sh, date, r.t) : 0;
     if(lm > 0 && st === "P") st = "L";
-    rec[sh] = {s:st, t:r.t, ...(lm ? {lm} : {})}; day[eid] = rec; n++;
+    if(ex && st === "L") st = "P";
+    rec[sh] = {s:st, t:r.t, ...(lm ? {lm} : {}), ...(ex ? {excused:true} : {})}; day[eid] = rec; n++;
   }
   save(); syncSalaries(); loadEmpAttendance();
   toast(`${sh} staff attendance saved — ${n} employees (${fmtD(date)})${forced ? ` · ${forced} leave(s) over the limit saved as Absent` : ""}`);
