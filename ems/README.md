@@ -729,3 +729,16 @@ Share → "Add to Home Screen" · Computer Chrome/Edge: the install icon in the 
   - The CSV has Periods, Periods not taken and Substitute columns.
   - The substitute teacher sees "🔁 Substitute classes you took" on their dashboard.
 - Counts (cards, monthly summary, taken %) now count periods: a double class counts as 2.
+
+## Parent concerns — assign to a teacher / coordinator (v134)
+
+- **Parents page → 📌 Parent concerns.** The Executive can:
+  - **+ Log a concern** from a meeting, phone call, PTM or WhatsApp;
+  - press **📌 Assign** on a parent app message.
+- Each concern has: the student, how it was raised, the concern, **assign to** (coordinators / staff logins, or teachers, with ★ = teaches this student), due date, priority and instructions.
+- The person it is assigned to sees **📌 Parent concerns assigned to you** on their dashboard (teacher portal or staff dashboard).
+  - They can **💬 Add update** (Open / In progress) and **✓ Mark resolved** with what was done.
+  - Overdue concerns are highlighted.
+- The Executive sees updates on each concern, then **✓ Closes** it, or reopens, edits / reassigns or deletes it.
+  - The Dashboard's parent-messages card shows how many concerns are assigned and how many are overdue.
+- Server rule: only the Executive can create, assign or close a concern. The assigned person can only add updates or mark their own concern resolved.
