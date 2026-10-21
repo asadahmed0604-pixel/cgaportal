@@ -339,7 +339,7 @@ function teacherView(d, tid) {
     tests, exams: (d.exams || []).filter((e) => ids.has(e.testId)),
     classAtt: (d.classAtt || []).filter((c) => catOwn(c, tid, cls)),
     /* v71: admin ka "class li / nahi li" record — sirf is teacher ki entries (key = shift|class|subject|teacherId); teacherMerge ise nahi leta */
-    classLog: Object.fromEntries(Object.entries(d.classLog || {}).map(([dt, day]) => [dt, Object.fromEntries(Object.entries(day || {}).filter(([k]) => k.endsWith("|" + tid)))])
+    classLog: Object.fromEntries(Object.entries(d.classLog || {}).map(([dt, day]) => [dt, Object.fromEntries(Object.entries(day || {}).filter(([k, v]) => k.endsWith("|" + tid) || (v && v.sub === tid)))])   // v133: substitute wali classes bhi
       .filter(([, day]) => Object.keys(day).length)),
     subjects: (d.subjects || []).filter((x) => x && mySub.has(keyOf(x.name))),       // sirf wahi subject, milte-julte nahi
     /* v70: inquiry ki demo class jo is teacher ke saath rakhi gayi — sirf naam / class / waqt (phone nahi) */

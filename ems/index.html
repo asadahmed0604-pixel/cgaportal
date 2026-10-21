@@ -63,6 +63,7 @@ h3{font-size:1.02rem;font-weight:700}
 .tt-slot.par{border-left-color:#E0A800;background:#FFF8E6}
 .cl-btns{display:inline-flex;gap:4px}.cl-btns button{border:1.5px solid var(--line);background:#fff;border-radius:8px;padding:5px 10px;font-weight:700;font-size:.82rem;cursor:pointer}
 .cl-btns button.on.T{background:var(--ok);border-color:var(--ok);color:#fff}.cl-btns button.on.N{background:var(--danger);border-color:var(--danger);color:#fff}.cl-btns button.on.C{background:#6b7c86;border-color:#6b7c86;color:#fff}
+.cl-btns button.on.P{background:#E0A526;border-color:#E0A526;color:#fff}tr.cl-P td{background:#FFF6E0}.cl-btns{flex-wrap:wrap}
 tr.cl-T td{background:#eef9f3}tr.cl-N td{background:#FDECEA}tr.cl-C td{background:#f2f4f5}
 tr.cl-head td{background:var(--soft);font-weight:700}
 .late-alert{display:flex;gap:12px;align-items:flex-start;background:#FDECEA;border:2px solid var(--danger);color:#7a1d1d;border-radius:14px;padding:12px 16px;margin-bottom:14px;font-size:.95rem;line-height:1.5}
@@ -1490,7 +1491,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v132 · 21 Oct 2026";
+const BUILD = "v133 · 21 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -2378,7 +2379,11 @@ function renderTimetable(){
 /* ================= v71: CLASSES TAKEN =================
    DB.classLog[date][key] = {s:"T"|"N"|"C", note, by, at}; key = shift|class|subjectKey|teacherId.
    Din ki list = jin assignments (Employees → Assign) ke din mein ye weekday ho. T = li, N = nahi li, C = cancel/chhutti (ginti mein nahi). */
-const CL_LABEL = {T:"Taken", N:"Not taken", C:"Cancelled"};
+const CL_LABEL = {T:"Taken", N:"Not taken", C:"Cancelled", P:"Partly taken"};
+/* v133: double / triple class — r.n periods (aik din mein wohi class + subject + teacher ke kai slots, ya office "2 periods" chune).
+   rec.s = "P" → rec.t of rec.of periods li. Nahi li (N / P) ho to substitute teacher: rec.sub (tid), rec.subName. */
+const clLab = rec => !rec ? "Not marked" : rec.s === "P" ? `${rec.t} of ${rec.of} taken` : (+rec.of > 1 && rec.s !== "C" ? `${CL_LABEL[rec.s]} (${rec.of} periods)` : CL_LABEL[rec.s] || rec.s);
+const clMissed = rec => !rec ? 0 : rec.s === "N" ? (+rec.of || 1) : rec.s === "P" ? Math.max(0, (+rec.of || 1) - (+rec.t || 0)) : 0;
 let CL = {shift:"Morning", view:"subject"};
 const clKey = (shift, course, subject, tid) => `${shift}|${course}|${keyify(subject||"")}|${tid}`;
 /* v74: sirf Employees → Assign wali classes, aur sirf wo jin mein is mahine active students hon; sirf current month */
@@ -2397,15 +2402,18 @@ function clRowsFor(date, shift, tidOnly){
   DB.employees.forEach(e=>(e.assignments||[]).forEach(a=>{
     /* v98: sirf class + subject wali assignments — bina subject ("whole class") wali row nahi */
     if(!String(a.subject||"").trim() || a.shift !== shift || (tidOnly && e.id !== tidOnly) || !asgDays(a).includes(wd) || !live.has(a.shift + "|" + a.course)) return;
-    const k = clKey(a.shift, a.course, a.subject, e.id); if(seen.has(k)) return; seen.add(k);
-    const sl = slotOf(a, wd) || {};
-    rows.push({k, tid:e.id, teacher:e.name, course:a.course, subject:a.subject||"", from:sl.from||"", to:sl.to||"", rec:day[k]||null});
+    const k = clKey(a.shift, a.course, a.subject, e.id), sl = slotOf(a, wd) || {};
+    if(seen.has(k)){ const r = rows.find(x=>x.k===k); if(r){ r.n++; if(sl.from && (!r.from || sl.from < r.from)) r.from = sl.from; if(sl.to && sl.to > r.to) r.to = sl.to; } return; }   // v133: double class
+    seen.add(k);
+    rows.push({k, tid:e.id, teacher:e.name, course:a.course, subject:a.subject||"", from:sl.from||"", to:sl.to||"", rec:day[k]||null, n:1, wd});
   }));
   /* v131: Skill Development groups (Morning) — group ke din */
   if(shift === "Morning") skGroups().forEach(g=>{ const a = skAsg(g);
     if(!g.tid || (tidOnly && g.tid !== tidOnly) || a.dayList[0] !== wd || !(g.studentIds||[]).length) return;
     const k = clKey("Morning", a.course, "Skill Development", g.tid); if(seen.has(k)) return; seen.add(k);
-    rows.push({k, tid:g.tid, teacher:skTeacher(g), course:a.course, subject:a.subject, from:a.from, to:a.to, rec:day[k]||null, skill:g.id}); });
+    rows.push({k, tid:g.tid, teacher:skTeacher(g), course:a.course, subject:a.subject, from:a.from, to:a.to, rec:day[k]||null, skill:g.id, n:1, wd}); });
+  const PN = (DB.settings||{}).clPeriods || {};
+  rows.forEach(r=>{ const o = +PN[r.k + "|" + wd]; if(o >= 1 && o <= 4) r.n = o; r.auto = !PN[r.k + "|" + wd]; });   // office ne periods chune hon
   return rows.sort((a,b)=>(a.from||"99").localeCompare(b.from||"99") || a.course.localeCompare(b.course) || a.subject.localeCompare(b.subject));
 }
 /* hint: teacher ne class attendance lagayi → shayad li; teacher aaj absent / leave → shayad nahi li */
@@ -2426,12 +2434,22 @@ function renderClassLog(){
   const ts = $("clTeacher"), tv = ts.value, live = clLiveClasses(thisMonth()), T = DB.employees.filter(e=>(e.assignments||[]).some(a=>a.shift===CL.shift && String(a.subject||"").trim() && live.has(a.shift+"|"+a.course))).sort((a,b)=>a.name.localeCompare(b.name));
   ts.innerHTML = `<option value="">All teachers</option>` + T.map(e=>`<option value="${e.id}" ${e.id===tv?"selected":""}>${esc(e.name)}</option>`).join("");
   const rows = clRowsFor(date, CL.shift, ts.value), c = {T:0,N:0,C:0,U:0};
-  rows.forEach(r=>c[r.rec ? r.rec.s : "U"]++);
-  $("clSum").innerHTML = `<div class="card"><div class="k">${esc(CL.shift)} classes · ${new Date(date+"T00:00").toLocaleDateString("en-GB",{weekday:"long"})}</div><div class="v">${rows.length}</div><div class="hint">scheduled from Employees → Assign</div></div>
+  rows.forEach(r=>{ const n = (r.rec && +r.rec.of) || r.n || 1;            // v133: periods
+    if(!r.rec) c.U += n; else if(r.rec.s === "P"){ c.T += +r.rec.t || 0; c.N += clMissed(r.rec); } else c[r.rec.s] += n; });
+  $("clSum").innerHTML = `<div class="card"><div class="k">${esc(CL.shift)} classes · ${new Date(date+"T00:00").toLocaleDateString("en-GB",{weekday:"long"})}</div><div class="v">${rows.reduce((a,r)=>a + ((r.rec && +r.rec.of) || r.n || 1), 0)}</div><div class="hint">periods scheduled from Employees → Assign${rows.some(r=>(r.n||1) > 1) ? " (double classes count as 2)" : ""}</div></div>
     <div class="card"><div class="k">Taken</div><div class="v green">${c.T}</div></div><div class="card"><div class="k">Not taken</div><div class="v ${c.N?"red":""}">${c.N}</div></div>
     <div class="card"><div class="k">Not marked yet</div><div class="v">${c.U}</div><div class="hint">${c.C ? c.C + " cancelled" : ""}</div></div>`;
-  const btns = r => `<span class="cl-btns">${["T","N","C"].map(x=>`<button class="${x} ${r.rec && r.rec.s===x ? "on" : ""}" onclick="clSet('${esc(r.k)}','${x}')">${x==="T"?"✓ Taken":x==="N"?"✗ Not taken":"Cancelled"}</button>`).join("")}</span>`;
-  const row = r => `<tr class="${r.rec ? "cl-" + r.rec.s : ""}"><td style="white-space:nowrap">${r.from ? `${fmtT(r.from)}${r.to ? "–" + fmtT(r.to) : ""}` : `<span class="sub">—</span>`}</td>
+  const subT = DB.employees.filter(e=>e.status !== "Left" && (e.category === "Teacher" || (e.assignments||[]).length)).sort((a,b)=>a.name.localeCompare(b.name));
+  const btns = r => { const n = r.n || 1, k = esc(r.k), on = (x, t) => r.rec && r.rec.s === x && (x !== "P" || +r.rec.t === t) ? "on" : "";
+    const b = n > 1 ? [`<button class="T ${on("T")}" onclick="clSet('${k}','T')">✓ ${n === 2 ? "Both" : "All " + n} taken</button>`,
+        ...Array.from({length:n-1}, (_, i)=>`<button class="P ${on("P", i+1)}" onclick="clSet('${k}','P',${i+1})">½ ${i+1} of ${n} taken</button>`),
+        `<button class="N ${on("N")}" onclick="clSet('${k}','N')">✗ None taken</button>`, `<button class="C ${on("C")}" onclick="clSet('${k}','C')">Cancelled</button>`]
+      : ["T","N","C"].map(x=>`<button class="${x} ${on(x)}" onclick="clSet('${k}','${x}')">${x==="T"?"✓ Taken":x==="N"?"✗ Not taken":"Cancelled"}</button>`);
+    const miss = clMissed(r.rec);
+    return `<span class="cl-btns">${b.join("")}</span>` + (miss ? `<div style="margin-top:6px;display:flex;gap:6px;align-items:center;flex-wrap:wrap"><span class="sub">🔁 Substitute${miss > 1 ? ` (${miss} periods)` : ""}:</span>
+      <select style="width:auto;padding:4px 8px" onchange="clSub('${k}',this.value)"><option value="">— no substitute —</option>${subT.filter(e=>e.id!==r.tid).map(e=>`<option value="${e.id}" ${r.rec.sub===e.id?"selected":""}>${esc(e.name)}</option>`).join("")}</select></div>` : ""); };
+  const perSel = r => `<select title="Periods in this class today — choose 2 for a double class" style="width:auto;padding:2px 4px;font-size:.75rem;margin-top:4px" onchange="clSetPeriods('${esc(r.k)}',${r.wd},this.value)">${[1,2,3].map(x=>`<option value="${x}" ${(r.n||1)===x?"selected":""}>${x === 1 ? "1 period" : x + " periods" + (x === 2 ? " (double)" : "")}</option>`).join("")}</select>`;
+  const row = r => `<tr class="${r.rec ? "cl-" + r.rec.s : ""}"><td style="white-space:nowrap">${r.from ? `${fmtT(r.from)}${r.to ? "–" + fmtT(r.to) : ""}` : `<span class="sub">—</span>`}<br>${perSel(r)}</td>
     ${CL.view === "subject" ? `<td><b>${esc(r.course)}</b></td>` : ""}<td>${esc(r.subject)}</td><td>${esc(r.teacher)}${r.extra ? ` <span class="sub">(not in schedule)</span>` : ""}<br><span class="sub">${clHint(r, date)}</span></td>
     <td>${btns(r)}</td><td><input id="cln_${esc(r.k)}" value="${esc((r.rec||{}).note||"")}" placeholder="reason / substitute…" style="min-width:150px" onchange="clNote('${esc(r.k)}',this.value)">${r.rec && r.rec.by ? `<br><span class="sub">${esc(r.rec.by)}</span>` : ""}</td></tr>`;
   const head = `<thead><tr><th>Time</th>${CL.view === "subject" ? "<th>Class</th>" : ""}<th>Subject</th><th>Teacher</th><th>Status</th><th>Note</th></tr></thead>`;
@@ -2443,14 +2461,36 @@ function renderClassLog(){
       return `<tr class="cl-head"><td colspan="4">${esc(cn)} <span class="sub">· ${t}/${L.length} taken</span></td><td style="white-space:nowrap"><button class="btn-line btn-sm" onclick="clSetClass('${esc(cn)}','T')">✓ Whole class taken</button> <button class="btn-line btn-sm" onclick="clSetClass('${esc(cn)}','N')">✗ Not taken</button></td></tr>` + L.map(row).join(""); }).join(""); }
   $("clBody").innerHTML = `<div style="display:flex;gap:8px;justify-content:flex-end;margin-bottom:8px">${rows.length ? `<button class="btn-line btn-sm" onclick="clSetAll('T')">✓ Mark all unmarked as taken</button>` : ""}</div><div class="tbl-wrap"><table>${head}<tbody>${body}</tbody></table></div>`;
 }
-function clPut(k, st){
+function clPut(k, st, t, n){
   const date = $("clDate").value; DB.classLog[date] = DB.classLog[date] || {};
   const cur = DB.classLog[date][k];
-  if(cur && cur.s === st && st){ delete DB.classLog[date][k]; }            // dobara dabane se hat jaye
-  else DB.classLog[date][k] = {...(cur||{}), s:st, by:myName() || ROLE_LABEL, at:new Date().toISOString()};
+  if(n === undefined){ const r = clRowsFor(date, CL.shift).find(x=>x.k===k); n = r ? r.n || 1 : (cur && cur.of) || 1; }
+  if(cur && cur.s === st && st && (st !== "P" || +cur.t === +t)){ delete DB.classLog[date][k]; }            // dobara dabane se hat jaye
+  else { const rec = {...(cur||{}), s:st, by:myName() || ROLE_LABEL, at:new Date().toISOString()};
+    if(n > 1) rec.of = n; else delete rec.of;
+    if(st === "P") rec.t = Math.max(1, Math.min(n - 1, +t || 1)); else delete rec.t;
+    if(!clMissed(rec)){ delete rec.sub; delete rec.subName; }
+    DB.classLog[date][k] = rec; }
   if(!Object.keys(DB.classLog[date]).length) delete DB.classLog[date];
 }
-function clSet(k, st){ clPut(k, st); save(); renderClassLog(); }
+function clSet(k, st, t){ clPut(k, st, t); save(); renderClassLog(); }
+/* v133: substitute teacher — jo period(s) asal teacher ne nahi liye */
+function clSub(k, tid){
+  const date = $("clDate").value, rec = ((DB.classLog||{})[date]||{})[k]; if(!rec) return;
+  const r = clRowsFor(date, CL.shift).find(x=>x.k===k) || {};
+  if(tid){ rec.sub = tid; rec.subName = (empById(tid)||{}).name || ""; rec.course = r.course || ""; rec.subject = r.subject || ""; rec.tname = r.teacher || ""; rec.subBy = myName() || ROLE_LABEL; }
+  else { delete rec.sub; delete rec.subName; }
+  save(); renderClassLog(); toast(tid ? `${rec.subName} will take ${r.course || "the class"}${r.subject ? " " + r.subject : ""} as substitute` : "Substitute removed");
+}
+/* v133: double class — office chune ke is din ye class kitne periods ki hai (har hafte isi din yaad rahe) */
+function clSetPeriods(k, wd, v){
+  const P = DB.settings.clPeriods = DB.settings.clPeriods || {}, n = +v;
+  const date = $("clDate").value, auto = (()=>{ const was = P[k + "|" + wd]; delete P[k + "|" + wd]; const r = clRowsFor(date, CL.shift).find(x=>x.k===k); if(was) P[k + "|" + wd] = was; return r ? r.n : 1; })();
+  if(n === auto) delete P[k + "|" + wd]; else P[k + "|" + wd] = n;
+  const rec = ((DB.classLog||{})[date]||{})[k];
+  if(rec){ if(n > 1) rec.of = n; else delete rec.of; if(rec.s === "P" && n < 2){ rec.s = "T"; delete rec.t; } else if(rec.s === "P") rec.t = Math.min(rec.t, n - 1); if(!clMissed(rec)){ delete rec.sub; delete rec.subName; } }
+  save(); renderClassLog();
+}
 function clSetClass(cn, st){ const date = $("clDate").value; clRowsFor(date, CL.shift, $("clTeacher").value).filter(r=>r.course===cn).forEach(r=>{ if(!r.rec || r.rec.s !== st) clPut(r.k, st); }); save(); renderClassLog(); toast(`${cn}: all classes marked ${CL_LABEL[st].toLowerCase()}`); }
 function clSetAll(st){ const date = $("clDate").value, L = clRowsFor(date, CL.shift, $("clTeacher").value).filter(r=>!r.rec); L.forEach(r=>clPut(r.k, st)); save(); renderClassLog(); toast(`${L.length} classes marked ${CL_LABEL[st].toLowerCase()}`); }
 function clNote(k, v){
@@ -2464,15 +2504,24 @@ function classLogMonth(m, tidOnly){
   const [y, mo] = m.split("-").map(Number), days = new Date(y, mo, 0).getDate();
   for(let i = 1; i <= days; i++){ const d = `${m}-${String(i).padStart(2,"0")}`; if(d > end) break;
     ["Morning","Evening"].forEach(sh=>clRowsFor(d, sh, tidOnly).forEach(r=>{
-      const o = out.get(r.tid) || {tid:r.tid, name:r.teacher, sch:0, T:0, N:0, C:0, U:0, list:[]}; out.set(r.tid, o);
-      o.sch++; o[r.rec ? r.rec.s : "U"]++; o.list.push({d, shift:sh, ...r}); })); }
-  return [...out.values()].sort((a,b)=>b.N - a.N || a.name.localeCompare(b.name));
+      const get = (tid, name) => out.get(tid) || (out.set(tid, {tid, name, sch:0, T:0, N:0, C:0, U:0, S:0, subFor:0, list:[], subList:[]}), out.get(tid));
+      const o = get(r.tid, r.teacher), n = (r.rec && +r.rec.of) || r.n || 1;     // v133: periods mein ginti
+      o.sch += n;
+      if(!r.rec) o.U += n; else if(r.rec.s === "P"){ o.T += +r.rec.t || 0; o.N += clMissed(r.rec); } else o[r.rec.s] = (o[r.rec.s] || 0) + n;
+      if(r.rec && r.rec.sub && clMissed(r.rec)){ o.S += clMissed(r.rec);
+        if(!tidOnly){ const sb = get(r.rec.sub, r.rec.subName || (empById(r.rec.sub)||{}).name || "Substitute"); sb.subFor += clMissed(r.rec); sb.subList.push({d, shift:sh, ...r}); } }
+      o.list.push({d, shift:sh, ...r}); })); }
+  if(tidOnly) Object.entries(DB.classLog||{}).forEach(([d, day])=>{ if(!d.startsWith(m) || d > end) return;      // v133: jin classes mein ye teacher substitute tha
+    Object.entries(day||{}).forEach(([k, rec])=>{ if(!rec || rec.sub !== tidOnly || !clMissed(rec)) return; const p = k.split("|");
+      const o = out.get(tidOnly) || (out.set(tidOnly, {tid:tidOnly, name:(empById(tidOnly)||{}).name || "", sch:0, T:0, N:0, C:0, U:0, S:0, subFor:0, list:[], subList:[]}), out.get(tidOnly));
+      o.subFor += clMissed(rec); o.subList.push({d, shift:p[0], course:rec.course || p[1], subject:rec.subject || "", teacher:rec.tname || (empById(p[3])||{}).name || "", rec}); }); });
+  return [...out.values()].filter(o=>o.sch || o.subFor).sort((a,b)=>b.N - a.N || a.name.localeCompare(b.name));
 }
 function openClassLogMonth(){
   openModal(`<h3>📊 Classes taken — monthly summary</h3>
     <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:10px"><div class="field" style="margin:0"><label>Month</label><input type="month" id="clm_m" value="${thisMonth()}" disabled></div>
       <button class="btn-line btn-sm" onclick="classLogCSV()">⬇ CSV</button></div>
-    <div class="tbl-wrap" style="max-height:60vh;overflow:auto"><table><thead><tr><th>Teacher</th><th style="text-align:right">Scheduled</th><th style="text-align:right">Taken</th><th style="text-align:right">Not taken</th><th style="text-align:right">Cancelled</th><th style="text-align:right">Not marked</th><th style="text-align:right">Taken %</th><th>Missed classes</th></tr></thead><tbody id="clm_rows"></tbody></table></div>
+    <div class="tbl-wrap" style="max-height:60vh;overflow:auto"><table><thead><tr><th>Teacher</th><th style="text-align:right">Scheduled</th><th style="text-align:right">Taken</th><th style="text-align:right">Not taken</th><th style="text-align:right">Cancelled</th><th style="text-align:right">Not marked</th><th style="text-align:right">Taken %</th><th style="text-align:right">Substitute classes taken</th><th>Missed classes</th></tr></thead><tbody id="clm_rows"></tbody></table></div>
     <div class="modal-foot"><button class="btn-line" onclick="closeModal()">Close</button></div>`, true);
   drawClassLogMonth();
 }
@@ -2481,13 +2530,14 @@ function drawClassLogMonth(){
   $("clm_rows").innerHTML = L.length ? L.map(o=>{ const den = o.T + o.N, p = den ? Math.round(o.T*100/den) : null;
     return `<tr${o.N ? ' class="late-row"' : ""}><td><b>${esc(o.name)}</b></td><td style="text-align:right">${o.sch}</td><td style="text-align:right">${o.T}</td><td style="text-align:right">${o.N ? `<b style="color:var(--danger)">${o.N}</b>` : "—"}</td>
       <td style="text-align:right">${o.C || "—"}</td><td style="text-align:right">${o.U || "—"}</td><td style="text-align:right">${p === null ? "—" : `<span class="badge ${p>=90?"b-paid":p>=75?"b-freeze":"b-left"}">${p}%</span>`}</td>
-      <td class="sub" style="max-width:280px">${o.list.filter(x=>x.rec && x.rec.s==="N").map(x=>`${fmtD(x.d)} ${esc(x.course)}${x.subject?" "+esc(x.subject):""}${x.rec.note?` (${esc(x.rec.note)})`:""}`).join(", ") || "—"}</td></tr>`; }).join("")
-    : `<tr><td colspan="8" class="empty">No scheduled classes in ${fmtM(m)}</td></tr>`;
+      <td style="text-align:right">${o.subFor ? `<b style="color:var(--ok)">${o.subFor}</b>` : "—"}</td>
+      <td class="sub" style="max-width:280px">${o.list.filter(x=>clMissed(x.rec)).map(x=>`${fmtD(x.d)} ${esc(x.course)}${x.subject?" "+esc(x.subject):""}${x.rec.s==="P"?` (${x.rec.t} of ${x.rec.of} taken)`:""}${x.rec.sub?` → 🔁 ${esc(x.rec.subName||"")}`:""}${x.rec.note?` (${esc(x.rec.note)})`:""}`).join(", ") || "—"}</td></tr>`; }).join("")
+    : `<tr><td colspan="9" class="empty">No scheduled classes in ${fmtM(m)}</td></tr>`;
 }
 function classLogCSV(){
   const m = thisMonth();
-  downloadCSV(`Classes taken ${fmtM(m)}.csv`, [["Date","Shift","Class","Subject","Teacher","Time","Status","Note","Marked by"],
-    ...classLogMonth(m).flatMap(o=>o.list.map(x=>[x.d, x.shift, x.course, x.subject, o.name, x.from ? fmtT(x.from) : "", x.rec ? CL_LABEL[x.rec.s] : "Not marked", (x.rec||{}).note||"", (x.rec||{}).by||""]))]);
+  downloadCSV(`Classes taken ${fmtM(m)}.csv`, [["Date","Shift","Class","Subject","Teacher","Time","Periods","Status","Periods not taken","Substitute","Note","Marked by"],
+    ...classLogMonth(m).flatMap(o=>o.list.map(x=>[x.d, x.shift, x.course, x.subject, o.name, x.from ? fmtT(x.from) : "", (x.rec && x.rec.of) || x.n || 1, clLab(x.rec), clMissed(x.rec) || "", (x.rec||{}).subName||"", (x.rec||{}).note||"", (x.rec||{}).by||""]))]);
 }
 /* teacher portal — apni classes: li / nahi li */
 function drawMyClassLog(m){
@@ -2502,9 +2552,11 @@ function drawMyClassLog(m){
       <div><b style="font-size:1.6rem;color:${o.N ? "var(--danger)" : "inherit"}">${o.N}</b><br><span class="sub">not taken</span></div>
       <div><b style="font-size:1.6rem">${o.C}</b><br><span class="sub">cancelled</span></div>
       <div><b style="font-size:1.6rem">${o.U}</b><br><span class="sub">not marked yet</span></div>
-      <div><b style="font-size:1.6rem">${p === null ? "—" : p + "%"}</b><br><span class="sub">taken rate</span></div></div>
+      <div><b style="font-size:1.6rem">${p === null ? "—" : p + "%"}</b><br><span class="sub">taken rate</span></div>${o.subFor ? `<div><b style="font-size:1.6rem;color:var(--ok)">${o.subFor}</b><br><span class="sub">substitute classes</span></div>` : ""}</div>
     ${L.length ? `<div class="tbl-wrap"><table><thead><tr><th>Date</th><th>Shift</th><th>Class</th><th>Subject</th><th>Status</th><th>Note</th></tr></thead><tbody>${L.map(x=>`<tr class="${x.rec ? "cl-" + x.rec.s : ""}"><td>${fmtD(x.d)}</td><td>${x.shift}</td><td>${esc(x.course)}</td><td>${esc(x.subject||"—")}</td>
-      <td>${x.rec ? `<span class="badge ${x.rec.s==="T"?"b-paid":x.rec.s==="N"?"b-left":"b-unpaid"}">${CL_LABEL[x.rec.s]}</span>` : `<span class="sub">not marked</span>`}</td><td class="sub">${esc((x.rec||{}).note||"")}</td></tr>`).join("")}</tbody></table></div>` : ""}`;
+      <td>${x.rec ? `<span class="badge ${x.rec.s==="T"?"b-paid":x.rec.s==="N"?"b-left":"b-unpaid"}">${esc(clLab(x.rec))}</span>${x.rec.sub ? `<br><span class="sub">🔁 substitute: ${esc(x.rec.subName||"")}</span>` : ""}` : `<span class="sub">not marked</span>`}</td><td class="sub">${esc((x.rec||{}).note||"")}</td></tr>`).join("")}</tbody></table></div>` : ""}
+    ${o.subList.length ? `<h4 style="margin:14px 0 6px">🔁 Substitute classes you took (${o.subFor})</h4><div class="tbl-wrap"><table><thead><tr><th>Date</th><th>Shift</th><th>Class</th><th>Subject</th><th>In place of</th><th style="text-align:right">Periods</th></tr></thead><tbody>
+      ${o.subList.slice().reverse().map(x=>`<tr><td>${fmtD(x.d)}</td><td>${x.shift}</td><td>${esc(x.course)}</td><td>${esc(x.subject||"—")}</td><td>${esc(x.teacher||"—")}</td><td style="text-align:right">${clMissed(x.rec)}</td></tr>`).join("")}</tbody></table></div>` : ""}`;
 }
 /* v70: dashboard — kaun late hai: aaj late (laal) aur mahine ki 45 min hadd se upar (laal + jurmana) */
 function drawLateTeachers(m){
