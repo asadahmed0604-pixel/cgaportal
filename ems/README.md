@@ -684,3 +684,9 @@ Share → "Add to Home Screen" · Computer Chrome/Edge: the install icon in the 
   and it doesn't show as missed homework in the student profile or the parents' app.
 - If marks were already entered for that student, or the homework was marked as submitted, it still shows as usual.
 - Make sure the **Date of Join** is correct when enrolling, because this is what decides it.
+
+## Bank account on fee challans (v130)
+
+- Every fee challan (print, single PDF, bulk ZIP / one-PDF) has a **🏦 Pay by bank** strip on both the Student and Academy copy:
+  Bank Al Habib · Account Title: Cambridge Grads Academy · IBAN PK48 BAHL 5637 0081 0006 6901.
+- To change it: **Settings → Bank account (printed on fee challans)** → Save. Clear the IBAN field to hide the strip.
