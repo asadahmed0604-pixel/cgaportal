@@ -253,6 +253,9 @@ label.chk input{width:auto}
 .cx-total.done{background:#0F7B3D}
 .cx-total small{display:block;font-size:.6rem;font-weight:600;opacity:.85;letter-spacing:.03em}
 .cx-stamp{display:inline-block;border:1.5px solid currentColor;border-radius:4px;padding:0 5px;margin-left:6px;font-size:.6rem;letter-spacing:.06em;transform:rotate(-4deg);vertical-align:middle}
+.cx-bank{display:flex;flex-wrap:wrap;align-items:center;gap:4px 16px;margin:7px 12px 0;padding:6px 10px;border:1.5px solid #1F4E5F;border-radius:8px;background:#F2F7F9;font-size:.72rem}
+.cx-bank small{display:block;font-size:.58rem;color:#6B7C85;text-transform:uppercase;letter-spacing:.04em}
+.cx-bank b{font-size:.78rem}.cx-bank-h{font-weight:900;color:#1F4E5F}
 .cx-foot{display:flex;justify-content:space-between;gap:8px;padding:9px 12px 10px;font-size:.64rem;color:#6B7C85}
 .cx-cut{text-align:center;color:#888;font-size:.66rem;margin:12px auto;border-top:1.5px dashed #aaa;padding-top:3px;max-width:720px}
 .cx-ok{color:#0F7B3D}.cx-due{color:#C0392B}
@@ -1318,6 +1321,10 @@ label.chk input{width:auto}
     <div class="field"><label>Academy Name</label><input id="setName"></div>
     <div class="field"><label>Address</label><input id="setAddr"></div>
     <div class="field"><label>Phone</label><input id="setPhone"></div>
+    <h3 style="margin-top:14px">Bank account (printed on fee challans)</h3>
+    <div class="field"><label>Bank</label><input id="setBank"></div>
+    <div class="field"><label>Account Title</label><input id="setAccTitle"></div>
+    <div class="field"><label>Account Number / IBAN</label><input id="setIban"></div>
     <button class="btn-red" onclick="saveSettings()">Save Settings</button>
   </div>
 
@@ -1483,7 +1490,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v129 · 21 Oct 2026";
+const BUILD = "v130 · 21 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -5656,6 +5663,10 @@ function challanLines(f){
   return {st, lines, course, shift, total:+f.amount||0, paid:+f.paidAmount||0, balance:+f.balance||0, out:feeOutstanding(f), pays,
           received:pays.reduce((a,p)=>a+p.amt,0)};
 }
+/* v130: fee challan par bank account — Settings se badla ja sakta hai */
+const BANK_DEFAULT = {bank:"Bank Al Habib", title:"Cambridge Grads Academy", iban:"PK48BAHL5637008100066901"};
+function bankInfo(){ const b = DB.settings.bankAcc; return b ? {bank:b.bank||"", title:b.title||"", iban:b.iban||""} : {...BANK_DEFAULT}; }
+const ibanFmt = v => String(v||"").replace(/(.{4})(?=.)/g, "$1 ");
 function challanCopyHTML(f, L, label){
   const A = DB.settings, st = L.st;
   const paid = f.status === "Paid" && !L.out;
@@ -5688,6 +5699,7 @@ function challanCopyHTML(f, L, label){
     : `<div class="cx-total"><span>TOTAL PAYABLE</span><span>${money(L.out || L.total)}</span></div>`}
     ${f.joinNote ? `<div class="cx-pay">${esc(f.joinNote)}${f.fullFee ? ` (monthly fee ${money(f.fullFee)})` : ""}</div>` : ""}
     ${f.remarks ? `<div class="cx-pay">Remarks: ${esc(f.remarks)}</div>` : ""}
+    ${(B=>B.iban ? `<div class="cx-bank"><span class="cx-bank-h">🏦 Pay by bank</span><span><small>Bank</small><b>${esc(B.bank||"—")}</b></span><span><small>Account Title</small><b>${esc(B.title||"—")}</b></span><span><small>Account No / IBAN</small><b>${esc(ibanFmt(B.iban))}</b></span></div>` : "")(bankInfo())}
     <div class="cx-foot"><span>Issued: ${fmtD(todayStr())}</span><span>Please pay the fee before the due date</span><span>Receiver signature: ______________</span></div>
   </div>`;
 }
@@ -5905,7 +5917,11 @@ function pdfChallanCopy(doc, f, L, logo, y0, label){
   const notes = [];
   if(f.joinNote) notes.push(f.joinNote + (f.fullFee ? ` (monthly fee ${money(f.fullFee)})` : ""));
   if(f.remarks) notes.push("Remarks: " + f.remarks);
-  if(notes.length) doc.text(notes.join("   ·   "), x0 + 12, ty2 + 36, {size:7.5, color:PC.ink, maxW:W - 24});
+  if(notes.length) doc.text(notes.join("   ·   "), x0 + 12, ty2 + 34, {size:7.5, color:PC.ink, maxW:W - 24});
+  const B = bankInfo();
+  if(B.iban){ const by = y0 + H - 32;
+    doc.rect(x0 + 10, by, W - 20, 15, {stroke:PC.navy, lw:.8, fill:PC.soft});
+    doc.text(`PAY BY BANK:  ${B.bank}   ·   Account Title: ${B.title}   ·   A/C / IBAN: ${ibanFmt(B.iban)}`, x0 + 18, by + 10.2, {size:7.6, bold:true, color:PC.ink, maxW:W - 36}); }
   const fy = y0 + H - 10;
   doc.text("Issued: " + fmtD(todayStr()), x0 + 12, fy, {size:7, color:PC.muted});
   doc.text("Please pay the fee before the due date", x0 + W/2, fy, {size:7, color:PC.muted, align:"center"});
@@ -12291,6 +12307,7 @@ function loadSettings(){
   $("setName").value = DB.settings.name||"";
   $("setAddr").value = DB.settings.addr||"";
   $("setPhone").value = DB.settings.phone||"";
+  { const B = bankInfo(); $("setBank").value = B.bank; $("setAccTitle").value = B.title; $("setIban").value = B.iban; }
   if($("setJoinOn")){ const jr = joinRule(); $("setJoinOn").checked = jr.on; $("setJoinAfter").value = jr.after25; }
   drawLogo(); renderSubjectsAdmin();
   const pages = [...document.querySelectorAll("#nav button")].map(b=>b.textContent.trim());
@@ -12307,6 +12324,7 @@ function saveSettings(){
   DB.settings.name  = $("setName").value.trim()||"Cambridge Grads Academy";
   DB.settings.addr  = $("setAddr").value.trim();
   DB.settings.phone = $("setPhone").value.trim();
+  DB.settings.bankAcc = {bank: $("setBank").value.trim(), title: $("setAccTitle").value.trim(), iban: $("setIban").value.replace(/\s+/g, "").toUpperCase()};
   $("brandName").textContent = DB.settings.name;
   save(); toast("Settings saved");
 }
