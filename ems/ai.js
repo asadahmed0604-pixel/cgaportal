@@ -139,17 +139,29 @@ const specLines = (s) => [
 
 /* ------------------------------ public functions ----------------------------- */
 
-function generate(spec) {
+const REF_HOW = {
+  style: "Use the sample(s) as a MODEL ONLY: copy their style, layout, question format, command words, length and difficulty, but write completely NEW, original questions on the requested topic. Do not copy the sample's questions.",
+  similar: "Write questions that closely follow the sample's questions — same pattern, structure and skills tested — but change the values, data, names and context so every question is new. Keep them on the requested topic if one is given.",
+  topic: "Use the sample(s) as the CONTENT source: write new questions that test exactly what the sample covers (its topic, concepts and skills), in Cambridge style. Do not copy its questions word for word.",
+};
+function generate(spec, refFiles) {
+  const refs = refFiles || [];
   const text = [
     specLines(spec),
-    `Topic(s): ${spec.topic}`,
+    spec.topic ? `Topic(s): ${spec.topic}` : "Topic(s): the same as the reference sample",
     `Number of questions: ${spec.count}`,
     `Total marks: ${spec.total}`,
     `Difficulty: ${spec.difficulty}`,
     `Question types: ${spec.types.length ? spec.types.join(", ") : "mix as Cambridge would for this topic"}`,
     spec.notes && `Teacher's instructions: ${spec.notes}`,
   ].filter(Boolean).join("\n");
-  return callJSON(GEN_SYSTEM, [{ type: "text", text: `Develop the assignment.\n\n${text}` }], ASSIGNMENT);
+  const content = [];
+  if (refs.length) {
+    refs.forEach((f) => content.push(block(f)));
+    content.push({ type: "text", text: `The file(s) above are a SAMPLE / REFERENCE assignment the teacher uploaded (photos or PDF). ${REF_HOW[spec.refMode] || REF_HOW.style} Still follow the specification below (number of questions, total marks, question types) and write a full Cambridge mark scheme. Describe any diagram a student needs in square brackets.` });
+  }
+  content.push({ type: "text", text: `Develop the assignment.\n\n${text}` });
+  return callJSON(GEN_SYSTEM, content, ASSIGNMENT);
 }
 
 function extract(spec, paperFiles, schemeFiles) {

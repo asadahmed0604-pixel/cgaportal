@@ -1498,7 +1498,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v134 · 21 Oct 2026";
+const BUILD = "v135 · 21 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -8528,6 +8528,13 @@ function asgNew(mode){
       <div class="field"><label>Total marks</label><input id="an_total" type="number" min="1" max="300" value="30" style="width:100px"></div>
       <div class="field"><label>Difficulty</label><select id="an_diff"><option>Mixed</option><option>Easy</option><option>Medium</option><option>Hard (A* stretch)</option><option>Past-paper standard</option></select></div>
     </div>
+    <div class="field"><label>📎 Sample / reference assignment (optional) — photos or PDF</label><input type="file" id="an_ref" accept="image/*,application/pdf" multiple onchange="asgPick('ref', this)">
+      <div class="sub">Upload an assignment, worksheet or past paper you like — the AI copies its <b>style, format, question pattern and difficulty</b> and writes <b>new</b> questions on your topic.</div>
+      <div id="an_refL" class="sub"></div>
+      <div id="an_refM" style="display:none;margin-top:6px"><select id="an_refMode" style="width:auto">
+        <option value="style">Same style &amp; format — new questions on my topic</option>
+        <option value="similar">Very similar questions (same pattern, changed values / context)</option>
+        <option value="topic">Use it as the content — questions on what the sample covers</option></select></div></div>
     <div class="field"><label>Question types</label><div style="display:flex;gap:12px;flex-wrap:wrap">${ASG_TYPES.map(([v,l])=>`<label class="chk"><input type="checkbox" class="an_type" value="${v}" ${v==="short"||v==="structured"?"checked":""}> ${l}</label>`).join("")}</div></div>` : ""}
     ${mode === "upload" ? `
     <div class="grid2">
@@ -8539,7 +8546,7 @@ function asgNew(mode){
       <button class="btn-red" onclick="asgCreate('${mode}')">${mode === "ai" ? "✨ Generate" : mode === "upload" ? "📖 Read paper with AI" : "Continue →"}</button>
       <button class="btn-line" onclick="renderAssign()">Cancel</button></div>
     <p class="sub" style="margin-top:8px">Cambridge style: command words, mark allocations, and a mark scheme with M/A/B marks or level descriptors as the subject needs.</p></div>`;
-  ASG.upl = {paper:[], scheme:[]};
+  ASG.upl = {paper:[], scheme:[], ref:[]};
   asgClsChanged();
 }
 function asgClsChanged(){
@@ -8585,7 +8592,8 @@ async function asgPick(kind, input){
   asgDrawUpl(kind);
 }
 function asgDrawUpl(kind){
-  $(kind === "paper" ? "an_paperL" : "an_schemeL").innerHTML = ASG.upl[kind].map((f,i)=>`<div>📎 <a href="/api/asg/file/${f.file}" target="_blank" rel="noopener">${esc(f.name)}</a> <a href="#" onclick="ASG.upl.${kind}.splice(${i},1);asgDrawUpl('${kind}');return false">✕</a></div>`).join("");
+  if(kind === "ref" && $("an_refM")) $("an_refM").style.display = ASG.upl.ref.length ? "" : "none";
+  $(kind === "paper" ? "an_paperL" : kind === "ref" ? "an_refL" : "an_schemeL").innerHTML = ASG.upl[kind].map((f,i)=>`<div>📎 <a href="/api/asg/file/${f.file}" target="_blank" rel="noopener">${esc(f.name)}</a> <a href="#" onclick="ASG.upl.${kind}.splice(${i},1);asgDrawUpl('${kind}');return false">✕</a></div>`).join("");
 }
 async function asgCreate(mode){
   const [shift, course] = $("an_cls").value.split("|");
@@ -8598,13 +8606,14 @@ async function asgCreate(mode){
   let body;
   if(mode === "ai"){
     body = {...spec, topic:$("an_topic").value.trim(), count:$("an_count").value, total:$("an_total").value, difficulty:$("an_diff").value,
-      types:[...document.querySelectorAll(".an_type:checked")].map(x=>x.value), notes:$("an_notes").value};
-    if(!body.topic){ toast("Write the topic"); return; }
+      types:[...document.querySelectorAll(".an_type:checked")].map(x=>x.value), notes:$("an_notes").value,
+      refs:ASG.upl.ref || [], refMode:$("an_refMode") ? $("an_refMode").value : "style"};       // v135: sample / reference
+    if(!body.topic && !(body.refs.length && body.refMode === "topic")){ toast("Write the topic"); return; }
   } else {
     if(!ASG.upl.paper.length){ toast("Upload the question paper first"); return; }
     body = {...spec, files:ASG.upl.paper, scheme:ASG.upl.scheme, notes:$("an_notes").value};
   }
-  asgBusy(true, mode === "ai" ? "Writing your assignment and Cambridge mark scheme… (about a minute)" : "Reading the paper and preparing the mark scheme… (about a minute)");
+  asgBusy(true, mode === "ai" ? ((body.refs||[]).length ? "Reading your sample and writing a matching assignment with a Cambridge mark scheme… (about a minute)" : "Writing your assignment and Cambridge mark scheme… (about a minute)") : "Reading the paper and preparing the mark scheme… (about a minute)");
   try{ const a = await asgApi(mode === "ai" ? "/api/asg/generate" : "/api/asg/extract", body); a.studentIds = null; asgEdit(a); asgRefreshTrack(); toast("Draft ready — check it, choose students and publish"); }
   catch(e){ toast(e.message); }
   finally{ asgBusy(false); }
