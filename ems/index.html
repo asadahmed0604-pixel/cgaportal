@@ -1483,7 +1483,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v128 · 20 Oct 2026";
+const BUILD = "v129 · 21 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -1954,6 +1954,8 @@ function renderPage(p){
 /* v26: Dashboard kisi bhi mahine ka. Student kis mahine mein active tha — join date (doj) aur
    status kab badla (statusSince) se. Join date na ho to purana student maana jata hai. */
 const joinedBy = (s, m) => !s.doj || s.doj.slice(0,7) <= m;
+/* v129: naya bacha (join date ke baad) pichle test / exam / homework mein nahi ginta — warna teacher ko "marks baaqi" dikhte */
+const joinedOn = (s, d) => !s || !s.doj || !d || String(s.doj).slice(0,10) <= String(d).slice(0,10);
 /* v29: Mahine ki list (roster) — jin mahinon ki list import hui, un mein student wohi hain jo list mein thay.
    Baad ke mahinon mein (list na ho) wohi gine jate hain jo aakhri list mein thay ya baad mein aaye. */
 function rosterMonths(){
@@ -3031,7 +3033,7 @@ function openProfile(id){
   const a = attSummary(id, s.doj);
   const fees = DB.fees.filter(f=>f.studentId===id).sort((x,y)=>y.month.localeCompare(x.month));
   const exams = DB.exams.filter(e=>e.studentId===id && examShown(e)).sort((x,y)=>y.date.localeCompare(x.date));
-  const hws = DB.homework.filter(h=>inClass(s, h.course) && h.shift===s.shift && (!h.subject || !(s.subjects||[]).length || (s.subjects||[]).some(x=>subjLike(x.name, h.subject)))).sort((x,y)=>y.dateGiven.localeCompare(x.dateGiven));
+  const hws = DB.homework.filter(h=>inClass(s, h.course) && h.shift===s.shift && ((h.done||{})[s.id] || joinedOn(s, h.dateGiven || h.dueDate)) && (!h.subject || !(s.subjects||[]).length || (s.subjects||[]).some(x=>subjLike(x.name, h.subject)))).sort((x,y)=>y.dateGiven.localeCompare(x.dateGiven));
   /* Siblings — same Father/Guardian CNIC */
   const cnicKey = v => String(v||"").replace(/\D/g,"");
   const fKey = cnicKey(s.fatherCnic);
@@ -3649,6 +3651,7 @@ const hwMine = h => !IS_TEACHER || h.teacherId === MY_TID;
 /* is homework ke bache: class + shift; subject wala homework aur bache ke subjects maloom hon to sirf us subject wale */
 function hwStudents(h){
   return DB.students.filter(st=>st.status==="Active" && st.shift===h.shift && inClass(st, h.course) &&
+    ((h.done||{})[st.id] || joinedOn(st, h.dateGiven || h.dueDate)) &&
     (!h.subject || !(st.subjects||[]).length || (st.subjects||[]).some(x=>subjLike(x.name, h.subject))) &&
     (!IS_TEACHER || teachesStu(st, h.shift+"|"+h.course, mySubjMap())))
     .sort((a,b)=>a.name.localeCompare(b.name));
@@ -7052,7 +7055,7 @@ function takesSubject(st, subject){
 function testStudents(t){
   const m = String(t.date||wm()).slice(0,7), RM = rosterMonths();
   const has = new Set(testMarks(t).map(e=>e.studentId));
-  return DB.students.filter(st=>(has.has(st.id) && !morningSkip(stuAt(st, t.date), t.subject)) || ((x=>x.shift===t.shift && inClass(x, t.course))(stuAt(st, t.date)) && st.status!=="Left" && inMonth(st, m, RM)
+  return DB.students.filter(st=>(has.has(st.id) && !morningSkip(stuAt(st, t.date), t.subject)) || ((x=>x.shift===t.shift && inClass(x, t.course))(stuAt(st, t.date)) && st.status!=="Left" && inMonth(st, m, RM) && joinedOn(st, t.date)
       && takesSubject(stuAt(st, t.date), t.subject)))
     .sort((a,b)=>a.name.localeCompare(b.name));
 }

@@ -676,3 +676,11 @@ Share → "Add to Home Screen" · Computer Chrome/Edge: the install icon in the 
 - The server also enforces it: if a non-Executive login saves staff attendance without changing the time,
   the server keeps the old late minutes and won't accept a new "excused" mark.
   Changing the real arrival time on the attendance screen still works as before (late minutes are recalculated).
+
+## New students skip older tests & homework (v129)
+
+- A student counts only for tests, exam papers and homework dated **on or after their Date of Join**.
+  Anything given before they joined isn't added to their record, so teachers don't see "marks missing" for them,
+  and it doesn't show as missed homework in the student profile or the parents' app.
+- If marks were already entered for that student, or the homework was marked as submitted, it still shows as usual.
+- Make sure the **Date of Join** is correct when enrolling, because this is what decides it.

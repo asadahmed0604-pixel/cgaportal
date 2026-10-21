@@ -119,7 +119,9 @@ function takesSubj(st, subject) {
   return !L.length || L.some((k) => k === t || k.startsWith(t) || t.startsWith(k));
 }
 /* v69 / v90: bache ka homework (uski class + shift; subject wala sirf us subject ke bachon ko) — naya pehle */
-const homeworkOf = (db, st) => (db.homework || []).filter((h) => h && h.shift === st.shift && classesOf(st).includes(h.course)
+/* v129: join date se pehle diya gaya homework naye bache ka nahi (jama kiya ho to dikhe) */
+const hwJoined = (st, h) => !st.doj || (h.done || {})[st.id] || String(h.dateGiven || h.dueDate || "9999").slice(0, 10) >= String(st.doj).slice(0, 10);
+const homeworkOf = (db, st) => (db.homework || []).filter((h) => h && hwJoined(st, h) && h.shift === st.shift && classesOf(st).includes(h.course)
     && (!h.subject || !mine(st).length || mine(st).some((x) => subjLike(x.name, h.subject))))
   .sort((a, b) => String(b.dateGiven).localeCompare(String(a.dateGiven)));
 function studentReport(db, st, today) {
