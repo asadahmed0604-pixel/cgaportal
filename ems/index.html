@@ -1490,7 +1490,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v130 · 21 Oct 2026";
+const BUILD = "v131 · 21 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -2307,6 +2307,8 @@ function ttSlots(shift){
     asgDays(a).forEach(d=>{ const sl = slotOf(a, d); const f = sl && ttMin(sl.from); if(f === null || f === undefined) return;
       let t = ttMin(sl.to); if(t === null || t <= f) t = f + 60;                // khatam ka waqt na ho to 1 ghanta
       out.push({id:out.length, d, f, t, from:sl.from, to:sl.to||"", course:a.course, subject:a.subject||"", tid:e.id, teacher:e.name, clash:[], par:[]}); }); }));
+  if(shift === "Morning") skGroups().forEach(g=>{ const a = skAsg(g), f = ttMin(a.from); if(f === null) return; let t = ttMin(a.to); if(t === null || t <= f) t = f + 60;   // v131
+    out.push({id:out.length, d:a.dayList[0], f, t, from:a.from, to:a.to, course:a.course, subject:a.subject, tid:g.tid || "sk_" + g.id, teacher:skTeacher(g) || "— no teacher —", clash:[], par:[], skill:g.id}); });
   return out;
 }
 /* v76: Evening — sirf wo bache jin ke subjects mein ye subject likha ho (subject maloom na ho to ginti mein nahi, ghalat clash na bane) */
@@ -2399,10 +2401,16 @@ function clRowsFor(date, shift, tidOnly){
     const sl = slotOf(a, wd) || {};
     rows.push({k, tid:e.id, teacher:e.name, course:a.course, subject:a.subject||"", from:sl.from||"", to:sl.to||"", rec:day[k]||null});
   }));
+  /* v131: Skill Development groups (Morning) — group ke din */
+  if(shift === "Morning") skGroups().forEach(g=>{ const a = skAsg(g);
+    if(!g.tid || (tidOnly && g.tid !== tidOnly) || a.dayList[0] !== wd || !(g.studentIds||[]).length) return;
+    const k = clKey("Morning", a.course, "Skill Development", g.tid); if(seen.has(k)) return; seen.add(k);
+    rows.push({k, tid:g.tid, teacher:skTeacher(g), course:a.course, subject:a.subject, from:a.from, to:a.to, rec:day[k]||null, skill:g.id}); });
   return rows.sort((a,b)=>(a.from||"99").localeCompare(b.from||"99") || a.course.localeCompare(b.course) || a.subject.localeCompare(b.subject));
 }
 /* hint: teacher ne class attendance lagayi → shayad li; teacher aaj absent / leave → shayad nahi li */
 function clHint(r, date){
+  if(r.skill){ const l = skLesson(skG(r.skill), date); return l ? (l.status === "Cancelled" ? "📝 teacher says: not held" : `📝 class update written: ${esc(String(l.topic||"").slice(0, 60))}`) : "📝 no class update yet"; }
   const ca = (DB.classAtt||[]).some(c=>c.date===date && c.course===r.course && c.teacherId===r.tid && (!r.subject || !c.subject || subjLike(c.subject, r.subject)));
   const ea = empRecs(((DB.empAttendance||{})[date])||{}, r.tid).find(x=>x.shift===CL.shift);
   return [ca ? "👥 student attendance marked" : "", ea ? (["A","E","U"].includes(ea.s) ? `<span style="color:var(--danger)">teacher ${EMP_ATT_LABEL[ea.s]||ea.s}</span>` : ea.s === "L" ? `teacher late +${ea.lm||0} min` : "teacher present") : ""].filter(Boolean).join(" · ");
@@ -8098,7 +8106,11 @@ function renderMyDash(){
   const forAsg = a => stus.filter(st=>st.shift===a.shift && inClass(st, a.course)
     && (!subjWise(a.shift, a.course) || (a.subject ? (st.subjects||[]).some(x=>x.teacherId===MY_TID || (a.shift === "Morning" || !x.teacherId) && subjLike(x.name, a.subject))
       || (a.shift === "Morning" && !(st.subjects||[]).length && st.hasSubj !== true) : teachesStu(st, a.shift+"|"+a.course, subjOf))));
-  const todays = asg.filter(a=>(a.from || a.dayList) && asgDays(a).includes(today)).map(a=>({...a, ...(slotOf(a, today) || {})}));
+  /* v131: Skill Development group bhi ek period (Morning) */
+  const myGrps = skGroups().filter(g=>g.tid===MY_TID), asgV = asg.concat(myGrps.map(skAsg));
+  const forAsgV = a => a.skill ? skStudents(skG(a.skill) || {}) : forAsg(a);
+  const todays = asgV.filter(a=>(a.from || a.dayList) && asgDays(a).includes(today)).map(a=>({...a, ...(slotOf(a, today) || {})}));
+  const skPend = myGrps.map(g=>({g, d:skPending(g)})).filter(x=>x.d.length);
   /* attendance (sirf parhne ke liye) */
   const att = DB.empAttendance || {}, days = Object.keys(att).filter(d=>d.startsWith(m) && empRecs(att[d], MY_TID).length).sort();
   const c = empAttCount(MY_TID, d=>d.startsWith(m)), marked = c.marked, pct = c.pct;
@@ -8131,11 +8143,13 @@ function renderMyDash(){
     <div class="card"><div class="k">Today's classes</div><div class="v">${todays.length}</div><div class="hint">${todays.length ? todays.map(a=>`${fmtT(a.from)} ${a.course}`).join(", ") : "No class times set for today"}</div></div>
     <div class="card${empLateMonth(MY_TID, m).over ? " late-card" : ""}"><div class="k">My attendance (${fmtM(m)})</div><div class="v ${pct >= 90 || !marked ? "green" : "red"}">${marked ? pct + "%" : "—"}</div><div class="hint">${c.P} present · ${c.L} late · ${c.A} absent · ${c.E} informed leave · ${c.U} uninformed · leaves ${empLeaveDays(MY_TID, m).length}/${EMP_LEAVE_LIMIT} · late ${empLateMonth(MY_TID, m).tot}/${latePolicy().allow} min${empLateMonth(MY_TID, m).ded ? ` · <b style="color:var(--danger)">fine Rs ${empLateMonth(MY_TID, m).ded.toLocaleString("en-US")}</b>` : ""}</div></div>
     <div class="card click" onclick="document.querySelector('#nav button[data-page=tests]').click()"><div class="k">Marks pending</div><div class="v ${pend.length ? "red" : "green"}">${pend.length}</div><div class="hint">papers with incomplete marks</div></div>`;
-  $("mdToday").innerHTML = todays.length ? `<b>Today:</b> ${todays.map(a=>`${fmtT(a.from)}–${fmtT(a.to)} ${esc(a.course)}${a.subject ? " (" + esc(a.subject) + ")" : ""}`).join(" · ")}` : "No class times set for today.";
-  $("mdTT").innerHTML = asg.length ? `<div class="tbl-wrap"><table><thead><tr><th>Class</th><th>Shift</th><th>Subject</th><th>Days</th><th>Time</th><th style="text-align:right">Students</th></tr></thead><tbody>
-    ${asg.map(a=>{ const ts = slotOf(a, today), now = ts && ts.from && nowT >= ts.from && nowT < (ts.to || "24:00");
+  $("mdToday").innerHTML = (todays.length ? `<b>Today:</b> ${todays.map(a=>`${fmtT(a.from)}–${fmtT(a.to)} ${esc(a.course)}${a.subject ? " (" + esc(a.subject) + ")" : ""}`).join(" · ")}` : "No class times set for today.")
+    + skPend.map(x=>`<div class="late-alert warn" style="margin-top:8px">📝 <div><b>Skill Development class update pending</b> — Group ${esc(x.g.code||"")} · ${esc(x.g.name||"")}: ${x.d.map(fmtD).join(", ")}.
+      <a href="#" onclick="window._sk=Object.assign(window._sk||{},{tab:'cls',g:'${x.g.id}',m:'${todayStr().slice(0,7)}'});document.querySelector('#nav button[data-page=skilldev]').click();return false">Write the update →</a></div></div>`).join("");
+  $("mdTT").innerHTML = asgV.length ? `<div class="tbl-wrap"><table><thead><tr><th>Class</th><th>Shift</th><th>Subject</th><th>Days</th><th>Time</th><th style="text-align:right">Students</th></tr></thead><tbody>
+    ${asgV.map(a=>{ const ts = slotOf(a, today), now = ts && ts.from && nowT >= ts.from && nowT < (ts.to || "24:00");
       return `<tr${now ? ' style="background:#e8f7f0"' : ""}><td><b>${esc(a.course)}</b></td><td>${esc(a.shift)}</td><td>${esc(a.subject || "—")}</td><td>${esc(a.dayList ? daysLabel(a.dayList) : a.from ? a.days || "Mon–Fri" : "—")}</td>
-        <td>${a.from ? `${esc(asgTimeText(a))}${now ? ` <span class="badge b-paid">Now</span>` : ""}` : `<span class="sub">time not set</span>`}</td><td style="text-align:right">${forAsg(a).length}</td></tr>`; }).join("")}
+        <td>${a.from ? `${esc(asgTimeText(a))}${now ? ` <span class="badge b-paid">Now</span>` : ""}` : `<span class="sub">time not set</span>`}</td><td style="text-align:right">${forAsgV(a).length}</td></tr>`; }).join("")}
     </tbody></table></div>` : `<div class="note">No class is assigned to you yet — the admin will set your class, subject and time via Employees → your name → Edit.</div>`;
   $("mdAttM").textContent = fmtM(m);
   const ltm = empLateMonth(MY_TID, m), lp = latePolicy();
@@ -8858,6 +8872,20 @@ const skGroups = () => DB.skillGroups || (DB.skillGroups = []);
 const skSkills = g => (g && Array.isArray(g.skills) && g.skills.length ? g.skills : SKILL_DEFAULT);
 const skTeacher = g => g && g.tid ? ((empById(g.tid)||{}).name || "") : "";
 const skStudents = g => (g.studentIds||[]).map(stuById).filter(x=>x && x.status==="Active").sort((a,b)=>a.name.localeCompare(b.name));
+/* v131: Skill Development ek subject (period) — har group ka din / waqt (default Wednesday 1:15–2:30 pm). Timetable, teacher dashboard
+   aur Classes taken mein aata hai. Har class ke baad teacher "class update" likhta hai: g.lessons = [{id:date, date, status, topic, work, next, by, at}] */
+const SK_SCHED = {day:3, from:"13:15", to:"14:30"};
+const skSched = g => ({...SK_SCHED, ...((g && g.sched) || {})});
+const skLabel = g => `Skill Group ${(g && g.code) || ""}`.trim();
+const skSubj = g => `Skill Development${g && g.name ? " — " + g.name : ""}`;
+const skAsg = g => { const t = skSched(g); return {shift:"Morning", course:skLabel(g), subject:skSubj(g), dayList:[+t.day], from:t.from, to:t.to, skill:g.id}; };
+function skDates(g, m){ const t = skSched(g), [y, mo] = m.split("-").map(Number), n = new Date(y, mo, 0).getDate(), out = [];
+  for(let i = 1; i <= n; i++){ const d = `${m}-${String(i).padStart(2,"0")}`; if(new Date(d + "T00:00").getDay() === +t.day) out.push(d); }
+  return out; }
+const skLesson = (g, d) => ((g && g.lessons) || []).find(x=>x.date===d) || null;
+/* pichli classes jin ka update abhi nahi likha (is mahine, aaj tak — aaj ki class khatam hone ke baad) */
+function skPending(g){ const t0 = todayStr(), now = new Date().toTimeString().slice(0,5), t = skSched(g);
+  return skDates(g, t0.slice(0,7)).filter(d=>(d < t0 || (d === t0 && now >= t.to)) && !skLesson(g, d)); }
 /* report card ke liye: bache ke group(s) + us mahine ki progress */
 function skillBlocks(s, from, to){
   if(!s || s.shift !== "Morning") return null;
@@ -8867,15 +8895,15 @@ function skillBlocks(s, from, to){
 function renderSkillDev(){
   if(!DB.skillDev) DB.skillDev = [];
   if(!IS_TEACHER && !skGroups().length){ SKILL_SEED.forEach(x=>skGroups().push({id:uid(), ...x, tid:"", studentIds:[]})); save(); }
-  const st = window._sk || (window._sk = {m: wm(), g: "", tab: IS_TEACHER ? "prog" : "groups"});
-  if(IS_TEACHER && st.tab === "groups") st.tab = "prog";
+  const st = window._sk || (window._sk = {m: wm(), g: "", tab: IS_TEACHER ? "cls" : "groups"});
+  if(IS_TEACHER && st.tab === "groups") st.tab = "cls";
   const mode = IS_TEACHER ? "" : `<div class="panel" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:10px 14px">
       <b>On report cards:</b>
       <select onchange="setSkillMode(this.value)"><option value="blank" ${skillMode()==="blank"?"selected":""}>Blank box — fill by hand (for now)</option><option value="system" ${skillMode()==="system"?"selected":""}>Progress from the system (teachers' ratings)</option></select>
       <span class="sub">${skillMode()==="blank" ? "Report cards print an empty Skill Development Progress box (filled by hand). Parents already see the ratings in the app (My Report)." : "Report cards print each group's ratings. Parents also see them in the app (My Report)."}</span></div>`;
   const tb = (k, t) => `<button class="${st.tab===k?"on":""}" onclick="window._sk.tab='${k}';renderSkillDev()">${t}</button>`;
-  const tabs = mode + `<div class="seg" style="margin-bottom:12px">${IS_TEACHER ? "" : tb("groups","👥 Groups &amp; students")}${tb("prog","📈 Progress")}${tb("proj","🚀 Projects")}</div>`;
-  $("skBody").innerHTML = tabs + (st.tab === "groups" && !IS_TEACHER ? skGroupsHTML() : st.tab === "proj" ? skProjectsHTML() : skProgressHTML());
+  const tabs = mode + `<div class="seg" style="margin-bottom:12px">${IS_TEACHER ? "" : tb("groups","👥 Groups &amp; students")}${tb("cls","📝 Class updates")}${tb("prog","📈 Progress")}${tb("proj","🚀 Projects")}</div>`;
+  $("skBody").innerHTML = tabs + (st.tab === "groups" && !IS_TEACHER ? skGroupsHTML() : st.tab === "proj" ? skProjectsHTML() : st.tab === "cls" ? skClassesHTML() : skProgressHTML());
 }
 /* ---- admin: groups, teacher, students ---- */
 function skGroupsHTML(){
@@ -8894,6 +8922,11 @@ function skGroupsHTML(){
           <div class="field" style="min-width:220px"><label>Led by (teacher)</label><select onchange="skSet('${g.id}','tid',this.value)"><option value="">— choose teacher —</option>${teachers.map(e=>`<option value="${e.id}" ${e.id===g.tid?"selected":""}>${esc(e.name)}${e.login && e.login.user ? "" : " (no login)"}</option>`).join("")}</select></div>
           <button class="btn-line btn-sm" onclick="skDelGroup('${g.id}')">🗑</button>
         </div>
+        ${(t=>`<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-top:4px">
+          <div class="field" style="margin:0"><label>📅 Class day</label><select onchange="skSetSched('${g.id}','day',this.value)">${[1,2,3,4,5,6,0].map(d=>`<option value="${d}" ${+t.day===d?"selected":""}>${["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][d]}</option>`).join("")}</select></div>
+          <div class="field" style="margin:0"><label>From</label><input type="time" value="${t.from}" onchange="skSetSched('${g.id}','from',this.value)"></div>
+          <div class="field" style="margin:0"><label>To</label><input type="time" value="${t.to}" onchange="skSetSched('${g.id}','to',this.value)"></div>
+          <span class="sub" style="margin-bottom:8px">Subject: <b>${esc(skSubj(g))}</b> — shows in the timetable, the teacher's dashboard and Classes taken</span></div>`)(skSched(g))}
         <details style="margin:6px 0"><summary class="sub" style="cursor:pointer">Skills rated for this group (${skSkills(g).length})</summary>
           <textarea rows="5" style="width:100%" onchange="skSet('${g.id}','skills',this.value)">${esc(skSkills(g).join("\n"))}</textarea><div class="sub">One skill per line.</div></details>
         <div class="sub" style="margin:6px 0 4px"><b>${L.length} students</b>${L.length ? " · " + [...new Set(L.map(x=>x.course))].sort().map(c=>`${esc(c)} ${L.filter(x=>x.course===c).length}`).join(" · ") : ""}</div>
@@ -8911,6 +8944,10 @@ function skSet(id, k, v){ const g = skG(id); if(!g) return;
   if(k === "skills") g.skills = [...new Set(String(v).split(/\n+/).map(x=>x.trim()).filter(Boolean))].slice(0, 15);
   else g[k] = String(v).trim();
   save(); if(k === "tid") toast(g.tid ? `${skTeacher(g) || "Teacher"} now leads ${g.name}` : "Teacher removed"); renderSkillDev(); }
+function skSetSched(id, k, v){ const g = skG(id); if(!g) return;
+  g.sched = {...skSched(g), [k]: k === "day" ? +v : String(v||"")};
+  if(g.sched.to && g.sched.from && g.sched.to <= g.sched.from) toast("End time should be after the start time");
+  save(); renderSkillDev(); }
 function skAdd(id){ const g = skG(id), sid = $("ska_"+id).value; if(!g || !sid) return;
   const other = skGroups().find(x=>x.id!==id && (x.studentIds||[]).includes(sid));
   g.studentIds = [...new Set([...(g.studentIds||[]), sid])]; save();
@@ -8943,6 +8980,51 @@ function skProgressHTML(){
         <textarea rows="2" placeholder="Comment on ${esc(x.name.split(" ")[0])}'s progress in ${esc(g.name||"")} (optional)" style="width:100%;margin-top:6px">${esc(r.note||"")}</textarea></div>`; }).join("")
       : `<div class="note">No students in this group yet${IS_TEACHER ? " — the admin adds them" : " — add them under 👥 Groups &amp; students"}.</div>`}
     ${stus.length ? `<div style="text-align:right"><button class="btn-red" onclick="saveSkillDev()">💾 Save</button></div>` : ""}`;
+}
+/* ---- v131: class updates — har class (period) ke baad teacher likhta hai kya parhaya / kya kaam hua ---- */
+function skClassesHTML(){
+  const st = window._sk, list = IS_TEACHER ? skGroups().filter(g=>g.tid===MY_TID) : skGroups();
+  if(!list.length) return `<div class="note">${IS_TEACHER ? "You do not lead a skill development group yet — the admin assigns groups on the Skill Development page." : "No groups yet."}</div>`;
+  if(!list.some(g=>g.id===st.g)) st.g = list[0].id;
+  const g = skG(st.g), t = skSched(g), t0 = todayStr(), now = new Date().toTimeString().slice(0,5);
+  const D = skDates(g, st.m).filter(d=>d < t0 || (d === t0 && now >= t.from)).reverse();
+  const upd = (x, m) => { const L = skDates(x, m).filter(d=>d <= t0); return [L.filter(d=>skLesson(x, d)).length, L.length]; };
+  const nextD = (()=>{ const d = new Date(t0 + "T00:00"); for(let i = 0; i < 8; i++){ const s = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; if(d.getDay() === +t.day && (s > t0 || now < t.from)) return s; d.setDate(d.getDate() + 1); } return ""; })();
+  const ov = IS_TEACHER ? "" : `<div class="tbl-wrap" style="margin-bottom:12px"><table><thead><tr><th>Group</th><th>Teacher</th><th>Class time</th><th style="text-align:right">Updates written · ${fmtM(st.m)}</th></tr></thead><tbody>
+    ${skGroups().map(x=>{ const [a, b] = upd(x, st.m), y = skSched(x); return `<tr><td><b>Group ${esc(x.code||"")}</b> · ${esc(x.name||"")}</td><td>${esc(skTeacher(x) || "—")}</td>
+      <td>${WEEK[y.day]} ${fmtT(y.from)}–${fmtT(y.to)}</td><td style="text-align:right">${b ? `<span class="badge ${a>=b?"b-paid":a?"b-freeze":"b-left"}">${a} / ${b}</span>` : `<span class="sub">no class yet</span>`}</td></tr>`; }).join("")}</tbody></table></div>`;
+  return ov + `<div class="toolbar" style="align-items:flex-end">
+      <div class="field"><label>Month</label><input type="month" value="${st.m}" onchange="window._sk.m=this.value;renderSkillDev()"></div>
+      <div class="field"><label>Group</label><select onchange="window._sk.g=this.value;renderSkillDev()">${list.map(x=>`<option value="${x.id}" ${x.id===g.id?"selected":""}>Group ${esc(x.code||"")} · ${esc(x.name||"")}</option>`).join("")}</select></div>
+      <div class="sub" style="margin-bottom:8px">📅 Every <b>${["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][t.day]}</b> ${fmtT(t.from)}–${fmtT(t.to)}${nextD ? ` · next class <b>${fmtD(nextD)}</b>` : ""} · ${D.filter(d=>skLesson(g, d)).length} / ${D.length} updated</div>
+      ${D.length ? `<button class="btn-red" style="margin-left:auto" onclick="saveSkLessons()">💾 Save</button>` : ""}</div>
+    ${D.length ? D.map(d=>{ const r = skLesson(g, d) || {};
+      return `<div class="panel skl-card" data-d="${d}" style="border-left:4px solid ${r.date ? (r.status === "Cancelled" ? "#9AA9B0" : "#159670") : "#E0A526"}">
+        <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center"><b>${fmtD(d)} <span class="sub">${WEEK[new Date(d+"T00:00").getDay()]} · ${fmtT(t.from)}–${fmtT(t.to)}</span></b>
+          <span>${r.date ? `<span class="sub">saved${r.by ? " by " + esc(r.by) : ""}</span>` : `<span class="badge b-freeze">Update pending</span>`}
+          <select data-k="status" style="margin-left:6px">${["Held","Cancelled"].map(x=>`<option value="${x}" ${(r.status||"Held")===x?"selected":""}>${x === "Held" ? "✓ Class held" : "✗ Not held / cancelled"}</option>`).join("")}</select></span></div>
+        <div class="field" style="margin:6px 0 0"><label>What was covered in this class *</label><textarea data-k="topic" rows="2" placeholder="e.g. Practised 2-minute speeches; feedback on eye contact and pace">${esc(r.topic||"")}</textarea></div>
+        <div class="grid2"><div class="field" style="margin:4px 0 0"><label>Activity / project work</label><input data-k="work" value="${esc(r.work||"")}" placeholder="e.g. Started the poster project"></div>
+          <div class="field" style="margin:4px 0 0"><label>Plan for next class</label><input data-k="next" value="${esc(r.next||"")}" placeholder="e.g. Group debate on social media"></div></div></div>`; }).join("")
+      + `<div style="text-align:right"><button class="btn-red" onclick="saveSkLessons()">💾 Save</button></div>`
+      : `<div class="note">No ${["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][t.day]} class has happened yet in ${fmtM(st.m)}${nextD ? ` — the next class is on ${fmtD(nextD)}` : ""}.</div>`}`;
+}
+function saveSkLessons(){
+  const g = skG(window._sk.g); if(!g) return; g.lessons = g.lessons || [];
+  let n = 0, miss = 0;
+  document.querySelectorAll("#skBody .skl-card").forEach(card=>{
+    const d = card.dataset.d, v = k => card.querySelector(`[data-k="${k}"]`).value.trim();
+    const rec = {id:d, date:d, status:v("status") === "Cancelled" ? "Cancelled" : "Held", topic:v("topic"), work:v("work"), next:v("next")};
+    const i = g.lessons.findIndex(x=>x.date===d), o = g.lessons[i];
+    if(!rec.topic && !rec.work && !rec.next && rec.status === "Held"){ if(i >= 0){ g.lessons.splice(i, 1); n++; } return; }
+    if(rec.status === "Held" && !rec.topic){ miss++; return; }
+    if(o && ["status","topic","work","next"].every(k=>(o[k]||"") === rec[k])) return;
+    g.lessons[i >= 0 ? i : g.lessons.length] = {...rec, by: IS_TEACHER ? (empById(MY_TID)||{}).name || "Teacher" : (myName() || ROLE_LABEL), at:new Date().toISOString()}; n++;
+  });
+  g.lessons.sort((a,b)=>a.date.localeCompare(b.date));
+  if(n) save();
+  toast(miss ? `Write what was covered for ${miss} class${miss>1?"es":""} (or mark it not held)` : n ? `Class updates saved — ${n}` : "No changes");
+  renderSkillDev();
 }
 /* ---- v119: group projects — upcoming / in progress / completed (admin + group ka teacher); parents app mein dikhte hain ---- */
 const PJ_STATUS = ["Upcoming","In progress","Completed"];
