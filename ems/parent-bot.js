@@ -140,7 +140,8 @@ function tests(db, s) {
 
 function homework(db, s, today) {
   const subjOk = (h) => !h.subject || !(s.subjects || []).length || (s.subjects || []).some((x) => { const a = String(x.name || "").toLowerCase().replace(/[^a-z0-9]/g, ""), b = String(h.subject).toLowerCase().replace(/[^a-z0-9]/g, ""); return a && b && (a === b || a.includes(b) || b.includes(a)); });
-  const hw = (db.homework || []).filter((h) => (h.course === s.course || (s.shift === "Evening" && h.course === s.course2)) && h.shift === s.shift && subjOk(h))
+  const hw = (db.homework || []).filter((h) => (h.course === s.course || (s.shift === "Evening" && h.course === s.course2)) && h.shift === s.shift && subjOk(h)
+      && (!s.doj || (h.done || {})[s.id] || String(h.dateGiven || h.dueDate || "9999").slice(0, 10) >= String(s.doj).slice(0, 10)))   // v129: join se pehle ka nahi
     .sort((a, b) => String(b.dateGiven).localeCompare(String(a.dateGiven))).slice(0, 8);
   if (!hw.length) return [H(`📚 ${s.course} — Homework`), P("No homework has been given yet.")];
   return [

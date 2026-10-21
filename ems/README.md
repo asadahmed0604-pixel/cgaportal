@@ -668,3 +668,19 @@ Staff (`/`), Teachers (`/teacher`) and Parents (`/parent`) — all three links c
 (manifest + service worker; data is never cached). Android Chrome: ⋮ → "Install app" · iPhone Safari:
 Share → "Add to Home Screen" · Computer Chrome/Edge: the install icon in the address bar. The EMS sidebar also has an
 "📲 Install app" button. The app icon is the CGA logo (`ems/icons`).
+
+## Late times review — Executive only (v128)
+
+- **⏰ Review late times & fines** (Employees page) is shown only on the Executive login.
+  Admin, Fee Admin and teacher logins don't see the button and can't open, save or recalculate.
+- The server also enforces it: if a non-Executive login saves staff attendance without changing the time,
+  the server keeps the old late minutes and won't accept a new "excused" mark.
+  Changing the real arrival time on the attendance screen still works as before (late minutes are recalculated).
+
+## New students skip older tests & homework (v129)
+
+- A student counts only for tests, exam papers and homework dated **on or after their Date of Join**.
+  Anything given before they joined isn't added to their record, so teachers don't see "marks missing" for them,
+  and it doesn't show as missed homework in the student profile or the parents' app.
+- If marks were already entered for that student, or the homework was marked as submitted, it still shows as usual.
+- Make sure the **Date of Join** is correct when enrolling, because this is what decides it.

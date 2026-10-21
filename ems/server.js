@@ -446,6 +446,16 @@ function keepProtected(data, role, sid) {
      aur apne liye naya kaam (own) jor / hata sakta hai — kisi aur ka nahi, aur Executive ke diye kaam mita nahi sakta */
   data.staffKpis = cur.staffKpis || [];
   delete data.feeStats;                                     // v120: sirf dikhane ke liye (server har dafa banata hai)
+  /* v128: late time maaf karna (excused) / late minutes kam karna sirf Executive — baaqi staff ka time na badle to purana hisaab hi rahe */
+  const oldEA = cur.empAttendance || {}, newEA = data.empAttendance;
+  if (newEA && typeof newEA === "object") Object.keys(newEA).forEach((d) => { const day = newEA[d]; if (!day || typeof day !== "object") return;
+    Object.keys(day).forEach((eid) => { const rec = day[eid]; if (!rec || typeof rec !== "object" || "s" in rec) return;
+      const old = (oldEA[d] || {})[eid] || {};
+      Object.keys(rec).forEach((sh) => { const r = rec[sh], o = old[sh]; if (!r || typeof r !== "object") return;
+        const same = o && o.t === r.t;
+        if (r.excused && !(same && o.excused)) delete r.excused;
+        if (same && !r.excused && (r.s === "P" || r.s === "L") && (+o.lm || 0) > (+r.lm || 0)) { r.lm = o.lm; r.s = o.s === "L" ? "L" : r.s; }
+      }); }); });
   data.stuNotes = cur.stuNotes || [];                       // v106: teachers ke remarks ka faisla sirf Executive
   const curT = Array.isArray(cur.staffTasks) ? cur.staffTasks : [], newT = new Map((Array.isArray(data.staffTasks) ? data.staffTasks : []).filter((t) => t && t.id).map((t) => [t.id, t]));
   const tasks = [], meName = sid ? ((staffById(sid) || {}).name || "") : "", cl = (v, n) => String(v || "").slice(0, n);
