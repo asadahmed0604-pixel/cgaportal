@@ -51,6 +51,7 @@ checkJs("parent-bot.js");
 checkJs("server.js");
 checkJs("assignments.js");
 checkJs("student-report.js");
+checkJs("diagram.js");
 checkJs("ai.js");
 checkJs("remarks.js");
 checkJs("fee-stats.js");

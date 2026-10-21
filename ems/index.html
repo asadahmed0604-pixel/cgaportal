@@ -383,6 +383,8 @@ label.chk input{width:auto}
 @keyframes asgspin{to{transform:rotate(360deg)}}
 .asg-q{border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:12px;background:var(--soft)}
 .asg-q textarea,#page-assign textarea{width:100%}
+.asg-dg{display:block;max-width:100%;width:440px;height:auto;margin:8px 0;border:1px solid #E1EAEE;border-radius:8px;background:#fff}
+.asg-dgbox{border:1px dashed #C9D6DC;border-radius:10px;padding:8px 10px;margin:6px 0 10px;background:#FAFCFD}
 .asg-stu{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:2px 12px;max-height:320px;overflow:auto;border:1px solid var(--line);border-radius:10px;padding:10px}
 .asg-stu label.chk{white-space:normal;margin:0;padding:4px 0}
 .asg-cover{display:flex;gap:16px;align-items:center;margin:14px 0;padding:10px 14px;border:2px solid var(--line);border-radius:12px}
@@ -1498,7 +1500,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v135 · 21 Oct 2026";
+const BUILD = "v136 · 21 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -8665,9 +8667,11 @@ function asgDrawQs(locked){
       ${locked ? "" : `<button class="btn-line btn-sm" style="margin-bottom:10px" onclick="ASG.cur.questions.splice(${i},1);asgDrawQs()">✕ Remove</button>`}
     </div>
     <div class="field"><label>Question</label><textarea data-k="text" rows="3">${esc(q.text)}</textarea></div>
+    ${asgDgBox(q, i, "diagram")}
     ${q.type === "mcq" ? `<div class="field"><label>Options (one per line, A–D)</label><textarea data-k="options" rows="4">${esc(q.options.join("\n"))}</textarea></div>` : ""}
     <div class="grid2"><div class="field"><label>Mark scheme (one point per line)</label><textarea data-k="mark_scheme" rows="4">${esc(q.mark_scheme.join("\n"))}</textarea></div>
-      <div class="field"><label>Model answer</label><textarea data-k="model_answer" rows="4">${esc(q.model_answer)}</textarea></div></div></div>`).join("");
+      <div class="field"><label>Model answer</label><textarea data-k="model_answer" rows="4">${esc(q.model_answer)}</textarea></div></div>
+    ${asgDgBox(q, i, "answer")}</div>`).join("");
   $("ae_qs").querySelectorAll("[data-k]").forEach(el=>el.addEventListener("input", ()=>{
     const q = ASG.cur.questions[el.closest(".asg-q").dataset.i], k = el.dataset.k;
     q[k] = k === "options" || k === "mark_scheme" ? el.value.split("\n") : k === "marks" ? (+el.value || 0) : el.value;
@@ -8675,6 +8679,56 @@ function asgDrawQs(locked){
     asgTot();
   }));
   asgTot();
+}
+/* v136: diagram — <img> data URI (SVG mein koi script nahi chalta); grid ko teacher theek kar sakta hai */
+const dgImg = (svg, st) => svg ? `<img class="asg-dg" alt="Diagram" ${st ? `style="${st}"` : ""} src="data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}">` : "";
+function asgDgBox(q, i, which){
+  const svg = which === "answer" ? q.answer_svg : q.diagram_svg, lab = which === "answer" ? "Answer diagram (teacher only — not shown to students)" : "Diagram (students see this)";
+  return `<div class="asg-dgbox"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><b class="sub">📐 ${lab}</b>
+    <span style="display:flex;gap:6px"><button class="btn-line btn-sm" onclick="asgGridEdit(${i},'${which}')">${(which === "answer" ? q.answer_grid : q.diagram_grid) ? "✏ Edit grid" : "+ Grid diagram"}</button>
+    ${svg ? `<button class="btn-line btn-sm" onclick="asgDgDel(${i},'${which}')">✕ Remove</button>` : ""}</span></div>${dgImg(svg)}</div>`;
+}
+function asgDgDel(i, which){ const q = ASG.cur.questions[i], p = which === "answer" ? "answer" : "diagram";
+  q[p + "_svg"] = ""; q[p + "_grid"] = null; q[p + "_info"] = ""; asgDrawQs(); }
+const gridToText = g => !g ? "" : [`x: ${g.xmin} to ${g.xmax}`, `y: ${g.ymin} to ${g.ymax}`,
+  ...(g.shapes||[]).map(s=>`${s.label || "shape"}: ${s.points.map(p=>`(${p.x}, ${p.y})`).join(" ")}`),
+  ...(g.points||[]).map(p=>`${p.label || "point"}: (${p.x}, ${p.y})`),
+  ...(g.segments||[]).map(s=>`${s.label || "line"}: (${s.x1}, ${s.y1}) (${s.x2}, ${s.y2}) line${s.dashed ? " dashed" : ""}`)].join("\n");
+function textToGrid(t){
+  const g = {xmin:-6, xmax:6, ymin:-6, ymax:6, shapes:[], points:[], segments:[]};
+  String(t||"").split(/\n+/).map(l=>l.trim()).filter(Boolean).forEach(l=>{
+    const r = /^([xy])\s*:\s*(-?\d+)\s*(?:to|\.\.|,|–|-)\s*(-?\d+)/i.exec(l);
+    if(r){ const a = +r[2], b = +r[3]; if(r[1].toLowerCase() === "x"){ g.xmin = Math.min(a,b); g.xmax = Math.max(a,b); } else { g.ymin = Math.min(a,b); g.ymax = Math.max(a,b); } return; }
+    const P = [...l.matchAll(/\(\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*\)/g)].map(m=>({x:+m[1], y:+m[2]}));
+    if(!P.length) return;
+    const label = (l.split(":")[0].includes("(") ? "" : l.split(":")[0]).trim().slice(0, 30), lineish = /\bline\b|\bdashed\b/i.test(l.slice(l.indexOf(")")));
+    if(P.length === 1) g.points.push({label, ...P[0]});
+    else if(P.length === 2 && (lineish || !/\bshape\b/i.test(l))) g.segments.push({label, x1:P[0].x, y1:P[0].y, x2:P[1].x, y2:P[1].y, dashed:/dashed/i.test(l)});
+    else g.shapes.push({label, points:P});
+  });
+  return g;
+}
+function asgGridEdit(i, which){
+  const q = ASG.cur.questions[i], g = which === "answer" ? q.answer_grid : q.diagram_grid;
+  const ex = "x: -6 to 6\ny: -6 to 6\nA: (1, 1) (3, 1) (3, 2)\nB: (-1, 1) (-3, 1) (-3, 2)\ny = x: (-6, -6) (6, 6) line dashed\nP: (2, 4)";
+  openModal(`<h3>📐 ${which === "answer" ? "Answer" : "Question"} diagram — coordinate grid</h3>
+    <p class="sub">One item per line. The grid is drawn exactly from these numbers.<br>
+      <b>x: -6 to 6</b> and <b>y: -6 to 6</b> = grid size · <b>A: (1, 1) (3, 1) (3, 2)</b> = shape A (3+ corners) ·
+      <b>P: (2, 4)</b> = a point · <b>y = x: (-6, -6) (6, 6) line dashed</b> = a line (e.g. mirror line)</p>
+    <div class="grid2" style="align-items:start"><div class="field"><textarea id="gd_t" rows="10" style="font-family:monospace" oninput="clearTimeout(window._gdT);window._gdT=setTimeout(asgGridPrev,400)" placeholder="${esc(ex)}">${esc(gridToText(g) || (q.diagram_grid && which === "answer" ? gridToText(q.diagram_grid) : ""))}</textarea></div>
+      <div id="gd_prev" class="sub">Preview appears here</div></div>
+    <div class="modal-foot"><button class="btn-line" onclick="closeModal()">Cancel</button><button class="btn-red" onclick="asgGridSave(${i},'${which}')">Use this diagram</button></div>`, true);
+  asgGridPrev();
+}
+async function asgGridPrev(){
+  if(!$("gd_t") || !$("gd_t").value.trim()) return;
+  try{ const r = await asgApi("/api/asg/diagram", {grid:textToGrid($("gd_t").value)}); if($("gd_prev")) $("gd_prev").innerHTML = dgImg(r.svg, "width:100%"); }catch(e){ if($("gd_prev")) $("gd_prev").textContent = e.message; }
+}
+async function asgGridSave(i, which){
+  const t = $("gd_t").value.trim(); if(!t){ toast("Write the grid size and shapes"); return; }
+  try{ const r = await asgApi("/api/asg/diagram", {grid:textToGrid(t)}), q = ASG.cur.questions[i], p = which === "answer" ? "answer" : "diagram";
+    q[p + "_svg"] = r.svg; q[p + "_grid"] = r.grid; q[p + "_info"] = r.info; closeModal(); asgDrawQs(); toast("Diagram added"); }
+  catch(e){ toast(e.message); }
 }
 const asgTot = () => { $("ae_tot").textContent = `Total: ${ASG.cur.questions.reduce((s,q)=>s + (+q.marks||0), 0)} marks · ${ASG.cur.questions.length} questions`; };
 function asgAddQ(){ ASG.cur.questions.push({number:String(ASG.cur.questions.length + 1), type:"short", text:"", options:[], marks:2, mark_scheme:[""], model_answer:""}); asgDrawQs(); }
@@ -8755,6 +8809,7 @@ function asgPrint(scheme){
     <h1>${esc(DB.settings.name || "Cambridge Grads Academy")}</h1><p><b>${esc(a.title)}</b> — ${esc(a.subject)}${a.code ? " (" + esc(a.code) + ")" : ""} · ${esc(a.course)} · ${a.total} marks${a.timed ? " · " + a.minutes + " minutes" : ""}${scheme ? " · <b>MARK SCHEME</b>" : ""}</p>
     ${scheme ? "" : "<p>Name: ______________________ &nbsp; Date: __________</p>"}<p style="white-space:pre-wrap">${esc(a.instructions)}</p>
     ${a.questions.map(q=>`<div class="q"><span class="m">[${q.marks}]</span><b>${esc(q.number)}</b> <span style="white-space:pre-wrap">${esc(q.text)}</span>
+      ${dgImg(q.diagram_svg, "width:380px;max-width:100%;display:block;margin:8px 0")}${scheme && q.answer_svg ? `<div><i>Answer:</i>${dgImg(q.answer_svg, "width:380px;max-width:100%;display:block;margin:4px 0")}</div>` : ""}
       ${q.options.length ? `<div>${q.options.map((o,j)=>`<div>${"ABCDEF"[j]}. ${esc(o)}</div>`).join("")}</div>` : ""}
       ${scheme ? `<div class="ms">${q.mark_scheme.map(p=>"• " + esc(p)).join("<br>")}${q.model_answer ? `<br><i>Model answer:</i> ${esc(q.model_answer)}` : ""}</div>` : q.type === "mcq" ? "" : '<div class="lines"></div>'}</div>`).join("")}`);
   w.document.close(); setTimeout(()=>w.print(), 300);
@@ -8780,7 +8835,7 @@ async function asgScript(id){
     <div class="asg-cover"><div class="asg-tot"><b id="as_tot">${r.total_awarded}</b>/ ${a.total}</div><div><b>${pct}%</b> · indicative grade <b>${gradeOf(pct)}</b></div></div>
     ${a.questions.map(q=>{ const m = byNum.get(String(q.number)) || {awarded:0, points_credited:[], examiner_comment:"", marks_annotation:"", student_answer:""};
       const typed = (s.answers||{})[q.number] || "";
-      return `<div class="asg-sq" data-n="${esc(q.number)}"><div class="b"><b>${esc(q.number)}</b> <span style="white-space:pre-wrap">${esc(q.text)}</span>
+      return `<div class="asg-sq" data-n="${esc(q.number)}"><div class="b"><b>${esc(q.number)}</b> <span style="white-space:pre-wrap">${esc(q.text)}</span>${dgImg(q.diagram_svg, "width:300px")}
           <div class="asg-ans">${typed ? esc(typed) : m.student_answer ? esc(m.student_answer) + ' <span class="sub">(read from photos)</span>' : '<span class="sub">No typed answer</span>'}</div>
           ${(m.points_credited||[]).length ? `<div class="asg-pen">${m.points_credited.map(x=>"✓ " + esc(x)).join("<br>")}</div>` : ""}
           <details class="sub" style="margin-top:4px"><summary>Mark scheme</summary>${q.mark_scheme.map(p=>"• " + esc(p)).join("<br>")}</details>
