@@ -717,3 +717,15 @@ Share → "Add to Home Screen" · Computer Chrome/Edge: the install icon in the 
   - the parents' app and student portal, where it shows "Absent";
   - the parent bot.
 - The student profile's homework tab also has **Absent** in the status dropdown.
+
+## Classes Taken — double classes & substitute teacher (v133)
+
+- **Double class:** if a teacher has the same class and subject in two slots on one day, it shows as one row with **2 periods (double)**.
+  - The time runs from the first slot's start to the last slot's end.
+  - The office can also pick 1 / 2 / 3 periods under the time. The app remembers it for that weekday.
+- A double class has these buttons: **✓ Both taken · ½ 1 of 2 taken · ✗ None taken · Cancelled**.
+- **Substitute:** when a class (or 1 of 2) was not taken, a **🔁 Substitute** dropdown appears. Pick the teacher who covered it.
+  - The monthly summary has a "Substitute classes taken" column, and the missed classes say who covered them.
+  - The CSV has Periods, Periods not taken and Substitute columns.
+  - The substitute teacher sees "🔁 Substitute classes you took" on their dashboard.
+- Counts (cards, monthly summary, taken %) now count periods: a double class counts as 2.
