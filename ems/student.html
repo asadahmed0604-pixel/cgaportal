@@ -257,7 +257,7 @@ async function asgList() {
 /* ------------------------------ v90: homework — photos / PDF jama karo, teacher confirm kare ------------------------------ */
 let HW = [], curHw = null;
 const HW_TAG = { pending: `<span class="tag new">To do</span>`, submitted: `<span class="tag prog">Sent — awaiting teacher</span>`,
-  done: `<span class="tag done">✓ Checked by teacher</span>`, late: `<span class="tag done">✓ Checked (late)</span>`, missed: `<span class="tag time">Not submitted</span>` };
+  done: `<span class="tag done">✓ Checked by teacher</span>`, late: `<span class="tag done">✓ Checked (late)</span>`, missed: `<span class="tag time">Not submitted</span>`, absent: `<span class="tag">Absent</span>` };
 function hwListHtml(hw) {
   if (!hw.length) return "";
   const open = hw.filter((h) => h.state === "pending" || h.state === "missed").length;
@@ -400,7 +400,7 @@ async function report(quiet) {
     </div>
     <div class="card"><h3>📚 Homework</h3>${(r.homework || []).length ? `<table class="rt"><tbody>${r.homework.map((h) => `<tr><td style="white-space:nowrap">${esc(fmtD(h.given))}</td>
         <td><b>${esc(h.title)}</b>${h.subject ? ` <span class="sub">· ${esc(h.subject)}</span>` : ""}${h.teacher ? `<div class="sub">${esc(h.teacher)}</div>` : ""}${h.detail ? `<div class="sub">${esc(h.detail)}</div>` : ""}${h.due ? `<div class="sub">Due ${esc(fmtD(h.due))}</div>` : ""}</td>
-        <td class="r">${{ done: `<span class="pill P">Submitted</span>`, late: `<span class="pill L">Late</span>`, missed: `<span class="pill A">Not submitted</span>`, pending: `<span class="pill E">Pending</span>`, submitted: `<span class="pill L">Sent — awaiting teacher</span>` }[h.state]}</td></tr>`).join("")}</tbody></table>`
+        <td class="r">${{ done: `<span class="pill P">Submitted</span>`, late: `<span class="pill L">Late</span>`, missed: `<span class="pill A">Not submitted</span>`, absent: `<span class="pill E">Absent</span>`, pending: `<span class="pill E">Pending</span>`, submitted: `<span class="pill L">Sent — awaiting teacher</span>` }[h.state]}</td></tr>`).join("")}</tbody></table>`
       : `<p class="sub" style="margin:0">No homework given yet.</p>`}</div>
     ${(r.skills || []).length || (r.skillGroups || []).some((g) => g.projects.length || (g.updates || []).length) ? `<div class="card"><h3>🌱 Skill development</h3>
       ${(r.skillGroups || []).filter((g) => (g.updates || []).length).map((g) => `<div style="margin-bottom:12px"><b>📝 ${esc(g.group)} — latest classes</b>${g.teacher ? ` <span class="sub">· ${esc(g.teacher)}</span>` : ""}

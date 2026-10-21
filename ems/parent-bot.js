@@ -151,7 +151,7 @@ function homework(db, s, today) {
       const late = !done && h.dueDate && h.dueDate < today;
       const lateIn = typeof done === "string" && h.dueDate && done > h.dueDate;      // v69: teacher ne receival ki date daali
       const tName = h.teacherId ? ((db.employees || []).find((e) => e.id === h.teacherId) || {}).name : "";
-      return `${fmtD(h.dateGiven)} · ${h.subject ? h.subject + ": " : ""}${h.title}${tName ? ` (${tName})` : ""}${h.dueDate ? ` — due ${fmtD(h.dueDate)}` : ""}${h.detail ? `: ${h.detail}` : ""} [${done ? (lateIn ? `✓ submitted late (${fmtD(done)})` : "✓ submitted") : late ? "⚠ not submitted" : "pending"}]`;
+      return `${fmtD(h.dateGiven)} · ${h.subject ? h.subject + ": " : ""}${h.title}${tName ? ` (${tName})` : ""}${h.dueDate ? ` — due ${fmtD(h.dueDate)}` : ""}${h.detail ? `: ${h.detail}` : ""} [${done ? (lateIn ? `✓ submitted late (${fmtD(done)})` : "✓ submitted") : (h.absent || {})[s.id] ? "absent that day" : late ? "⚠ not submitted" : "pending"}]`;
     })),
   ];
 }
