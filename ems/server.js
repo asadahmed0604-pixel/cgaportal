@@ -354,7 +354,8 @@ function teacherView(d, tid) {
       entries: Object.fromEntries(Object.entries(x.entries || {}).filter(([k]) => k.endsWith("|" + tid))), feedback: {} })),
     /* v106: teacher ke bheje hue student remarks / issues (Executive approve karta hai) — sirf apne */
     stuNotes: (d.stuNotes || []).filter((n) => n && n.tid === tid),
-    skillGroups: grps,                                                                                  // v116
+    skillGroups: grps,
+    concerns: (d.concerns || []).filter((c) => c && c.assignTo === tid),                                // v134: sirf is teacher ko assign kiye hue                                                                                  // v116
     skillDev: (d.skillDev || []).filter((x) => x && grps.some((g) => g.id === x.groupId)),
     classCosts: {}, parentAccess: [], studentAccess: [], parentMsgs: [], audits: (d.audits || []).filter((a) => a.teacherId === tid), counters: d.counters || {},
     settings: { name: s.name, addr: s.addr, phone: s.phone, logo: s.logo, latePolicy: s.latePolicy },
@@ -449,10 +450,27 @@ function teacherMerge(data, tid) {
   /* v119: group ke projects — teacher sirf apne group(s) ke projects badal sakta hai (group ka naam / bache / teacher admin ka) */
   const newG = new Map(arr(data.skillGroups).map((g) => [g.id, g]));
   const skillGroups = arr(cur.skillGroups).map((g) => (g.tid === tid && newG.has(g.id) ? { ...g, projects: cleanProjects(newG.get(g.id).projects, me), lessons: cleanLessons(newG.get(g.id).lessons, g.lessons, me) } : g));
-  return Object.assign(cur, { tests, exams, classAtt, homework, ptms, stuNotes, skillDev, skillGroups });
+  const concerns = concernMerge(cur, data, tid, (me && me.name) || "");      // v134
+  return Object.assign(cur, { tests, exams, classAtt, homework, ptms, stuNotes, skillDev, skillGroups, concerns });
 }
 /* Admin ke save mein chhupaye hue hisse server wale hi rehte hain */
 const SALARY_CAT = "Salary & Wages";
+/* v134: parent concerns — naya concern / assign / close sirf Executive; jis ko assign hua (who) wo sirf apne concern par
+   status (Open / In progress / Resolved), naye updates aur resolution likh sakta hai */
+function concernMerge(cur, data, who, meName) {
+  const arrC = (v) => (Array.isArray(v) ? v : []);
+  const nw = new Map(arrC(data.concerns).filter((c) => c && c.id).map((c) => [c.id, c])), cl = (v, n) => String(v || "").slice(0, n);
+  return arrC(cur.concerns).map((c) => {
+    const n = nw.get(c.id);
+    if (!who || !n || c.assignTo !== who || c.status === "Closed") return c;
+    const st = ["Open", "In progress", "Resolved"].includes(n.status) ? n.status : c.status;
+    const old = arrC(c.updates), add = arrC(n.updates).slice(old.length, old.length + 20).filter((u) => u && String(u.note || "").trim())
+      .map((u) => ({ at: new Date().toISOString(), by: meName || "", note: cl(u.note, 1500) }));
+    const x = { ...c, status: st, updates: old.concat(add).slice(-200) };
+    if (st === "Resolved") Object.assign(x, { resolution: cl(n.resolution, 1500) || c.resolution || "", resolvedOn: cl(n.resolvedOn, 10) || c.resolvedOn || "", resolvedBy: meName || "" });
+    return x;
+  });
+}
 function keepProtected(data, role, sid) {
   const cur = JSON.parse(state.dataText) || {};
   /* v102: staff KPIs sirf Executive badalta hai; to-do list mein staff sirf apne kaam ka status / note badal sakta hai
@@ -470,6 +488,7 @@ function keepProtected(data, role, sid) {
         if (same && !r.excused && (r.s === "P" || r.s === "L") && (+o.lm || 0) > (+r.lm || 0)) { r.lm = o.lm; r.s = o.s === "L" ? "L" : r.s; }
       }); }); });
   data.stuNotes = cur.stuNotes || [];                       // v106: teachers ke remarks ka faisla sirf Executive
+  data.concerns = concernMerge(cur, data, sid, sid ? ((staffById(sid) || {}).name || "") : "");   // v134
   const curT = Array.isArray(cur.staffTasks) ? cur.staffTasks : [], newT = new Map((Array.isArray(data.staffTasks) ? data.staffTasks : []).filter((t) => t && t.id).map((t) => [t.id, t]));
   const tasks = [], meName = sid ? ((staffById(sid) || {}).name || "") : "", cl = (v, n) => String(v || "").slice(0, n);
   curT.forEach((t) => {
@@ -645,7 +664,7 @@ const canon = (v) => JSON.stringify(v, (k, x) => x && typeof x === "object" && !
 /* Save se pehle aur baad ka data — kya badla, insaani zabaan mein */
 const ACT_COLS = { students: "Students", fees: "Fee challans", employees: "Employees", txns: "Income / Expense", inquiries: "Inquiries",
   exams: "Exam marks", tests: "Tests", homework: "Homework", inventory: "Inventory", issues: "Issuance", audits: "Class audits", kpis: "KPI checklists",
-  subjects: "Subjects", feeReceipts: "Fee receipts (app)", parentAccess: "Parent access", studentAccess: "Student logins (Evening)", parentMsgs: "Parent messages", classAtt: "Class attendance", ptms: "PTM", staffKpis: "Staff KPIs", staffTasks: "Staff to-do", stuNotes: "Teacher remarks (approval)", skillDev: "Skill development progress", skillGroups: "Skill development groups" };
+  subjects: "Subjects", feeReceipts: "Fee receipts (app)", parentAccess: "Parent access", studentAccess: "Student logins (Evening)", parentMsgs: "Parent messages", classAtt: "Class attendance", ptms: "PTM", staffKpis: "Staff KPIs", staffTasks: "Staff to-do", stuNotes: "Teacher remarks (approval)", skillDev: "Skill development progress", skillGroups: "Skill development groups", concerns: "Parent concerns" };
 const ACT_SKIP_FIELDS = new Set(["hash", "salt", "iter"]);
 const recLabel = (r, col) => {
   if (!r || typeof r !== "object") return "?";

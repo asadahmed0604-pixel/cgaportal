@@ -763,6 +763,7 @@ label.chk input{width:auto}
   <div class="page-head"><div><h2 id="sdTitle">My Dashboard</h2><div class="sub" id="sdSub"></div></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn-black" onclick="openDelegate()">📤 Assign a task</button><button class="btn-red" onclick="openOwnTask()">+ Add my to-do</button></div></div>
   <div id="sdAlerts"></div>
+  <div id="sdConcerns"></div>
   <div class="cards" id="sdCards"></div>
   <div id="sdFee"></div>
   <div id="sdCoord"></div>
@@ -915,6 +916,7 @@ label.chk input{width:auto}
   <div id="mdRemind"></div>
   <div class="cards" id="mdCards"></div>
   <div id="mdDemo"></div>
+  <div id="mdConcerns"></div>
   <div class="panel" style="margin-bottom:16px" id="mdClPanel"><h3>✅ Classes taken — <span id="mdClM"></span></h3><p class="sub" style="margin:4px 0 10px">Marked by the office for each of your scheduled classes.</p><div id="mdCl"></div></div>
   <div class="panel" style="margin-bottom:16px"><h3>📈 My live KPI — <span id="mdKpiM"></span></h3><p class="sub" style="margin:4px 0 10px">All from current data — tests, marks, remarks, attendance, class audit and the coordinator's monthly checklist.</p><div id="mdKpi"></div></div>
   <div class="panel"><h3>⏰ My classes and timings</h3><p class="sub" style="margin:4px 0 10px" id="mdToday"></p><div id="mdTT"></div></div>
@@ -1056,6 +1058,11 @@ label.chk input{width:auto}
     <div class="card"><div class="k">Logins — last 7 days</div><div class="v" id="parLog">—</div><div class="hint">Families who opened the chat</div></div>
     <div class="card"><div class="k">Open Messages</div><div class="v red" id="parOpen">0</div><div class="hint" id="parOpenHint"></div></div>
   </div>
+  <div class="panel" id="pcPanel"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><h3>📌 Parent concerns — assigned for follow-up</h3>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><select id="pcF" onchange="renderConcerns()" style="width:auto"><option value="open">Open</option><option value="">All</option></select>
+      <button class="btn-red exec-only" onclick="openConcern()">+ Log a concern</button></div></div>
+    <p class="sub" style="margin:4px 0 10px">A concern a parent raised (app message, meeting, phone call or PTM). The Executive assigns it to a teacher or coordinator with a due date. They see it on their dashboard, add updates and mark it resolved, and the Executive closes it.</p>
+    <div id="pcList"></div></div>
   <div class="panel"><h3>✉️ Messages from parents</h3>
     <div class="toolbar" style="margin-top:8px">
       <div class="field"><label>Show</label><select id="parMsgF" onchange="renderParents()"><option value="open">Awaiting reply</option><option value="">All</option></select></div>
@@ -1491,7 +1498,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v133 · 21 Oct 2026";
+const BUILD = "v135 · 21 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -1618,7 +1625,7 @@ function studentFee(s){
 }
 
 const DEFAULT_DB = {
-  students:[], inquiries:[], fees:[], exams:[], employees:[], txns:[], homework:[], ptms:[], staffKpis:[], staffTasks:[], stuNotes:[], skillDev:[], skillGroups:[],
+  students:[], inquiries:[], fees:[], exams:[], employees:[], txns:[], homework:[], ptms:[], staffKpis:[], staffTasks:[], stuNotes:[], skillDev:[], skillGroups:[], concerns:[],
   subjects:[],             // [{id, name, level, defaultFee}] — Settings se manage hoti hain
   inventory:[],            // [{id, name, type, qty, unitCost, issuedOpening, date, note}]
   issues:[],               // [{id, date, itemId, qty, toType, toId, toName, course, unitCost, charge, remarks}]
@@ -2210,7 +2217,8 @@ function renderDashboard(){
   $("dInqHint").textContent = `${iqC} admissions${iqM.length?` (${Math.round(iqM.filter(i=>i.stage==="Converted").length*100/iqM.length)}%)`:""} · ${iqDue} follow-up${iqDue===1?"":"s"} due by today`;
   const pOpen = (DB.parentMsgs||[]).filter(x=>x.status==="Open");
   $("dPMsg").textContent = pOpen.length;
-  $("dPMsgHint").textContent = pOpen.length ? `Awaiting reply · oldest ${fmtD(pOpen.map(x=>x.d).sort()[0].slice(0,10))}` : `${(DB.parentAccess||[]).filter(a=>a.active!==false&&a.hash).length} families have chat access`;
+  $("dPMsgHint").textContent = (pOpen.length ? `Awaiting reply · oldest ${fmtD(pOpen.map(x=>x.d).sort()[0].slice(0,10))}` : `${(DB.parentAccess||[]).filter(a=>a.active!==false&&a.hash).length} families have chat access`)
+    + ((L=>L.length ? ` · 📌 ${L.length} concern${L.length>1?"s":""} assigned${L.filter(pcLate).length ? ` (${L.filter(pcLate).length} overdue)` : ""}` : "")((DB.concerns||[]).filter(c=>c.status !== "Closed")));
   const nw = newIn(m);
   $("dNew").textContent = nw.length;
   $("dNewHint").textContent = nw.length
@@ -4138,6 +4146,7 @@ function renderStaffDash(){
     late.length ? `<b style="color:var(--danger)">${late.length} of your tasks are overdue</b>` : ""].filter(Boolean).map(x=>`<li>${x}</li>`).join("") || "<li>All clear ✓</li>"}</ul>`;
   $("sdWork").innerHTML = work;
   sdExtras();
+  drawMyConcerns("sdConcerns", MY_SID);
 }
 
 /* ================= v120: staff dashboard — fee collection (ginti), coordinator checklist, Evening tests, delegation ================= */
@@ -6430,9 +6439,11 @@ function renderParents(){
       <td style="max-width:240px" class="sub">${m.reply ? `${esc(m.reply)}<br>— ${esc(m.repliedBy||"")} ${fmtD(m.repliedOn)}` : "—"}</td>
       <td><span class="badge ${m.status==="Open"?"b-unpaid":m.status==="Replied"?"b-freeze":"b-paid"}">${esc(m.status)}</span></td>
       <td style="white-space:nowrap"><button class="btn-black btn-sm" onclick="openParentReply('${m.id}')">${m.reply?"Edit reply":"Reply"}</button>
-        ${m.status !== "Resolved" ? `<button class="btn-line btn-sm" onclick="resolveParentMsg('${m.id}')">Resolved</button>` : ""}</td></tr>`; }).join("")
+        ${m.status !== "Resolved" ? `<button class="btn-line btn-sm" onclick="resolveParentMsg('${m.id}')">Resolved</button>` : ""}
+        ${ROLE === "exec" ? ((DB.concerns||[]).some(c=>c.msgId===m.id) ? `<br><span class="sub">📌 assigned to ${esc(((DB.concerns||[]).find(c=>c.msgId===m.id)||{}).assignName||"")}</span>` : `<button class="btn-line btn-sm" onclick="openConcern('', '${m.id}')" title="Assign this concern to a teacher or coordinator">📌 Assign</button>`) : ""}</td></tr>`; }).join("")
     : `<tr><td colspan="7" class="empty">${mf ? "No messages awaiting reply ✓" : "No messages received yet"}</td></tr>`;
 
+  renderConcerns();
   /* --- families --- */
   const q = ($("parSearch").value||"").toLowerCase(), af = $("parAccF").value;
   const rows = fams.filter(f=>{
@@ -6735,6 +6746,116 @@ function resolveParentMsg(id){
   m.status = "Resolved"; save(); renderParents(); renderDashboard(); toast("Resolved ✓");
 }
 
+/* ================= v134: PARENT CONCERNS — Executive teacher / coordinator ko assign karta hai =================
+   DB.concerns = [{id, studentId, studentName, cls, source, msgId, text, raisedOn, loggedBy, assignTo, assignName, assignRole, assignedOn, due, priority,
+     instructions, status:"Open"|"In progress"|"Resolved"|"Closed", updates:[{at, by, note}], resolution, resolvedOn, resolvedBy, closedOn}]
+   Jis ko assign hua wo apne dashboard par update likhta hai aur "Resolved" karta hai; Executive dekh kar Close (ya dobara Open) karta hai. */
+const PC_SOURCES = ["Parent app message","Meeting with Executive","Phone call","PTM","WhatsApp","Other"];
+const PC_ST = {Open:"b-unpaid", "In progress":"b-freeze", Resolved:"b-paid", Closed:"b-paid"};
+const pcList = () => DB.concerns || (DB.concerns = []);
+const pcOpen = c => c.status !== "Closed";
+const pcLate = c => c.due && c.due < todayStr() && !["Resolved","Closed"].includes(c.status);
+/* kis ko assign ho sakta hai: coordinators / staff logins + teachers (bache ki class parhane wale upar) */
+function pcPeople(sid){
+  const st = stuById(sid), act = DB.employees.filter(e=>e.status !== "Left");
+  const coord = act.filter(e=>STAFF_ACCESS[e.access]).sort((a,b)=>a.name.localeCompare(b.name));
+  const teaches = e => st && (e.assignments||[]).some(a=>a.shift===st.shift && inClass(st, a.course));
+  const T = act.filter(e=>!STAFF_ACCESS[e.access] && (e.category === "Teacher" || (e.assignments||[]).length)).sort((a,b)=>(teaches(b)-teaches(a)) || a.name.localeCompare(b.name));
+  return {coord, T, teaches};
+}
+function pcPeopleOpts(sid, sel){
+  const {coord, T, teaches} = pcPeople(sid);
+  return `<option value="">— choose —</option>` + (coord.length ? `<optgroup label="Coordinators / staff">${coord.map(e=>`<option value="${e.id}" ${e.id===sel?"selected":""}>${esc(e.name)}${e.scope ? " (" + esc(e.scope) + ")" : ""}</option>`).join("")}</optgroup>` : "")
+    + `<optgroup label="Teachers">${T.map(e=>`<option value="${e.id}" ${e.id===sel?"selected":""}>${teaches(e) ? "★ " : ""}${esc(e.name)}</option>`).join("")}</optgroup>`;
+}
+function openConcern(id, msgId){
+  if(ROLE !== "exec"){ toast("Only the Executive assigns parent concerns"); return; }
+  const c = pcList().find(x=>x.id===id) || {}, m = msgId ? (DB.parentMsgs||[]).find(x=>x.id===msgId) : null;
+  const sid = c.studentId || (m && m.studentId) || "";
+  const act = DB.students.filter(x=>x.status !== "Left").sort((a,b)=>(a.course+a.name).localeCompare(b.course+b.name));
+  const byCls = [...new Set(act.map(x=>x.course + " · " + x.shift))].sort();
+  openModal(`<h3>📌 ${id ? "Edit / reassign concern" : "Parent concern — assign for follow-up"}</h3>
+    <div class="grid2"><div class="field"><label>Student *</label><select id="pc_s" onchange="$('pc_to').innerHTML=pcPeopleOpts(this.value,$('pc_to').value)" ${m ? "disabled" : ""}><option value="">— choose student —</option>
+      ${byCls.map(k=>`<optgroup label="${esc(k)}">${act.filter(x=>x.course + " · " + x.shift === k).map(x=>`<option value="${x.id}" ${x.id===sid?"selected":""}>${esc(x.name)} (${esc(x.regNo||"")})</option>`).join("")}</optgroup>`).join("")}</select></div>
+      <div class="field"><label>Raised through</label><select id="pc_src">${PC_SOURCES.map(x=>`<option ${x===(c.source || (m ? "Parent app message" : "Meeting with Executive"))?"selected":""}>${x}</option>`).join("")}</select></div></div>
+    <div class="field"><label>Parent's concern *</label><textarea id="pc_t" rows="3" placeholder="e.g. Father says the child is not understanding Maths and homework is not being checked">${esc(c.text || (m ? m.text : ""))}</textarea></div>
+    <div class="grid2"><div class="field"><label>Assign to (teacher / coordinator) *</label><select id="pc_to">${pcPeopleOpts(sid, c.assignTo)}</select><div class="sub">★ = teaches this student</div></div>
+      <div class="field"><label>Due date</label><input type="date" id="pc_due" value="${c.due || ""}"></div></div>
+    <div class="grid2"><div class="field"><label>Priority</label><select id="pc_pr"><option ${c.priority!=="High"?"selected":""}>Normal</option><option ${c.priority==="High"?"selected":""}>High</option></select></div>
+      <div class="field"><label>Raised on</label><input type="date" id="pc_on" value="${c.raisedOn || (m ? String(m.d).slice(0,10) : todayStr())}"></div></div>
+    <div class="field"><label>Instructions from the Executive (what to do)</label><textarea id="pc_i" rows="2" placeholder="e.g. Meet the parent, check the homework diary and give extra practice for 2 weeks">${esc(c.instructions||"")}</textarea></div>
+    <div class="modal-foot"><button class="btn-line" onclick="closeModal()">Cancel</button><button class="btn-red" onclick="saveConcern('${id||""}','${msgId||""}')">${id ? "Save" : "📌 Assign"}</button></div>`, true);
+}
+function saveConcern(id, msgId){
+  const sid = $("pc_s").value, text = $("pc_t").value.trim(), to = $("pc_to").value;
+  if(!sid || !text || !to){ toast("Choose the student, write the concern and choose who will handle it"); return; }
+  const st = stuById(sid), e = empById(to), L = pcList();
+  let c = L.find(x=>x.id===id);
+  if(!c){ c = {id:uid(), status:"Open", updates:[], loggedBy:myName() || ROLE_LABEL}; L.push(c); }
+  const re = c.assignTo && c.assignTo !== to;
+  Object.assign(c, {studentId:sid, studentName:st.name, cls:`${st.course} · ${st.shift}`, source:$("pc_src").value, text, assignTo:to, assignName:e.name,
+    assignRole:STAFF_ACCESS[e.access] ? "Coordinator" : "Teacher", due:$("pc_due").value, priority:$("pc_pr").value === "High" ? "High" : "", raisedOn:$("pc_on").value || todayStr(),
+    instructions:$("pc_i").value.trim()});
+  if(msgId) c.msgId = msgId;
+  if(!c.assignedOn || re){ c.assignedOn = todayStr(); if(re){ c.updates.push({at:new Date().toISOString(), by:myName() || "Executive", note:`Reassigned to ${e.name}`}); if(c.status === "Resolved") c.status = "Open"; } }
+  save(); closeModal(); renderParents(); toast(`Concern assigned to ${e.name} — it shows on their dashboard`);
+}
+function pcSetStatus(id, st){ const c = pcList().find(x=>x.id===id); if(!c || ROLE !== "exec") return;
+  c.status = st; if(st === "Closed") c.closedOn = todayStr();
+  c.updates = c.updates || []; c.updates.push({at:new Date().toISOString(), by:myName() || "Executive", note: st === "Closed" ? "Closed by the Executive" : "Reopened by the Executive"});
+  save(); renderParents(); toast(st === "Closed" ? "Concern closed ✓" : "Concern reopened"); }
+function pcDel(id){ if(ROLE !== "exec" || !confirm("Delete this concern?")) return; DB.concerns = pcList().filter(x=>x.id!==id); save(); renderParents(); }
+const pcLast = c => (c.updates||[]).slice(-1)[0];
+function pcCard(c, mine){
+  const u = c.updates || [], late = pcLate(c);
+  return `<div class="panel" style="margin:0 0 10px;border-left:4px solid ${c.status==="Closed"||c.status==="Resolved"?"#159670":late?"var(--danger)":c.priority==="High"?"#E0A526":"#174B60"}">
+    <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><b>${esc(c.studentName||"")} <span class="sub">${esc(c.cls||"")}</span></b>
+      <span>${c.priority==="High"?`<span class="badge b-unpaid">High</span> `:""}<span class="badge ${PC_ST[c.status]||""}">${esc(c.status)}</span></span></div>
+    <div class="sub">${esc(c.source||"")} · raised ${fmtD(c.raisedOn)}${mine ? "" : ` · assigned to <b>${esc(c.assignName||"—")}</b> (${esc(c.assignRole||"")})`}${c.due ? ` · due <b style="${late?"color:var(--danger)":""}">${fmtD(c.due)}${late?" — overdue":""}</b>` : ""}</div>
+    <div style="margin-top:6px">“${esc(c.text)}”</div>
+    ${c.instructions ? `<div class="note" style="margin:6px 0 0"><b>Executive:</b> ${esc(c.instructions)}</div>` : ""}
+    ${u.length ? `<div style="margin-top:6px">${u.slice(-4).map(x=>`<div class="sub">• ${fmtD(String(x.at).slice(0,10))} — <b>${esc(x.by||"")}</b>: ${esc(x.note)}</div>`).join("")}</div>` : ""}
+    ${c.resolution ? `<div style="margin-top:6px"><b>✓ Resolution:</b> ${esc(c.resolution)} <span class="sub">${c.resolvedBy ? "— " + esc(c.resolvedBy) : ""} ${c.resolvedOn ? fmtD(c.resolvedOn) : ""}</span></div>` : ""}
+    <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">${mine
+      ? (c.status !== "Closed" ? `<button class="btn-black btn-sm" onclick="openConcernWork('${c.id}')">💬 Add update</button>${c.status !== "Resolved" ? `<button class="btn-red btn-sm" onclick="openConcernWork('${c.id}',true)">✓ Mark resolved</button>` : ""}` : "")
+      : `<button class="btn-line btn-sm" onclick="openConcern('${c.id}')">✏ Edit / reassign</button>${c.status !== "Closed" ? `<button class="btn-red btn-sm" onclick="pcSetStatus('${c.id}','Closed')">✓ Close</button>` : `<button class="btn-line btn-sm" onclick="pcSetStatus('${c.id}','Open')">↺ Reopen</button>`}<button class="btn-line btn-sm" onclick="pcDel('${c.id}')">🗑</button>`}</div></div>`;
+}
+function renderConcerns(){
+  if(!$("pcList")) return;
+  const f = $("pcF").value, L = pcList().filter(c=>!f || pcOpen(c)).sort((a,b)=>(pcLate(b)-pcLate(a)) || ((b.priority==="High")-(a.priority==="High")) || String(a.due||"9").localeCompare(String(b.due||"9")) || String(b.raisedOn).localeCompare(String(a.raisedOn)));
+  const all = pcList(), op = all.filter(c=>["Open","In progress"].includes(c.status)), rs = all.filter(c=>c.status==="Resolved"), lt = all.filter(pcLate);
+  $("pcList").innerHTML = `<div class="sub" style="margin-bottom:8px">${op.length} being handled${lt.length ? ` · <b style="color:var(--danger)">${lt.length} overdue</b>` : ""}${rs.length ? ` · <b>${rs.length} resolved — waiting for you to close</b>` : ""}</div>`
+    + (L.length ? L.map(c=>pcCard(c, false)).join("") : `<div class="note">${f ? "No open concerns ✓" : "No concerns logged yet"} — use “+ Log a concern” or “📌 Assign” on a parent message.</div>`);
+}
+/* teacher / coordinator — apne assigned concerns */
+function drawMyConcerns(box, me){
+  if(!$(box)) return;
+  const L = pcList().filter(c=>c.assignTo===me && c.status !== "Closed").sort((a,b)=>(pcLate(b)-pcLate(a)) || String(a.due||"9").localeCompare(String(b.due||"9")));
+  const act = L.filter(c=>c.status !== "Resolved"), lt = L.filter(pcLate);
+  $(box).innerHTML = L.length ? `<div class="panel" style="margin-bottom:16px;${lt.length ? "border:2px solid var(--danger)" : act.length ? "border:2px solid #E0A526" : ""}"><h3>📌 Parent concerns assigned to you${act.length ? ` — ${act.length} to handle` : ""}</h3>
+    <p class="sub" style="margin:4px 0 10px">The Executive discussed these with the parents and assigned them to you. Add what you did, then mark it resolved${lt.length ? ` · <b style="color:var(--danger)">${lt.length} overdue</b>` : ""}.</p>
+    ${L.map(c=>pcCard(c, true)).join("")}</div>` : "";
+}
+function openConcernWork(id, resolve){
+  const c = pcList().find(x=>x.id===id); if(!c) return;
+  openModal(`<h3>${resolve ? "✓ Mark concern resolved" : "💬 Update on concern"} — ${esc(c.studentName||"")}</h3>
+    <div class="note">“${esc(c.text)}”${c.instructions ? `<br><b>Executive:</b> ${esc(c.instructions)}` : ""}</div>
+    ${resolve ? `<div class="field"><label>How was it resolved? *</label><textarea id="pcw_r" rows="3" placeholder="e.g. Met the father on 22 Oct; extra Maths worksheets given; homework now checked daily">${esc(c.resolution||"")}</textarea></div>`
+      : `<div class="field"><label>What did you do / what is the progress? *</label><textarea id="pcw_n" rows="3" placeholder="e.g. Called the mother, she will send the diary daily"></textarea></div>
+         <div class="field"><label>Status</label><select id="pcw_s"><option ${c.status!=="Open"?"":"selected"}>Open</option><option ${c.status==="In progress"||c.status==="Open"?"selected":""}>In progress</option></select></div>`}
+    <div class="modal-foot"><button class="btn-line" onclick="closeModal()">Cancel</button><button class="btn-red" onclick="saveConcernWork('${id}',${resolve?"true":"false"})">Save</button></div>`);
+}
+function saveConcernWork(id, resolve){
+  const c = pcList().find(x=>x.id===id); if(!c) return;
+  const me = IS_TEACHER ? (empById(MY_TID)||{}).name || "Teacher" : (myName() || ROLE_LABEL);
+  c.updates = c.updates || [];
+  if(resolve){ const r = $("pcw_r").value.trim(); if(!r){ toast("Write how it was resolved"); return; }
+    Object.assign(c, {status:"Resolved", resolution:r, resolvedOn:todayStr(), resolvedBy:me}); c.updates.push({at:new Date().toISOString(), by:me, note:"Marked resolved: " + r}); }
+  else { const n = $("pcw_n").value.trim(); if(!n){ toast("Write the update"); return; }
+    c.status = $("pcw_s").value === "Open" ? "Open" : "In progress"; c.updates.push({at:new Date().toISOString(), by:me, note:n}); }
+  save(); closeModal(); if(IS_TEACHER) drawMyConcerns("mdConcerns", MY_TID); else if(MY_SID) drawMyConcerns("sdConcerns", MY_SID);
+  toast(resolve ? "Marked resolved — the Executive will review and close it" : "Update saved");
+}
 /* --- Student remarks (teacher / admin) — parent ko chat mein dikhte hain --- */
 const REMARK_TYPES = ["Remark","Appreciation","Behaviour","Academic concern","Issue"];
 function remarksHTML(sid){
@@ -8199,6 +8320,7 @@ function renderMyDash(){
           <td>${i.stage === "Converted" ? `<span class="badge b-paid">Admitted ✓</span>` : i.stage === "Lost" ? `<span class="badge b-left">Not joined</span>` : ps ? `<span class="sub">done</span>` : `<span class="badge b-freeze">Scheduled</span>`}</td></tr>`; }).join("")}
       </tbody></table></div></div>` : ""; }
   drawMyClassLog(thisMonth());
+  drawMyConcerns("mdConcerns", MY_TID);
   $("mdTitle").textContent = `Welcome, ${me.name || "Teacher"}`;
   $("mdSub").textContent = `${new Date().toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long",year:"numeric"})}${me.online ? " · 🟢 Online teacher" : ""}`;
   $("mdCards").innerHTML = `
@@ -8406,6 +8528,13 @@ function asgNew(mode){
       <div class="field"><label>Total marks</label><input id="an_total" type="number" min="1" max="300" value="30" style="width:100px"></div>
       <div class="field"><label>Difficulty</label><select id="an_diff"><option>Mixed</option><option>Easy</option><option>Medium</option><option>Hard (A* stretch)</option><option>Past-paper standard</option></select></div>
     </div>
+    <div class="field"><label>📎 Sample / reference assignment (optional) — photos or PDF</label><input type="file" id="an_ref" accept="image/*,application/pdf" multiple onchange="asgPick('ref', this)">
+      <div class="sub">Upload an assignment, worksheet or past paper you like — the AI copies its <b>style, format, question pattern and difficulty</b> and writes <b>new</b> questions on your topic.</div>
+      <div id="an_refL" class="sub"></div>
+      <div id="an_refM" style="display:none;margin-top:6px"><select id="an_refMode" style="width:auto">
+        <option value="style">Same style &amp; format — new questions on my topic</option>
+        <option value="similar">Very similar questions (same pattern, changed values / context)</option>
+        <option value="topic">Use it as the content — questions on what the sample covers</option></select></div></div>
     <div class="field"><label>Question types</label><div style="display:flex;gap:12px;flex-wrap:wrap">${ASG_TYPES.map(([v,l])=>`<label class="chk"><input type="checkbox" class="an_type" value="${v}" ${v==="short"||v==="structured"?"checked":""}> ${l}</label>`).join("")}</div></div>` : ""}
     ${mode === "upload" ? `
     <div class="grid2">
@@ -8417,7 +8546,7 @@ function asgNew(mode){
       <button class="btn-red" onclick="asgCreate('${mode}')">${mode === "ai" ? "✨ Generate" : mode === "upload" ? "📖 Read paper with AI" : "Continue →"}</button>
       <button class="btn-line" onclick="renderAssign()">Cancel</button></div>
     <p class="sub" style="margin-top:8px">Cambridge style: command words, mark allocations, and a mark scheme with M/A/B marks or level descriptors as the subject needs.</p></div>`;
-  ASG.upl = {paper:[], scheme:[]};
+  ASG.upl = {paper:[], scheme:[], ref:[]};
   asgClsChanged();
 }
 function asgClsChanged(){
@@ -8463,7 +8592,8 @@ async function asgPick(kind, input){
   asgDrawUpl(kind);
 }
 function asgDrawUpl(kind){
-  $(kind === "paper" ? "an_paperL" : "an_schemeL").innerHTML = ASG.upl[kind].map((f,i)=>`<div>📎 <a href="/api/asg/file/${f.file}" target="_blank" rel="noopener">${esc(f.name)}</a> <a href="#" onclick="ASG.upl.${kind}.splice(${i},1);asgDrawUpl('${kind}');return false">✕</a></div>`).join("");
+  if(kind === "ref" && $("an_refM")) $("an_refM").style.display = ASG.upl.ref.length ? "" : "none";
+  $(kind === "paper" ? "an_paperL" : kind === "ref" ? "an_refL" : "an_schemeL").innerHTML = ASG.upl[kind].map((f,i)=>`<div>📎 <a href="/api/asg/file/${f.file}" target="_blank" rel="noopener">${esc(f.name)}</a> <a href="#" onclick="ASG.upl.${kind}.splice(${i},1);asgDrawUpl('${kind}');return false">✕</a></div>`).join("");
 }
 async function asgCreate(mode){
   const [shift, course] = $("an_cls").value.split("|");
@@ -8476,13 +8606,14 @@ async function asgCreate(mode){
   let body;
   if(mode === "ai"){
     body = {...spec, topic:$("an_topic").value.trim(), count:$("an_count").value, total:$("an_total").value, difficulty:$("an_diff").value,
-      types:[...document.querySelectorAll(".an_type:checked")].map(x=>x.value), notes:$("an_notes").value};
-    if(!body.topic){ toast("Write the topic"); return; }
+      types:[...document.querySelectorAll(".an_type:checked")].map(x=>x.value), notes:$("an_notes").value,
+      refs:ASG.upl.ref || [], refMode:$("an_refMode") ? $("an_refMode").value : "style"};       // v135: sample / reference
+    if(!body.topic && !(body.refs.length && body.refMode === "topic")){ toast("Write the topic"); return; }
   } else {
     if(!ASG.upl.paper.length){ toast("Upload the question paper first"); return; }
     body = {...spec, files:ASG.upl.paper, scheme:ASG.upl.scheme, notes:$("an_notes").value};
   }
-  asgBusy(true, mode === "ai" ? "Writing your assignment and Cambridge mark scheme… (about a minute)" : "Reading the paper and preparing the mark scheme… (about a minute)");
+  asgBusy(true, mode === "ai" ? ((body.refs||[]).length ? "Reading your sample and writing a matching assignment with a Cambridge mark scheme… (about a minute)" : "Writing your assignment and Cambridge mark scheme… (about a minute)") : "Reading the paper and preparing the mark scheme… (about a minute)");
   try{ const a = await asgApi(mode === "ai" ? "/api/asg/generate" : "/api/asg/extract", body); a.studentIds = null; asgEdit(a); asgRefreshTrack(); toast("Draft ready — check it, choose students and publish"); }
   catch(e){ toast(e.message); }
   finally{ asgBusy(false); }

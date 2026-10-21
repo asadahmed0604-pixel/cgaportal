@@ -729,3 +729,25 @@ Share → "Add to Home Screen" · Computer Chrome/Edge: the install icon in the 
   - The CSV has Periods, Periods not taken and Substitute columns.
   - The substitute teacher sees "🔁 Substitute classes you took" on their dashboard.
 - Counts (cards, monthly summary, taken %) now count periods: a double class counts as 2.
+
+## Parent concerns — assign to a teacher / coordinator (v134)
+
+- **Parents page → 📌 Parent concerns.** The Executive can:
+  - **+ Log a concern** from a meeting, phone call, PTM or WhatsApp;
+  - press **📌 Assign** on a parent app message.
+- Each concern has: the student, how it was raised, the concern, **assign to** (coordinators / staff logins, or teachers, with ★ = teaches this student), due date, priority and instructions.
+- The person it is assigned to sees **📌 Parent concerns assigned to you** on their dashboard (teacher portal or staff dashboard).
+  - They can **💬 Add update** (Open / In progress) and **✓ Mark resolved** with what was done.
+  - Overdue concerns are highlighted.
+- The Executive sees updates on each concern, then **✓ Closes** it, or reopens, edits / reassigns or deletes it.
+  - The Dashboard's parent-messages card shows how many concerns are assigned and how many are overdue.
+- Server rule: only the Executive can create, assign or close a concern. The assigned person can only add updates or mark their own concern resolved.
+
+## Generate with AI — sample / reference assignment (v135)
+
+- **Assignments → ✨ Generate with AI** has a new optional field: **📎 Sample / reference assignment** (photos or PDF, up to 10 files).
+- Once a sample is uploaded, choose how the AI should use it:
+  - **Same style & format** — new questions on your topic, copying the sample's layout, command words, length and difficulty.
+  - **Very similar questions** — same pattern and skills, with changed values, data and context.
+  - **Use it as the content** — new questions on what the sample covers (the Topic can be left empty).
+- The AI still follows the number of questions, total marks and question types, and writes a full Cambridge mark scheme. The draft opens in the editor to check before publishing.

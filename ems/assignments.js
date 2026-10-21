@@ -346,11 +346,15 @@ module.exports = function setup(ctx) {
       if (!slotLeft(auth, spec.kind)) return sendJson(res, 403, { error: limitMsg(spec.kind) });
       let out, files = [], scheme = [];
       if (p === "/api/asg/generate") {
-        if (!spec.topic) return sendJson(res, 400, { error: "Write the topic." });
+        /* v135: teacher ka sample / reference (photos / PDF) — AI us jaisi assignment banata hai */
+        const refs = (Array.isArray(body.refs) ? body.refs : []).filter(fileOk).slice(0, 10);
+        const refMode = ["style", "similar", "topic"].includes(body.refMode) ? body.refMode : "style";
+        if (!spec.topic && !(refs.length && refMode === "topic")) return sendJson(res, 400, { error: "Write the topic." });
         const types = (Array.isArray(body.types) ? body.types : []).filter((t) => QTYPES.includes(t));
         try {
           out = await ai.generate({ ...spec, count: int(body.count, 1, 40, 6), total: int(body.total, 1, 300, 30),
-            difficulty: str(body.difficulty, 40) || "Mixed", types, notes: str(body.notes, 2000) });
+            difficulty: str(body.difficulty, 40) || "Mixed", types, notes: str(body.notes, 2000), refMode }, loadFiles(refs));
+          files = []; spec.refFiles = refs;
         } catch (e) { return sendJson(res, 502, { error: ai.friendly(e) }); }
       } else {
         files = (Array.isArray(body.files) ? body.files : []).filter(fileOk).slice(0, 20);
