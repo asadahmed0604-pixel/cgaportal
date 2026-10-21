@@ -397,11 +397,11 @@ function teacherMerge(data, tid) {
     if (!hwSeen(h, tid, cls, me)) return homework.push(h);
     const n = newHw.get(h.id);
     if (!n) { if (h.teacherId !== tid) homework.push(h); return; }               // apna hi delete ho sakta hai
-    if (h.teacherId === tid && hwSeen(n, tid, cls)) return homework.push({ ...n, teacherId: tid, by: "teacher", done: cleanDone(n, n.done) });
-    homework.push({ ...h, done: cleanDone(h, n.done), checkedOn: n.checkedOn || h.checkedOn });   // sirf receival
+    if (h.teacherId === tid && hwSeen(n, tid, cls)) return homework.push({ ...n, teacherId: tid, by: "teacher", done: cleanDone(n, n.done), absent: cleanDone(n, n.absent) });
+    homework.push({ ...h, done: cleanDone(h, n.done), absent: cleanDone(h, n.absent), checkedOn: n.checkedOn || h.checkedOn });   // sirf receival (v132: + absent)
   });
   const curIds = new Set(curHw.map((h) => h.id));
-  newHw.forEach((n) => { if (!curIds.has(n.id) && hwSeen({ ...n, teacherId: tid }, tid, cls)) homework.push({ ...n, teacherId: tid, by: "teacher", done: cleanDone(n, n.done) }); });
+  newHw.forEach((n) => { if (!curIds.has(n.id) && hwSeen({ ...n, teacherId: tid }, tid, cls)) homework.push({ ...n, teacherId: tid, by: "teacher", done: cleanDone(n, n.done), absent: cleanDone(n, n.absent) }); });
   /* v92: PTM — teacher sirf apni entries ("<studentId>|<tid>") apni Morning classes ke bachon ke liye; PTM khud admin ka */
   const newPtm = new Map(arr(data.ptms).map((x) => [x.id, x]));
   const ptms = arr(cur.ptms).map((x) => {

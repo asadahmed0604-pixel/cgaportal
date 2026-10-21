@@ -1490,7 +1490,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v131 · 21 Oct 2026";
+const BUILD = "v132 · 21 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -3067,8 +3067,9 @@ function openProfile(id){
       <td>${fmtD(h.dueDate)}</td>
       <td style="max-width:220px">${esc(h.detail||"—")}</td>
       <td><select onchange="hwToggle('${h.id}','${id}',this.value)" style="width:auto;padding:5px 8px">
-        <option value="" ${!done?"selected":""}>Pending</option>
+        <option value="" ${!done&&!(h.absent||{})[id]?"selected":""}>Pending</option>
         <option value="1" ${done?"selected":""}>Submitted ✓</option>
+        <option value="A" ${!done&&(h.absent||{})[id]?"selected":""}>Absent</option>
       </select></td>
     </tr>`;
   }).join("");
@@ -3155,8 +3156,9 @@ function openProfile(id){
 function hwToggle(hwId, sid, val){
   const h = DB.homework.find(x=>x.id===hwId); if(!h) return;
   if(!h.done) h.done = {};
-  if(val) h.done[sid] = todayStr(); else delete h.done[sid];
-  save(); toast(val? "Homework submitted ✓" : "Marked pending");
+  if(val === "A"){ delete h.done[sid]; h.absent = {...(h.absent||{}), [sid]: todayStr()}; }          // v132
+  else { if(val) h.done[sid] = todayStr(); else delete h.done[sid]; if(h.absent){ delete h.absent[sid]; if(!Object.keys(h.absent).length) delete h.absent; } }
+  save(); toast(val === "A" ? "Marked absent" : val ? "Homework submitted ✓" : "Marked pending");
 }
 function swTab(btn,id){
   btn.parentElement.querySelectorAll("button").forEach(b=>b.classList.remove("on"));
@@ -3672,8 +3674,9 @@ function hwStudents(h){
     .sort((a,b)=>a.name.localeCompare(b.name));
 }
 const hwDue = h => h.dueDate || h.dateGiven || "";
+/* v132: h.absent[sid] — bacha us din absent tha (receival mein mark) → "not submitted" mein nahi ginta */
 const hwState = (h, sid) => { const d = (h.done||{})[sid];
-  return d ? (typeof d === "string" && h.dueDate && d > h.dueDate ? "late" : "ok") : (hwDue(h) && hwDue(h) < todayStr() ? "miss" : "pending"); };
+  return d ? (typeof d === "string" && h.dueDate && d > h.dueDate ? "late" : "ok") : (h.absent||{})[sid] ? "absent" : (hwDue(h) && hwDue(h) < todayStr() ? "miss" : "pending"); };
 /* v90: portal se bheja hua kaam (photos / PDF) — {hwId: [studentIds]}; server se, 30 second mein dobara */
 let HW_SENT = {}, HW_SENT_AT = 0;
 function loadHwSent(force){
@@ -3689,7 +3692,7 @@ function renderHomework(){
     if($("hwFCourse").dataset.t !== "1"){ $("hwFCourse").innerHTML = `<option value="">All my classes</option>` + cs.map(c=>`<option>${esc(c)}</option>`).join(""); $("hwFCourse").dataset.t = "1"; } }
   const rows = DB.homework.filter(h=>(!fc||h.course===fc)&&(!fs||h.shift===fs)&&(!fm||String(h.dateGiven||"").startsWith(fm))&&(!keys||keys.includes(h.shift+"|"+h.course))).sort((a,b)=>b.dateGiven.localeCompare(a.dateGiven));
   $("hwRows").innerHTML = rows.length? rows.map(h=>{
-    const L = hwStudents(h), sub = L.filter(st=>(h.done||{})[st.id]).length, miss = L.filter(st=>hwState(h, st.id)==="miss").length;
+    const L = hwStudents(h), sub = L.filter(st=>(h.done||{})[st.id]).length, miss = L.filter(st=>hwState(h, st.id)==="miss").length, absN = L.filter(st=>hwState(h, st.id)==="absent").length;
     return `<tr>
       <td>${fmtD(h.dateGiven)}</td>
       <td><b>${esc(h.title)}</b>${h.subject?`<br><span class="sub">${esc(h.subject)}</span>`:""}${h.teacherId?`<br><span class="sub">👩‍🏫 ${esc(teacherName(h.teacherId))}</span>`:""}</td>
@@ -3697,7 +3700,7 @@ function renderHomework(){
       <td>${h.shift}</td>
       <td>${fmtD(h.dueDate)}</td>
       <td style="max-width:240px">${esc(h.detail||"—")}</td>
-      <td><b>${sub}</b> / ${L.length}${miss?`<br><span class="sub" style="color:var(--danger)">${miss} not submitted</span>`:""}${hwSentWaiting(h, L) ? `<br><span class="badge b-freeze" title="Sent from the student / parents' app — open Receival to check and confirm">📥 ${hwSentWaiting(h, L)} sent — confirm</span>` : ""}</td>
+      <td><b>${sub}</b> / ${L.length}${miss?`<br><span class="sub" style="color:var(--danger)">${miss} not submitted</span>`:""}${absN?`<br><span class="sub">${absN} absent</span>`:""}${hwSentWaiting(h, L) ? `<br><span class="badge b-freeze" title="Sent from the student / parents' app — open Receival to check and confirm">📥 ${hwSentWaiting(h, L)} sent — confirm</span>` : ""}</td>
       <td style="white-space:nowrap">
         <button class="btn-black btn-sm" onclick="openHwRcv('${h.id}')">✓ Receival</button>
         ${hwMine(h) ? `<button class="btn-line btn-sm" onclick="openHwForm('${h.id}')">Edit</button>
@@ -3782,20 +3785,21 @@ let HW_RCV = null;
 function openHwRcv(id){
   const h = DB.homework.find(x=>x.id===id); if(!h) return;
   const L = hwStudents(h);
-  HW_RCV = {id, done:{...(h.done||{})}, subs:{}};
+  HW_RCV = {id, done:{...(h.done||{})}, abs:{...(h.absent||{})}, subs:{}};
   openModal(`
     <h3>✓ Homework receival — ${esc(h.title)}</h3>
-    <p class="sub" style="margin-bottom:10px">${esc(h.course)} · ${h.shift}${h.subject?" · "+esc(h.subject):""} · given ${fmtD(h.dateGiven)}${h.dueDate?` · due <b>${fmtD(h.dueDate)}</b>`:""}. Tick the students who handed it in — the date is saved (after the due date = late). Handed in on paper earlier and not ticked in time? Pick the real day under <b>Submitted on</b>. Work sent from the student / parents' app shows under <b>Sent work</b> — check it and tick to confirm; the app then shows <b>✓ Checked</b>.</p>
+    <p class="sub" style="margin-bottom:10px">${esc(h.course)} · ${h.shift}${h.subject?" · "+esc(h.subject):""} · given ${fmtD(h.dateGiven)}${h.dueDate?` · due <b>${fmtD(h.dueDate)}</b>`:""}. Tick the students who handed it in, or mark <b>Absent</b> if the student was absent (absent is not counted as "not submitted") — the date is saved (after the due date = late). Handed in on paper earlier and not ticked in time? Pick the real day under <b>Submitted on</b>. Work sent from the student / parents' app shows under <b>Sent work</b> — check it and tick to confirm; the app then shows <b>✓ Checked</b>.</p>
     <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:10px">
       <div class="field" style="margin:0"><label>Received on</label><input type="date" id="hr_date" value="${todayStr()}"></div>
       <button class="btn-line btn-sm" onclick="hwRcvAll(true)">✓ All submitted</button><button class="btn-line btn-sm" onclick="hwRcvAll(false)">Clear all</button>
       <button class="btn-black btn-sm" id="hr_sentAll" style="display:none" onclick="hwRcvSent()">✓ Confirm all who sent work</button>
       <span class="sub" id="hr_sum" style="margin-left:auto"></span></div>
-    <div class="tbl-wrap" style="max-height:52vh;overflow:auto"><table class="ptm-tbl"><thead><tr><th>Student</th><th>Status</th><th>Sent work</th><th style="text-align:center">Submitted</th><th>Submitted on</th></tr></thead>
+    <div class="tbl-wrap" style="max-height:52vh;overflow:auto"><table class="ptm-tbl"><thead><tr><th>Student</th><th>Status</th><th>Sent work</th><th style="text-align:center">Submitted</th><th style="text-align:center">Absent</th><th>Submitted on</th></tr></thead>
       <tbody>${L.length ? L.map(st=>`<tr><td><b>${esc(st.name)}</b><br><span class="sub">${esc(st.regNo||"")}</span></td><td id="hr_s_${st.id}"></td><td id="hr_f_${st.id}" class="sub">${SERVER ? "…" : "—"}</td>
         <td style="text-align:center"><input type="checkbox" id="hr_${st.id}" style="width:22px;height:22px" ${HW_RCV.done[st.id]?"checked":""} onchange="hwRcvSet('${st.id}',this.checked)"></td>
+        <td style="text-align:center"><input type="checkbox" id="hra_${st.id}" style="width:22px;height:22px;accent-color:#6B7C85" ${!HW_RCV.done[st.id] && HW_RCV.abs[st.id]?"checked":""} onchange="hwRcvAbs('${st.id}',this.checked)"></td>
         <td><input type="date" id="hrd_${st.id}" style="min-width:140px" min="${esc(h.dateGiven||"")}" max="${todayStr()}" onchange="hwRcvDate('${st.id}',this.value)" title="Day the student actually handed it in"></td></tr>`).join("")
-        : `<tr><td colspan="5" class="empty">No students in this class${h.subject?" / subject":""}</td></tr>`}</tbody></table></div>
+        : `<tr><td colspan="6" class="empty">No students in this class${h.subject?" / subject":""}</td></tr>`}</tbody></table></div>
     <div class="modal-foot">
       <button class="btn-line" onclick="closeModal()">Cancel</button>
       <button class="btn-red" onclick="saveHwRcv()">Save receival</button>
@@ -3823,6 +3827,10 @@ function hwRcvSet(sid, on){ if(!HW_RCV) return;
   /* v90: app se bheja kaam — wohi din jab bheja (late ka hisaab sahi rahe) */
   const x = HW_RCV.subs && HW_RCV.subs[sid];
   if(on) HW_RCV.done[sid] = (x && String(x.at||"").slice(0,10)) || $("hr_date").value || todayStr(); else delete HW_RCV.done[sid]; hwRcvDraw(); if(HW_RCV.subs) hwRcvFiles(); }
+function hwRcvAbs(sid, on){ if(!HW_RCV) return;
+  if(on){ HW_RCV.abs[sid] = $("hr_date").value || todayStr(); delete HW_RCV.done[sid]; const cb = $("hr_"+sid); if(cb) cb.checked = false; }
+  else delete HW_RCV.abs[sid];
+  hwRcvDraw(); if(HW_RCV.subs) hwRcvFiles(); }
 function hwRcvAll(on){ const h = DB.homework.find(x=>x.id===HW_RCV.id); hwStudents(h).forEach(st=>{ if(on){ if(!HW_RCV.done[st.id]) HW_RCV.done[st.id] = $("hr_date").value || todayStr(); } else delete HW_RCV.done[st.id]; const cb = $("hr_"+st.id); if(cb) cb.checked = on; }); hwRcvDraw(); }
 /* v101: bache ne kaam jis din asal mein diya (teacher ne baad mein tick kiya) — wohi tareekh; late ka hisaab isi se */
 function hwRcvDate(sid, v){
@@ -3833,15 +3841,19 @@ function hwRcvDate(sid, v){
 }
 function hwRcvDraw(){
   const h = DB.homework.find(x=>x.id===HW_RCV.id), L = hwStudents(h), tmp = {...h, done:HW_RCV.done};
-  const lab = {ok:`<span class="badge b-paid">Submitted</span>`, late:`<span class="badge b-freeze">Late</span>`, miss:`<span class="badge b-left">Not submitted</span>`, pending:`<span class="badge b-unpaid">Pending</span>`};
-  L.forEach(st=>{ const c = $("hr_s_"+st.id), d = HW_RCV.done[st.id]; if(c){ c.innerHTML = lab[hwState(tmp, st.id)] + (typeof d === "string" ? ` <span class="sub">${fmtD(d)}</span>` : ""); }
+  Object.keys(HW_RCV.done).forEach(sid=>delete HW_RCV.abs[sid]);           // jama kar diya to absent nahi
+  const tmp2 = {...tmp, absent:HW_RCV.abs};
+  const lab = {ok:`<span class="badge b-paid">Submitted</span>`, late:`<span class="badge b-freeze">Late</span>`, miss:`<span class="badge b-left">Not submitted</span>`, pending:`<span class="badge b-unpaid">Pending</span>`, absent:`<span class="badge" style="background:#EEF1F3;color:#4A5A62">Absent</span>`};
+  L.forEach(st=>{ const c = $("hr_s_"+st.id), d = HW_RCV.done[st.id], ab = $("hra_"+st.id); if(ab) ab.checked = !d && !!HW_RCV.abs[st.id]; if(c){ c.innerHTML = lab[hwState(tmp2, st.id)] + (typeof d === "string" ? ` <span class="sub">${fmtD(d)}</span>` : ""); }
     const di = $("hrd_"+st.id); if(di) di.value = typeof d === "string" ? d : ""; });
-  const n = L.filter(st=>HW_RCV.done[st.id]).length; $("hr_sum").textContent = `${n} / ${L.length} submitted`;
+  const n = L.filter(st=>HW_RCV.done[st.id]).length, a = L.filter(st=>!HW_RCV.done[st.id] && HW_RCV.abs[st.id]).length;
+  $("hr_sum").textContent = `${n} / ${L.length} submitted${a ? ` · ${a} absent` : ""}`;
 }
 function saveHwRcv(){
   const h = DB.homework.find(x=>x.id===HW_RCV.id); if(!h) return;
-  h.done = HW_RCV.done; h.checkedOn = todayStr(); h.checkedBy = IS_TEACHER ? teacherName(MY_TID) : (myName() || ROLE_LABEL);
-  save(); closeModal(); renderHomework(); toast(`Receival saved — ${Object.keys(h.done).length} submitted`);
+  h.done = HW_RCV.done; h.absent = Object.fromEntries(Object.entries(HW_RCV.abs).filter(([sid])=>!h.done[sid])); if(!Object.keys(h.absent).length) delete h.absent;
+  h.checkedOn = todayStr(); h.checkedBy = IS_TEACHER ? teacherName(MY_TID) : (myName() || ROLE_LABEL);
+  save(); closeModal(); renderHomework(); toast(`Receival saved — ${Object.keys(h.done).length} submitted${h.absent ? ` · ${Object.keys(h.absent).length} absent` : ""}`);
 }
 /* ================= v102: STAFF — naam wale Admin / Fee Admin logins, KPIs aur to-do =================
    Executive: Settings → Logins → Staff logins (kis ko Admin / Fee Admin access) · 🎯 Staff KPIs & To-do (mahana KPIs + kaam).
@@ -4509,7 +4521,7 @@ function ptmCSV(id){
 function hwReportRows(m, c){
   const keys = hwKeys(), L = DB.homework.filter(h=>String(hwDue(h)).startsWith(m) && (!c || h.shift+"|"+h.course===c) && (!keys || keys.includes(h.shift+"|"+h.course)));
   const by = new Map();
-  L.forEach(h=>hwStudents(h).forEach(st=>{ const r = by.get(st.id) || {st, given:0, ok:0, late:0, miss:0, pending:0, missed:[]}; by.set(st.id, r);
+  L.forEach(h=>hwStudents(h).forEach(st=>{ const r = by.get(st.id) || {st, given:0, ok:0, late:0, miss:0, pending:0, absent:0, missed:[]}; by.set(st.id, r);
     r.given++; const k = hwState(h, st.id); r[k]++; if(k==="miss") r.missed.push(h); }));
   return {L, rows:[...by.values()].sort((a,b)=>(b.miss - a.miss) || a.st.name.localeCompare(b.st.name))};
 }
@@ -4530,9 +4542,9 @@ function drawHwReport(){
   const m = $("hrp_m").value || wm(), {L, rows} = hwReportRows(m, $("hrp_c").value);
   const tot = rows.reduce((a,r)=>({g:a.g+r.given, s:a.s+r.ok+r.late, x:a.x+r.miss}), {g:0,s:0,x:0});
   $("hrp_sub").textContent = `${L.length} homework${L.length===1?"":"s"} due in ${fmtM(m)} · ${tot.s} of ${tot.g} handed in · ${tot.x} not submitted (pending = due date not passed yet)`;
-  $("hrp_rows").innerHTML = rows.length ? rows.map(r=>{ const p = r.given ? Math.round((r.ok + r.late) * 100 / r.given) : 0;
+  $("hrp_rows").innerHTML = rows.length ? rows.map(r=>{ const g = r.given - r.absent, p = g ? Math.round((r.ok + r.late) * 100 / g) : 0;
     return `<tr><td><b>${esc(r.st.name)}</b><br><span class="sub">${esc(r.st.regNo||"")}</span></td><td>${esc(classLabelOf(r.st))} · ${r.st.shift}</td>
-      <td style="text-align:right">${r.given}</td><td style="text-align:right">${r.ok}</td><td style="text-align:right">${r.late||"—"}</td>
+      <td style="text-align:right">${r.given}${r.absent ? `<br><span class="sub">${r.absent} absent</span>` : ""}</td><td style="text-align:right">${r.ok}</td><td style="text-align:right">${r.late||"—"}</td>
       <td style="text-align:right">${r.miss ? `<b style="color:var(--danger)">${r.miss}</b>` : "—"}</td>
       <td style="text-align:right"><span class="badge ${p>=80?"b-paid":p>=50?"b-freeze":"b-left"}">${p}%</span></td>
       <td class="sub" style="max-width:260px">${r.missed.map(h=>`${esc(h.title)}${h.subject?` (${esc(h.subject)})`:""}`).join(", ") || "—"}</td></tr>`; }).join("")
@@ -4540,8 +4552,8 @@ function drawHwReport(){
 }
 function hwReportCSV(){
   const m = $("hrp_m").value || wm(), {rows} = hwReportRows(m, $("hrp_c").value);
-  downloadCSV(`Homework submissions ${fmtM(m)}.csv`, [["Reg No","Name","Class","Shift","Given","Submitted","Late","Not submitted","Pending","%","Missing homework"],
-    ...rows.map(r=>[r.st.regNo||"", r.st.name, classLabelOf(r.st), r.st.shift, r.given, r.ok, r.late, r.miss, r.pending, r.given ? Math.round((r.ok + r.late) * 100 / r.given) : 0, r.missed.map(h=>h.title).join("; ")])]);
+  downloadCSV(`Homework submissions ${fmtM(m)}.csv`, [["Reg No","Name","Class","Shift","Given","Submitted","Late","Not submitted","Pending","Absent","%","Missing homework"],
+    ...rows.map(r=>[r.st.regNo||"", r.st.name, classLabelOf(r.st), r.st.shift, r.given, r.ok, r.late, r.miss, r.pending, r.absent, r.given - r.absent ? Math.round((r.ok + r.late) * 100 / (r.given - r.absent)) : 0, r.missed.map(h=>h.title).join("; ")])]);
 }
 
 /* ================= FEES ================= */

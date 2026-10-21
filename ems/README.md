@@ -707,3 +707,13 @@ Share → "Add to Home Screen" · Computer Chrome/Edge: the install icon in the 
   - Classes Taken shows whether the update has been written.
 - Parents see the latest 4 class updates in the app under **🌱 Skill development**.
 - Server rule: a teacher can only change the updates and projects of their own group. Name, students and timing are set by the admin.
+
+## Homework receival — Absent option (v132)
+
+- The **✓ Receival** screen has a new **Absent** column next to Submitted. Tick it for a student who was absent.
+  - Absent and Submitted can't both be ticked: ticking one unticks the other.
+- An absent student doesn't count as "not submitted" anywhere:
+  - the homework list and the submission report (the % leaves absent ones out);
+  - the parents' app and student portal, where it shows "Absent";
+  - the parent bot.
+- The student profile's homework tab also has **Absent** in the status dropdown.

@@ -638,7 +638,7 @@ module.exports = function setup(ctx) {
         const d = (h.done || {})[st.id], due = h.dueDate || "", sub = hwSubs[hwKey(h.id, st.id)], files = (sub && sub.files) || [];
         return { id: h.id, title: h.title || "", subject: h.subject || "", detail: h.detail || "", given: h.dateGiven || "", due,
           teacher: h.teacherId ? (emps.find((e) => e.id === h.teacherId) || {}).name || "" : "",
-          state: d ? (typeof d === "string" && due && d > due ? "late" : "done") : files.length ? "submitted" : due && due < today ? "missed" : "pending",
+          state: d ? (typeof d === "string" && due && d > due ? "late" : "done") : files.length ? "submitted" : (h.absent || {})[st.id] ? "absent" : due && due < today ? "missed" : "pending",
           checkedOn: typeof d === "string" ? d : "", submittedAt: (sub && sub.at) || "",
           files: files.map((f) => ({ file: f.file, type: f.type, name: f.name })) };
       });

@@ -88,7 +88,7 @@ function posParts(db, st, month) {
   let hs = 0, hn = 0;
   homeworkOf(db, st).forEach((h) => { const due = h.dueDate || h.dateGiven || ""; if (!String(due).startsWith(month)) return;
     const d = (h.done || {})[st.id];
-    if (d) { hn++; hs += typeof d === "string" && h.dueDate && d > h.dueDate ? 50 : 100; } else if (due < today) hn++; });
+    if (d) { hn++; hs += typeof d === "string" && h.dueDate && d > h.dueDate ? 50 : 100; } else if (due < today && !(h.absent || {})[st.id]) hn++; });   // v132: absent nahi ginta
   const att = db.attendance || {}; let P = 0, La = 0, A = 0;
   Object.keys(att).forEach((d) => { if (!d.startsWith(month)) return; const r = att[d] && att[d][st.id]; if (!r) return; if (r.s === "P") P++; else if (r.s === "L") La++; else if (r.s === "A") A++; });
   let beh = 100;
@@ -178,7 +178,7 @@ function studentReport(db, st, today) {
         const d = (h.done || {})[st.id], due = h.dueDate || "";
         return { id: h.id, title: h.title || "", subject: h.subject || "", detail: h.detail || "", given: h.dateGiven || "", due,
           teacher: h.teacherId ? ((db.employees || []).find((e) => e.id === h.teacherId) || {}).name || "" : "",
-          state: d ? (typeof d === "string" && due && d > due ? "late" : "done") : due && due < today ? "missed" : "pending", on: typeof d === "string" ? d : "" };
+          state: d ? (typeof d === "string" && due && d > due ? "late" : "done") : (h.absent || {})[st.id] ? "absent" : due && due < today ? "missed" : "pending", on: typeof d === "string" ? d : "" };
       }),
     /* v106: warning letters (Behaviour & discipline) */
     warnings: (st.warnings || []).filter((w) => w && w.parentVisible !== false).sort((a, b) => String(b.d).localeCompare(String(a.d))).slice(0, 10)
