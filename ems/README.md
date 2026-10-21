@@ -690,3 +690,20 @@ Share → "Add to Home Screen" · Computer Chrome/Edge: the install icon in the 
 - Every fee challan (print, single PDF, bulk ZIP / one-PDF) has a **🏦 Pay by bank** strip on both the Student and Academy copy:
   Bank Al Habib · Account Title: Cambridge Grads Academy · IBAN PK48 BAHL 5637 0081 0006 6901.
 - To change it: **Settings → Bank account (printed on fee challans)** → Save. Clear the IBAN field to hide the strip.
+
+## Skill Development as a subject + class updates (v131)
+
+- Each skill group is now a **Morning period** with its own day and time. All groups start on **Wednesday 1:15–2:30 pm**.
+  Change a group's time in **Skill Development → Groups & students** (Class day / From / To).
+- The period shows as **"Skill Group A/B/C/D — Skill Development — <group name>"** in three places:
+  - the **Timetable** (Morning, with clash checks);
+  - the group teacher's **dashboard** (today's classes and the class-times table);
+  - **Classes Taken**, so the office can mark it Taken / Not taken.
+- New **📝 Class updates** tab (the first tab for teachers): there is one card for every class of the month.
+  - The teacher writes what was covered (required), the activity / project work, and the plan for the next class.
+  - A class can also be marked "Not held / cancelled".
+- Missing updates show as a reminder on the teacher's dashboard.
+  - The office sees an "updates written x / y" summary for every group.
+  - Classes Taken shows whether the update has been written.
+- Parents see the latest 4 class updates in the app under **🌱 Skill development**.
+- Server rule: a teacher can only change the updates and projects of their own group. Name, students and timing are set by the admin.

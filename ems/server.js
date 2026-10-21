@@ -282,6 +282,19 @@ function cleanProjects(L, me) {
     start: dOk(p.start), due: dOk(p.due), status: PJ_STATUS.includes(p.status) ? p.status : "Upcoming", doneOn: dOk(p.doneOn),
     outcome: String(p.outcome || "").slice(0, 1500), by: String(p.by || (me && me.name) || "").slice(0, 80), at: String(p.at || "").slice(0, 30) }));
 }
+/* v131: Skill Development — har class (period) ka update; id = date */
+function cleanLessons(L, old, me) {
+  const dOk = (v) => (/^\d{4}-\d{2}-\d{2}$/.test(String(v || "")) ? String(v) : "");
+  const prev = new Map((Array.isArray(old) ? old : []).map((x) => [x.date, x]));
+  const seen = new Set();
+  return (Array.isArray(L) ? L : []).filter((x) => x && dOk(x.date) && !seen.has(x.date) && seen.add(x.date)).slice(-400).map((x) => {
+    const rec = { id: x.date, date: x.date, status: x.status === "Cancelled" ? "Cancelled" : "Held", topic: String(x.topic || "").slice(0, 1500),
+      work: String(x.work || "").slice(0, 500), next: String(x.next || "").slice(0, 500) };
+    const o = prev.get(x.date);
+    if (o && ["status", "topic", "work", "next"].every((k) => (o[k] || "") === rec[k])) return o;     // badla nahi
+    return { ...rec, by: (me && me.name) || "", at: new Date().toISOString() };
+  });
+}
 const myGroups = (d, tid) => (d.skillGroups || []).filter((g) => g && g.tid === tid);
 const SK_LEVELS = ["Excellent", "Very Good", "Good", "Developing", "Needs Support"];
 function teacherView(d, tid) {
@@ -435,7 +448,7 @@ function teacherMerge(data, tid) {
   });
   /* v119: group ke projects — teacher sirf apne group(s) ke projects badal sakta hai (group ka naam / bache / teacher admin ka) */
   const newG = new Map(arr(data.skillGroups).map((g) => [g.id, g]));
-  const skillGroups = arr(cur.skillGroups).map((g) => (g.tid === tid && newG.has(g.id) ? { ...g, projects: cleanProjects(newG.get(g.id).projects, me) } : g));
+  const skillGroups = arr(cur.skillGroups).map((g) => (g.tid === tid && newG.has(g.id) ? { ...g, projects: cleanProjects(newG.get(g.id).projects, me), lessons: cleanLessons(newG.get(g.id).lessons, g.lessons, me) } : g));
   return Object.assign(cur, { tests, exams, classAtt, homework, ptms, stuNotes, skillDev, skillGroups });
 }
 /* Admin ke save mein chhupaye hue hisse server wale hi rehte hain */
