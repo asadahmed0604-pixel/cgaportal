@@ -751,3 +751,16 @@ Share → "Add to Home Screen" · Computer Chrome/Edge: the install icon in the 
   - **Very similar questions** — same pattern and skills, with changed values, data and context.
   - **Use it as the content** — new questions on what the sample covers (the Topic can be left empty).
 - The AI still follows the number of questions, total marks and question types, and writes a full Cambridge mark scheme. The draft opens in the editor to check before publishing.
+
+## Diagrams in AI assignments (v136)
+
+- **Generate with AI** now draws a diagram with every question that needs one, the way a Cambridge paper prints it.
+  Examples: transformations, coordinates, graphs, geometry, circuits, ray / force diagrams, charts.
+- **Coordinate grids** (always used for transformations) are drawn by the server from exact numbers. The AI only gives the grid size, the shapes' corners, points and lines (e.g. a dashed mirror line y = x).
+  - The grid has numbered axes, every gridline, and coloured, labelled shapes, so vertices sit exactly on the grid points the question mentions.
+- **Other figures** come from the AI as SVG. The server removes anything unsafe (scripts, links, images), and diagrams are always shown as pictures.
+- Each question can also have an **answer diagram** (e.g. the reflected shape drawn in). It shows only for the teacher and on the printed mark scheme, and helps AI marking.
+- **Editor:** "📐 + Grid diagram / ✏ Edit grid" lets the teacher write or fix a grid in plain text, with a live preview:
+  `x: -6 to 6`, `y: -6 to 6`, `A: (1, 1) (4, 1) (1, 3)`, `P: (2, 4)`, `y = x: (-6, -6) (6, 6) line dashed`. "✕ Remove" deletes a diagram.
+- Diagrams show in the student / parent app, the printed paper and mark scheme, the student's PDF download and the marking screen.
+- New server file: `diagram.js` (grid drawing + SVG cleaning).

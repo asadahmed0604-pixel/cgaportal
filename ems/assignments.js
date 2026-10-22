@@ -9,6 +9,7 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 const ai = require("./ai");
+const { buildDiagram, cleanGrid, gridSvg, diagramText } = require("./diagram");
 const { studentReport, homeworkOf } = require("./student-report");
 const { feeSummary } = require("./parent-bot");
 
@@ -121,6 +122,9 @@ module.exports = function setup(ctx) {
       marks: int(q.marks, 0, 100, 1),
       mark_scheme: Array.isArray(q.mark_scheme) ? q.mark_scheme.map((p) => str(p, 1500)).filter(Boolean).slice(0, 40) : [],
       model_answer: str(q.model_answer, 10000),
+      /* v136: diagram — AI ka object (grid / svg) ya editor ka grid spec / SVG; SVG hamesha yahan banta / saaf hota hai */
+      ...((A, B) => ({ diagram_svg: A.svg, diagram_grid: A.grid, diagram_info: A.info, answer_svg: B.svg, answer_grid: B.grid, answer_info: B.info }))(
+        buildDiagram(q.diagram, q.diagram_grid, q.diagram_svg, q.diagram_info), buildDiagram(q.answer_diagram, q.answer_grid, q.answer_svg, q.answer_info)),
     }));
     const seen = new Set();
     qs.forEach((q) => { while (seen.has(q.number)) q.number += "'"; seen.add(q.number); });
@@ -244,7 +248,7 @@ module.exports = function setup(ctx) {
   const forStudent = (a) => ({
     id: a.id, title: a.title, subject: a.subject, level: a.level, code: a.code, course: a.course, instructions: a.instructions,
     total: a.total, timed: a.timed, minutes: a.minutes, dueDate: a.dueDate, teacherName: a.teacherName, kind: a.kind || "assignment",
-    questions: a.questions.map((q) => ({ number: q.number, type: q.type, text: q.text, options: q.options, marks: q.marks })),
+    questions: a.questions.map((q) => ({ number: q.number, type: q.type, text: q.text, options: q.options, marks: q.marks, diagram_svg: q.diagram_svg || "" })),
     files: (a.files || []).map((f) => ({ file: f.file, type: f.type, name: f.name })),
   });
   const subForStudent = (s) => ({
@@ -373,6 +377,12 @@ module.exports = function setup(ctx) {
       if (isT) useSlot(auth.tid, a.kind);
       logAct(req, who, `${KIND_LABEL[a.kind]} drafted`, `${a.title} · ${a.course} ${a.shift} · ${a.subject} (${a.source === "ai" ? "AI generated" : "uploaded paper"})`);
       return sendJson(res, 200, a);
+    }
+
+    /* v136: editor — grid diagram banao (teacher shapes / coordinates likhta hai, server sahi grid banata hai) */
+    if (p === "/api/asg/diagram" && req.method === "POST") {
+      const G = cleanGrid(body.grid);
+      return sendJson(res, 200, { svg: gridSvg(G), grid: G, info: diagramText({ kind: "grid", grid: G }) });
     }
 
     if (p === "/api/asg/get" && req.method === "GET") {

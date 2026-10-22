@@ -16,9 +16,28 @@ const whyNot = () => loadError;
 
 /* ---------------------------------- schemas ---------------------------------- */
 
+/* v136: diagram — "grid" (numbers only; server draws an exact coordinate grid) ya "svg" (AI ka SVG) ya "none" */
+const XY = { type: "object", additionalProperties: false, required: ["x", "y"], properties: { x: { type: "number" }, y: { type: "number" } } };
+const DIAGRAM = {
+  type: "object", additionalProperties: false, required: ["kind", "grid", "svg"],
+  properties: {
+    kind: { type: "string", enum: ["none", "grid", "svg"] },
+    grid: {
+      type: "object", additionalProperties: false, required: ["xmin", "xmax", "ymin", "ymax", "shapes", "points", "segments"],
+      properties: {
+        xmin: { type: "integer" }, xmax: { type: "integer" }, ymin: { type: "integer" }, ymax: { type: "integer" },
+        shapes: { type: "array", items: { type: "object", additionalProperties: false, required: ["label", "points"], properties: { label: { type: "string" }, points: { type: "array", items: XY } } } },
+        points: { type: "array", items: { type: "object", additionalProperties: false, required: ["label", "x", "y"], properties: { label: { type: "string" }, x: { type: "number" }, y: { type: "number" } } } },
+        segments: { type: "array", items: { type: "object", additionalProperties: false, required: ["label", "x1", "y1", "x2", "y2", "dashed"],
+          properties: { label: { type: "string" }, x1: { type: "number" }, y1: { type: "number" }, x2: { type: "number" }, y2: { type: "number" }, dashed: { type: "boolean" } } } },
+      },
+    },
+    svg: { type: "string" },
+  },
+};
 const QUESTION = {
   type: "object", additionalProperties: false,
-  required: ["number", "type", "text", "options", "marks", "mark_scheme", "model_answer"],
+  required: ["number", "type", "text", "options", "marks", "mark_scheme", "model_answer", "diagram", "answer_diagram"],
   properties: {
     number: { type: "string" },
     type: { type: "string", enum: ["mcq", "short", "structured", "calculation", "essay"] },
@@ -27,6 +46,8 @@ const QUESTION = {
     marks: { type: "integer" },
     mark_scheme: { type: "array", items: { type: "string" } },
     model_answer: { type: "string" },
+    diagram: DIAGRAM,
+    answer_diagram: DIAGRAM,
   },
 };
 const ASSIGNMENT = {
@@ -71,12 +92,20 @@ Follow Cambridge International conventions exactly:
 - Essay and extended-response questions (e.g. Islamiyat, Pakistan Studies, English, Economics, Sociology, Business) use Cambridge-style level descriptors (Level 1 / Level 2 / Level 3 ... with mark ranges) plus the indicative content an examiner credits.
 - Number questions like "1", "2(a)", "2(b)(i)". For MCQ give exactly four options A–D and put the correct letter first in the mark scheme; for every other type, options is an empty array.`;
 
+const DIAGRAM_RULES = `DIAGRAMS — every question has "diagram" (what the student sees) and "answer_diagram" (the same figure with the correct answer drawn, for the teacher; kind "none" if not useful).
+- Give a diagram whenever a Cambridge paper would print one: transformations (reflection, rotation, translation, enlargement), coordinates, plotting / reading straight-line graphs, vectors on a grid, geometry figures, bearings, circuits, ray / force / wave diagrams, apparatus, charts, Venn diagrams, number lines. Never write "[diagram]" or describe the figure in brackets instead of drawing it.
+- Use kind "grid" for anything on a square coordinate grid (ALWAYS for transformations and coordinate questions). Give only numbers: the x and y range (integers; include room for the answer, e.g. the image after the transformation must fit), each shape as its vertices in order with a label (A, B, P, triangle T…), single points with labels, and lines as segments (e.g. a mirror line y = x from (-6,-6) to (6,6), dashed, label "y = x"). The server draws an exact grid with numbered axes. Vertices must be exactly the coordinates the question text uses. For the question diagram draw ONLY what the student is given (not the answer); put the answer shape(s) as well in answer_diagram.
+- Use kind "svg" for other figures: one complete self-contained SVG starting with <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 W H"> (W, H ≤ 600), a white background rect, dark strokes (stroke-width 1.5–2), labels as <text> with font-family Arial and font-size 12–15, angles / lengths labelled as the question states, figures drawn to scale where it matters. No <script>, <style>, CSS classes, <image>, <foreignObject> or links.
+- Use kind "none" when no figure is needed. For unused parts give an empty grid (xmin -1, xmax 1, ymin -1, ymax 1, empty arrays) and svg "".`;
+
 const GEN_SYSTEM = `${CAMBRIDGE}
-Write an original assignment for the teacher's specification. The marks of all questions must add up exactly to the requested total. Give a concise model answer for each question. Write in English unless the subject itself is in another language (e.g. Urdu papers in Urdu).`;
+Write an original assignment for the teacher's specification. The marks of all questions must add up exactly to the requested total. Give a concise model answer for each question. Write in English unless the subject itself is in another language (e.g. Urdu papers in Urdu).
+${DIAGRAM_RULES}`;
 
 const EXTRACT_SYSTEM = `${CAMBRIDGE}
 A teacher has uploaded a question paper (and sometimes its mark scheme). Transcribe every question faithfully into the structured format, keeping the paper's own numbering, wording and mark allocations. Describe any diagram, graph or table a student would need in square brackets inside the question text.
-If a mark scheme was uploaded, copy its points into mark_scheme. If not, write a Cambridge-style mark scheme and model answer yourself.`;
+If a mark scheme was uploaded, copy its points into mark_scheme. If not, write a Cambridge-style mark scheme and model answer yourself.
+The uploaded paper is shown to students as it is, so set diagram and answer_diagram to kind "none" (empty grid, svg "") unless the question's figure is a simple coordinate grid you can reproduce exactly with kind "grid".`;
 
 const CHECK_SYSTEM = `${CAMBRIDGE}
 You are now marking a student's script. Apply Cambridge marking principles:
@@ -178,7 +207,8 @@ function extract(spec, paperFiles, schemeFiles) {
 function paperText(a) {
   return a.questions.map((q) => {
     const opts = q.options && q.options.length ? "\nOptions: " + q.options.map((o, i) => `${"ABCDEF"[i]}) ${o}`).join("  ") : "";
-    return `Question ${q.number} [${q.marks} marks] (${q.type})\n${q.text}${opts}\nMark scheme:\n- ${q.mark_scheme.join("\n- ")}`;
+    const dg = q.diagram_info ? `\nDiagram given to the student: ${q.diagram_info}` : "", ad = q.answer_info ? `\nCorrect answer diagram: ${q.answer_info}` : "";
+    return `Question ${q.number} [${q.marks} marks] (${q.type})\n${q.text}${opts}${dg}${ad}\nMark scheme:\n- ${q.mark_scheme.join("\n- ")}`;
   }).join("\n\n");
 }
 

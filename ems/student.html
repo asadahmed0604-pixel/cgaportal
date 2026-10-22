@@ -59,6 +59,8 @@ label input{display:block;width:100%;margin-top:5px;border:1.5px solid var(--lin
 .qh{display:flex;gap:10px}
 .qn{font-weight:800;color:var(--navy);min-width:2.4rem}
 .qt{flex:1;white-space:pre-wrap}
+.dg{display:block;max-width:100%;width:440px;height:auto;margin:8px 0 4px 2.4rem;border:1px solid var(--line,#E1EAEE);border-radius:8px;background:#fff}
+@media (max-width:520px){.dg{margin-left:0}}
 .qm{color:var(--muted);font-weight:700;white-space:nowrap}
 .q textarea{width:100%;min-height:110px;margin-top:10px;border:1.5px solid var(--line);border-radius:10px;padding:10px;resize:vertical;line-height:1.5}
 .opts{margin:8px 0 0 2.4rem;display:grid;gap:6px}
@@ -485,12 +487,13 @@ function work() {
         ? `<a class="btn line" href="${fileUrl(f)}" target="_blank" rel="noopener">📄 Open ${esc(f.name)}</a>` : `<img src="${fileUrl(f)}" alt="${esc(f.name)}" loading="lazy">`).join("")}</div>` : ""}
     <div class="card">${a.questions.map((q, i) => {
       const val = s.answers[q.number] || "";
+      const dgH = dgImg(q.diagram_svg);
       if (q.type === "mcq") {
         const pick = val.split(" — ")[0];
-        return `<div class="q"><div class="qh"><span class="qn">${esc(q.number)}</span><div class="qt">${esc(q.text)}</div><span class="qm">[${q.marks}]</span></div>
+        return `<div class="q"><div class="qh"><span class="qn">${esc(q.number)}</span><div class="qt">${esc(q.text)}</div><span class="qm">[${q.marks}]</span></div>${dgH}
           <div class="opts">${q.options.map((o, j) => { const L = "ABCDEF"[j]; return `<label><input type="radio" name="q${i}" value="${L}" ${pick === L ? "checked" : ""}><span><b>${L}</b> ${esc(o)}</span></label>`; }).join("")}</div></div>`;
       }
-      return `<div class="q"><div class="qh"><span class="qn">${esc(q.number)}</span><div class="qt">${esc(q.text)}</div><span class="qm">[${q.marks}]</span></div>
+      return `<div class="q"><div class="qh"><span class="qn">${esc(q.number)}</span><div class="qt">${esc(q.text)}</div><span class="qm">[${q.marks}]</span></div>${dgH}
         <textarea data-q="${i}" placeholder="Type your answer${q.type === "calculation" ? " — show your working" : ""}…">${esc(val)}</textarea></div>`;
     }).join("")}</div>
     <div class="bar"><button class="btn" id="submitBtn">✔ Submit for marking</button></div>
@@ -586,6 +589,19 @@ function loadScript(src) {
   return new Promise((resolve, reject) => { if (window.jspdf) return resolve(); const el = document.createElement("script");
     el.src = src; el.onload = resolve; el.onerror = () => reject(new Error("PDF library could not load")); document.head.appendChild(el); });
 }
+/* v136: sawal ka diagram — <img> data URI (SVG mein script nahi chal sakta) */
+const dgImg = (svg, st) => svg ? `<img class="dg" alt="Diagram" ${st ? `style="${st}"` : ""} src="data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}">` : "";
+/* PDF ke liye SVG → PNG (canvas) */
+function svgPng(svg) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => { const k = 2, c = document.createElement("canvas"); c.width = (img.naturalWidth || 440) * k; c.height = (img.naturalHeight || 300) * k;
+      const x = c.getContext("2d"); x.fillStyle = "#fff"; x.fillRect(0, 0, c.width, c.height); x.drawImage(img, 0, 0, c.width, c.height);
+      resolve({ data: c.toDataURL("image/png"), w: c.width / k, h: c.height / k }); };
+    img.onerror = () => resolve(null);
+    img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+  });
+}
 const latinOk = (t) => !/[^\x00-\xff\u2013\u2014\u2018\u2019\u201c\u201d\u2022\u2026]/.test(t);
 async function downloadPdf() {
   const a = cur.a, kid = (me.children.find((k) => k.id === kidId) || {}).name || "";
@@ -606,9 +622,11 @@ async function downloadPdf() {
     para(`${a.subject}${a.code ? " (" + a.code + ")" : ""} · ${a.course || ""} · ${a.total} marks${a.timed ? " · " + a.minutes + " minutes" : ""}${a.dueDate ? " · due " + a.dueDate : ""}`, 10);
     para(`Name: ${kid}        Date: ______________`, 10); y += 3;
     if (a.instructions) { para(a.instructions, 10, "italic"); y += 3; }
-    a.questions.forEach((q) => {
+    const pngs = await Promise.all(a.questions.map((q) => (q.diagram_svg ? svgPng(q.diagram_svg) : null)));
+    a.questions.forEach((q, qi) => {
       need(14); doc.setFont("helvetica", "bold"); doc.setFontSize(11); doc.text(q.number, M, y); doc.text(`[${q.marks}]`, W - M, y, { align: "right" });
       const start = y; para(q.text, 11, "normal", 12); if (y === start) y += 5;
+      const pg = pngs[qi]; if (pg) { const w = Math.min(maxW - 12, 120), h = w * pg.h / pg.w; need(h + 4); y += 2; doc.addImage(pg.data, "PNG", M + 12, y, w, h); y += h + 4; }
       q.options.forEach((o, j) => para(`${"ABCDEF"[j]}.  ${o}`, 11, "normal", 16));
       if (q.type !== "mcq") { const lines = Math.min(14, 2 + q.marks * 2); for (let i = 0; i < lines; i++) { need(8); y += 8; doc.setDrawColor(190); doc.line(M + 12, y, W - M, y); } }
       y += 6;
@@ -621,7 +639,7 @@ async function downloadPdf() {
     w.document.write(`<!doctype html><meta charset="utf-8"><title>${esc(a.title)}</title><style>body{font-family:Arial,sans-serif;margin:24px;line-height:1.5}.m{float:right;font-weight:bold}.q{margin:14px 0;page-break-inside:avoid}.l{height:70px;border-bottom:1px dotted #999}</style>
       <h2>${esc(a.title)}</h2><p>${esc(a.subject)}${a.code ? " (" + esc(a.code) + ")" : ""} · ${a.total} marks${a.timed ? " · " + a.minutes + " minutes" : ""}</p><p>Name: ${esc(kid)}</p>
       ${a.instructions ? `<p><i>${esc(a.instructions)}</i></p>` : ""}
-      ${a.questions.map((q) => `<div class="q"><span class="m">[${q.marks}]</span><b>${esc(q.number)}</b> <span style="white-space:pre-wrap">${esc(q.text)}</span>${q.options.map((o, j) => `<div>${"ABCDEF"[j]}. ${esc(o)}</div>`).join("")}${q.type === "mcq" ? "" : '<div class="l"></div>'}</div>`).join("")}
+      ${a.questions.map((q) => `<div class="q"><span class="m">[${q.marks}]</span><b>${esc(q.number)}</b> <span style="white-space:pre-wrap">${esc(q.text)}</span>${dgImg(q.diagram_svg, "display:block;width:380px;max-width:100%;margin:8px 0")}${q.options.map((o, j) => `<div>${"ABCDEF"[j]}. ${esc(o)}</div>`).join("")}${q.type === "mcq" ? "" : '<div class="l"></div>'}</div>`).join("")}
       ${a.files.filter((f) => f.type !== "application/pdf").map((f) => `<img src="${fileUrl(f)}" style="max-width:100%;margin-top:10px">`).join("")}
       <p style="color:#888;font-size:12px">To save: Print → "Save as PDF".</p>`);
     w.document.close(); setTimeout(() => w.print(), 500);
@@ -660,7 +678,7 @@ function result() {
       <div style="text-align:center"><div class="grade">${grade(pct)}</div><div class="sub">indicative grade</div></div></div>
     ${a.questions.map((q) => { const m = byNum.get(String(q.number)) || { awarded: 0, available: q.marks, points_credited: [], examiner_comment: "", marks_annotation: "", student_answer: "" };
       const typed = (s.answers[q.number] || "").trim(), shown = typed || m.student_answer;
-      return `<div class="sq"><div class="body"><div class="qh"><span class="qn">${esc(q.number)}</span><div class="qt">${esc(q.text)}</div></div>
+      return `<div class="sq"><div class="body"><div class="qh"><span class="qn">${esc(q.number)}</span><div class="qt">${esc(q.text)}</div></div>${dgImg(q.diagram_svg)}
           ${q.options.length ? `<div class="sub" style="margin:4px 0 0 2.4rem">${q.options.map((o, j) => `<b>${"ABCDEF"[j]}</b> ${esc(o)}`).join(" · ")}</div>` : ""}
           <div class="ans ${shown ? "" : "none"}">${shown ? esc(shown) : "No answer"}${!typed && m.student_answer ? `<div class="sub">(read from your photos)</div>` : ""}</div>
           ${m.points_credited.length ? `<div class="ticks">${m.points_credited.map((x) => "✓ " + esc(x)).join("<br>")}</div>` : ""}
