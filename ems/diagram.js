@@ -114,12 +114,29 @@ function diagramText(d) {
   return d.kind === "svg" ? "Diagram (SVG source): " + cleanSvg(d.svg).slice(0, 3000) : "";
 }
 
+/* v136b: grid ki saadi likhai (AI aur editor dono yehi likhte hain) → grid spec
+   "x: -6 to 6" · "y: -6 to 6" · "A: (1, 1) (4, 1) (1, 3)" (shape) · "P: (2, 4)" (point) · "y = x: (-6, -6) (6, 6) line dashed" (line) */
+function parseGridText(t) {
+  const g = { xmin: -6, xmax: 6, ymin: -6, ymax: 6, shapes: [], points: [], segments: [] };
+  String(t || "").split(/\n+/).map((l) => l.replace(/[←#].*$/, "").trim()).filter(Boolean).slice(0, 60).forEach((l) => {
+    const r = /^([xy])\s*:\s*(-?\d+)\s*(?:to|\.\.|,|–|—)\s*(-?\d+)/i.exec(l) || /^([xy])\s*:\s*(-?\d+)\s*-\s*(-?\d+)/i.exec(l);
+    if (r) { const a = +r[2], b = +r[3]; if (r[1].toLowerCase() === "x") { g.xmin = Math.min(a, b); g.xmax = Math.max(a, b); } else { g.ymin = Math.min(a, b); g.ymax = Math.max(a, b); } return; }
+    const P = [...l.matchAll(/\(\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*\)/g)].map((m) => ({ x: +m[1], y: +m[2] }));
+    if (!P.length) return;
+    const c = l.indexOf(":"), head = c > 0 && !l.slice(0, c).includes("(") ? l.slice(0, c).trim().slice(0, 30) : "", tail = l.slice(l.lastIndexOf(")") + 1);
+    if (P.length === 1) g.points.push({ label: head, ...P[0] });
+    else if (P.length === 2 && !/\bshape\b/i.test(tail)) g.segments.push({ label: head, x1: P[0].x, y1: P[0].y, x2: P[1].x, y2: P[1].y, dashed: /dashed/i.test(tail) });
+    else g.shapes.push({ label: head, points: P });
+  });
+  return g;
+}
 /* sawal ka diagram: AI object (d) → ya editor ka grid spec → ya editor ka SVG. Wapas {svg, grid, info} */
 function buildDiagram(d, grid, svg, info) {
   if (d && typeof d === "object") { const s = renderDiagram(d); return { svg: s, grid: s && d.kind === "grid" ? cleanGrid(d.grid) : null, info: s ? diagramText(d).slice(0, 4000) : "" }; }
+  if (typeof grid === "string" && grid.trim()) grid = parseGridText(grid);
   if (grid && typeof grid === "object") { const G = cleanGrid(grid); return { svg: gridSvg(G), grid: G, info: diagramText({ kind: "grid", grid: G }).slice(0, 4000) }; }
   const s = cleanSvg(svg);
-  return { svg: s, grid: null, info: s ? String(info || "").slice(0, 4000) : "" };
+  return { svg: s, grid: null, info: s ? String(info || "Diagram (SVG source): " + s.slice(0, 3000)).slice(0, 4000) : "" };
 }
 
-module.exports = { gridSvg, cleanSvg, cleanGrid, renderDiagram, diagramText, buildDiagram };
+module.exports = { gridSvg, cleanSvg, cleanGrid, parseGridText, renderDiagram, diagramText, buildDiagram };
