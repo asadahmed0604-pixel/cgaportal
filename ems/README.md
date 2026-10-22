@@ -776,3 +776,13 @@ Share → "Add to Home Screen" · Computer Chrome/Edge: the install icon in the 
 - **Safety net:** if the API ever rejects the diagram format again, generation retries automatically without diagrams, so a draft is always made. The server log shows the reason.
 - A 400 error now shows the API's own reason in the message instead of only "error 400".
 - Upload a question paper (read with AI) uses the plain format again, without diagram fields.
+
+## Staff attendance — Half leave · substitutes from all staff (v138)
+
+- **Half leave (H)** is a new status in Employees → Staff attendance, next to Present / Late / Absent / Informed / Uninformed leave.
+  - It counts as **½ leave day** toward the 2-leave-days-a-month limit. For example, Informed leave + Half leave = 1½, and one more Half leave reaches 2. After the limit only Absent can be marked.
+  - It counts as **½ present** in the attendance %.
+  - No late minutes are added for a half-leave day.
+- Half leave shows in the profile stats, the monthly register PDF (column H), the CSV ("Half leave" column) and the teacher's Classes Taken hint.
+  - Staff attendance import understands "Half leave" / "HL".
+- **Classes Taken → 🔁 Substitute** now lists all staff: teachers first, then coordinators / admin staff (e.g. coordinators who can cover a class).
