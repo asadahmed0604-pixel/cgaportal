@@ -810,3 +810,15 @@ Share → "Add to Home Screen" · Computer Chrome/Edge: the install icon in the 
   - photos show full width;
   - the paper is at the top of the answer screen.
 - For assignments that are **not timed**, the paper shows before pressing Start. Timed tests still show it only after Start, so the timer is fair.
+
+## Students — download / print the paper (v141)
+
+- Once a student starts an assignment or test, a **🖨 Want it on paper?** bar sits at the top of the screen with **⬇ Download PDF** and **🖨 Print paper**. It is also on the result screen.
+- **Download:**
+  - the teacher's own PDF paper downloads as it is;
+  - a paper made of photos becomes one PDF (one page per photo);
+  - typed questions become a clean PDF with diagrams, answer lines and a Name / Date line.
+- **Print:**
+  - opens the teacher's PDF in the browser to print;
+  - otherwise opens a clean print page with the photos, questions and diagrams.
+- The result screen's own print button is now "🖨 Print my result".
