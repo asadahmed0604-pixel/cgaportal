@@ -619,7 +619,7 @@ module.exports = function setup(ctx) {
     const fm = p.match(/^\/student\/file\/([a-f0-9]{24}\.(jpg|png|webp|pdf))$/);
     if (fm && req.method === "GET") {
       const st = kid(url.searchParams.get("s")), name = fm[1];
-      const ok = st && (assignments.some((a) => open(a, pktDate()) && (a.studentIds || []).includes(st.id) && subFor(a.id, st.id) && (a.files || []).some((f) => f.file === name))
+      const ok = st && (assignments.some((a) => open(a, pktDate()) && (a.studentIds || []).includes(st.id) && (subFor(a.id, st.id) || !a.timed) && (a.files || []).some((f) => f.file === name))   // v140: timed na ho to Start se pehle bhi paper
         || [...subs.values()].some((s) => s.studentId === st.id && (s.files || []).some((f) => f.file === name))
         || Object.values(hwSubs).some((x) => x.studentId === st.id && (x.files || []).some((f) => f.file === name)));
       if (!ok || !fs.existsSync(path.join(FILES, name))) return send(res, 404, "Not found");
@@ -730,7 +730,7 @@ module.exports = function setup(ctx) {
       if (!a || !open(a, pktDate()) || !(a.studentIds || []).includes(st.id)) return sendJson(res, 404, { error: "This assignment is not available." });
       let s = settle(subFor(a.id, st.id));
       if (!s) {
-        if (!body.start) return sendJson(res, 200, { assignment: { ...forStudent(a), questions: [], files: [] }, submission: null, late: late(a) });
+        if (!body.start) return sendJson(res, 200, { assignment: { ...forStudent(a), questions: [], files: a.timed ? [] : forStudent(a).files }, submission: null, late: late(a) });   // v140: timed na ho to paper pehle hi
         if (late(a)) return sendJson(res, 409, { error: "The due date has passed — ask your teacher." });
         const now = Date.now();
         let deadline = a.timed ? now + a.minutes * 60e3 : null;

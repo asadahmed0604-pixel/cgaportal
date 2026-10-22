@@ -1502,7 +1502,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v139 · 22 Oct 2026";
+const BUILD = "v140 · 22 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -8553,11 +8553,11 @@ function asgNew(mode){
       <div class="field"><label>Question paper * — PDF or photos of each page</label><input type="file" id="an_paper" accept="image/*,application/pdf" multiple onchange="asgPick('paper', this)"><div id="an_paperL" class="sub"></div></div>
       <div class="field"><label>Mark scheme (optional — only the AI sees it)</label><input type="file" id="an_scheme" accept="image/*,application/pdf" multiple onchange="asgPick('scheme', this)"><div id="an_schemeL" class="sub"></div></div>
     </div>
-    <div class="field"><label>Questions &amp; marks * — as numbered on the paper</label><input id="an_qm" placeholder="e.g.  5, 5, 10   or   1(a):3, 1(b):2, 2:6, 3:9">
-      <div class="sub">Just the marks (5, 5, 10 → questions 1, 2, 3) or <b>number:marks</b> for parts. The total is worked out for you.</div></div>` : ""}
+    <div class="field"><label>Questions &amp; marks (optional) — as numbered on the paper</label><input id="an_qm" placeholder="Leave empty — AI reads the paper itself   ·   or e.g. 5, 5, 10   or   1(a):3, 1(b):2, 2:6">
+      <div class="sub"><b>Leave empty</b> and the AI reads your paper and fills in the questions, marks and mark scheme for you. Or type just the marks (5, 5, 10) / <b>number:marks</b> to skip that step.</div></div>` : ""}
     ${mode === "ai" || mode === "upload" ? `<div class="field"><label>Notes for the AI (optional)</label><textarea id="an_notes" rows="2" placeholder="${mode === "ai" ? "e.g. Include one data-analysis question; use Pakistani context" : "e.g. Only Section B; ignore question 5"}"></textarea></div>` : ""}
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">
-      <button class="btn-red" onclick="asgCreate('${mode}')">${mode === "ai" ? "✨ Generate" : mode === "upload" ? "📖 Read paper with AI" : "Continue →"}</button>
+      <button class="btn-red" onclick="asgCreate('${mode}')">${mode === "ai" ? "✨ Generate" : mode === "upload" ? "📖 Read paper with AI" : mode === "pdf" ? "Continue →" : "Continue →"}</button>
       <button class="btn-line" onclick="renderAssign()">Cancel</button></div>
     <p class="sub" style="margin-top:8px">Cambridge style: command words, mark allocations, and a mark scheme with M/A/B marks or level descriptors as the subject needs.</p></div>`;
   ASG.upl = {paper:[], scheme:[], ref:[]};
@@ -8620,7 +8620,16 @@ async function asgCreate(mode){
   if(mode === "pdf"){                                     // v139: apna PDF — sirf sawal number + marks
     if(!ASG.upl.paper.length){ toast("Attach the question paper first"); return; }
     const qs = asgParseMarks($("an_qm").value);
-    if(!qs.length){ toast("Write the marks of each question, e.g. 5, 5, 10"); return; }
+    /* v140: marks na likhe hon to AI khud paper parh kar sawal, marks aur mark scheme nikaale; paper bachon ko waisa hi dikhta hai */
+    if(!qs.length){
+      if(!ASG.aiReady){ toast("AI is off on the server — write the marks of each question, e.g. 5, 5, 10"); return; }
+      asgBusy(true, "Reading your paper — finding the questions, marks and mark scheme… (about a minute)");
+      try{ const a = await asgApi("/api/asg/extract", {...spec, files:ASG.upl.paper, scheme:ASG.upl.scheme, notes:"The paper is shown to students exactly as it is; keep its numbering and marks."});
+        a.studentIds = null; asgEdit(a); asgRefreshTrack(); toast(`Paper read — ${a.questions.length} questions, ${a.total} marks. Check, choose students and publish`); }
+      catch(e){ toast(e.message); }
+      finally{ asgBusy(false); }
+      return;
+    }
     return asgEdit({...spec, id:"", title:`${spec.subject} — question paper`, source:"pdf", files:ASG.upl.paper, schemeFiles:ASG.upl.scheme, status:"draft",
       instructions:"Solve the paper on your answer sheet, then upload clear photos or a PDF of every page of your answer script. Write question numbers clearly.",
       questions:qs, timed:spec.kind === "test", minutes:40, openFrom:wmDate(), dueDate:"", studentIds:null});

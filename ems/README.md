@@ -800,3 +800,13 @@ Share → "Add to Home Screen" · Computer Chrome/Edge: the install icon in the 
   - otherwise by writing a Cambridge mark scheme itself from the paper.
 - In **any** assignment's editor (AI-generated, uploaded or hand-written) the teacher can attach / remove the question paper and the mark-scheme file.
 - Students can never open the mark-scheme file (the student file link only serves the paper and their own uploads).
+
+## Assignments — PDF made easy (v140)
+
+- **📄 Send PDF:** "Questions & marks" is now **optional**. Leave it empty and the AI reads your paper itself, filling in the question numbers, marks and mark scheme (from your mark-scheme file if attached).
+  - Check the draft, choose students and publish. Typing marks (`5, 5, 10`) still skips the AI step.
+- **Students see the paper straight away, inside the app:**
+  - a PDF opens in the page itself (with "Open full screen" as well);
+  - photos show full width;
+  - the paper is at the top of the answer screen.
+- For assignments that are **not timed**, the paper shows before pressing Start. Timed tests still show it only after Start, so the timer is fair.
