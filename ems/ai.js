@@ -16,28 +16,9 @@ const whyNot = () => loadError;
 
 /* ---------------------------------- schemas ---------------------------------- */
 
-/* v136: diagram — "grid" (numbers only; server draws an exact coordinate grid) ya "svg" (AI ka SVG) ya "none" */
-const XY = { type: "object", additionalProperties: false, required: ["x", "y"], properties: { x: { type: "number" }, y: { type: "number" } } };
-const DIAGRAM = {
-  type: "object", additionalProperties: false, required: ["kind", "grid", "svg"],
-  properties: {
-    kind: { type: "string", enum: ["none", "grid", "svg"] },
-    grid: {
-      type: "object", additionalProperties: false, required: ["xmin", "xmax", "ymin", "ymax", "shapes", "points", "segments"],
-      properties: {
-        xmin: { type: "integer" }, xmax: { type: "integer" }, ymin: { type: "integer" }, ymax: { type: "integer" },
-        shapes: { type: "array", items: { type: "object", additionalProperties: false, required: ["label", "points"], properties: { label: { type: "string" }, points: { type: "array", items: XY } } } },
-        points: { type: "array", items: { type: "object", additionalProperties: false, required: ["label", "x", "y"], properties: { label: { type: "string" }, x: { type: "number" }, y: { type: "number" } } } },
-        segments: { type: "array", items: { type: "object", additionalProperties: false, required: ["label", "x1", "y1", "x2", "y2", "dashed"],
-          properties: { label: { type: "string" }, x1: { type: "number" }, y1: { type: "number" }, x2: { type: "number" }, y2: { type: "number" }, dashed: { type: "boolean" } } } },
-      },
-    },
-    svg: { type: "string" },
-  },
-};
 const QUESTION = {
   type: "object", additionalProperties: false,
-  required: ["number", "type", "text", "options", "marks", "mark_scheme", "model_answer", "diagram", "answer_diagram"],
+  required: ["number", "type", "text", "options", "marks", "mark_scheme", "model_answer"],
   properties: {
     number: { type: "string" },
     type: { type: "string", enum: ["mcq", "short", "structured", "calculation", "essay"] },
@@ -46,15 +27,20 @@ const QUESTION = {
     marks: { type: "integer" },
     mark_scheme: { type: "array", items: { type: "string" } },
     model_answer: { type: "string" },
-    diagram: DIAGRAM,
-    answer_diagram: DIAGRAM,
   },
+};
+/* v136b: diagram — saade strings (pecheeda nested schema API 400 deta tha): grid = editor wali likhai, svg = AI ka SVG */
+const QUESTION_DG = {
+  type: "object", additionalProperties: false,
+  required: [...QUESTION.required, "diagram_grid", "diagram_svg", "answer_grid", "answer_svg"],
+  properties: { ...QUESTION.properties, diagram_grid: { type: "string" }, diagram_svg: { type: "string" }, answer_grid: { type: "string" }, answer_svg: { type: "string" } },
 };
 const ASSIGNMENT = {
   type: "object", additionalProperties: false,
   required: ["title", "instructions", "questions"],
   properties: { title: { type: "string" }, instructions: { type: "string" }, questions: { type: "array", items: QUESTION } },
 };
+const ASSIGNMENT_DG = { ...ASSIGNMENT, properties: { ...ASSIGNMENT.properties, questions: { type: "array", items: QUESTION_DG } } };
 const CHECK = {
   type: "object", additionalProperties: false,
   required: ["questions", "overall_feedback", "strengths", "improvements", "needs_teacher_review"],
@@ -92,20 +78,30 @@ Follow Cambridge International conventions exactly:
 - Essay and extended-response questions (e.g. Islamiyat, Pakistan Studies, English, Economics, Sociology, Business) use Cambridge-style level descriptors (Level 1 / Level 2 / Level 3 ... with mark ranges) plus the indicative content an examiner credits.
 - Number questions like "1", "2(a)", "2(b)(i)". For MCQ give exactly four options A–D and put the correct letter first in the mark scheme; for every other type, options is an empty array.`;
 
-const DIAGRAM_RULES = `DIAGRAMS — every question has "diagram" (what the student sees) and "answer_diagram" (the same figure with the correct answer drawn, for the teacher; kind "none" if not useful).
+const DIAGRAM_RULES = `DIAGRAMS — every question has four diagram fields; use "" for any that is not needed.
 - Give a diagram whenever a Cambridge paper would print one: transformations (reflection, rotation, translation, enlargement), coordinates, plotting / reading straight-line graphs, vectors on a grid, geometry figures, bearings, circuits, ray / force / wave diagrams, apparatus, charts, Venn diagrams, number lines. Never write "[diagram]" or describe the figure in brackets instead of drawing it.
-- Use kind "grid" for anything on a square coordinate grid (ALWAYS for transformations and coordinate questions). Give only numbers: the x and y range (integers; include room for the answer, e.g. the image after the transformation must fit), each shape as its vertices in order with a label (A, B, P, triangle T…), single points with labels, and lines as segments (e.g. a mirror line y = x from (-6,-6) to (6,6), dashed, label "y = x"). The server draws an exact grid with numbered axes. Vertices must be exactly the coordinates the question text uses. For the question diagram draw ONLY what the student is given (not the answer); put the answer shape(s) as well in answer_diagram.
-- Use kind "svg" for other figures: one complete self-contained SVG starting with <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 W H"> (W, H ≤ 600), a white background rect, dark strokes (stroke-width 1.5–2), labels as <text> with font-family Arial and font-size 12–15, angles / lengths labelled as the question states, figures drawn to scale where it matters. No <script>, <style>, CSS classes, <image>, <foreignObject> or links.
-- Use kind "none" when no figure is needed. For unused parts give an empty grid (xmin -1, xmax 1, ymin -1, ymax 1, empty arrays) and svg "".`;
+- diagram_grid: for anything on a square coordinate grid (ALWAYS for transformations and coordinate questions). Write it as plain lines, one item per line, numbers only — the server draws an exact grid with numbered axes:
+    x: -6 to 6
+    y: -6 to 6
+    A: (1, 1) (4, 1) (1, 3)          ← a shape: label, then its corners in order (3 or more)
+    P: (2, 4)                        ← a single labelled point
+    y = x: (-6, -6) (6, 6) line dashed   ← a line (e.g. mirror line): label, two end points, "line", optional "dashed"
+  Use integer ranges with room for the answer (the image after a transformation must fit). Corners must be exactly the coordinates in the question text. diagram_grid shows ONLY what the student is given.
+- answer_grid: the same grid with the correct answer added (e.g. the image shape B), for the teacher. "" if not useful.
+- diagram_svg: for other figures, one complete self-contained SVG starting with <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 W H"> (W, H ≤ 600), a white background rect, dark strokes (stroke-width 1.5–2), labels as <text> with font-family Arial and font-size 12–15, angles / lengths labelled as the question states, drawn to scale where it matters. No <script>, <style>, CSS classes, <image>, <foreignObject> or links. answer_svg: the same figure with the answer drawn, or "".
+- Use either the grid or the SVG for a question, not both.`;
 
 const GEN_SYSTEM = `${CAMBRIDGE}
 Write an original assignment for the teacher's specification. The marks of all questions must add up exactly to the requested total. Give a concise model answer for each question. Write in English unless the subject itself is in another language (e.g. Urdu papers in Urdu).
 ${DIAGRAM_RULES}`;
 
+const GEN_SYSTEM_PLAIN = `${CAMBRIDGE}
+Write an original assignment for the teacher's specification. The marks of all questions must add up exactly to the requested total. Give a concise model answer for each question. Write in English unless the subject itself is in another language (e.g. Urdu papers in Urdu). Describe any diagram a student needs in square brackets inside the question text.`;
+
 const EXTRACT_SYSTEM = `${CAMBRIDGE}
 A teacher has uploaded a question paper (and sometimes its mark scheme). Transcribe every question faithfully into the structured format, keeping the paper's own numbering, wording and mark allocations. Describe any diagram, graph or table a student would need in square brackets inside the question text.
 If a mark scheme was uploaded, copy its points into mark_scheme. If not, write a Cambridge-style mark scheme and model answer yourself.
-The uploaded paper is shown to students as it is, so set diagram and answer_diagram to kind "none" (empty grid, svg "") unless the question's figure is a simple coordinate grid you can reproduce exactly with kind "grid".`;
+`;
 
 const CHECK_SYSTEM = `${CAMBRIDGE}
 You are now marking a student's script. Apply Cambridge marking principles:
@@ -154,7 +150,7 @@ function friendly(e) {
     if (e instanceof A.AuthenticationError) return "The Claude API key on the server is invalid.";
     if (e instanceof A.RateLimitError) return "Claude is busy right now — please try again in a minute.";
     if (e instanceof A.APIConnectionError) return "Could not reach Claude — check the server's internet.";
-    if (e instanceof A.APIError) return `Claude API error (${e.status}) — please try again.`;
+    if (e instanceof A.APIError) return `Claude API error (${e.status})${e.status === 400 ? ": " + String((e.error && e.error.error && e.error.error.message) || e.message || "").slice(0, 220) : " — please try again."}`;
   } catch {}
   return e && e.ai ? e.message : `The AI could not finish this — please try again. (${String(e && e.message || e).slice(0, 160)})`;
 }
@@ -187,10 +183,15 @@ function generate(spec, refFiles) {
   const content = [];
   if (refs.length) {
     refs.forEach((f) => content.push(block(f)));
-    content.push({ type: "text", text: `The file(s) above are a SAMPLE / REFERENCE assignment the teacher uploaded (photos or PDF). ${REF_HOW[spec.refMode] || REF_HOW.style} Still follow the specification below (number of questions, total marks, question types) and write a full Cambridge mark scheme. Describe any diagram a student needs in square brackets.` });
+    content.push({ type: "text", text: `The file(s) above are a SAMPLE / REFERENCE assignment the teacher uploaded (photos or PDF). ${REF_HOW[spec.refMode] || REF_HOW.style} Still follow the specification below (number of questions, total marks, question types) and write a full Cambridge mark scheme. Draw the diagrams the questions need as described in the DIAGRAMS rules.` });
   }
   content.push({ type: "text", text: `Develop the assignment.\n\n${text}` });
-  return callJSON(GEN_SYSTEM, content, ASSIGNMENT);
+  /* diagrams wala schema; agar API usay reject kare (400) to bina diagram ke dobara — assignment phir bhi bane */
+  return callJSON(GEN_SYSTEM, content, ASSIGNMENT_DG).catch((e) => {
+    if (!(e && e.status === 400)) throw e;
+    console.error("[ai] diagram schema rejected — retrying without diagrams:", e.message);
+    return callJSON(GEN_SYSTEM_PLAIN, content, ASSIGNMENT);
+  });
 }
 
 function extract(spec, paperFiles, schemeFiles) {

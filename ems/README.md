@@ -764,3 +764,15 @@ Share → "Add to Home Screen" · Computer Chrome/Edge: the install icon in the 
   `x: -6 to 6`, `y: -6 to 6`, `A: (1, 1) (4, 1) (1, 3)`, `P: (2, 4)`, `y = x: (-6, -6) (6, 6) line dashed`. "✕ Remove" deletes a diagram.
 - Diagrams show in the student / parent app, the printed paper and mark scheme, the student's PDF download and the marking screen.
 - New server file: `diagram.js` (grid drawing + SVG cleaning).
+
+## Fix: AI assignment generation error 400 (v137)
+
+- The v136 diagram format sent the Claude API a deeply nested schema, and generation failed with **Claude API error (400)**. The diagram fields are now four plain text fields:
+  - `diagram_grid` — the same plain grid text the editor uses (`x: -6 to 6`, `A: (1, 1) (4, 1) (1, 3)`, `y = x: (-6, -6) (6, 6) line dashed`);
+  - `diagram_svg`;
+  - `answer_grid`;
+  - `answer_svg`.
+  The server still draws the exact grids.
+- **Safety net:** if the API ever rejects the diagram format again, generation retries automatically without diagrams, so a draft is always made. The server log shows the reason.
+- A 400 error now shows the API's own reason in the message instead of only "error 400".
+- Upload a question paper (read with AI) uses the plain format again, without diagram fields.
