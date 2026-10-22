@@ -940,6 +940,7 @@ label.chk input{width:auto}
     <div><h2>Assignments</h2><div class="sub">Make Cambridge-style assignments with AI (or upload your own paper), give them to your class with or without a timer — students' work is marked by AI the moment they submit.</div></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap" id="asgBtns">
       <button class="btn-red" id="asgAiBtn" onclick="asgNew('ai')">✨ Generate with AI</button>
+      <button class="btn-black" onclick="asgNew('pdf')" title="Send your own PDF / photos of a paper — students upload their answer scripts and AI marks them">📄 Send PDF</button>
       <button class="btn-black" onclick="asgNew('upload')">⬆ Upload paper</button>
       <button class="btn-line" onclick="asgNew('manual')">✍ Write my own</button>
     </div>
@@ -1501,7 +1502,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v138 · 22 Oct 2026";
+const BUILD = "v139 · 22 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -8513,8 +8514,8 @@ function asgNew(mode){
   const keys = asgClassKeys();
   if(!keys.length){ toast(IS_TEACHER ? "No class is assigned to you — ask the admin (Employees → Edit → Assign)" : "No classes found"); return; }
   if(mode === "ai" && IS_TEACHER && ASG.aiLocked){ asgAiLockBox(); return; }
-  if(mode !== "manual" && !ASG.aiReady){ toast("AI is off on the server — use “Write my own”"); return; }
-  const title = {ai:"✨ Generate an assignment with AI", upload:"⬆ Upload a question paper", manual:"✍ Write your own assignment"}[mode];
+  if((mode === "ai" || mode === "upload") && !ASG.aiReady){ toast("AI is off on the server — use “Write my own”"); return; }
+  const title = {ai:"✨ Generate an assignment with AI", upload:"⬆ Upload a question paper", manual:"✍ Write your own assignment", pdf:"📄 Send a PDF paper — students upload their answer scripts, AI marks them"}[mode];
   const u = ASG.usage, left = k => !u ? 99 : u[k].limit - u[k].used;
   if(IS_TEACHER && left("test") <= 0 && left("assignment") <= 0){ toast("You have used all your tests and assignments for this month"); return; }
   const kindDef = left("assignment") > 0 ? "assignment" : "test";
@@ -8546,7 +8547,15 @@ function asgNew(mode){
       <div class="field"><label>Question paper — PDF or photos of each page</label><input type="file" id="an_paper" accept="image/*,application/pdf" multiple onchange="asgPick('paper', this)"><div id="an_paperL" class="sub"></div></div>
       <div class="field"><label>Mark scheme (optional — otherwise AI writes one)</label><input type="file" id="an_scheme" accept="image/*,application/pdf" multiple onchange="asgPick('scheme', this)"><div id="an_schemeL" class="sub"></div></div>
     </div>` : ""}
-    ${mode !== "manual" ? `<div class="field"><label>Notes for the AI (optional)</label><textarea id="an_notes" rows="2" placeholder="${mode === "ai" ? "e.g. Include one data-analysis question; use Pakistani context" : "e.g. Only Section B; ignore question 5"}"></textarea></div>` : ""}
+    ${mode === "pdf" ? `
+    <div class="note" style="margin-top:6px">Students see your paper exactly as it is (PDF or photos). They solve it on paper and upload photos / a PDF of their answer script — or type answers. AI marks each student's script against your mark scheme (or writes a Cambridge mark scheme itself if you don't attach one).${ASG.aiReady ? "" : " <b>AI is off on the server, so scripts will need marking by hand.</b>"}</div>
+    <div class="grid2">
+      <div class="field"><label>Question paper * — PDF or photos of each page</label><input type="file" id="an_paper" accept="image/*,application/pdf" multiple onchange="asgPick('paper', this)"><div id="an_paperL" class="sub"></div></div>
+      <div class="field"><label>Mark scheme (optional — only the AI sees it)</label><input type="file" id="an_scheme" accept="image/*,application/pdf" multiple onchange="asgPick('scheme', this)"><div id="an_schemeL" class="sub"></div></div>
+    </div>
+    <div class="field"><label>Questions &amp; marks * — as numbered on the paper</label><input id="an_qm" placeholder="e.g.  5, 5, 10   or   1(a):3, 1(b):2, 2:6, 3:9">
+      <div class="sub">Just the marks (5, 5, 10 → questions 1, 2, 3) or <b>number:marks</b> for parts. The total is worked out for you.</div></div>` : ""}
+    ${mode === "ai" || mode === "upload" ? `<div class="field"><label>Notes for the AI (optional)</label><textarea id="an_notes" rows="2" placeholder="${mode === "ai" ? "e.g. Include one data-analysis question; use Pakistani context" : "e.g. Only Section B; ignore question 5"}"></textarea></div>` : ""}
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">
       <button class="btn-red" onclick="asgCreate('${mode}')">${mode === "ai" ? "✨ Generate" : mode === "upload" ? "📖 Read paper with AI" : "Continue →"}</button>
       <button class="btn-line" onclick="renderAssign()">Cancel</button></div>
@@ -8608,6 +8617,14 @@ async function asgCreate(mode){
     return asgEdit({...spec, id:"", title:"", instructions:"Answer all questions. Show your working.", source:"manual", files:[], status:"draft",
       questions:[{number:"1", type:"short", text:"", options:[], marks:2, mark_scheme:[""], model_answer:""}], timed:spec.kind === "test", minutes:40, openFrom:wmDate(), dueDate:"", studentIds:null});
   }
+  if(mode === "pdf"){                                     // v139: apna PDF — sirf sawal number + marks
+    if(!ASG.upl.paper.length){ toast("Attach the question paper first"); return; }
+    const qs = asgParseMarks($("an_qm").value);
+    if(!qs.length){ toast("Write the marks of each question, e.g. 5, 5, 10"); return; }
+    return asgEdit({...spec, id:"", title:`${spec.subject} — question paper`, source:"pdf", files:ASG.upl.paper, schemeFiles:ASG.upl.scheme, status:"draft",
+      instructions:"Solve the paper on your answer sheet, then upload clear photos or a PDF of every page of your answer script. Write question numbers clearly.",
+      questions:qs, timed:spec.kind === "test", minutes:40, openFrom:wmDate(), dueDate:"", studentIds:null});
+  }
   let body;
   if(mode === "ai"){
     body = {...spec, topic:$("an_topic").value.trim(), count:$("an_count").value, total:$("an_total").value, difficulty:$("an_diff").value,
@@ -8624,6 +8641,37 @@ async function asgCreate(mode){
   finally{ asgBusy(false); }
 }
 
+/* "5, 5, 10" ya "1(a):3, 1(b):2, 2:6" → sawal (text khaali — paper mein hai) */
+function asgParseMarks(t){
+  const out = [], seen = new Set();
+  String(t||"").split(/[,\n;]+/).map(x=>x.trim()).filter(Boolean).slice(0, 60).forEach((x, i)=>{
+    const m = /^(.+?)\s*[:=]\s*(\d+(?:\.\d+)?)$/.exec(x) || /^(\d+(?:\.\d+)?)$/.exec(x);
+    if(!m) return;
+    const num = m.length === 3 ? m[1].replace(/^q\.?\s*/i, "").trim() : String(out.length + 1), marks = Math.round(+(m.length === 3 ? m[2] : m[1]));
+    if(!marks || seen.has(num)) return; seen.add(num);
+    out.push({number:num, type:"structured", text:"", options:[], marks, mark_scheme:[], model_answer:""});
+  });
+  return out;
+}
+/* v139: kisi bhi assignment mein paper (bache dekhte hain) / mark scheme (sirf AI) jorna / hatana */
+function asgFilesBox(){
+  const x = ASG.cur, row = (k, f, i) => `<div>📎 <a href="/api/asg/file/${f.file}" target="_blank" rel="noopener">${esc(f.name)}</a> <a href="#" onclick="ASG.cur.${k}.splice(${i},1);asgFilesDraw();return false" title="Remove">✕</a></div>`;
+  return `<div class="grid2" style="align-items:start">
+    <div class="field"><label>📄 Question paper — students see this (PDF / photos)</label>${(x.files||[]).map((f,i)=>row("files", f, i)).join("") || `<div class="sub">None — questions are typed below</div>`}
+      <input type="file" accept="image/*,application/pdf" multiple onchange="asgAttach('files', this)" style="margin-top:4px"></div>
+    <div class="field"><label>✅ Mark scheme file — only the AI sees it (optional)</label>${(x.schemeFiles||[]).map((f,i)=>row("schemeFiles", f, i)).join("") || `<div class="sub">None — the AI uses the mark scheme points below${(x.files||[]).length ? " or writes its own from the paper" : ""}</div>`}
+      <input type="file" accept="image/*,application/pdf" multiple onchange="asgAttach('schemeFiles', this)" style="margin-top:4px"></div></div>`;
+}
+const asgFilesDraw = () => { if($("ae_files")) $("ae_files").innerHTML = asgFilesBox(); };
+async function asgAttach(k, input){
+  const files = [...input.files]; input.value = ""; if(!files.length) return;
+  asgBusy(true, "Uploading…");
+  try{ ASG.cur[k] = (ASG.cur[k] || []).concat(await asgUploadFiles(files)).slice(0, 20); toast("Attached — press Save / Publish to keep it"); }
+  catch(e){ toast(e.message); }
+  finally{ asgBusy(false); }
+  asgFilesDraw();
+}
+
 /* ------------------------------- editor ------------------------------- */
 async function asgEdit(a){
   asgStop(); ASG.view = "edit"; ASG.cur = structuredClone(a);
@@ -8633,7 +8681,8 @@ async function asgEdit(a){
     ${started ? `<div class="note">${started} student(s) have started — you can fix wording and the mark scheme, but not add / remove questions or change marks.</div>` : ""}
     <div class="field"><label>Title</label><input id="ae_title" value="${esc(x.title)}"></div>
     <div class="field"><label>Instructions for students</label><textarea id="ae_instr" rows="2">${esc(x.instructions)}</textarea></div>
-    ${(x.files||[]).length ? `<div class="field"><label>Question paper (students see this)</label>${x.files.map(f=>`<div>📎 <a href="/api/asg/file/${f.file}" target="_blank" rel="noopener">${esc(f.name)}</a></div>`).join("")}</div>` : ""}
+    <div id="ae_files">${asgFilesBox()}</div>
+    ${x.source === "pdf" ? `<div class="note">📄 Students answer on paper and upload their answer script. Question text below is optional — the AI reads the questions from your paper. Add mark scheme points per question if you like (or attach a mark scheme file above).</div>` : ""}
     <div id="ae_qs"></div>
     <button class="btn-line btn-sm" onclick="asgAddQ()" ${started ? "disabled" : ""}>+ Add question</button> <span class="sub" id="ae_tot"></span></div>
   <div class="panel"><h3>Give to students</h3>
@@ -8737,7 +8786,7 @@ const asgTot = () => { $("ae_tot").textContent = `Total: ${ASG.cur.questions.red
 function asgAddQ(){ ASG.cur.questions.push({number:String(ASG.cur.questions.length + 1), type:"short", text:"", options:[], marks:2, mark_scheme:[""], model_answer:""}); asgDrawQs(); }
 async function asgSave(status){
   const x = ASG.cur;
-  const body = {id:x.id || undefined, shift:x.shift, course:x.course, subject:x.subject, level:x.level, code:x.code, kind:x.kind || "assignment", files:x.files || [],
+  const body = {id:x.id || undefined, shift:x.shift, course:x.course, subject:x.subject, level:x.level, code:x.code, kind:x.kind || "assignment", files:x.files || [], schemeFiles:x.schemeFiles || [], source:x.source,
     title:$("ae_title").value, instructions:$("ae_instr").value, status,
     questions:x.questions.map(q=>({...q, options:q.type === "mcq" ? q.options.filter(o=>o.trim()) : [], mark_scheme:q.mark_scheme.filter(p=>p.trim())})),
     timed:$("ae_timed").checked, minutes:$("ae_min").value, openFrom:$("ae_open").value, dueDate:$("ae_due").value,

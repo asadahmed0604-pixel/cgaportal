@@ -786,3 +786,17 @@ Share → "Add to Home Screen" · Computer Chrome/Edge: the install icon in the 
 - Half leave shows in the profile stats, the monthly register PDF (column H), the CSV ("Half leave" column) and the teacher's Classes Taken hint.
   - Staff attendance import understands "Half leave" / "HL".
 - **Classes Taken → 🔁 Substitute** now lists all staff: teachers first, then coordinators / admin staff (e.g. coordinators who can cover a class).
+
+## Assignments — send a PDF, AI marks the answer scripts (v139)
+
+- New **📄 Send PDF** button on the Assignments page:
+  - attach the question paper (PDF or photos);
+  - optionally attach a **mark scheme** file, which only the AI sees;
+  - type the questions & marks as numbered on the paper: `5, 5, 10` or `1(a):3, 1(b):2, 2:6`.
+  No AI reading of the paper is needed first.
+- Students see the paper as it is, solve it on paper, and **upload photos / a PDF of their answer script** (or type answers). The AI then marks each question:
+  - with the teacher's mark scheme file when attached (it overrides typed points);
+  - otherwise with the points typed in the editor;
+  - otherwise by writing a Cambridge mark scheme itself from the paper.
+- In **any** assignment's editor (AI-generated, uploaded or hand-written) the teacher can attach / remove the question paper and the mark-scheme file.
+- Students can never open the mark-scheme file (the student file link only serves the paper and their own uploads).

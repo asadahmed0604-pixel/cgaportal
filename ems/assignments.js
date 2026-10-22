@@ -161,7 +161,7 @@ module.exports = function setup(ctx) {
       const sub = subs.get(queue.shift()), a = sub && asgById(sub.assignmentId);
       if (!sub || !a) continue;
       running++;
-      ai.check(a, sub, loadFiles(a.files), loadFiles(sub.files)).then((r) => {
+      ai.check(a, sub, loadFiles(a.files), loadFiles(sub.files), loadFiles(a.schemeFiles)).then((r) => {
         /* model ke jod par bharosa nahi — har sawal ke marks had ke andar, total dobara */
         const byNum = new Map(r.questions.map((q) => [String(q.number), q]));
         r.questions = a.questions.map((q) => {
@@ -421,11 +421,13 @@ module.exports = function setup(ctx) {
       const started = old ? subsOf(old.id).length : 0;
       if (started && JSON.stringify(cleanQuestions(old.questions).map((q) => [q.number, q.marks])) !== JSON.stringify(questions.map((q) => [q.number, q.marks])))
         return sendJson(res, 409, { error: `${started} student(s) already started — you can fix wording and the mark scheme, but not add / remove questions or change marks.` });
-      const a = old || { id: uid(), files: [], schemeFiles: [], source: "manual", createdAt: new Date().toISOString(), createdBy: who.name,
+      const a = old || { id: uid(), files: [], schemeFiles: [], source: body.source === "pdf" ? "pdf" : "manual", createdAt: new Date().toISOString(), createdBy: who.name,
         teacherId: auth.role === "teacher" ? auth.tid : str(body.teacherId, 40) };
       Object.assign(a, spec, { title: str(body.title, 200) || `${spec.subject} assignment`, instructions: str(body.instructions, 4000), questions, total: total(questions),
         studentIds, timed, minutes, openFrom, dueDate, status: publish ? "published" : (old && old.status === "published" && body.status !== "draft" ? "published" : "draft") });
       if (Array.isArray(body.files)) a.files = body.files.filter(fileOk).slice(0, 20);
+      if (Array.isArray(body.schemeFiles)) a.schemeFiles = body.schemeFiles.filter(fileOk).slice(0, 20);     // v139: teacher ki mark scheme (sirf AI checking ke liye)
+      if (a.source === "pdf" && !a.files.length) return sendJson(res, 400, { error: "Attach the question paper (PDF or photos) first." });
       a.teacherName = teacherName(db, a.teacherId) || a.teacherName || who.name;
       if (!old) { assignments.push(a); if (isT) useSlot(auth.tid, a.kind); }
       saveAsg();
