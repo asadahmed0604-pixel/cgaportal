@@ -70,6 +70,7 @@ label input{display:block;width:100%;margin-top:5px;border:1.5px solid var(--lin
 .opts label:has(input:checked){border-color:var(--green);background:#E9F6F1}
 .paper img{width:100%;border-radius:10px;border:1px solid var(--line);margin-bottom:10px}
 .paper a{display:inline-block;margin:0 8px 8px 0}
+.paper iframe{width:100%;height:75vh;min-height:420px;border:1px solid var(--line);border-radius:10px;background:#fff;margin-bottom:8px}
 .photos{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px;margin-top:10px}
 .photos div{position:relative}.photos img{width:100%;height:120px;object-fit:cover;border-radius:10px;border:1px solid var(--line)}
 .photos button{position:absolute;top:4px;right:4px;border:0;border-radius:50%;width:26px;height:26px;background:rgba(0,0,0,.6);color:#fff}
@@ -447,11 +448,13 @@ function intro() {
   view.innerHTML = `<div class="card"><h2>${esc(a.title)}</h2>
     <p class="sub">${esc(a.subject)}${a.code ? " · Cambridge " + esc(a.level || "") + " " + esc(a.code) : ""} · ${a.total} marks${a.teacherName ? " · " + esc(a.teacherName) : ""}${a.dueDate ? " · due " + fmtD(a.dueDate) : ""}</p>
     ${a.instructions ? `<div class="note" style="white-space:pre-wrap">${esc(a.instructions)}</div>` : ""}
+    ${!a.timed && a.files.length ? `<p class="sub" style="margin:0 0 4px">The question paper is below — read it, then press Start.</p>` : ""}
     ${a.timed ? `<div class="note" style="border-left-color:var(--red);background:#FDECEA"><b>⏱ This is a timed assignment — ${a.minutes} minutes.</b><br>The timer starts as soon as you press Start and keeps running even if you close the page. When time is up, whatever you have written is submitted automatically.</div>`
              : `<p>Not timed — you can come back to it${a.dueDate ? " until " + fmtD(a.dueDate) : ""}. Your answers are saved as you type.</p>`}
     <p class="sub">You can type your answers and/or upload clear photos of your written work. It will be marked straight away against the Cambridge mark scheme.</p>
     ${cur.late ? `<p class="err">The due date has passed — ask your teacher.</p>` : `<button class="btn" id="startBtn" style="width:100%;margin-top:6px">${a.timed ? "▶ Start — timer begins" : "▶ Start — type my answers"}</button>
-      <button class="btn line" id="startUp" style="width:100%;margin-top:8px">📤 Solved on paper? Upload a PDF or photos</button>`}</div>`;
+      <button class="btn line" id="startUp" style="width:100%;margin-top:8px">📤 Solved on paper? Upload a PDF or photos</button>`}</div>
+    ${a.timed ? "" : paperHTML(a)}`;
   const b = $("#startBtn");
   if (b) b.addEventListener("click", () => { UPMODE = false; openAsg(a.id, true); });
   const u = $("#startUp");
@@ -468,9 +471,17 @@ function collect() {
   });
   return out;
 }
+/* v140: teacher ka paper seedha app ke andar (PDF khula hua, photos poori) — alag file kholne ki zaroorat nahi */
+function paperHTML(a) {
+  if (!a.files || !a.files.length) return "";
+  return `<div class="card paper"><h3>📄 Question paper</h3>${a.files.map((f) => f.type === "application/pdf"
+    ? `<iframe src="${fileUrl(f)}#view=FitH" title="${esc(f.name)}" loading="lazy"></iframe><a class="btn line" href="${fileUrl(f)}" target="_blank" rel="noopener">⤢ Open full screen — ${esc(f.name)}</a>`
+    : `<img src="${fileUrl(f)}" alt="${esc(f.name)}" loading="lazy">`).join("")}</div>`;
+}
 function work() {
   const a = cur.a, s = cur.sub;
   view.innerHTML = `
+    ${paperHTML(a)}
     ${a.instructions ? `<div class="card note" style="white-space:pre-wrap;margin-top:0">${esc(a.instructions)}</div>` : ""}
     <div class="card upcard" id="upCard"><h3>📤 Upload your work <span class="sub">(PDF or photos)</span></h3>
       <p class="sub" style="margin:0 0 10px">Solved on paper? Write each question number on the page, then add a <b>PDF</b> or <b>photos</b> — as many pages as you need (up to ${MAX_FILES}). You can add more pages one by one, remove a wrong one, then press <b>Submit</b>.</p>
@@ -483,8 +494,6 @@ function work() {
       <div class="sub" id="upCount" style="margin-top:6px"></div>
       <button class="btn" id="upSubmit" style="width:100%;margin-top:10px" hidden>✔ Submit uploaded work for checking</button>
       <p class="sub" style="margin:8px 0 0;text-align:center">On a computer you can also drag &amp; drop files here.</p></div>
-    ${a.files.length ? `<div class="card paper"><h3>Question paper</h3>${a.files.map((f) => f.type === "application/pdf"
-        ? `<a class="btn line" href="${fileUrl(f)}" target="_blank" rel="noopener">📄 Open ${esc(f.name)}</a>` : `<img src="${fileUrl(f)}" alt="${esc(f.name)}" loading="lazy">`).join("")}</div>` : ""}
     <div class="card">${a.questions.map((q, i) => {
       const val = s.answers[q.number] || "";
       const dgH = dgImg(q.diagram_svg);
