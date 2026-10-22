@@ -822,3 +822,11 @@ Share → "Add to Home Screen" · Computer Chrome/Edge: the install icon in the 
   - opens the teacher's PDF in the browser to print;
   - otherwise opens a clean print page with the photos, questions and diagrams.
 - The result screen's own print button is now "🖨 Print my result".
+
+## Morning timetable clashes fixed (v142)
+
+- The same subject at the same time in **different Morning classes** (e.g. FT1 English and FT2 English) with **different teachers** is no longer a clash.
+- A Morning clash is now only:
+  - **the same teacher** booked in two places at once;
+  - **the same class** having two lessons at once that some students take both of. Lessons in the same class that no student takes together show as "parallel".
+- Evening rules are unchanged.

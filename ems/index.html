@@ -1502,7 +1502,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v141 · 22 Oct 2026";
+const BUILD = "v142 · 22 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -2330,7 +2330,7 @@ function ttStudents(shift, course, subject){
   return DB.students.filter(st=>st.shift===shift && activeIn(st, m, RM) && inClass(st, course) &&
     (!subject || (st.subjects||[]).some(x=>subjLike(x.name, subject))));
 }
-/* v76: Morning — clash sirf jab ek hi waqt pe wohi subject ho (class ek waqt pe ho sakti hai) ya teacher do jagah ho.
+/* v142: Morning — clash sirf jab wohi teacher do jagah ho, ya wohi class ke bache do lessons ek saath lete hon. Alag classes mein wohi subject (alag teachers) clash nahi.
    Evening — bache ke hisaab se: jo bacha dono lessons (class + subject) leta ho, us ke liye clash; Mon–Fri ek jaisa, is liye sirf waqt. */
 const ttSig = x => `${x.course}|${keyify(x.subject)}|${x.tid}|${x.from}|${x.to}`;
 function ttClashes(shift){
@@ -2342,7 +2342,14 @@ function ttClashes(shift){
     let kind = "", why = "";
     if(a.tid === b.tid){ kind = "clash"; why = `${a.teacher} is booked in two classes at once`; }
     else if(shift === "Morning"){
-      if(a.subject && keyify(a.subject) === keyify(b.subject)){ kind = "clash"; why = `${a.subject} is on at the same time in ${a.course === b.course ? a.course + " twice" : a.course + " and " + b.course}`; }
+      /* v142: Morning — alag classes (FT1 / FT2) mein ek hi waqt wohi subject alag teachers ke paas = clash NAHI.
+         Clash sirf: wohi teacher do jagah (upar), ya WOHI class mein do lessons jo kuch bache dono lete hon */
+      if(a.course === b.course && !a.skill && !b.skill){
+        if(!a.subject || !b.subject || keyify(a.subject) === keyify(b.subject)){ kind = "par"; why = "parallel lessons in the same class (different teachers)"; }
+        else { const A = stu(a.course, a.subject), B = stu(b.course, b.subject), sh = [...A].filter(x=>B.has(x));
+          if(sh.length){ kind = "clash"; why = `${a.course}: ${sh.length} student${sh.length>1?"s take":" takes"} both ${a.subject} and ${b.subject}: ${sh.slice(0,4).map(id=>(stuById(id)||{}).name).filter(Boolean).join(", ")}${sh.length > 4 ? " …" : ""}`; }
+          else { kind = "par"; why = "parallel lessons — no student takes both subjects"; } }
+      }
     } else {
       if(!a.subject || !b.subject){ if(a.course === b.course){ kind = "clash"; why = `${a.course}: a lesson without a subject overlaps another lesson`; } }
       else { const A = stu(a.course, a.subject), B = stu(b.course, b.subject), sh = [...A].filter(x=>B.has(x));
