@@ -208,16 +208,23 @@ function extract(spec, paperFiles, schemeFiles) {
 function paperText(a) {
   return a.questions.map((q) => {
     const opts = q.options && q.options.length ? "\nOptions: " + q.options.map((o, i) => `${"ABCDEF"[i]}) ${o}`).join("  ") : "";
+    const ms = (q.mark_scheme || []).filter((p) => String(p).trim());
+    const msTxt = ms.length ? `- ${ms.join("\n- ")}` : "(none written — use the teacher's mark scheme file if one is attached, otherwise work out a Cambridge-style mark scheme yourself from the question paper)";
     const dg = q.diagram_info ? `\nDiagram given to the student: ${q.diagram_info}` : "", ad = q.answer_info ? `\nCorrect answer diagram: ${q.answer_info}` : "";
-    return `Question ${q.number} [${q.marks} marks] (${q.type})\n${q.text}${opts}${dg}${ad}\nMark scheme:\n- ${q.mark_scheme.join("\n- ")}`;
+    return `Question ${q.number} [${q.marks} marks] (${q.type})\n${String(q.text || "").trim() || "(see question " + q.number + " in the attached question paper)"}${opts}${dg}${ad}\nMark scheme:\n${msTxt}`;
   }).join("\n\n");
 }
 
-async function check(a, sub, paperFiles, workFiles) {
+async function check(a, sub, paperFiles, workFiles, schemeFiles) {
   const content = [];
   if (paperFiles.length) {
     paperFiles.forEach((f) => content.push(block(f)));
-    content.push({ type: "text", text: "Above: the original question paper (for diagrams and context)." });
+    content.push({ type: "text", text: "Above: the original question paper (the questions, diagrams and context)." });
+  }
+  /* v139: teacher ki mark scheme file — isi ke mutabiq marking */
+  if (schemeFiles && schemeFiles.length) {
+    schemeFiles.forEach((f) => content.push(block(f)));
+    content.push({ type: "text", text: "Above: the teacher's MARK SCHEME for this paper. Mark strictly by it (it overrides any mark scheme points written below)." });
   }
   workFiles.forEach((f) => content.push(block(f)));
   const typed = a.questions.map((q) => `${q.number}: ${(sub.answers && sub.answers[q.number] || "").trim() || "(no typed answer)"}`).join("\n");
