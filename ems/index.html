@@ -1486,7 +1486,7 @@ const DEFAULT_SUBJECTS = [
   /* O Level — 5 compulsory */
   ["English Language","O Level","C"],["Mathematics (D)","O Level","C"],["Islamiyat","O Level","C"],
   ["Pakistan Studies","O Level","C"],["Urdu","O Level","C"],
-  /* O Level — electives (in mein se 3) */
+  /* O Level — electives (in mein se 5 tak) */
   ["Physics","O Level","E"],["Chemistry","O Level","E"],["Biology","O Level","E"],
   ["Computer Science","O Level","E"],["Additional Mathematics","O Level","E"],
   ["Accounting","O Level","E"],["Business Studies","O Level","E"],["Economics","O Level","E"],
@@ -1511,7 +1511,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v148 · 26 Oct 2026";
+const BUILD = "v149 · 26 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -1552,7 +1552,7 @@ function guessCat(desc){
 }
 
 /* Morning (school) ka rule — kitne electives allowed hain. 0 = koi limit nahi */
-const ELECTIVE_LIMIT = {"O Level":3, "A Level":4, "Junior":0, "Foundation":0};
+const ELECTIVE_LIMIT = {"O Level":5, "A Level":5, "Junior":0, "Foundation":0};   // v149: 5 electives tak
 
 /* Sirf us class/grade ke subjects. classes[] khali ho to us poore level ke subjects. */
 function subjectsForClass(cls){
