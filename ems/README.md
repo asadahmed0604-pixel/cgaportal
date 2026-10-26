@@ -868,3 +868,15 @@ Share → "Add to Home Screen" · Computer Chrome/Edge: the install icon in the 
 - Items can be edited or deleted. Topics show "📎 n" when they have linked items. The office overview shows how many items each tracker has.
 - **Parents / students app (My Report → 📚 Syllabus coverage):** each subject lists its books, topicals, notes and links, with Open link / file buttons. This month's topics show 📎 when they have notes.
 - Server rule: links must be http(s), and parents can open only files of their child's class and subject.
+
+## Absent policy — salary cut after 2 leaves (v146)
+
+- Each month the first **2 leave days are paid**: Informed / Uninformed leave = 1, Half leave = ½. Every Absent day or extra leave day after that cuts **one full day's salary**.
+  - One day = monthly salary ÷ the employee's working days that month (from their schedule). Settings can change it to ÷ 30.
+  - On a day with both shifts, each shift counts as half a day.
+- Applies to **teachers** by default. Set it under Employees → Staff attendance → 🚫 Absent policy: On / off, teachers or all staff, ÷ working days or ÷ 30.
+- The cut is taken from the auto salary expense together with any late fine. For example: "Monthly salary − 1.5 unpaid days Rs 2,045 (absent after 2 leaves)".
+- Shown on:
+  - the attendance screen ("✂ 1½ unpaid days · Rs 2,045");
+  - the monthly register PDF / CSV ("Unpaid days", "Absent cut (Rs)");
+  - the teacher's own dashboard (days off, paid leave left, unpaid days).

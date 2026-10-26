@@ -1509,7 +1509,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v145 · 26 Oct 2026";
+const BUILD = "v146 · 26 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -8393,7 +8393,7 @@ function renderMyDash(){
   const ltm = empLateMonth(MY_TID, m), lp = latePolicy();
   $("mdAtt").innerHTML = `<div class="sub" style="margin-bottom:8px"><b>Your work days:</b> ${esc(schedText(me))}<br>
       <b>Late policy:</b> ${lp.allow} late minutes a month are allowed; after that every minute is Rs ${lp.rate} deducted from salary.
-      This month: <b>${ltm.tot} min</b> late${ltm.ded ? ` — <b style="color:var(--danger)">${ltm.over} min over → Rs ${ltm.ded.toLocaleString("en-US")} deduction</b>` : ` — ${Math.max(0, lp.allow - ltm.tot)} min of allowance left`}.</div>` + (uninf.length ? `<div class="note" style="border-left-color:#7a3b8f;margin-bottom:10px"><b>⚠ Remarks from the office — uninformed leave (${uninf.length})</b><br>
+      This month: <b>${ltm.tot} min</b> late${ltm.ded ? ` — <b style="color:var(--danger)">${ltm.over} min over → Rs ${ltm.ded.toLocaleString("en-US")} deduction</b>` : ` — ${Math.max(0, lp.allow - ltm.tot)} min of allowance left`}.${(ab=>ab.applies ? `<br><b>Leave policy:</b> ${absPolicy().free} paid leave days a month (half leave = ½); after that every absent / leave day cuts one full day's salary. This month: <b>${leaveFmt(ab.off)} day${ab.off===1?"":"s"} off</b>${ab.unpaid ? ` — <b style="color:var(--danger)">${leaveFmt(ab.unpaid)} unpaid day${ab.unpaid===1?"":"s"}${ab.ded ? ` → Rs ${ab.ded.toLocaleString("en-US")} deduction` : ""}</b>` : ` — ${leaveFmt(Math.max(0, absPolicy().free - ab.off))} paid leave left`}.` : "")(empAbsentMonth(MY_TID, m))}</div>` + (uninf.length ? `<div class="note" style="border-left-color:#7a3b8f;margin-bottom:10px"><b>⚠ Remarks from the office — uninformed leave (${uninf.length})</b><br>
       ${uninf.slice(0,8).map(d=>`${fmtD(d)} (${empRecs(att[d], MY_TID).filter(x=>x.s==="U").map(x=>x.shift).join(" & ")} shift) — leave taken without informing the office. Please inform the office in advance next time.`).join("<br>")}</div>` : "")
     + (days.length ? `<div class="tbl-wrap"><table><thead><tr><th>Date</th><th>Day</th><th>Shift</th><th>Status</th><th>Arrived</th><th>Late</th></tr></thead><tbody>
     ${days.slice().reverse().flatMap(d=>empRecs(att[d], MY_TID).map(r=>`<tr><td>${fmtD(d)}</td><td>${new Date(d+"T00:00").toLocaleDateString("en-GB",{weekday:"short"})}</td><td>${r.shift}</td>
@@ -10039,6 +10039,29 @@ function empShiftsOf(e){
    Kisi shift ka schedule na ho to purana qaida: Mon–Fri, waqt ke baghair (late minutes nahi ginte). */
 const WEEK = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"], WEEK_ORDER = [1,2,3,4,5,6,0];
 const latePolicy = () => ({allow:45, rate:250, ...((DB.settings||{}).latePolicy||{})});
+/* v146: 2 paid chhuttiyon (E / U = 1 din, H = ½) ke baad har absent / extra chhutti = poore din ki salary katti hai.
+   Aik din ki salary = mahine ki salary ÷ us mahine ke kaam ke din (employee ke schedule se). Default: sirf teachers. */
+const absPolicy = () => ({on:true, free:EMP_LEAVE_LIMIT, who:"Teacher", div:"work", ...((DB.settings||{}).absPolicy||{})});
+const absApplies = e => { const p = absPolicy(); return !!e && p.on && (p.who === "All" || e.category === "Teacher"); };
+function empWorkDays(e, m){
+  const [y, mo] = m.split("-").map(Number), n = new Date(y, mo, 0).getDate(); let w = 0;
+  for(let i = 1; i <= n; i++){ const d = `${m}-${String(i).padStart(2,"0")}`; if(empShiftsOf(e).some(sh=>empWorksOn(e, sh, d))) w++; }
+  return w;
+}
+function empAbsentMonth(eid, m, baseAmt){
+  const e = empById(eid), p = absPolicy(), out = {off:0, free:0, unpaid:0, days:[], perDay:0, ded:0, applies:absApplies(e)};
+  if(!e) return out;
+  Object.keys(DB.empAttendance||{}).filter(d=>d.startsWith(m)).sort().forEach(d=>{
+    const rs = empRecs(DB.empAttendance[d], eid); if(!rs.length) return;
+    const v = rs.reduce((a,x)=>a + (["A","E","U"].includes(x.s) ? 1 : x.s === "H" ? 0.5 : 0), 0) / rs.length;   // dono shift ho to har shift aadha din
+    if(v > 0){ out.off += v; out.days.push({d, v, s:rs.map(x=>x.s).join("/")}); } });
+  out.free = Math.min(out.off, +p.free || 0); out.unpaid = Math.max(0, Math.round((out.off - out.free)*2)/2);
+  if(out.applies && out.unpaid){
+    const base = baseAmt !== undefined ? +baseAmt || 0 : (salaryOf(e).amt || 0), div = p.div === "30" ? 30 : (empWorkDays(e, m) || 26);
+    out.perDay = Math.round(base / div); out.ded = Math.round(out.unpaid * base / div); out.div = div;
+  }
+  return out;
+}
 const empSched = (e, shift) => { const sc = e && e.schedule && e.schedule[shift]; return sc && Object.keys(sc).length ? sc : null; };
 const wdOf = date => new Date(date + "T00:00").getDay();
 function empWorksOn(e, shift, date){
@@ -10126,7 +10149,7 @@ function loadEmpAttendance(){
       </div></td>
       <td style="max-width:120px"><input type="time" value="${r.t||"09:00"}" onchange="empSetTime('${e.id}',this.value)"></td>
       <td id="elate_${e.id}" style="min-width:150px">${empLateCell(e, sh, date, r)}<br>${empLateLine(e.id, m)}</td>
-      <td><span class="badge ${block ? "b-unpaid" : "b-freeze"}" title="Leave days this month (both shifts) — half leave counts ½">${leaveFmt(used)} / ${EMP_LEAVE_LIMIT}</span>${block ? `<br><span class="sub" style="color:var(--danger)">limit reached — Absent</span>` : ""}</td>
+      <td><span class="badge ${block ? "b-unpaid" : "b-freeze"}" title="Leave days this month (both shifts) — half leave counts ½">${leaveFmt(used)} / ${EMP_LEAVE_LIMIT}</span>${block ? `<br><span class="sub" style="color:var(--danger)">limit reached — Absent</span>` : ""}${(ab=>ab.applies && ab.unpaid ? `<br><span class="sub" style="color:var(--danger)" title="Days off beyond the ${absPolicy().free} paid leaves this month">✂ ${leaveFmt(ab.unpaid)} unpaid day${ab.unpaid===1?"":"s"}${ab.ded ? ` · Rs ${ab.ded.toLocaleString("en-US")}` : ""}</span>` : "")(empAbsentMonth(e.id, m))}</td>
     </tr>`;
   }).join("") : `<tr><td colspan="8" class="empty">No ${sh} staff</td></tr>`;
 }
@@ -10220,7 +10243,17 @@ function drawLateBox(){
   b.innerHTML = `<b>⏰ Late policy:</b> up to <input type="number" id="lpAllow" value="${p.allow}" min="0" style="width:70px" ${IS_ADMIN ? "disabled" : ""}> late minutes a month are allowed; every extra minute costs
     Rs <input type="number" id="lpRate" value="${p.rate}" min="0" style="width:80px" ${IS_ADMIN ? "disabled" : ""}>, deducted from the salary.
     ${IS_ADMIN ? "" : `<button class="btn-line btn-sm" onclick="saveLatePolicy()">Save</button>`}
-    <span class="sub">Late minutes = arrival time − the start time set in the employee's work days (Employees → Edit).</span>`;
+    <span class="sub">Late minutes = arrival time − the start time set in the employee's work days (Employees → Edit).</span>
+    ${(a=>`<div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--line)"><b>🚫 Absent policy:</b>
+      <label class="chk" style="display:inline-flex;margin:0 6px"><input type="checkbox" id="apOn" ${a.on?"checked":""} ${IS_ADMIN ? "disabled" : ""}> On</label> —
+      after <b>${a.free}</b> paid leave days a month (Informed / Uninformed = 1, Half leave = ½), every Absent or extra leave day cuts <b>one full day's salary</b> for
+      <select id="apWho" style="width:auto" ${IS_ADMIN ? "disabled" : ""}><option value="Teacher" ${a.who==="Teacher"?"selected":""}>teachers</option><option value="All" ${a.who==="All"?"selected":""}>all staff</option></select>.
+      One day = monthly salary ÷ <select id="apDiv" style="width:auto" ${IS_ADMIN ? "disabled" : ""}><option value="work" ${a.div!=="30"?"selected":""}>their working days that month</option><option value="30" ${a.div==="30"?"selected":""}>30</option></select>
+      ${IS_ADMIN ? "" : `<button class="btn-line btn-sm" onclick="saveAbsPolicy()">Save</button>`}</div>`)(absPolicy())}`;
+}
+function saveAbsPolicy(){
+  DB.settings.absPolicy = {on:$("apOn").checked, who:$("apWho").value === "All" ? "All" : "Teacher", div:$("apDiv").value === "30" ? "30" : "work"};
+  save(); syncSalaries(); loadEmpAttendance(); toast(DB.settings.absPolicy.on ? "Absent policy saved — unpaid days are cut from salaries" : "Absent policy turned off");
 }
 function saveLatePolicy(){
   DB.settings.latePolicy = {allow:Math.max(0, +$("lpAllow").value||0), rate:Math.max(0, +$("lpRate").value||0)};
@@ -10391,18 +10424,19 @@ function empAttReportData(){
       if(rs.length) return rs.map(x=>x.s + (+x.lm ? "+" + x.lm : "")).join("/");
       return shs(e).some(x=>empWorksOn(e, x, d)) ? "—" : ""; });
     const c = empAttCount(e.id, d=>d.startsWith(m), sh), lt = empLateMonth(e.id, m);
-    return {e, marks, P:c.P, A:c.A, L:c.L, E:c.E, U:c.U, H:c.H, pct:c.pct, late:lt.tot, fine:lt.ded};
+    const ab = empAbsentMonth(e.id, m);
+    return {e, marks, P:c.P, A:c.A, L:c.L, E:c.E, U:c.U, H:c.H, pct:c.pct, late:lt.tot, fine:lt.ded, unpaid:ab.applies ? ab.unpaid : 0, absDed:ab.applies ? ab.ded : 0};
   });
   return {m, days, rows, sh};
 }
 function exportEmpAttCSV(){
   const {m, days, rows} = empAttReportData();
   if(!rows.length){ toast("No employees added — add staff in Employees first"); return; }
-  const head = ["#","Name","Category", ...days.map(d=>d.slice(8)), "Present","Late","Absent","Informed leave","Uninformed leave","Half leave","%","Late minutes","Late fine (Rs)"];
+  const head = ["#","Name","Category", ...days.map(d=>d.slice(8)), "Present","Late","Absent","Informed leave","Uninformed leave","Half leave","%","Late minutes","Late fine (Rs)","Unpaid days","Absent cut (Rs)"];
   const csvEsc = v => `"${String(v??"").replace(/"/g,'""')}"`;
   const lines = [head.map(csvEsc).join(",")];
   rows.forEach((r,i)=>{
-    lines.push([i+1, r.e.name, r.e.category, ...r.marks, r.P, r.L, r.A, r.E, r.U, r.H, r.pct+"%", r.late, r.fine].map(csvEsc).join(","));
+    lines.push([i+1, r.e.name, r.e.category, ...r.marks, r.P, r.L, r.A, r.E, r.U, r.H, r.pct+"%", r.late, r.fine, r.unpaid, r.absDed].map(csvEsc).join(","));
   });
   const blob = new Blob(["\ufeff"+lines.join("\r\n")],{type:"text/csv;charset=utf-8"});
   downloadFile(`staff-attendance-${m}.csv`, blob);
@@ -10427,6 +10461,8 @@ function exportEmpAttPDF(){
     <td style="border:1px solid #999;padding:3px 5px;text-align:center"><b>${r.pct}%</b></td>
     <td style="border:1px solid #999;padding:3px 5px;text-align:center">${r.late}</td>
     <td style="border:1px solid #999;padding:3px 5px;text-align:center;${r.fine ? "color:#C0392B;font-weight:700" : ""}">${r.fine ? r.fine.toLocaleString("en-US") : "—"}</td>
+    <td style="border:1px solid #999;padding:3px 5px;text-align:center">${r.unpaid || "—"}</td>
+    <td style="border:1px solid #999;padding:3px 5px;text-align:center;${r.absDed ? "color:#C0392B;font-weight:700" : ""}">${r.absDed ? r.absDed.toLocaleString("en-US") : "—"}</td>
   </tr>`).join("");
   $("challanPrint").innerHTML = `
     <div style="font-size:.75rem">
@@ -10440,7 +10476,7 @@ function exportEmpAttPDF(){
           <th style="border:1px solid #999;padding:3px 5px">Name</th>
           <th style="border:1px solid #999;padding:3px 5px">Category</th>
           ${th}
-          <th style="border:1px solid #999;padding:3px 3px">P</th><th style="border:1px solid #999;padding:3px 3px">L</th><th style="border:1px solid #999;padding:3px 3px">A</th><th style="border:1px solid #999;padding:3px 3px">E</th><th style="border:1px solid #999;padding:3px 3px">U</th><th style="border:1px solid #999;padding:3px 3px">H</th><th style="border:1px solid #999;padding:3px 3px">%</th><th style="border:1px solid #999;padding:3px 3px">Late min</th><th style="border:1px solid #999;padding:3px 3px">Fine (Rs)</th>
+          <th style="border:1px solid #999;padding:3px 3px">P</th><th style="border:1px solid #999;padding:3px 3px">L</th><th style="border:1px solid #999;padding:3px 3px">A</th><th style="border:1px solid #999;padding:3px 3px">E</th><th style="border:1px solid #999;padding:3px 3px">U</th><th style="border:1px solid #999;padding:3px 3px">H</th><th style="border:1px solid #999;padding:3px 3px">%</th><th style="border:1px solid #999;padding:3px 3px">Late min</th><th style="border:1px solid #999;padding:3px 3px">Fine (Rs)</th><th style="border:1px solid #999;padding:3px 3px">Unpaid days</th><th style="border:1px solid #999;padding:3px 3px">Absent cut (Rs)</th>
         </tr></thead>
         <tbody>${body}</tbody>
       </table>
@@ -13815,9 +13851,11 @@ function salManualDup(e, m){
 }
 /* Kis employee ka is mahine kya haal hai — sync aur preview dono yahi use karte hain */
 function salState(e, m, cfg){
-  const key = salKey(m, e.id), base = salaryOf(e), lt = empLateMonth(e.id, m);
-  /* v57: late policy ka jurmana isi mahine ki salary se kat-ta hai */
-  const s = lt.ded && base.amt ? {amt:Math.max(0, base.amt - lt.ded), src:`${base.src} − late fine Rs ${lt.ded.toLocaleString("en-US")} (${lt.over} min over)`, base:base.amt, fine:lt.ded} : base;
+  const key = salKey(m, e.id), base = salaryOf(e), lt = empLateMonth(e.id, m), ab = empAbsentMonth(e.id, m, base.amt);
+  /* v57: late policy ka jurmana isi mahine ki salary se kat-ta hai · v146: 2 chhuttiyon ke baad absent din ki poori salary */
+  const s = (lt.ded || ab.ded) && base.amt ? {amt:Math.max(0, base.amt - lt.ded - ab.ded),
+      src:`${base.src}${lt.ded ? ` − late fine Rs ${lt.ded.toLocaleString("en-US")} (${lt.over} min over)` : ""}${ab.ded ? ` − ${ab.unpaid} unpaid day${ab.unpaid===1?"":"s"} Rs ${ab.ded.toLocaleString("en-US")} (absent after ${absPolicy().free} leaves)` : ""}`,
+      base:base.amt, fine:lt.ded, absDed:ab.ded, absDays:ab.unpaid} : base;
   const posted = DB.txns.find(t=>t.autoKey===key);
   if(!salEligible(e,cfg))                          return {key, s, st:"notEligible", posted};
   if(e.doj && e.doj.slice(0,7) > m)                return {key, s, st:"notJoined", posted};
