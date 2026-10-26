@@ -880,3 +880,8 @@ Share → "Add to Home Screen" · Computer Chrome/Edge: the install icon in the 
   - the attendance screen ("✂ 1½ unpaid days · Rs 2,045");
   - the monthly register PDF / CSV ("Unpaid days", "Absent cut (Rs)");
   - the teacher's own dashboard (days off, paid leave left, unpaid days).
+
+## A Level Urdu subject (v147)
+
+- **Urdu · A Level** (elective, Cambridge 9676) is in the subjects list. Older data gets it added automatically once.
+- It can be chosen for A Level students, teacher assignments, tests and AI assignments (syllabus code filled in automatically).

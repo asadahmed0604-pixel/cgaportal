@@ -1502,14 +1502,16 @@ const DEFAULT_SUBJECTS = [
   ["Environmental Management","A Level","E"],["Global Perspectives & Research","A Level","E"],
 
   /* SAT prep — sirf SAT batch mein */
-  ["SAT English","A Level","E","SAT"],["SAT Math","A Level","E","SAT"]
+  ["SAT English","A Level","E","SAT"],["SAT Math","A Level","E","SAT"],
+  /* v147: A Level Urdu (Cambridge 9676) */
+  ["Urdu","A Level","E"]
 ];
 const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
   ({id:"sub"+i, name, level, kind: k==="C"?"Compulsory":"Elective", classes: only?[only]:[], defaultFee:0}));
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v146 · 26 Oct 2026";
+const BUILD = "v147 · 26 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -1695,6 +1697,9 @@ if(DB.settings.logo===undefined) DB.settings.logo = "";
 if(!DB.subjects || !DB.subjects.length) DB.subjects = seedSubjects();
 /* SAT batch ke subjects (naye add hue). Yahan uid() nahi bula sakte — wo neeche define
    hota hai aur us se poora script load hi na ho pata, is liye tay-shuda id use karte hain. */
+/* v147: A Level Urdu — purane catalogue mein bhi */
+if(!DB.subjects.some(x=>x.level==="A Level" && /^urdu$/i.test(String(x.name||"").trim())))
+  DB.subjects.push({id:"sub_al_urdu", name:"Urdu", level:"A Level", kind:"Elective", classes:[], defaultFee:0});
 [["sub_sat_eng","SAT English"], ["sub_sat_math","SAT Math"]].forEach(([id,n])=>{
   if(!DB.subjects.some(x=>x.name===n))
     DB.subjects.push({id, name:n, level:"A Level", kind:"Elective", classes:["SAT"], defaultFee:0});
