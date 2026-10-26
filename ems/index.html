@@ -1511,7 +1511,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v147 · 26 Oct 2026";
+const BUILD = "v148 · 26 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -2813,7 +2813,7 @@ function renderStudents(){
       <td><b>${i+1}</b></td>
       <td>${avatarHTML(s)}</td>
       <td><b>${esc(s.regNo)}</b></td>
-      <td>${esc(s.name)}${s.mode==="Online" ? ` <span class="badge b-paid">Online</span>` : ""}</td>
+      <td>${esc(s.name)}${s.mode==="Online" ? ` <span class="badge b-paid">Online</span>` : ""}${(t=>t ? ` <span class="badge b-freeze" title="Also studies in the ${t.shift} shift — ${esc(t.course)}">🌗 + ${t.shift} ${esc(t.course)}</span>` : "")(twinOf(s))}</td>
       <td>${esc(s.fatherName)}</td>
       <td>${esc(classLabelOf(s))}</td>
       <td>${esc(s.shift)}</td>
@@ -2852,7 +2852,7 @@ function openStudentForm(id, prefill){
       <div class="field"><label>Education / Qualification</label><input id="f_edu" value="${esc(s.education||"")}" placeholder="e.g. Matric / Inter / BA / BSc"></div>
       <div class="field"><label>Previous School / College / University</label><input id="f_prev" value="${esc(s.prevInst||"")}" placeholder="e.g. Govt. High School Lahore"></div>
       <div class="field"><label>Date of Join *</label><input type="date" id="f_doj" value="${s.id ? (s.doj||"") : wmDate()}"></div>
-      <div class="field"><label>Shift *</label><select id="f_shift" onchange="syncClassSel('f_shift','f_course');course2Sync();subjModeSync()">
+      <div class="field"><label>Shift *</label><select id="f_shift" onchange="syncClassSel('f_shift','f_course');course2Sync();subjModeSync();bothSync()">
         <option value="Morning" ${s.shift==="Morning"?"selected":""}>Morning — School System</option>
         <option value="Evening" ${s.shift==="Evening"?"selected":""}>Evening — Academy</option></select></div>
       <div class="field"><label>Class *</label><select id="f_course" onchange="course2Sync();subjModeSync()">${courseOptions(s.course, s.shift||"Morning")}</select></div>
@@ -2865,6 +2865,13 @@ function openStudentForm(id, prefill){
       <div class="field"><label>Student Photo</label><input type="file" id="f_photo" accept="image/*" onchange="pickPhoto(this)"><div id="photoPrev" style="margin-top:6px">${photoTemp?`<img class="avatar-lg" src="${photoTemp}">`:""}</div></div>
     </div>
     <div class="field"><label>Address</label><textarea id="f_addr" rows="2">${esc(s.address||"")}</textarea></div>
+    ${(tw=>tw ? `<div class="note" style="margin:0 0 10px">🌗 <b>Also studies in the ${tw.shift} shift</b> — ${esc(tw.course)}${tw.course2 ? " + " + esc(tw.course2) : ""} (${esc(tw.status)}). Name, father, phones, CNIC, address and photo stay the same in both records.
+        <button class="btn-line btn-sm" onclick="closeModal();openStudentForm('${tw.id}')">Open ${tw.shift} record</button> <button class="btn-line btn-sm" onclick="twinUnlink('${s.id}')">Unlink</button></div>`
+      : `<div class="panel" style="margin:0 0 10px;padding:10px 12px"><label class="chk" style="margin:0"><input type="checkbox" id="f_both" onchange="bothSync()"> 🌗 <b>Also studies in the <span id="f_bothSh">${(s.shift||"Morning") === "Evening" ? "Morning" : "Evening"}</span> shift</b> (both Morning &amp; Evening)</label>
+        <div id="f_bothBox" style="display:none;margin-top:8px"><div class="grid2"><div class="field"><label>Class in that shift *</label><select id="f_bothCourse"></select></div>
+          <div class="field fee-only"><label>Monthly fee in that shift (Rs)</label><input type="number" id="f_bothFee" placeholder="e.g. 6000"></div></div>
+          <div class="sub">A second record is made for that shift (own class, subjects, attendance and fee) and linked to this one. Add its subjects afterwards from its Edit.</div></div>
+        ${(c=>c.length ? `<div class="sub" style="margin-top:8px">Already enrolled separately in the other shift? ${c.map(x=>`<button class="btn-line btn-sm" onclick="twinLink('${s.id}','${x.id}')">🔗 Link with ${esc(x.name)} — ${x.shift} ${esc(x.course)} (${esc(x.regNo||"")})</button>`).join(" ")}</div>` : "")(id ? twinCands(s) : [])}</div>`)(id ? twinOf(s) : null)}
 
     <div class="panel" style="margin-bottom:0">
       <h3 id="subjHead">Subjects</h3>
@@ -3028,9 +3035,36 @@ function pickPhoto(inp){
   };
   img.src = URL.createObjectURL(f);
 }
+/* v148: dono shifts — har shift ka alag record (class, subjects, attendance, fee), aapas mein jura (st.twin) */
+const twinOf = s => s && s.twin ? DB.students.find(x=>x.id===s.twin && x.twin===s.id) || null : null;
+const TWIN_SYNC = ["name","fatherName","cnic","fatherCnic","phone","fatherPhone","motherPhone","address","dob","education","prevInst","photo"];
+function bothSync(){
+  const on = $("f_both") && $("f_both").checked, other = $("f_shift").value === "Evening" ? "Morning" : "Evening";
+  if($("f_bothSh")) $("f_bothSh").textContent = other;
+  if(!$("f_bothBox")) return;
+  $("f_bothBox").style.display = on ? "" : "none";
+  if(on){ const keep = $("f_bothCourse").dataset.sh === other ? $("f_bothCourse").value : ""; $("f_bothCourse").innerHTML = courseOptions(keep, other); $("f_bothCourse").dataset.sh = other; }
+}
+/* purane alag records — wohi Reg No ya wohi naam + father, doosri shift */
+function twinCands(s){
+  const norm = v => String(v||"").trim().toLowerCase().replace(/\s+/g, " ");
+  return DB.students.filter(x=>x.id !== s.id && x.shift !== s.shift && !twinOf(x) && x.status !== "Left" &&
+    ((s.regNo && x.regNo === s.regNo) || (norm(x.name) === norm(s.name) && norm(x.fatherName) === norm(s.fatherName)))).slice(0, 3);
+}
+function twinLink(id, otherId){
+  const s = stuById(id), t = stuById(otherId); if(!s || !t || twinOf(s) || twinOf(t)) return;
+  s.twin = t.id; t.twin = s.id; save(); closeModal(); renderStudents(); toast(`${s.name}: ${s.shift} and ${t.shift} records linked`);
+}
+function twinUnlink(id){
+  const s = stuById(id), t = twinOf(s); if(!s || !t) return;
+  if(!confirm(`Unlink ${s.name}'s ${s.shift} and ${t.shift} records? Both stay as separate students.`)) return;
+  delete s.twin; delete t.twin; save(); closeModal(); renderStudents(); toast("Records unlinked");
+}
 function saveStudent(id){
   const name=$("f_name").value.trim(), father=$("f_father").value.trim();
   if(!name||!father){ toast("Student name and father name are required"); return; }
+  const both = $("f_both") && $("f_both").checked;
+  if(both && !$("f_bothCourse").value){ toast("Choose the class in the other shift"); return; }
   const data = {
     name, fatherName:father,
     cnic:$("f_cnic").value.trim(), fatherCnic:$("f_fcnic").value.trim(),
@@ -3055,6 +3089,7 @@ function saveStudent(id){
     if(old.course !== data.course || (old.course2||"") !== (data.course2||"") || old.shift !== data.shift)
       data.prevClass = {course:old.course, course2:old.course2||"", shift:old.shift, subjects:(old.subjects||[]).map(x=>({...x})), at:todayStr(), by:myName() || ROLE_LABEL};
     Object.assign(old, data); toast("Student updated");
+    const tw = twinOf(old); if(tw){ TWIN_SYNC.forEach(k=>{ tw[k] = old[k]; }); }      // v148: dono records mein wohi zaati maloomat
   }
   else{
     data.id = uid();
@@ -3066,6 +3101,18 @@ function saveStudent(id){
     const fx = DB.fees.find(x=>x.studentId===data.id && x.month===wm()); if(fx) addRegFee(fx, data);
     inqConverted(data);
     toast("Enrolled — Reg No: " + data.regNo);
+  }
+  /* v148: doosri shift ka record bhi — wohi Reg No (app dono ko aik hi bacha samajhta hai) */
+  if(both){
+    const me = stuById(id) || DB.students.find(x=>x.id===data.id);
+    if(me && !twinOf(me)){
+      const other = me.shift === "Evening" ? "Morning" : "Evening";
+      const t = {id:uid(), regNo:me.regNo, ...Object.fromEntries(TWIN_SYNC.map(k=>[k, me[k]])), doj:me.doj || wmDate(), joinMonth:wm(),
+        course:$("f_bothCourse").value, course2:"", shift:other, monthlyFee:+$("f_bothFee").value || 0, teacherId:"", subjects:[], mode:me.mode || "Onsite",
+        status:"Active", group:"", twin:me.id};
+      me.twin = t.id; DB.students.push(t);
+      toast(`${me.name} is now in both shifts — ${me.shift}: ${me.course} · ${other}: ${t.course}`);
+    }
   }
   save(); closeModal(); renderStudents(); renderDashboard();
 }
@@ -3081,6 +3128,7 @@ function delStudent(id){
     `This cannot be undone.`,
     ()=>{
       DB.students = DB.students.filter(x=>x.id!==id);
+      DB.students.forEach(x=>{ if(x.twin === id) delete x.twin; });          // v148
       DB.fees = DB.fees.filter(f=>f.studentId!==id);
       DB.exams = DB.exams.filter(e=>e.studentId!==id);
       DB.issues = DB.issues.filter(x=>x.toId!==id);
