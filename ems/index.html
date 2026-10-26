@@ -1511,7 +1511,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v149 · 26 Oct 2026";
+const BUILD = "v150 · 26 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -1698,8 +1698,11 @@ if(!DB.subjects || !DB.subjects.length) DB.subjects = seedSubjects();
 /* SAT batch ke subjects (naye add hue). Yahan uid() nahi bula sakte — wo neeche define
    hota hai aur us se poora script load hi na ho pata, is liye tay-shuda id use karte hain. */
 /* v147: A Level Urdu — purane catalogue mein bhi */
-if(!DB.subjects.some(x=>x.level==="A Level" && /^urdu$/i.test(String(x.name||"").trim())))
-  DB.subjects.push({id:"sub_al_urdu", name:"Urdu", level:"A Level", kind:"Elective", classes:[], defaultFee:0});
+{ const alU = DB.subjects.filter(x=>x && x.level==="A Level" && /^urdu\b/i.test(String(x.name||"").trim()));
+  if(!alU.length) DB.subjects.push({id:"sub_al_urdu", name:"Urdu", level:"A Level", kind:"Elective", classes:[], defaultFee:0});
+  /* v150: kisi purani entry par sirf chand classes lagi hon (e.g. SAT) to admission mein AS/A2 par nazar hi nahi aati thi —
+     A Level Urdu ab poore A Level (AS, A2, Composite) mein offer hoti hai */
+  else alU.forEach(x=>{ if(Array.isArray(x.classes) && x.classes.length && !x.classes.some(c=>["AS","A2","A Levels","AS & A2 (Composite)"].includes(c))) x.classes = []; }); }
 [["sub_sat_eng","SAT English"], ["sub_sat_math","SAT Math"]].forEach(([id,n])=>{
   if(!DB.subjects.some(x=>x.name===n))
     DB.subjects.push({id, name:n, level:"A Level", kind:"Elective", classes:["SAT"], defaultFee:0});
