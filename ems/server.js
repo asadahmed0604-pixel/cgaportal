@@ -486,6 +486,10 @@ function cleanSyllabus(x, tid, me) {
   Object.entries(x.targets && typeof x.targets === "object" ? x.targets : {}).slice(0, 24).forEach(([m, t]) => { if (mo(m) && t) targets[m] = { text: cl(t.text, 3000), files: files(t.files) }; });
   return { id: cl(x.id, 40), tid, tname: (me && me.name) || cl(x.tname, 80), shift: x.shift === "Evening" ? "Evening" : "Morning", course: cl(x.course, 60), subject: cl(x.subject, 80),
     year: cl(x.year, 12), planFiles: files(x.planFiles), targets, updatedAt: new Date().toISOString(),
+    /* v145: books / topicals / notes / links — parents dekhte hain */
+    resources: (Array.isArray(x.resources) ? x.resources : []).filter((r) => r && String(r.title || "").trim()).slice(0, 200).map((r) => ({
+      id: cl(r.id, 30), kind: ["book", "topical", "notes", "link"].includes(r.kind) ? r.kind : "notes", title: cl(r.title, 200), detail: cl(r.detail, 1500),
+      url: /^https?:\/\/[^\s"'<>]+$/i.test(String(r.url || "").trim()) ? String(r.url).trim().slice(0, 500) : "", topicId: cl(r.topicId, 30), files: files(r.files), at: cl(r.at, 10) })),
     topics: (Array.isArray(x.topics) ? x.topics : []).filter((t) => t && String(t.t || "").trim()).slice(0, 400).map((t) => ({
       id: cl(t.id, 30), t: cl(t.t, 300), m: mo(t.m), s: ["done", "part", "not"].includes(t.s) ? t.s : "", d: dt(t.d), c: cl(t.c, 1000) })) };
 }
