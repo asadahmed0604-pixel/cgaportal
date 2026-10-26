@@ -885,3 +885,14 @@ Share → "Add to Home Screen" · Computer Chrome/Edge: the install icon in the 
 
 - **Urdu · A Level** (elective, Cambridge 9676) is in the subjects list. Older data gets it added automatically once.
 - It can be chosen for A Level students, teacher assignments, tests and AI assignments (syllabus code filled in automatically).
+
+## Students in both shifts — Morning & Evening (v148)
+
+- In **New Student Enrollment** and **Edit**, tick **🌗 Also studies in the other shift**, then choose that shift's class and monthly fee.
+  - Saving makes a second record for the other shift with the same Reg No, linked to the first.
+  - Each shift keeps its own class, subjects, attendance and fee. Add the other shift's subjects from its own Edit.
+- Name, father, phones, CNICs, address, DOB, education and photo stay the same in both records: editing one updates the other.
+- The students list shows "🌗 + Evening AS" (or "+ Morning FT1") next to the name.
+- The Edit form of a linked student has **Open <shift> record** and **Unlink**.
+- A student already enrolled separately in both shifts (same Reg No, or same name + father) gets a **🔗 Link with …** button in Edit.
+- Deleting one record removes the link from the other.
