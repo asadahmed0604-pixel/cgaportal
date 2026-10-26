@@ -199,14 +199,17 @@ function studentReport(db, st, today) {
         return { month: x.month, group: [g.code ? "Group " + g.code : "", g.name || ""].filter(Boolean).join(": "), by: x.by || "", note: x.note || "",
           ratings: Object.entries(x.ratings || {}).map(([k, v]) => ({ skill: k, level: v })) }; }) : [],
     /* v143: syllabus coverage — bache ki class + subjects ke trackers (Morning teachers) */
-    syllabus: (db.syllabus || []).filter((x) => x && x.shift === st.shift && classesOf(st).includes(x.course) && takesSubj(st, x.subject) && (x.topics || []).length)
+    syllabus: (db.syllabus || []).filter((x) => x && x.shift === st.shift && classesOf(st).includes(x.course) && takesSubj(st, x.subject) && ((x.topics || []).length || (x.resources || []).length))
       .sort((a, b) => String(a.subject).localeCompare(String(b.subject))).map((x) => {
         const T = x.topics || [], m = today.slice(0, 7), done = T.filter((t) => t.s === "done").length + T.filter((t) => t.s === "part").length / 2;
         const due = T.filter((t) => t.m && t.m <= m), dueDone = due.filter((t) => t.s === "done").length + due.filter((t) => t.s === "part").length / 2;
         const tg = (x.targets || {})[m] || null;
         return { subject: x.subject, teacher: x.tname || "", pct: T.length ? Math.round((done * 100) / T.length) : 0, onTrack: due.length ? Math.round((dueDone * 100) / due.length) : null,
+          /* v145: books / topicals / notes / links (topic ka naam saath) */
+          resources: (x.resources || []).map((r) => ({ kind: r.kind, title: r.title, detail: r.detail || "", url: r.url || "", files: r.files || [],
+            topic: r.topicId ? ((T.find((t) => t.id === r.topicId) || {}).t || "") : "" })),
           total: T.length, covered: T.filter((t) => t.s === "done").length, target: tg ? tg.text : "", targetFiles: tg ? tg.files || [] : [], planFiles: x.planFiles || [],
-          month: T.filter((t) => t.m === m).map((t) => ({ t: t.t, s: t.s, d: t.d, c: t.c })),
+          month: T.filter((t) => t.m === m).map((t) => ({ t: t.t, s: t.s, d: t.d, c: t.c, res: (x.resources || []).filter((r) => r.topicId === t.id).length })),
           recent: T.filter((t) => t.s && t.m !== m).sort((a, b) => String(b.d || b.m).localeCompare(String(a.d || a.m))).slice(0, 6).map((t) => ({ t: t.t, s: t.s, d: t.d, c: t.c })) };
       }),
     remarks: (st.remarks || []).filter((r) => r.parentVisible !== false).sort((a, b) => String(b.d).localeCompare(String(a.d))).slice(0, 8)

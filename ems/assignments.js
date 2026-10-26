@@ -624,7 +624,7 @@ module.exports = function setup(ctx) {
         || Object.values(hwSubs).some((x) => x.studentId === st.id && (x.files || []).some((f) => f.file === name))
         /* v143: syllabus planner / monthly target files — bache ki apni class + subject ke */
         || (fam.db.syllabus || []).some((x) => x && x.shift === st.shift && [st.course, st.shift === "Evening" ? st.course2 : ""].filter(Boolean).includes(x.course)
-          && [...(x.planFiles || []), ...Object.values(x.targets || {}).flatMap((t) => (t && t.files) || [])].some((f) => f.file === name)));
+          && [...(x.planFiles || []), ...Object.values(x.targets || {}).flatMap((t) => (t && t.files) || []), ...(x.resources || []).flatMap((r) => (r && r.files) || [])].some((f) => f.file === name)));
       if (!ok || !fs.existsSync(path.join(FILES, name))) return send(res, 404, "Not found");
       return send(res, 200, fs.readFileSync(path.join(FILES, name)), EXT_TYPE[fm[2]], { "Cache-Control": "private, max-age=86400", "Content-Disposition": "inline", "X-Frame-Options": "SAMEORIGIN" });
     }

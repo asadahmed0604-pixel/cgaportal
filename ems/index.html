@@ -1509,7 +1509,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v144 · 26 Oct 2026";
+const BUILD = "v145 · 26 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -9238,6 +9238,8 @@ function syChoices(){
   return out.sort((a,b)=>classSort(a.course, b.course) || a.subject.localeCompare(b.subject));
 }
 function renderSyllabus(){
+  if($("syr_t") && !(window._sy||{}).resFresh) syResGrab();   // v145: adha bhara form na mite
+  if(window._sy) window._sy.resFresh = false;
   const st = window._sy || (window._sy = {id:"", m:thisMonth(), all:false});
   const L = syMine().slice().sort((a,b)=>classSort(a.course, b.course) || a.subject.localeCompare(b.subject));
   if(st.id && !L.some(x=>x.id===st.id)) st.id = "";
@@ -9245,9 +9247,9 @@ function renderSyllabus(){
       ${L.length ? `<div class="field" style="min-width:260px"><label>Tracker</label><select onchange="window._sy.id=this.value;renderSyllabus()"><option value="">${IS_TEACHER ? "— my trackers —" : "📊 Overview — all teachers"}</option>${L.map(x=>`<option value="${x.id}" ${x.id===st.id?"selected":""}>${esc(x.course)} · ${esc(x.subject)}${IS_TEACHER ? "" : " — " + esc(x.tname||"")}</option>`).join("")}</select></div>` : ""}
       <button class="btn-red" style="margin-left:auto" onclick="syNew()">+ New tracker</button></div>`;
   if(!st.id){
-    $("syBody").innerHTML = head + (L.length ? `<div class="tbl-wrap"><table><thead><tr><th>Class</th><th>Subject</th>${IS_TEACHER ? "" : "<th>Teacher</th>"}<th style="text-align:right">Topics</th><th>Covered</th><th style="text-align:right">On track (planned till ${fmtM(thisMonth())})</th><th>${fmtM(thisMonth())} target</th><th></th></tr></thead><tbody>
+    $("syBody").innerHTML = head + (L.length ? `<div class="tbl-wrap"><table><thead><tr><th>Class</th><th>Subject</th>${IS_TEACHER ? "" : "<th>Teacher</th>"}<th style="text-align:right">Topics</th><th style="text-align:right">Books / notes</th><th>Covered</th><th style="text-align:right">On track (planned till ${fmtM(thisMonth())})</th><th>${fmtM(thisMonth())} target</th><th></th></tr></thead><tbody>
       ${L.map(x=>{ const k = syStats(x), tg = (x.targets||{})[thisMonth()];
-        return `<tr><td><b>${esc(x.course)}</b></td><td>${esc(x.subject)}</td>${IS_TEACHER ? "" : `<td>${esc(x.tname||"—")}</td>`}<td style="text-align:right">${k.n}</td>
+        return `<tr><td><b>${esc(x.course)}</b></td><td>${esc(x.subject)}</td>${IS_TEACHER ? "" : `<td>${esc(x.tname||"—")}</td>`}<td style="text-align:right">${k.n}</td><td style="text-align:right">${(x.resources||[]).length || "—"}</td>
           <td style="min-width:150px"><div class="att-bar"><i style="width:${k.pct}%"></i></div><span class="sub">${k.pct}% · ${k.done} done</span></td>
           <td style="text-align:right">${k.onTrack === null ? `<span class="sub">—</span>` : `<span class="badge ${k.onTrack>=90?"b-paid":k.onTrack>=70?"b-freeze":"b-left"}">${k.onTrack}%</span>`}</td>
           <td>${tg && tg.text ? `<span class="badge b-paid">✓ set</span>` : `<span class="badge b-unpaid">not set</span>`}</td>
@@ -9260,7 +9262,7 @@ function renderSyllabus(){
   const T = (x.topics||[]).map((t, i)=>({t, i})), shown = st.all ? T : T.filter(o=>o.t.m === m), noMonth = T.filter(o=>!o.t.m);
   const fileList = (L2, k2) => (L2||[]).map((f,i)=>`<div>📎 <a href="/api/asg/file/${f.file}" target="_blank" rel="noopener">${esc(f.name)}</a> <a href="#" onclick="sySetFiles('${k2}',${i});return false" title="Remove">✕</a></div>`).join("");
   const topicRow = ({t, i}) => `<div class="sy-row" style="border-left:4px solid ${t.s ? SY_ST[t.s][1] : "#C9D6DC"}">
-      <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center"><b>${esc(t.t)}</b>
+      <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center"><b>${esc(t.t)}${(n=>n ? ` <span class="chip" title="Books / topicals / notes linked to this topic">📎 ${n}</span>` : "")((x.resources||[]).filter(r=>r.topicId===t.id).length)}</b>
         <span class="sub">${st.all ? (t.m ? fmtM(t.m) : "no month") + " · " : ""}<select style="width:auto;padding:2px 6px" onchange="sySet(${i},'m',this.value)">${M.map(mm=>`<option value="${mm}" ${mm===t.m?"selected":""}>${fmtM(mm)}</option>`).join("")}<option value="" ${t.m?"":"selected"}>— month —</option></select>
         <a href="#" onclick="syDel(${i});return false" title="Delete topic" style="margin-left:6px">🗑</a></span></div>
       <div class="cl-btns" style="margin-top:6px">${["done","part","not"].map(v=>`<button class="${v==="done"?"T":v==="part"?"P":"N"} ${t.s===v?"on":""}" onclick="sySet(${i},'s','${v}')">${SY_ST[v][0]}</button>`).join("")}
@@ -9284,12 +9286,56 @@ function renderSyllabus(){
         <div class="field"><label>Target for ${fmtM(m)} (parents see this)</label><textarea id="sy_tg" rows="4" placeholder="e.g. Complete chapters 4 and 5, practical on moments, and a chapter test in the last week">${esc(tg.text||"")}</textarea></div>
         <div class="field"><label>Target file (optional)</label>${fileList(tg.files, "t:" + m) || `<div class="sub">None attached</div>`}<input type="file" accept="image/*,application/pdf" multiple onchange="syAttach('t:${m}', this)" style="margin-top:4px"></div>
         <button class="btn-black btn-sm" onclick="sySaveTarget()">💾 Save target</button></div></div>
+    ${syResHTML(x)}
     <div class="panel"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><h3 style="margin:0">✅ Coverage — ${st.all ? "all topics" : fmtM(m)}</h3>
         <label class="chk"><input type="checkbox" ${st.all?"checked":""} onchange="window._sy.all=this.checked;renderSyllabus()"> Show the whole year</label></div>
       <p class="sub" style="margin:4px 0 10px">Tick each topic: covered, partly, or not covered — and add a comment. Saved straight away; parents see it in the app.</p>
       ${shown.length ? shown.map(topicRow).join("") : `<div class="note">No topics planned for ${fmtM(m)} — add them in the Yearly planner box (start the line with "${fmtM(m).split(" ")[0].slice(0,3)}:").</div>`}</div>`;
 }
 const syCur = () => syList().find(x=>x.id===(window._sy||{}).id);
+/* v145: books / topicals / notes / links — parents app mein dikhte hain */
+const SY_RES = {book:["📘","Book"], topical:["📝","Topical"], notes:["🗒","Notes"], link:["🔗","Link"]};
+function syResHTML(x){
+  const R = x.resources || [], st = window._sy, ed = st.res || {}, topics = x.topics || [];
+  const grp = Object.keys(SY_RES).map(k=>[k, R.map((r,i)=>({r,i})).filter(o=>o.r.kind===k)]).filter(([,L])=>L.length);
+  return `<div class="panel"><h3>📖 Books, topicals &amp; notes <span class="sub" style="font-weight:400">— parents and students see these in the app</span></h3>
+    ${grp.length ? grp.map(([k, L])=>`<div style="margin:6px 0 10px"><b>${SY_RES[k][0]} ${SY_RES[k][1]}${L.length>1?"s":""}</b>${L.map(({r,i})=>`<div class="sy-row" style="margin:6px 0 0">
+        <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><b>${esc(r.title)}</b><span><a href="#" onclick="syResEdit(${i});return false">✏ Edit</a> · <a href="#" onclick="syResDel(${i});return false">🗑</a></span></div>
+        ${r.detail ? `<div class="sub" style="white-space:pre-wrap">${esc(r.detail)}</div>` : ""}
+        ${r.topicId ? `<div class="sub">Topic: ${esc((topics.find(t=>t.id===r.topicId)||{}).t || "—")}</div>` : ""}
+        ${r.url ? `<div><a href="${esc(r.url)}" target="_blank" rel="noopener">🔗 ${esc(r.url.length > 60 ? r.url.slice(0, 57) + "…" : r.url)}</a></div>` : ""}
+        ${(r.files||[]).map(f=>`<div>📎 <a href="/api/asg/file/${f.file}" target="_blank" rel="noopener">${esc(f.name)}</a></div>`).join("")}</div>`).join("")}</div>`).join("")
+      : `<p class="sub">No books, topicals or notes yet — add the textbook, past-paper topicals and your notes below.</p>`}
+    <div style="border-top:1px dashed var(--line);margin-top:8px;padding-top:8px"><b>${ed.i !== undefined ? "✏ Edit" : "+ Add"}</b>
+      <div class="grid2"><div class="field"><label>Type</label><select id="syr_k">${Object.entries(SY_RES).map(([k,v])=>`<option value="${k}" ${(ed.kind||"book")===k?"selected":""}>${v[0]} ${v[1]}</option>`).join("")}</select></div>
+        <div class="field"><label>Title *</label><input id="syr_t" value="${esc(ed.title||"")}" placeholder="e.g. Complete Physics for Cambridge IGCSE / Topical: Forces (2015–2024)"></div></div>
+      <div class="field"><label>Details (author, edition, chapters, which questions to do…)</label><textarea id="syr_d" rows="2" placeholder="e.g. Stephen Pople, 3rd edition — chapters 1–6. Do Q1–10 of the topical by Friday.">${esc(ed.detail||"")}</textarea></div>
+      <div class="grid2"><div class="field"><label>Link (optional — website, video, Google Drive)</label><input id="syr_u" value="${esc(ed.url||"")}" placeholder="https://…"></div>
+        <div class="field"><label>For topic (optional)</label><select id="syr_p"><option value="">— whole subject —</option>${topics.map(t=>`<option value="${t.id}" ${ed.topicId===t.id?"selected":""}>${t.m ? fmtM(t.m).split(" ")[0].slice(0,3) + " · " : ""}${esc(t.t)}</option>`).join("")}</select></div></div>
+      <div class="field"><label>Files (PDF / photos — optional)</label>${(ed.files||[]).map((f,j)=>`<div>📎 ${esc(f.name)} <a href="#" onclick="window._sy.res.files.splice(${j},1);renderSyllabus();return false">✕</a></div>`).join("")}
+        <input type="file" accept="image/*,application/pdf" multiple onchange="syResAttach(this)"></div>
+      <button class="btn-black btn-sm" onclick="syResSave()">${ed.i !== undefined ? "💾 Save changes" : "+ Add"}</button>${ed.i !== undefined || ed.title ? ` <button class="btn-line btn-sm" onclick="window._sy.res={};window._sy.resFresh=true;renderSyllabus()">Cancel</button>` : ""}</div></div>`;
+}
+function syResGrab(){ const r = window._sy.res = window._sy.res || {}; if(!$("syr_t")) return r;
+  Object.assign(r, {kind:$("syr_k").value, title:$("syr_t").value, detail:$("syr_d").value, url:$("syr_u").value.trim(), topicId:$("syr_p").value}); return r; }
+async function syResAttach(input){
+  const files = [...input.files]; input.value = ""; if(!files.length) return;
+  if(!SERVER){ toast("Files can be attached on the online version only"); return; }
+  const r = syResGrab();
+  try{ toast("Uploading…"); const up = await asgUploadFiles(files); r.files = [...(r.files||[]), ...up].slice(0, 10); renderSyllabus(); toast(`${up.length} file${up.length>1?"s":""} ready — press ${r.i !== undefined ? "Save changes" : "+ Add"}`); }
+  catch(e){ toast(e.message); }
+}
+function syResSave(){
+  const x = syCur(); if(!x) return; const r = syResGrab();
+  if(!String(r.title||"").trim()){ toast("Write the title"); return; }
+  if(r.url && !/^https?:\/\//i.test(r.url)) r.url = "https://" + r.url;
+  const rec = {id:r.id || uid(), kind:r.kind || "book", title:r.title.trim().slice(0,200), detail:String(r.detail||"").trim(), url:r.url||"", topicId:r.topicId||"", files:r.files||[], at:todayStr()};
+  x.resources = x.resources || [];
+  if(r.i !== undefined && x.resources[r.i]) x.resources[r.i] = rec; else x.resources.push(rec);
+  window._sy.res = {}; window._sy.resFresh = true; save(); renderSyllabus(); toast(`${SY_RES[rec.kind][1]} saved — parents can see it`);
+}
+function syResEdit(i){ const x = syCur(), r = x && (x.resources||[])[i]; if(!r) return; window._sy.res = {...structuredClone(r), i}; window._sy.resFresh = true; renderSyllabus(); const t = $("syr_t"); if(t) t.scrollIntoView({block:"center"}); }
+function syResDel(i){ const x = syCur(), r = x && (x.resources||[])[i]; if(!r || !confirm(`Delete "${r.title}"?`)) return; x.resources.splice(i, 1); save(); renderSyllabus(); }
 function syNew(){
   const C = syChoices().filter(c=>!syList().some(x=>x.course===c.course && keyify(x.subject)===keyify(c.subject) && x.tid===c.tid));
   if(!C.length){ toast(IS_TEACHER ? "Every Morning class & subject assigned to you already has a tracker (or none is assigned — ask the admin: Employees → Edit → Assign)" : "No Morning class & subject assignments without a tracker"); return; }

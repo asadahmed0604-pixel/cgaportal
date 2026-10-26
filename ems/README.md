@@ -856,3 +856,15 @@ Share → "Add to Home Screen" · Computer Chrome/Edge: the install icon in the 
 - **+ Add to this paper** or **+ Add to all papers of this exam** puts the student in the list.
   - Their marks then count everywhere: averages and report cards.
   - "added ✕" next to the name removes them again.
+
+## Syllabus Tracker — books, topicals & notes (v145)
+
+- Each tracker has a new **📖 Books, topicals & notes** section. Every item has:
+  - a type: 📘 Book, 📝 Topical, 🗒 Notes or 🔗 Link;
+  - a title and details (author, edition, chapters, which questions to do…);
+  - an optional link (website / video / Google Drive);
+  - optional files (PDF / photos);
+  - optionally, the topic it belongs to.
+- Items can be edited or deleted. Topics show "📎 n" when they have linked items. The office overview shows how many items each tracker has.
+- **Parents / students app (My Report → 📚 Syllabus coverage):** each subject lists its books, topicals, notes and links, with Open link / file buttons. This month's topics show 📎 when they have notes.
+- Server rule: links must be http(s), and parents can open only files of their child's class and subject.
