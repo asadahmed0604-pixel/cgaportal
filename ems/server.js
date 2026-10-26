@@ -355,6 +355,7 @@ function teacherView(d, tid) {
     /* v106: teacher ke bheje hue student remarks / issues (Executive approve karta hai) — sirf apne */
     stuNotes: (d.stuNotes || []).filter((n) => n && n.tid === tid),
     skillGroups: grps,
+    syllabus: (d.syllabus || []).filter((x) => x && x.tid === tid),                                     // v143: apne syllabus trackers
     concerns: (d.concerns || []).filter((c) => c && c.assignTo === tid),                                // v134: sirf is teacher ko assign kiye hue                                                                                  // v116
     skillDev: (d.skillDev || []).filter((x) => x && grps.some((g) => g.id === x.groupId)),
     classCosts: {}, parentAccess: [], studentAccess: [], parentMsgs: [], audits: (d.audits || []).filter((a) => a.teacherId === tid), counters: d.counters || {},
@@ -451,7 +452,11 @@ function teacherMerge(data, tid) {
   const newG = new Map(arr(data.skillGroups).map((g) => [g.id, g]));
   const skillGroups = arr(cur.skillGroups).map((g) => (g.tid === tid && newG.has(g.id) ? { ...g, projects: cleanProjects(newG.get(g.id).projects, me), lessons: cleanLessons(newG.get(g.id).lessons, g.lessons, me) } : g));
   const concerns = concernMerge(cur, data, tid, (me && me.name) || "");      // v134
-  return Object.assign(cur, { tests, exams, classAtt, homework, ptms, stuNotes, skillDev, skillGroups, concerns });
+  /* v143: syllabus tracker — teacher sirf apni class (Shift|Class) ke apne tracker bana / badal / hata sakta hai */
+  const curSy = arr(cur.syllabus), newSy = new Map(arr(data.syllabus).filter((x) => x && x.id).map((x) => [x.id, x]));
+  const syllabus = curSy.filter((x) => x.tid !== tid || newSy.has(x.id)).map((x) => (x.tid === tid ? cleanSyllabus(newSy.get(x.id), tid, me) : x)).filter(Boolean);
+  newSy.forEach((x, id) => { if (!curSy.some((y) => y.id === id) && cls.has(String(x.shift) + "|" + String(x.course))) { const c = cleanSyllabus(x, tid, me); if (c) syllabus.push(c); } });
+  return Object.assign(cur, { tests, exams, classAtt, homework, ptms, stuNotes, skillDev, skillGroups, concerns, syllabus });
 }
 /* Admin ke save mein chhupaye hue hisse server wale hi rehte hain */
 const SALARY_CAT = "Salary & Wages";
@@ -470,6 +475,19 @@ function concernMerge(cur, data, who, meName) {
     if (st === "Resolved") Object.assign(x, { resolution: cl(n.resolution, 1500) || c.resolution || "", resolvedOn: cl(n.resolvedOn, 10) || c.resolvedOn || "", resolvedBy: meName || "" });
     return x;
   });
+}
+/* v143: syllabus tracker ka record saaf karo (teacher ka bheja hua) */
+function cleanSyllabus(x, tid, me) {
+  if (!x || !x.id) return null;
+  const cl = (v, n) => String(v == null ? "" : v).slice(0, n), mo = (v) => (/^\d{4}-\d{2}$/.test(String(v || "")) ? String(v) : ""), dt = (v) => (/^\d{4}-\d{2}-\d{2}$/.test(String(v || "")) ? String(v) : "");
+  const fileOk = (f) => f && /^[a-f0-9]{24}\.(jpg|png|webp|pdf)$/.test(String(f.file || ""));
+  const files = (L) => (Array.isArray(L) ? L : []).filter(fileOk).slice(0, 10).map((f) => ({ file: f.file, name: cl(f.name, 120), type: cl(f.type, 40) }));
+  const targets = {};
+  Object.entries(x.targets && typeof x.targets === "object" ? x.targets : {}).slice(0, 24).forEach(([m, t]) => { if (mo(m) && t) targets[m] = { text: cl(t.text, 3000), files: files(t.files) }; });
+  return { id: cl(x.id, 40), tid, tname: (me && me.name) || cl(x.tname, 80), shift: x.shift === "Evening" ? "Evening" : "Morning", course: cl(x.course, 60), subject: cl(x.subject, 80),
+    year: cl(x.year, 12), planFiles: files(x.planFiles), targets, updatedAt: new Date().toISOString(),
+    topics: (Array.isArray(x.topics) ? x.topics : []).filter((t) => t && String(t.t || "").trim()).slice(0, 400).map((t) => ({
+      id: cl(t.id, 30), t: cl(t.t, 300), m: mo(t.m), s: ["done", "part", "not"].includes(t.s) ? t.s : "", d: dt(t.d), c: cl(t.c, 1000) })) };
 }
 function keepProtected(data, role, sid) {
   const cur = JSON.parse(state.dataText) || {};
