@@ -1509,7 +1509,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v143 · 26 Oct 2026";
+const BUILD = "v144 · 26 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -7268,11 +7268,12 @@ const testMine = t => !t.teacherId || t.teacherId===MY_TID || asgMine(t.shift, t
 const canEditTest = t => !IS_TEACHER || (t.by==="teacher" && t.teacherId===MY_TID && t.shift==="Evening");
 /* v97: Morning — jo bacha ye subject nahi leta (subjects darj hain aur ye un mein nahi) us ke marks na gine jate hain na dikhte hain */
 const morningSkip = (st, subject) => !!st && st.shift === "Morning" && !!subject && !takesSubject(st, subject);
-const examShown = e => !morningSkip(stuAt(stuById(e.studentId), e.date), e.subject);   // v125: us waqt ke subjects
+const tInc = (t, sid) => !!t && Array.isArray(t.include) && t.include.includes(sid);          // v144: haath se list mein dala gaya bacha
+const examShown = e => (e.testId && tInc(DB.tests.find(t=>t.id===e.testId), e.studentId)) || !morningSkip(stuAt(stuById(e.studentId), e.date), e.subject);   // v125: us waqt ke subjects
 /* teacher ke paas sirf us ke apne bache hote hain — kisi aur bache ka purana mark us ki ginti / average mein nahi */
 const testMarks = t => DB.exams.filter(e=>{ if(e.testId!==t.id) return false; const st = stuById(e.studentId);
   if(IS_TEACHER && !st) return false;
-  return t.shift !== "Morning" || !morningSkip(st && stuAt(st, t.date), t.subject); });
+  return t.shift !== "Morning" || tInc(t, e.studentId) || !morningSkip(st && stuAt(st, t.date), t.subject); });
 /* v84: paper ka subject bacha leta hai? — wohi naam, ya aik doosre ka shuru (English ↔ English Language, Mathematics ↔ Mathematics (D),
    Pakistan Studies ↔ Pakistan Studies P1) — magar "Mathematics" ↔ "Additional Mathematics" nahi. Subjects maloom hi na hon to bacha shamil. */
 function takesSubject(st, subject){
@@ -7284,7 +7285,7 @@ function takesSubject(st, subject){
 function testStudents(t){
   const m = String(t.date||wm()).slice(0,7), RM = rosterMonths();
   const has = new Set(testMarks(t).map(e=>e.studentId));
-  return DB.students.filter(st=>(has.has(st.id) && !morningSkip(stuAt(st, t.date), t.subject)) || ((x=>x.shift===t.shift && inClass(x, t.course))(stuAt(st, t.date)) && st.status!=="Left" && inMonth(st, m, RM) && joinedOn(st, t.date)
+  return DB.students.filter(st=>(tInc(t, st.id) && st.status !== "Left") || (has.has(st.id) && !morningSkip(stuAt(st, t.date), t.subject)) || ((x=>x.shift===t.shift && inClass(x, t.course))(stuAt(st, t.date)) && st.status!=="Left" && inMonth(st, m, RM) && joinedOn(st, t.date)
       && takesSubject(stuAt(st, t.date), t.subject)))
     .sort((a,b)=>a.name.localeCompare(b.name));
 }
@@ -7606,15 +7607,46 @@ function openMarks(id){
     <div id="mkMsg"></div>
     <div class="tbl-wrap mk-grid"><table><thead><tr><th>#</th><th>Reg No</th><th>Student</th><th style="width:110px">Marks / ${t.total}</th><th>Absent</th><th style="min-width:240px">Remark *</th></tr></thead><tbody>
     ${stus.map((st,i)=>{ const e = ex.get(st.id) || {}; return `<tr data-sid="${st.id}">
-      <td>${i+1}</td><td>${esc(st.regNo||"")}</td><td><b>${esc(st.name)}</b></td>
+      <td>${i+1}</td><td>${esc(st.regNo||"")}</td><td><b>${esc(st.name)}</b>${tInc(t, st.id) ? ` <span class="chip" title="Added by hand">added <a href="#" onclick="testUninclude('${id}','${st.id}');return false" title="Remove from this paper's list">✕</a></span>` : ""}</td>
       <td><input type="number" class="mk-m" min="0" max="${t.total}" step="0.5" value="${e.absent ? "" : (e.obtained ?? "")}" oninput="mkCount()"></td>
       <td style="text-align:center"><input type="checkbox" class="mk-a" style="width:auto" ${e.absent?"checked":""} onchange="mkCount()"></td>
       <td><input class="mk-r" list="mkRemarks" value="${esc(e.comment||"")}" oninput="mkCount()" placeholder="e.g. Good effort / Needs revision"></td></tr>`; }).join("")
       || `<tr><td colspan="6" class="empty">No students in this class / subject</td></tr>`}
     </tbody></table></div>
     <datalist id="mkRemarks">${MK_REMARKS.map(r=>`<option value="${esc(r)}">`).join("")}</datalist>
+    ${(miss=>miss.length ? `<details class="note" style="margin-top:10px" ${miss.length <= 3 ? "open" : ""}><summary style="cursor:pointer"><b>👀 Missing a student?</b> ${miss.length} student${miss.length>1?"s":""} of ${esc(t.course)} ${miss.length>1?"are":"is"} not in this list — see why, and add them</summary>
+      <table style="margin-top:6px"><tbody>${miss.map(o=>`<tr><td><b>${esc(o.st.name)}</b> <span class="sub">${esc(o.st.regNo||"")} · now ${esc(o.st.course)} · ${esc(o.st.shift)}</span><br><span class="sub">Not listed: ${esc(o.why)}</span></td>
+        <td style="white-space:nowrap;text-align:right"><button class="btn-line btn-sm" onclick="testInclude('${id}','${o.st.id}')">+ Add to this paper</button>${t.examId ? ` <button class="btn-black btn-sm" onclick="testInclude('${id}','${o.st.id}',true)">+ Add to all ${esc(t.course)} papers of this exam</button>` : ""}</td></tr>`).join("")}</tbody></table></details>` : "")(testMissing(t))}
     <div class="modal-foot"><button class="btn-line" onclick="closeModal()">Close</button><button class="btn-red" onclick="saveMarks()">Save marks</button></div>`, true);
   mkCount();
+}
+/* v144: koi bacha paper ki list mein kyun nahi — wajah; aur haath se shamil karne ka option */
+function whyNotInTest(st, t){
+  const x = stuAt(st, t.date), m = String(t.date||wm()).slice(0,7);
+  if(st.status === "Left") return "marked as Left";
+  if(x.shift !== t.shift || !inClass(x, t.course)) return `class on ${fmtD(t.date)} was ${x.course} · ${x.shift}${(st.classHist||[]).length ? " (from the class history)" : ""}`;
+  if(!inMonth(st, m, rosterMonths())) return `not on the ${fmtM(m)} class list (join month / monthly roster)`;
+  if(!joinedOn(st, t.date)) return `Date of Join is ${fmtD(st.doj)} — after this paper`;
+  if(!takesSubject(x, t.subject)) return `${t.subject||"this subject"} is not in the student's subjects${(x.subjects||[]).length ? " (" + x.subjects.map(z=>z.name).join(", ") + ")" : " (none listed)"}`;
+  return "";
+}
+function testMissing(t){
+  const inL = new Set(testStudents(t).map(x=>x.id));
+  return DB.students.filter(st=>st.status !== "Left" && !inL.has(st.id) && (
+      (st.shift === t.shift && inClass(st, t.course)) || ((x=>x.shift === t.shift && inClass(x, t.course))(stuAt(st, t.date)))
+      || (st.prevClass && st.prevClass.course === t.course) || (st.classHist||[]).some(h=>h.course === t.course && (h.shift||st.shift) === t.shift)))
+    .map(st=>({st, why: whyNotInTest(st, t) || "not matched"})).sort((a,b)=>a.st.name.localeCompare(b.st.name));
+}
+function testInclude(tid, sid, all){
+  const t = DB.tests.find(x=>x.id===tid); if(!t) return;
+  const L = all && t.examId ? DB.tests.filter(x=>x.examId===t.examId && x.shift===t.shift && x.course===t.course) : [t];
+  L.forEach(x=>{ x.include = [...new Set([...(x.include||[]), sid])]; });
+  save(); toast(`${(stuById(sid)||{}).name || "Student"} added to ${L.length > 1 ? L.length + " papers of this exam" : "this paper"}`); openMarks(tid);
+}
+function testUninclude(tid, sid){
+  const t = DB.tests.find(x=>x.id===tid); if(!t) return;
+  if(DB.exams.some(e=>e.testId===tid && e.studentId===sid) && !confirm("This student already has marks in this paper. Remove them from the list anyway? (The marks stay saved.)")) return;
+  t.include = (t.include||[]).filter(x=>x!==sid); if(!t.include.length) delete t.include; save(); openMarks(tid);
 }
 const mkRows = () => [...document.querySelectorAll(".mk-grid tbody tr[data-sid]")];
 function mkCount(){

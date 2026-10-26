@@ -845,3 +845,14 @@ Share → "Add to Home Screen" · Computer Chrome/Edge: the install icon in the 
 - **Office overview:** all trackers with class, subject, teacher, covered %, on-track % and whether this month's target is set.
 - **Parents / students app (My Report → 📚 Syllabus coverage):** each subject's covered %, this month's target, the planner / target files, this month's topics with status and comments, and recent topics.
 - Server rule: a teacher can only create or change trackers for their own classes. Parents can open only the files of their child's class and subject.
+
+## Missing a student in a test / exam list? (v144)
+
+- The marks window of every test or exam paper now has **👀 Missing a student?** It lists the students of that class who are not in the list, with the reason. Possible reasons:
+  - the class history says another class on that date;
+  - their Date of Join is after the paper;
+  - they are not on that month's class list;
+  - the subject is not in their subjects.
+- **+ Add to this paper** or **+ Add to all papers of this exam** puts the student in the list.
+  - Their marks then count everywhere: averages and report cards.
+  - "added ✕" next to the name removes them again.
