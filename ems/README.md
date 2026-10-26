@@ -830,3 +830,18 @@ Share → "Add to Home Screen" · Computer Chrome/Edge: the install icon in the 
   - **the same teacher** booked in two places at once;
   - **the same class** having two lessons at once that some students take both of. Lessons in the same class that no student takes together show as "parallel".
 - Evening rules are unchanged.
+
+## Syllabus Tracker — yearly planner, monthly targets, coverage (v143)
+
+- New page **📚 Syllabus Tracker** for Morning teachers (also visible to the office).
+  - The teacher presses **+ New tracker** and picks one of their Morning class · subject assignments and the academic year.
+- **📅 Yearly planner:**
+  - attach the planner file (PDF / photos);
+  - add topics, one per line. A line can start with a month (`Oct: Forces and motion` or `2026-10 Forces`) to plan it; other lines go to the selected month;
+  - every topic's month can be changed later.
+- **🎯 Monthly target:** a target text for each month, plus an optional file.
+- **✅ Coverage:** for each topic of the month (or the whole year), mark **✓ Covered / ◐ Partly / ✗ Not covered** (the date is saved) and write a comment.
+  - The tracker shows **% syllabus covered** and **% of topics planned till this month** ("on track").
+- **Office overview:** all trackers with class, subject, teacher, covered %, on-track % and whether this month's target is set.
+- **Parents / students app (My Report → 📚 Syllabus coverage):** each subject's covered %, this month's target, the planner / target files, this month's topics with status and comments, and recent topics.
+- Server rule: a teacher can only create or change trackers for their own classes. Parents can open only the files of their child's class and subject.

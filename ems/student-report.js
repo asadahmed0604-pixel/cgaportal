@@ -198,6 +198,17 @@ function studentReport(db, st, today) {
       .sort((a, b) => String(b.month).localeCompare(String(a.month))).slice(0, 3).map((x) => { const g = (db.skillGroups || []).find((y) => y.id === x.groupId) || {};
         return { month: x.month, group: [g.code ? "Group " + g.code : "", g.name || ""].filter(Boolean).join(": "), by: x.by || "", note: x.note || "",
           ratings: Object.entries(x.ratings || {}).map(([k, v]) => ({ skill: k, level: v })) }; }) : [],
+    /* v143: syllabus coverage — bache ki class + subjects ke trackers (Morning teachers) */
+    syllabus: (db.syllabus || []).filter((x) => x && x.shift === st.shift && classesOf(st).includes(x.course) && takesSubj(st, x.subject) && (x.topics || []).length)
+      .sort((a, b) => String(a.subject).localeCompare(String(b.subject))).map((x) => {
+        const T = x.topics || [], m = today.slice(0, 7), done = T.filter((t) => t.s === "done").length + T.filter((t) => t.s === "part").length / 2;
+        const due = T.filter((t) => t.m && t.m <= m), dueDone = due.filter((t) => t.s === "done").length + due.filter((t) => t.s === "part").length / 2;
+        const tg = (x.targets || {})[m] || null;
+        return { subject: x.subject, teacher: x.tname || "", pct: T.length ? Math.round((done * 100) / T.length) : 0, onTrack: due.length ? Math.round((dueDone * 100) / due.length) : null,
+          total: T.length, covered: T.filter((t) => t.s === "done").length, target: tg ? tg.text : "", targetFiles: tg ? tg.files || [] : [], planFiles: x.planFiles || [],
+          month: T.filter((t) => t.m === m).map((t) => ({ t: t.t, s: t.s, d: t.d, c: t.c })),
+          recent: T.filter((t) => t.s && t.m !== m).sort((a, b) => String(b.d || b.m).localeCompare(String(a.d || a.m))).slice(0, 6).map((t) => ({ t: t.t, s: t.s, d: t.d, c: t.c })) };
+      }),
     remarks: (st.remarks || []).filter((r) => r.parentVisible !== false).sort((a, b) => String(b.d).localeCompare(String(a.d))).slice(0, 8)
       .map((r) => ({ d: r.d, type: r.type || "Remark", note: r.note || "", by: r.by || "" })),
   };

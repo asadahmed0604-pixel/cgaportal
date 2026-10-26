@@ -621,7 +621,10 @@ module.exports = function setup(ctx) {
       const st = kid(url.searchParams.get("s")), name = fm[1];
       const ok = st && (assignments.some((a) => open(a, pktDate()) && (a.studentIds || []).includes(st.id) && (subFor(a.id, st.id) || !a.timed) && (a.files || []).some((f) => f.file === name))   // v140: timed na ho to Start se pehle bhi paper
         || [...subs.values()].some((s) => s.studentId === st.id && (s.files || []).some((f) => f.file === name))
-        || Object.values(hwSubs).some((x) => x.studentId === st.id && (x.files || []).some((f) => f.file === name)));
+        || Object.values(hwSubs).some((x) => x.studentId === st.id && (x.files || []).some((f) => f.file === name))
+        /* v143: syllabus planner / monthly target files — bache ki apni class + subject ke */
+        || (fam.db.syllabus || []).some((x) => x && x.shift === st.shift && [st.course, st.shift === "Evening" ? st.course2 : ""].filter(Boolean).includes(x.course)
+          && [...(x.planFiles || []), ...Object.values(x.targets || {}).flatMap((t) => (t && t.files) || [])].some((f) => f.file === name)));
       if (!ok || !fs.existsSync(path.join(FILES, name))) return send(res, 404, "Not found");
       return send(res, 200, fs.readFileSync(path.join(FILES, name)), EXT_TYPE[fm[2]], { "Cache-Control": "private, max-age=86400", "Content-Disposition": "inline", "X-Frame-Options": "SAMEORIGIN" });
     }
