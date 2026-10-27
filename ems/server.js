@@ -376,14 +376,19 @@ function teacherMerge(data, tid) {
   const testOf = new Map(tests.map((t) => [t.id, t]));
   const stu = new Map((cur.students || []).map((st) => [st.id, st]));
   const vis = (e) => { const t = e && testOf.get(e.testId); return !!t && testSeen(t, tid, cls, me); };
-  const fits = (e) => { const t = testOf.get(e.testId), st = stu.get(e.studentId); return !!st && stuIn(st, t.shift, t.course); };
+  /* v153: bacha abhi is class mein ho, ya paper mein haath se shamil (include), ya paper ki tareekh par class history mein ye class */
+  const wasIn = (st, t) => (st.classHist || []).some((h) => h && h.course === t.course && (h.shift || st.shift) === t.shift);
+  const fits = (e) => { const t = testOf.get(e.testId), st = stu.get(e.studentId);
+    return !!st && (stuIn(st, t.shift, t.course) || (Array.isArray(t.include) && t.include.includes(st.id)) || wasIn(st, t)); };
   const curEx = arr(cur.exams), curExById = new Map(curEx.map((e) => [e.id, e]));
   /* v93: marks ka pehla waqt (deadline / KPI) server tay karta hai — teacher badal nahi sakta */
   const curByStu = new Map(curEx.map((e) => [e.testId + "|" + e.studentId, e]));
   const stamp = (e) => { const o = curExById.get(e.id) || curByStu.get(e.testId + "|" + e.studentId);
     const first = o ? o.firstAt || o.savedAt || "" : new Date().toISOString();
     return { ...e, firstAt: first || undefined }; };
-  const exams = curEx.filter((e) => !gone.has(e.testId) && !vis(e))
+  /* v153: jo marks teacher badal hi nahi sakta (bacha is waqt class mein nahi — e.g. ghalti se doosri class mein) wo server wale hi rehte hain.
+     Pehle aise marks teacher ke har save par mit jate the. */
+  const exams = curEx.filter((e) => !gone.has(e.testId) && (!vis(e) || !fits(e)))
     .concat(arr(data.exams).filter((e) => vis(e) && fits(e) && (!curExById.has(e.id) || vis(curExById.get(e.id)))).map(stamp));
   const curCa = arr(cur.classAtt), curCaById = new Map(curCa.map((c) => [c.id, c]));
   const classAtt = curCa.filter((c) => !catOwn(c, tid, cls))
@@ -393,14 +398,18 @@ function teacherMerge(data, tid) {
   const cleanDone = (h, done) => { const ok = inCls(h), out = {};
     if (done && typeof done === "object") for (const k of Object.keys(done)) if (ok.has(k) && done[k]) out[k] = typeof done[k] === "string" ? done[k].slice(0, 10) : true;
     return out; };
+  /* v153: jo bacha is waqt class mein nahi us ka purana "done" / "absent" server wala hi rahe (teacher ke save se na mitay) */
+  const keepOut = (h, cleaned, old) => { const ok = inCls(h), out = { ...cleaned };
+    if (old && typeof old === "object") for (const k of Object.keys(old)) if (!ok.has(k) && old[k]) out[k] = old[k];
+    return out; };
   const curHw = arr(cur.homework), newHw = new Map(arr(data.homework).map((h) => [h.id, h]));
   const homework = [];
   curHw.forEach((h) => {
     if (!hwSeen(h, tid, cls, me)) return homework.push(h);
     const n = newHw.get(h.id);
     if (!n) { if (h.teacherId !== tid) homework.push(h); return; }               // apna hi delete ho sakta hai
-    if (h.teacherId === tid && hwSeen(n, tid, cls)) return homework.push({ ...n, teacherId: tid, by: "teacher", done: cleanDone(n, n.done), absent: cleanDone(n, n.absent) });
-    homework.push({ ...h, done: cleanDone(h, n.done), absent: cleanDone(h, n.absent), checkedOn: n.checkedOn || h.checkedOn });   // sirf receival (v132: + absent)
+    if (h.teacherId === tid && hwSeen(n, tid, cls)) return homework.push({ ...n, teacherId: tid, by: "teacher", done: keepOut(n, cleanDone(n, n.done), h.done), absent: keepOut(n, cleanDone(n, n.absent), h.absent) });
+    homework.push({ ...h, done: keepOut(h, cleanDone(h, n.done), h.done), absent: keepOut(h, cleanDone(h, n.absent), h.absent), checkedOn: n.checkedOn || h.checkedOn });   // sirf receival (v132: + absent)
   });
   const curIds = new Set(curHw.map((h) => h.id));
   newHw.forEach((n) => { if (!curIds.has(n.id) && hwSeen({ ...n, teacherId: tid }, tid, cls)) homework.push({ ...n, teacherId: tid, by: "teacher", done: cleanDone(n, n.done), absent: cleanDone(n, n.absent) }); });
@@ -640,12 +649,15 @@ function backupList() {
     let st; try { st = fs.statSync(f); } catch (e) { return null; }
     const c = backupInfo[name];
     if (c && c.mtime === st.mtimeMs) return c.row;
-    let row = { name, at: st.mtime.toISOString(), size: st.size, fees: {}, total: 0, students: 0, txns: {}, txnTotal: 0 };
+    let row = { name, at: st.mtime.toISOString(), size: st.size, fees: {}, total: 0, students: 0, txns: {}, txnTotal: 0, exams: {}, examTotal: 0 };
     try {
       const j = JSON.parse(fs.readFileSync(f, "utf8")), d = (j && j.data) || j || {};
       (d.fees || []).forEach((x) => { const m = String((x && x.month) || "?"); row.fees[m] = (row.fees[m] || 0) + 1; });
       (d.txns || []).forEach((x) => { const m = String((x && x.date) || "").slice(0, 7) || "?"; row.txns[m] = (row.txns[m] || 0) + 1; });   // v152
       row.txnTotal = (d.txns || []).length;
+      const tDate = new Map((d.tests || []).map((t) => [t.id, t.date]));                       // v153: exam marks
+      row.exams = {}; (d.exams || []).forEach((x) => { const m = String((x && (x.date || tDate.get(x.testId))) || "").slice(0, 7) || "?"; row.exams[m] = (row.exams[m] || 0) + 1; });
+      row.examTotal = (d.exams || []).length;
       row.total = (d.fees || []).length; row.students = (d.students || []).length; row.updatedAt = j.updatedAt || "";
     } catch (e) { row.error = "unreadable"; }
     backupInfo[name] = { mtime: st.mtimeMs, row };

@@ -922,3 +922,9 @@ Share → "Add to Home Screen" · Computer Chrome/Edge: the install icon in the 
   - the same type, date, amount, description and category is in the system; or
   - an automatic salary entry with the same key is in the system.
 - The server's backup list now also counts `txns` per month.
+
+## v153 — Teacher saves no longer delete marks of students moved out of the class + recover exam marks
+- **Bug:** when a student was (even by mistake) moved to another class, every save by a teacher of the old class silently deleted that student's marks in the old class's papers. Homework "received" and "absent" ticks were deleted the same way. That is how a student's FT1 marks disappeared while the student was wrongly in FT2, and why FT1 then showed the student as unmarked on the teacher portal.
+- **Fix (server, `teacherMerge`):** a teacher's save now only replaces marks of students the teacher can actually edit. Those are students who are currently in the class, added to the paper by hand ("include"), or have the class in their class history. All other marks stay exactly as they are on the server. Homework done/absent ticks of students not in the class are kept too.
+- **Recovery:** Settings → **♻ Recover lost data** → **Exam / test marks**. Pick a server backup (or a backup file). The missing marks are listed **student by student**, with the papers and scores. Tick the students and restore. Marks that already exist, and marks for papers that were deleted, are skipped.
+- The server's backup list also counts exam marks per month.
