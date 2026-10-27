@@ -1252,7 +1252,7 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, { total: rows.length, rows: rows.slice(off, off + lim) });
     }
     if (p === "/api/version" && req.method === "GET")
-      return sendJson(res, 200, { version: state.version, updatedAt: state.updatedAt, role });
+      return sendJson(res, 200, { version: state.version, updatedAt: state.updatedAt, role, ...(role === "exec" ? { node: process.version } : {}) });   // v154: server ka Node.js (sirf Executive)
 
     if (p === "/api/db" && req.method === "GET")
       return sendJson(res, 200, `{"version":${state.version},"unlock":${JSON.stringify(ul || {})},"data":${dataFor(view, tid, auth.sid)}}`);
@@ -1335,4 +1335,4 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, () => console.log(`CGA EMS online — port ${PORT}, data: ${DATA_DIR} (version ${state.version})`));
+server.listen(PORT, () => console.log(`CGA EMS online — port ${PORT}, data: ${DATA_DIR} (version ${state.version}) · Node.js ${process.version}`));
