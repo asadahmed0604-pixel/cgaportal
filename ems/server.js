@@ -640,10 +640,12 @@ function backupList() {
     let st; try { st = fs.statSync(f); } catch (e) { return null; }
     const c = backupInfo[name];
     if (c && c.mtime === st.mtimeMs) return c.row;
-    let row = { name, at: st.mtime.toISOString(), size: st.size, fees: {}, total: 0, students: 0 };
+    let row = { name, at: st.mtime.toISOString(), size: st.size, fees: {}, total: 0, students: 0, txns: {}, txnTotal: 0 };
     try {
       const j = JSON.parse(fs.readFileSync(f, "utf8")), d = (j && j.data) || j || {};
       (d.fees || []).forEach((x) => { const m = String((x && x.month) || "?"); row.fees[m] = (row.fees[m] || 0) + 1; });
+      (d.txns || []).forEach((x) => { const m = String((x && x.date) || "").slice(0, 7) || "?"; row.txns[m] = (row.txns[m] || 0) + 1; });   // v152
+      row.txnTotal = (d.txns || []).length;
       row.total = (d.fees || []).length; row.students = (d.students || []).length; row.updatedAt = j.updatedAt || "";
     } catch (e) { row.error = "unreadable"; }
     backupInfo[name] = { mtime: st.mtimeMs, row };

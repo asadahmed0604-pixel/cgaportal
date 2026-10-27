@@ -913,3 +913,12 @@ Share → "Add to Home Screen" · Computer Chrome/Edge: the install icon in the 
 - Only challans that are **missing now** are added. A challan counts as missing when its id is not in the system and the same student + month + class has no challan. Nothing else changes.
 - Challans of deleted students are skipped. If a challan number is already taken, the restored challan gets a new number.
 - New Executive-only routes: `GET /api/backups` (list with challan counts per month) and `GET /api/backups/file?name=` (strict file-name check).
+
+## v152 — Recover lost income / expense entries
+- The Settings panel is now **♻ Recover lost data**, with two rows: **Fee challans** and **Income / Expense**. Each row has "From server backups" and "From a backup file".
+- For income / expense, the backup list shows the number of entries per month. The missing-entries screen shows each month's Expense and Income totals before you restore.
+- An entry counts as already present when:
+  - its id is in the system; or
+  - the same type, date, amount, description and category is in the system; or
+  - an automatic salary entry with the same key is in the system.
+- The server's backup list now also counts `txns` per month.
