@@ -928,3 +928,9 @@ Share → "Add to Home Screen" · Computer Chrome/Edge: the install icon in the 
 - **Fix (server, `teacherMerge`):** a teacher's save now only replaces marks of students the teacher can actually edit. Those are students who are currently in the class, added to the paper by hand ("include"), or have the class in their class history. All other marks stay exactly as they are on the server. Homework done/absent ticks of students not in the class are kept too.
 - **Recovery:** Settings → **♻ Recover lost data** → **Exam / test marks**. Pick a server backup (or a backup file). The missing marks are listed **student by student**, with the papers and scores. Tick the students and restore. Marks that already exist, and marks for papers that were deleted, are skipped.
 - The server's backup list also counts exam marks per month.
+
+## v154 — Server Node.js version shown in Settings
+- Settings → "Which File Is This?" now shows a **Server Node.js** card (Executive only).
+  - ✓ appears when the server runs a patched release from the October 2026 security advisory: 22.23.4, 24.22.1 or 26.12.1 or newer in the same line.
+  - ⚠ appears otherwise, with the steps to redeploy.
+- `/api/version` returns `node` for the Executive. The startup log line on Render also prints the Node.js version.

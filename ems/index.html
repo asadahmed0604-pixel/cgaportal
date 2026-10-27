@@ -1363,6 +1363,7 @@ label.chk input{width:auto}
     <div class="cards" style="margin-bottom:0">
       <div class="card"><div class="k">Version</div><div class="v" id="setBuild" style="font-size:1.2rem">—</div></div>
       <div class="card"><div class="k">Pages</div><div class="v" id="setModules">0</div><div class="hint">in this file</div></div>
+      <div class="card exec-only" id="setNodeCard" style="display:none"><div class="k">Server Node.js</div><div class="v" id="setNode" style="font-size:1.2rem">—</div><div class="hint" id="setNodeHint"></div></div>
     </div>
     <div class="note" style="margin-top:12px" id="setModuleList"></div>
   </div>
@@ -1528,7 +1529,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v153 · 27 Oct 2026";
+const BUILD = "v154 · 27 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -13044,6 +13045,7 @@ function loadSettings(){
   drawLogo(); renderSubjectsAdmin();
   const pages = [...document.querySelectorAll("#nav button")].map(b=>b.textContent.trim());
   $("setBuild").textContent   = BUILD;
+  if(SERVER && ROLE === "exec") drawNodeVer();
   $("setModules").textContent = pages.length;
   $("setModuleList").innerHTML = "<b>Pages:</b> " + esc(pages.join(" · ")) +
     "<br><b>Import types:</b> " + esc(Object.values(IMPORT_TYPES).map(x=>x.label).join(" · "));
@@ -13263,6 +13265,19 @@ function recApply(){
   save(); closeModal();
   const cur = document.querySelector("#nav button.active"); renderPage(cur ? cur.dataset.page : "settings");
   toast(`✓ ${add.length} ${K.what} restored (${[...months].sort().map(m=>K.group ? ((stuById(m)||{}).name || m) : /^\d{4}-\d{2}$/.test(m) ? fmtM(m) : m).join(", ")}) from ${FR.label}${renum ? ` · ${renum} given a new challan number` : ""}`);
+}
+/* v154: server kis Node.js par chal raha hai — Oct 2026 security advisory (eMudhra / Node fixes) ke patched versions */
+const NODE_SAFE = {22:"22.23.4", 24:"24.22.1", 26:"26.12.1"};
+const verGE = (a, b) => { const x = a.split(".").map(Number), y = b.split(".").map(Number); for(let i=0;i<3;i++){ if((x[i]||0) !== (y[i]||0)) return (x[i]||0) > (y[i]||0); } return true; };
+async function drawNodeVer(){
+  try{
+    const j = await (await fetch("/api/version", {credentials:"same-origin", cache:"no-store"})).json();
+    if(!j.node || !$("setNode")) return;
+    const v = String(j.node).replace(/^v/, ""), need = NODE_SAFE[+v.split(".")[0]], ok = !!need && verGE(v, need);
+    $("setNodeCard").style.display = "";
+    $("setNode").innerHTML = `${esc(v)} <span style="color:${ok ? "var(--ok)" : "var(--danger)"}">${ok ? "✓" : "⚠"}</span>`;
+    $("setNodeHint").textContent = ok ? "Security update installed" : need ? `Update needed — ${need} or newer. Render → Manual Deploy → Clear build cache & deploy` : "Unsupported version — set NODE_VERSION to 22 on Render and redeploy";
+  }catch(e){}
 }
 function backupText(){ return JSON.stringify(DB, null, 1); }
 function exportData(){
