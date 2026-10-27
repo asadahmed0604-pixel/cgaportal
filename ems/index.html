@@ -1412,15 +1412,19 @@ label.chk input{width:auto}
   </div>
   <div class="panel exec-only" style="max-width:560px">
     <h3>♻ Recover lost data</h3>
-    <p class="sub" style="margin:4px 0 12px">Brings back fee challans or income / expense entries that were deleted by mistake — from the server's daily backups (last 45 days) or from a backup file you downloaded.
+    <p class="sub" style="margin:4px 0 12px">Brings back fee challans, exam marks or income / expense entries that were deleted by mistake — from the server's daily backups (last 45 days) or from a backup file you downloaded.
       Only <b>missing</b> records are added; nothing else (students, attendance, current records) is changed.</p>
     <div style="margin-bottom:8px"><b>Fee challans:</b>
       <button class="btn-red btn-sm" onclick="openRecover('fees')">♻ From server backups</button>
       <button class="btn-line btn-sm" onclick="document.getElementById('feeRecFile').click()">📂 From a backup file</button></div>
+    <div style="margin-bottom:8px"><b>Exam / test marks:</b>
+      <button class="btn-red btn-sm" onclick="openRecover('exams')">♻ From server backups</button>
+      <button class="btn-line btn-sm" onclick="document.getElementById('exRecFile').click()">📂 From a backup file</button></div>
     <div><b>Income / Expense:</b>
       <button class="btn-red btn-sm" onclick="openRecover('txns')">♻ From server backups</button>
       <button class="btn-line btn-sm" onclick="document.getElementById('txnRecFile').click()">📂 From a backup file</button></div>
     <input type="file" id="feeRecFile" accept=".json,application/json" style="display:none" onchange="recFile('fees', this)">
+    <input type="file" id="exRecFile" accept=".json,application/json" style="display:none" onchange="recFile('exams', this)">
     <input type="file" id="txnRecFile" accept=".json,application/json" style="display:none" onchange="recFile('txns', this)">
   </div>
   <div class="panel exec-only" style="max-width:560px;border-color:var(--danger)">
@@ -1524,7 +1528,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v152 · 27 Oct 2026";
+const BUILD = "v153 · 27 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -13166,7 +13170,14 @@ const REC = {
       return t => ids.has(t.id) || keys.has(txnKey(t)) || (t.autoKey && auto.has(t.autoKey)); },
     ok: t => t && t.id && t.type,
     gone: () => () => false,
-    cols:["Expense", "Income"], extra: L => [money(L.filter(t=>t.type==="Expense").reduce((a,t)=>a+(+t.amount||0),0)), money(L.filter(t=>t.type==="Income").reduce((a,t)=>a+(+t.amount||0),0))]}
+    cols:["Expense", "Income"], extra: L => [money(L.filter(t=>t.type==="Expense").reduce((a,t)=>a+(+t.amount||0),0)), money(L.filter(t=>t.type==="Income").reduce((a,t)=>a+(+t.amount||0),0))]},
+  /* v153: exam / test marks — student-war (jis bache ke marks mite, sirf usi ke wapas) */
+  exams: {list:"exams", what:"marks", title:"exam marks", month:e=>String(e.date||"").slice(0,7),
+    group: e => e.studentId, glabel: k => { const st = stuById(k); return st ? `${esc(st.name)} <span class="sub">${esc(st.course)} · ${esc(st.shift)}</span>` : "Deleted student"; }, gname:"Student",
+    have(){ const ids = new Set(DB.exams.map(e=>e.id)), keys = new Set(DB.exams.map(e=>e.testId + "|" + e.studentId)); return e => ids.has(e.id) || keys.has(e.testId + "|" + e.studentId); },
+    ok: e => e && e.id && e.studentId && e.testId && DB.tests.some(t=>t.id===e.testId),
+    gone(){ const stu = new Set(DB.students.map(s=>s.id)); return e => !stu.has(e.studentId); },
+    cols:["Papers"], extra: L => [`<span class="sub">${L.slice(0,4).map(e=>esc((e.subject ? e.subject + " — " : "") + (e.exam||"")) + " " + (e.absent ? "(absent)" : `${e.obtained}/${e.total}`)).join("<br>")}${L.length > 4 ? `<br>+${L.length-4} more` : ""}</span>`]}
 };
 const FR = {d:null, label:"", kind:"fees"};
 async function openRecover(kind){
@@ -13176,7 +13187,7 @@ async function openRecover(kind){
   let rows = [];
   try{ const r = await fetch("/api/backups", {credentials:"same-origin", cache:"no-store"}); const j = await r.json(); if(!r.ok) throw new Error(j.error || r.status); rows = j.rows || []; }
   catch(e){ openModal(`<h3>♻ Recover ${K.title}</h3><div class="note" style="border-left-color:var(--danger)">Backups could not be loaded — ${esc(e.message)}</div><div class="modal-foot"><button class="btn-line" onclick="closeModal()">Close</button></div>`); return; }
-  const cnt = r => (r[kind] || {}), tot = r => kind === "fees" ? r.total : r.txnTotal;
+  const cnt = r => (r[kind] || {}), tot = r => ({fees:r.total, txns:r.txnTotal, exams:r.examTotal})[kind];
   const now = {}; DB[K.list].forEach(x=>{ const m = K.month(x); now[m] = (now[m]||0) + 1; });
   const ms = [...new Set(rows.flatMap(r=>Object.keys(cnt(r))).concat(Object.keys(now)))].filter(m=>/^\d{4}-\d{2}$/.test(m) && m <= thisMonth()).sort().slice(-6);
   const cell = (n, m) => { const c = (n||0), h = now[m]||0; return `<td style="text-align:center;${c > h ? "color:var(--ok);font-weight:700" : ""}">${c}</td>`; };
@@ -13219,27 +13230,29 @@ function recShow(d, label){
   if(!d || !Array.isArray(d[K.list])){ toast(`No ${K.title} found in this backup`); return; }
   FR.d = d; FR.label = label;
   const miss = recMissing(kind, d), by = {};
-  miss.forEach(({x, gone})=>{ const o = by[K.month(x)] = by[K.month(x)] || {L:[], gone:0}; if(gone) o.gone++; else o.L.push(x); });
-  const ms = Object.keys(by).sort().reverse();
+  const G = K.group || K.month;
+  miss.forEach(({x, gone})=>{ const o = by[G(x)] = by[G(x)] || {L:[], gone:0}; if(gone) o.gone++; else o.L.push(x); });
+  const ms = K.group ? Object.keys(by).sort((a,b)=>by[b].L.length - by[a].L.length) : Object.keys(by).sort().reverse();
   openModal(`
     <h3>♻ Missing ${K.title} in ${esc(label)}</h3>
-    <div class="note">Backup has <b>${d[K.list].length}</b> ${K.what} · now <b>${DB[K.list].length}</b>. Below are the ${K.what} that are in the backup but <b>not</b> in the system now${kind === "fees" ? " (same student + month already present = skipped)" : " (an entry with the same type, date, amount and description already present = skipped)"}.</div>
+    <div class="note">Backup has <b>${d[K.list].length}</b> ${K.what} · now <b>${DB[K.list].length}</b>. Below are the ${K.what} that are in the backup but <b>not</b> in the system now${({fees:" (same student + month already present = skipped)", txns:" (an entry with the same type, date, amount and description already present = skipped)", exams:" (the student already has marks in that paper = skipped; papers that were deleted are skipped)"})[kind]}.</div>
     ${ms.length ? `<div class="tbl-wrap"><table>
-      <thead><tr><th></th><th>Month</th><th>Missing</th>${kind === "fees" ? "<th>Amount</th>" : ""}${K.cols.map(c=>`<th>${c}</th>`).join("")}${kind === "fees" ? "<th>Student deleted</th>" : ""}</tr></thead>
-      <tbody>${ms.map(m=>{ const o = by[m]; return `<tr><td><input type="checkbox" class="frM" value="${m}" ${o.L.length ? "checked" : "disabled"}></td><td><b>${/^\d{4}-\d{2}$/.test(m) ? fmtM(m) : "No date"}</b></td>
+      <thead><tr><th></th><th>${K.gname || "Month"}</th><th>Missing</th>${kind === "fees" ? "<th>Amount</th>" : ""}${K.cols.map(c=>`<th>${c}</th>`).join("")}${kind === "fees" ? "<th>Student deleted</th>" : ""}</tr></thead>
+      <tbody>${ms.map(m=>{ const o = by[m]; return `<tr><td><input type="checkbox" class="frM" value="${m}" ${o.L.length ? "checked" : "disabled"}></td><td><b>${K.glabel ? K.glabel(m) : /^\d{4}-\d{2}$/.test(m) ? fmtM(m) : "No date"}</b></td>
         <td><b>${o.L.length}</b></td>${kind === "fees" ? `<td>${money(o.L.reduce((a,f)=>a+(+f.amount||0),0))}</td>` : ""}${K.extra(o.L).map(v=>`<td>${v}</td>`).join("")}
         ${kind === "fees" ? `<td>${o.gone ? `<span class="sub">${o.gone} (not restored)</span>` : "—"}</td>` : ""}</tr>`; }).join("")}</tbody>
     </table></div>` : `<p class="sub" style="margin:10px 0">Nothing is missing — every one of these ${K.what} is already in the system.</p>`}
     <div class="modal-foot">
       <button class="btn-line" onclick="${SERVER ? `openRecover('${kind}')` : "closeModal()"}">${SERVER ? "← Other backup" : "Cancel"}</button>
-      ${ms.some(m=>by[m].L.length) ? `<button class="btn-red" onclick="recApply()">♻ Restore selected months</button>` : ""}
+      ${ms.some(m=>by[m].L.length) ? `<button class="btn-red" onclick="recApply()">♻ Restore selected ${K.group ? "students" : "months"}</button>` : ""}
     </div>`, true);
 }
 function recApply(){
   const kind = FR.kind, K = REC[kind];
   const months = new Set([...document.querySelectorAll(".frM:checked")].map(x=>x.value));
-  if(!months.size){ toast("Select at least one month"); return; }
-  const add = recMissing(kind, FR.d).filter(o=>!o.gone && months.has(K.month(o.x))).map(o=>jclone(o.x));
+  if(!months.size){ toast(`Select at least one ${K.group ? "student" : "month"}`); return; }
+  const G = K.group || K.month;
+  const add = recMissing(kind, FR.d).filter(o=>!o.gone && months.has(G(o.x))).map(o=>jclone(o.x));
   let renum = 0;
   if(kind === "fees"){
     const num = c => +String(c||"").replace(/\D/g,"") || 0, used = new Set(DB.fees.map(f=>f.chNo));
@@ -13249,7 +13262,7 @@ function recApply(){
   add.forEach(x=>{ x.restored = todayStr(); DB[K.list].push(x); });
   save(); closeModal();
   const cur = document.querySelector("#nav button.active"); renderPage(cur ? cur.dataset.page : "settings");
-  toast(`✓ ${add.length} ${K.what} restored (${[...months].sort().map(m=>/^\d{4}-\d{2}$/.test(m) ? fmtM(m) : m).join(", ")}) from ${FR.label}${renum ? ` · ${renum} given a new challan number` : ""}`);
+  toast(`✓ ${add.length} ${K.what} restored (${[...months].sort().map(m=>K.group ? ((stuById(m)||{}).name || m) : /^\d{4}-\d{2}$/.test(m) ? fmtM(m) : m).join(", ")}) from ${FR.label}${renum ? ` · ${renum} given a new challan number` : ""}`);
 }
 function backupText(){ return JSON.stringify(DB, null, 1); }
 function exportData(){
