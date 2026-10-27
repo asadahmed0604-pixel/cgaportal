@@ -896,3 +896,12 @@ Share → "Add to Home Screen" · Computer Chrome/Edge: the install icon in the 
 - The Edit form of a linked student has **Open <shift> record** and **Unlink**.
 - A student already enrolled separately in both shifts (same Reg No, or same name + father) gets a **🔗 Link with …** button in Edit.
 - Deleting one record removes the link from the other.
+
+## Elective limit 5 (v149)
+
+- Morning O Level and A Level students can now take up to **5 elective subjects** (was 3 for O Level, 4 for A Level). Compulsory subjects are added as before.
+- The enrollment / edit form shows "x elective / 5 allowed" and blocks a 6th elective. The student import warns above 5.
+
+## v150 — A Level Urdu in new admissions
+- A Level Urdu now shows in the admission form's subject list for every A Level class (AS, A2, A Levels, Composite), Morning and Evening.
+- If an older "Urdu · A Level" entry was restricted to only some classes (e.g. SAT), it now opens up across all of A Level automatically.
