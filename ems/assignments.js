@@ -104,7 +104,9 @@ module.exports = function setup(ctx) {
   /* Morning: class ke sab bache. Evening: usi class ke wo bache jin ke subjects mein ye subject ho
      (bache ke subject par koi aur teacher laga ho to wo us teacher ka hai). */
   function eligible(db, shift, course, subject, tid) {
-    return (db.students || []).filter((st) => st.shift === shift && classesOf(st).includes(course) && st.status !== "Left"
+    if (shift === "Online") return (db.students || []).filter((st) => st.mode === "Online" && classesOf(st).includes(course) && st.status !== "Left"   // v155: online class
+      && (!subject || (st.subjects || []).some((x) => (!x.teacherId || !tid || x.teacherId === tid) && subjLike(x.name, subject))));
+    return (db.students || []).filter((st) => st.shift === shift && classesOf(st).includes(course) && st.status !== "Left" && st.mode !== "Online"
       && ((shift === "Morning" && !["O1", "O2"].includes(course)) || !subject       // v94: Morning O1 / O2 bhi subject-wise
         || (shift === "Morning" && !(st.subjects || []).length)
         || (st.subjects || []).some((x) => (shift === "Morning" || !x.teacherId || !tid || x.teacherId === tid) && subjLike(x.name, subject))));
@@ -132,7 +134,7 @@ module.exports = function setup(ctx) {
   }
   function cleanSpec(b) {
     return {
-      shift: b.shift === "Evening" ? "Evening" : "Morning",
+      shift: b.shift === "Evening" || b.shift === "Online" ? b.shift : "Morning",
       course: str(b.course, 60),
       subject: str(b.subject, 80),
       level: str(b.level, 30),

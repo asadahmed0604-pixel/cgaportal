@@ -754,7 +754,7 @@ label.chk input{width:auto}
   </div>
   <div class="toolbar">
     <div class="field"><label>Class</label><select id="hwFCourse" onchange="renderHomework()"><option value="">All Classes</option></select></div>
-    <div class="field"><label>Shift</label><select id="hwFShift" onchange="renderHomework()"><option value="">All</option><option>Morning</option><option>Evening</option></select></div>
+    <div class="field"><label>Shift</label><select id="hwFShift" onchange="renderHomework()"><option value="">All</option><option>Morning</option><option>Evening</option><option value="Online">🌐 Online</option></select></div>
     <div class="field"><label>Month (blank = all)</label><input type="month" id="hwFMonth" onchange="renderHomework()"></div>
   </div>
   <div class="tbl-wrap"><table>
@@ -971,7 +971,7 @@ label.chk input{width:auto}
   <div class="toolbar">
     <div class="field"><label>Month</label><input type="month" id="testFMonth" onchange="renderTests()"></div>
     <div class="field"><label>Exam</label><select id="testFExam" onchange="renderTests()"><option value="">All</option></select></div>
-    <div class="field"><label>Shift</label><select id="testFShift" onchange="renderTests()"><option value="">Dono</option><option>Morning</option><option>Evening</option></select></div>
+    <div class="field"><label>Shift</label><select id="testFShift" onchange="renderTests()"><option value="">All</option><option>Morning</option><option>Evening</option><option value="Online">🌐 Online</option></select></div>
     <div class="field"><label>Class</label><select id="testFCourse" onchange="renderTests()"><option value="">All classes</option></select></div>
     <div class="field"><label>Marks</label><select id="testFState" onchange="renderTests()"><option value="">All</option><option value="due">Marks pending</option><option value="done">Complete</option></select></div>
   </div>
@@ -1020,7 +1020,7 @@ label.chk input{width:auto}
   <div class="panel">
     <div class="toolbar">
       <div class="field"><label>Date</label><input type="date" id="caDate" onchange="loadClassAtt()"></div>
-      <div class="field"><label>Class (Evening)</label><select id="caClass" onchange="caClassChanged()"></select></div>
+      <div class="field"><label>Class (Evening / 🌐 Online)</label><select id="caClass" onchange="caClassChanged()"></select></div>
       <div class="field"><label>Subject</label><select id="caSubject" onchange="loadClassAtt()"></select></div>
       <div class="field staff-only"><label>Teacher</label><select id="caTeacher" onchange="caTeacherChanged()"></select></div>
       <label class="chk" style="margin-bottom:10px"><input type="checkbox" id="caOnline"> 🟢 Online class</label>
@@ -1481,6 +1481,13 @@ const levelOfClass = c => CLASS_LEVEL[c] || "O Level";
 /* v48: Evening mein bacha 2 classes mein ho sakta hai (e.g. AS + A2) — course + course2 */
 const classesOf = s => !s ? [] : [s.course, s.shift === "Evening" ? s.course2 : ""].filter(Boolean);
 const inClass = (s, c) => classesOf(s).includes(c);
+/* v155: online bache (Mode of education = Online) — un ki alag class "Online|<class>", subject-wise teacher ke paas.
+   Onsite class ki lists (tests, homework, class attendance) mein online bacha nahi aata — exam papers ke siwa (keepOnline). */
+const isOnline = s => !!s && s.mode === "Online";
+const inSC = (st, sh, c, keepOnline) => !!st && inClass(st, c) && (sh === "Online" ? isOnline(st) : st.shift === sh && (!!keepOnline || !isOnline(st)));
+const onlineClasses = () => [...new Set(DB.students.filter(s=>isOnline(s) && s.status !== "Left").flatMap(classesOf))].sort((a,b)=>COURSES.indexOf(a) - COURSES.indexOf(b));
+const shiftTxt = sh => sh === "Online" ? "🌐 Online" : sh;
+const keyLabel = k => { const [sh, c] = String(k||"").split("|"); return sh === "Online" ? "🌐 Online · " + c : c + " · " + sh; };
 const classLabelOf = s => classesOf(s).join(" + ");
 /* v124: class history — promotion se pehle ki class st.classHist = [{course, course2, shift, until:"YYYY-MM-DD" (us class ka aakhri din), at, by}].
    Purani tareekh ke tests, report cards aur class position us waqt ki class mein ginay jate hain. */
@@ -1529,7 +1536,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v154 · 27 Oct 2026";
+const BUILD = "v155 · 27 Oct 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -3202,7 +3209,7 @@ function openProfile(id){
   const a = attSummary(id, s.doj);
   const fees = DB.fees.filter(f=>f.studentId===id).sort((x,y)=>y.month.localeCompare(x.month));
   const exams = DB.exams.filter(e=>e.studentId===id && examShown(e)).sort((x,y)=>y.date.localeCompare(x.date));
-  const hws = DB.homework.filter(h=>inClass(s, h.course) && h.shift===s.shift && ((h.done||{})[s.id] || joinedOn(s, h.dateGiven || h.dueDate)) && (!h.subject || !(s.subjects||[]).length || (s.subjects||[]).some(x=>subjLike(x.name, h.subject)))).sort((x,y)=>y.dateGiven.localeCompare(x.dateGiven));
+  const hws = DB.homework.filter(h=>inSC(s, h.shift, h.course, true) && ((h.done||{})[s.id] || joinedOn(s, h.dateGiven || h.dueDate)) && (!h.subject || !(s.subjects||[]).length || (s.subjects||[]).some(x=>subjLike(x.name, h.subject)))).sort((x,y)=>y.dateGiven.localeCompare(x.dateGiven));
   /* Siblings — same Father/Guardian CNIC */
   const cnicKey = v => String(v||"").replace(/\D/g,"");
   const fKey = cnicKey(s.fatherCnic);
@@ -3821,7 +3828,7 @@ const hwKeys = () => IS_TEACHER ? [...myClassKeys()] : null;
 const hwMine = h => !IS_TEACHER || h.teacherId === MY_TID;
 /* is homework ke bache: class + shift; subject wala homework aur bache ke subjects maloom hon to sirf us subject wale */
 function hwStudents(h){
-  return DB.students.filter(st=>st.status==="Active" && st.shift===h.shift && inClass(st, h.course) &&
+  return DB.students.filter(st=>st.status==="Active" && (inSC(st, h.shift, h.course) || ((h.done||{})[st.id] && inSC(st, h.shift, h.course, true))) &&
     ((h.done||{})[st.id] || joinedOn(st, h.dateGiven || h.dueDate)) &&
     (!h.subject || !(st.subjects||[]).length || (st.subjects||[]).some(x=>subjLike(x.name, h.subject))) &&
     (!IS_TEACHER || teachesStu(st, h.shift+"|"+h.course, mySubjMap())))
@@ -3851,7 +3858,7 @@ function renderHomework(){
       <td>${fmtD(h.dateGiven)}</td>
       <td><b>${esc(h.title)}</b>${h.subject?`<br><span class="sub">${esc(h.subject)}</span>`:""}${h.teacherId?`<br><span class="sub">👩‍🏫 ${esc(teacherName(h.teacherId))}</span>`:""}</td>
       <td>${esc(h.course)}</td>
-      <td>${h.shift}</td>
+      <td>${shiftTxt(h.shift)}</td>
       <td>${fmtD(h.dueDate)}</td>
       <td style="max-width:240px">${esc(h.detail||"—")}</td>
       <td><b>${sub}</b> / ${L.length}${miss?`<br><span class="sub" style="color:var(--danger)">${miss} not submitted</span>`:""}${absN?`<br><span class="sub">${absN} absent</span>`:""}${hwSentWaiting(h, L) ? `<br><span class="badge b-freeze" title="Sent from the student / parents' app — open Receival to check and confirm">📥 ${hwSentWaiting(h, L)} sent — confirm</span>` : ""}</td>
@@ -3867,7 +3874,7 @@ function hwSubjects(sh, c){
   const set = new Set();
   if(IS_TEACHER){ const x = mySubjMap()(sh+"|"+c); (x||[]).forEach(v=>set.add(v)); (empById(MY_TID)||{}).assignments?.forEach(a=>{ if(a.shift===sh && a.course===c && a.subject) set.add(a.subject); }); }
   else DB.employees.forEach(e=>(e.assignments||[]).forEach(a=>{ if(a.shift===sh && a.course===c && a.subject) set.add(a.subject); }));
-  DB.students.filter(st=>st.shift===sh && inClass(st, c)).forEach(st=>(st.subjects||[]).forEach(x=>{ if(!IS_TEACHER || !x.teacherId || x.teacherId===MY_TID) set.add(x.name); }));
+  DB.students.filter(st=>inSC(st, sh, c)).forEach(st=>(st.subjects||[]).forEach(x=>{ if(!IS_TEACHER || !x.teacherId || x.teacherId===MY_TID) set.add(x.name); }));
   return dedupeSubj(set);
 }
 /* v70: scope ke subject keys chhote huroof mein aate hain — "physics" aur "Physics" do dafa na hon */
@@ -3898,8 +3905,9 @@ function openHwForm(id){
       <div class="field"><label>Title *</label><input id="h_title" value="${esc(h.title||"")}" placeholder="e.g. Exercise 4.2, Q1–10"></div>
       <div class="field"><label>Shift *</label><select id="h_shift" onchange="${IS_TEACHER?"":"syncClassSel('h_shift','h_course');"}hwFormSync()">
         <option value="Morning" ${sh0==="Morning"?"selected":""}>Morning — School System</option>
-        <option value="Evening" ${sh0==="Evening"?"selected":""}>Evening — Academy</option></select></div>
-      <div class="field"><label>Class *</label><select id="h_course" onchange="hwFormSync()">${IS_TEACHER ? `<option>${esc(h.course||"")}</option>` : courseOptions(h.course, sh0)}</select></div>
+        <option value="Evening" ${sh0==="Evening"?"selected":""}>Evening — Academy</option>
+        ${!IS_TEACHER || hwKeys().some(k=>k.startsWith("Online|")) ? `<option value="Online" ${sh0==="Online"?"selected":""}>🌐 Online students</option>` : ""}</select></div>
+      <div class="field"><label>Class *</label><select id="h_course" onchange="hwFormSync()">${IS_TEACHER ? `<option>${esc(h.course||"")}</option>` : courseOptions(h.course, sh0 === "Online" ? "" : sh0)}</select></div>
       <div class="field"><label>Subject</label><input id="h_subj" list="h_subjList" value="${esc(h.subject||"")}" placeholder="e.g. Mathematics" onchange="hwFormSync()"><datalist id="h_subjList"></datalist></div>
       ${IS_TEACHER ? "" : `<div class="field"><label>Teacher</label><select id="h_teacher"><option value="">— none —</option>${DB.employees.filter(e=>e.category==="Teacher").sort((a,b)=>a.name.localeCompare(b.name)).map(e=>`<option value="${e.id}" ${h.teacherId===e.id?"selected":""}>${esc(e.name)}</option>`).join("")}</select></div>`}
       <div class="field"><label>Date Given</label><input type="date" id="h_date" value="${h.dateGiven||wmDate()}"></div>
@@ -7214,7 +7222,8 @@ const subjLike = (a, b) => { const x = keyify(a), y = keyify(b); return !!x && !
 function myClassKeys(){                       // teacher ki classes: "Shift|Class"
   const me = empById(MY_TID) || {}, ok = teachShifts(me);          // v79: sirf apni shift ki classes
   const set = new Set((me.assignments||[]).filter(a=>ok.includes(a.shift)).map(a=>a.shift+"|"+a.course));
-  DB.students.forEach(st=>{ if(!ok.includes(st.shift)) return; (st.subjects||[]).forEach(x=>{ if(x.teacherId===MY_TID) classesOf(st).forEach(c=>set.add(st.shift+"|"+c)); }); });
+  DB.students.forEach(st=>{ const on = isOnline(st); if(!on && !ok.includes(st.shift)) return;
+    (st.subjects||[]).forEach(x=>{ if(x.teacherId===MY_TID) classesOf(st).forEach(c=>set.add((on ? "Online" : st.shift)+"|"+c)); }); });   // v155: online bacha → Online|class
   return set;
 }
 /* v60: teacher ke bache — Morning class = poori class khud; Evening = usi class ke sirf wo bache jin ke subjects
@@ -7225,7 +7234,7 @@ function mySubjMap(){                         // "Shift|Class" → [subjects] ya
   if(me.scope) return k => (Array.isArray(me.scope[k]) && me.scope[k].length ? me.scope[k] : null);
   const add = (k, x) => { if(!x) return; if(!map.has(k)) map.set(k, new Set()); map.get(k).add(x); };
   (me.assignments||[]).forEach(a=>{ const k = a.shift+"|"+a.course; if(a.subject) add(k, a.subject); else whole.add(k); });
-  DB.students.forEach(st=>(st.subjects||[]).forEach(x=>{ if(x.teacherId===MY_TID) classesOf(st).forEach(c=>add(st.shift+"|"+c, x.name)); }));
+  DB.students.forEach(st=>(st.subjects||[]).forEach(x=>{ if(x.teacherId===MY_TID) classesOf(st).forEach(c=>add((isOnline(st) ? "Online" : st.shift)+"|"+c, x.name)); }));
   return k => whole.has(k) || !map.has(k) ? null : [...map.get(k)];
 }
 /* v94: Morning O Levels (O1, O2) mein bache apne apne subjects lete hain — teacher ko sirf apne subject wale bache.
@@ -7234,7 +7243,8 @@ const O_MORNING = ["O1","O2"];
 const subjWise = (sh, c) => sh === "Evening" || (sh === "Morning" && O_MORNING.includes(c));
 function teachesStu(st, k, subjOf){           // k = "Shift|Class"
   const [sh, c] = k.split("|");
-  if(st.shift !== sh || !inClass(st, c)) return false;
+  if(!inSC(st, sh, c)) return false;
+  if(sh === "Online") return (st.subjects||[]).some(x=>x.teacherId===MY_TID);     // v155: online — sirf jin subjects par ye teacher laga hai
   if(!subjWise(sh, c)) return true;
   const subs = subjOf(k);
   if(!subs) return true;
@@ -7258,7 +7268,7 @@ function uniqueStudents(list){
 }
 function classKeysFor(shift){
   if(IS_TEACHER) return [...myClassKeys()].filter(k=>!shift || k.startsWith(shift+"|"));
-  return (shift ? [shift] : ["Morning","Evening"]).flatMap(x=>(CLASSES_BY_SHIFT[x]||[]).map(c=>x+"|"+c));
+  return (shift ? [shift] : ["Morning","Evening","Online"]).flatMap(x=>(x === "Online" ? onlineClasses() : CLASSES_BY_SHIFT[x]||[]).map(c=>x+"|"+c));
 }
 /* ================= v93: MARKS ENTRY DEADLINE =================
    Har paper par t.marksDue (YYYY-MM-DD) — us din raat 11:59 PM (Pakistan) tak sab bachon ke marks + remarks.
@@ -7339,7 +7349,7 @@ function saveExamDeadline(examId){
 /* v87: paper / homework mera? — bina teacher, mere naam ka, ya Employees → Assign mein ye class + subject mujhe diya hai */
 const asgMine = (sh, c, subj) => ((empById(MY_TID)||{}).assignments||[]).some(a=>a.shift===sh && a.course===c && a.subject && (!subj || subjLike(a.subject, subj)));
 const testMine = t => !t.teacherId || t.teacherId===MY_TID || asgMine(t.shift, t.course, t.subject);
-const canEditTest = t => !IS_TEACHER || (t.by==="teacher" && t.teacherId===MY_TID && t.shift==="Evening");
+const canEditTest = t => !IS_TEACHER || (t.by==="teacher" && t.teacherId===MY_TID && (t.shift==="Evening" || t.shift==="Online"));
 /* v97: Morning — jo bacha ye subject nahi leta (subjects darj hain aur ye un mein nahi) us ke marks na gine jate hain na dikhte hain */
 const morningSkip = (st, subject) => !!st && st.shift === "Morning" && !!subject && !takesSubject(st, subject);
 const tInc = (t, sid) => !!t && Array.isArray(t.include) && t.include.includes(sid);          // v144: haath se list mein dala gaya bacha
@@ -7359,7 +7369,7 @@ function takesSubject(st, subject){
 function testStudents(t){
   const m = String(t.date||wm()).slice(0,7), RM = rosterMonths();
   const has = new Set(testMarks(t).map(e=>e.studentId));
-  return DB.students.filter(st=>(tInc(t, st.id) && st.status !== "Left") || (has.has(st.id) && !morningSkip(stuAt(st, t.date), t.subject)) || ((x=>x.shift===t.shift && inClass(x, t.course))(stuAt(st, t.date)) && st.status!=="Left" && inMonth(st, m, RM) && joinedOn(st, t.date)
+  return DB.students.filter(st=>(tInc(t, st.id) && st.status !== "Left") || (has.has(st.id) && !morningSkip(stuAt(st, t.date), t.subject)) || (inSC(stuAt(st, t.date), t.shift, t.course, !!t.examId) && st.status!=="Left" && inMonth(st, m, RM) && joinedOn(st, t.date)
       && takesSubject(stuAt(st, t.date), t.subject)))
     .sort((a,b)=>a.name.localeCompare(b.name));
 }
@@ -7388,7 +7398,7 @@ function renderTests(){
   const dueWarn = IS_TEACHER ? marksDueAlert() : "";
   $("testsNote").innerHTML = dueWarn + (IS_TEACHER && !keys.length
     ? `<div class="note">No class is assigned to you yet — ask the admin: Employees → your name → Edit → assign class.</div>`
-    : IS_TEACHER ? `<div class="sub" style="margin-bottom:10px">Showing <b>all exams</b> (any month) and <b>${fmtM(thisMonth())}</b> tests. Your classes: ${[...myClassKeys()].map(k=>{ const [sh,c]=k.split("|"); return `<span class="chip">${esc(c)} · ${sh}</span>`; }).join(" ")}</div>` : "");
+    : IS_TEACHER ? `<div class="sub" style="margin-bottom:10px">Showing <b>all exams</b> (any month) and <b>${fmtM(thisMonth())}</b> tests. Your classes: ${[...myClassKeys()].map(k=>`<span class="chip">${esc(keyLabel(k))}</span>`).join(" ")}</div>` : "");
   $("testRows").innerHTML = rows.length ? rows.map(({t,n,d})=>{ const av = testAvg(t), te = empById(t.teacherId);
     return `<tr>
       <td>${fmtD(t.date)}</td>
@@ -7410,15 +7420,15 @@ function renderTests(){
 function openTestForm(id){
   const t = id ? DB.tests.find(x=>x.id===id) : {};
   if(id && (!t || !canEditTest(t))) return;
-  if(IS_TEACHER && !classKeysFor("Evening").length){ toast("Morning tests are created by the admin — you have no Evening class assigned"); return; }
-  const shifts = IS_TEACHER ? ["Evening"] : ["Morning","Evening"];
+  if(IS_TEACHER && !classKeysFor("Evening").length && !classKeysFor("Online").length){ toast("Morning tests are created by the admin — you have no Evening or Online class assigned"); return; }
+  const shifts = IS_TEACHER ? ["Evening","Online"].filter(x=>classKeysFor(x).length) : ["Morning","Evening","Online"];
   openModal(`
     <h3>${id ? "Edit test" : "🧪 Create Test"}</h3>
-    ${IS_TEACHER ? `<div class="note">You can create basic tests only for your <b>Evening</b> classes. Morning tests are created by the admin — you enter marks and remarks in them.</div>` : ""}
+    ${IS_TEACHER ? `<div class="note">You can create basic tests only for your <b>Evening</b> and <b>🌐 Online</b> classes. Morning tests are created by the admin — you enter marks and remarks in them.</div>` : ""}
     <div class="grid2">
       <div class="field"><label>Test name *</label><input id="t_name" value="${esc(t.name||"")}" placeholder="e.g. Weekly Test 1 / Monthly Test"></div>
       <div class="field"><label>Date *</label><input type="date" id="t_date" value="${t.date||wmDate()}"></div>
-      <div class="field"><label>Shift</label><select id="t_shift" onchange="testFormSync()">${shifts.map(x=>`<option ${t.shift===x?"selected":""}>${x}</option>`).join("")}</select></div>
+      <div class="field"><label>Shift</label><select id="t_shift" onchange="testFormSync()">${shifts.map(x=>`<option value="${x}" ${t.shift===x?"selected":""}>${shiftTxt(x)}</option>`).join("")}</select></div>
       <div class="field"><label>Class *</label><select id="t_course" onchange="testFormSync()"></select></div>
       <div class="field"><label>Subject *</label><input id="t_subj" list="t_subjList" value="${esc(t.subject||"")}" placeholder="e.g. Physics" onchange="testFormSync()"><datalist id="t_subjList"></datalist></div>
       <div class="field"><label>Teacher (enters the marks)</label><select id="t_teacher" ${IS_TEACHER?"disabled":""}></select></div>
@@ -7437,7 +7447,7 @@ function testFormSync(){
   const courses = classKeysFor(sh).map(k=>k.split("|")[1]);
   $("t_course").innerHTML = courses.map(c=>`<option ${c===keep?"selected":""}>${esc(c)}</option>`).join("");
   const c = $("t_course").value, subs = new Set(), tBy = {};
-  DB.students.filter(st=>st.shift===sh && inClass(st, c)).forEach(st=>(st.subjects||[]).forEach(x=>{
+  DB.students.filter(st=>inSC(st, sh, c)).forEach(st=>(st.subjects||[]).forEach(x=>{
     if(IS_TEACHER && x.teacherId && x.teacherId!==MY_TID) return;
     subs.add(x.name); if(x.teacherId) tBy[keyify(x.name)] = x.teacherId; }));
   if(!subs.size) subjectsForClass(c).forEach(x=>subs.add(x.name));
@@ -7456,7 +7466,7 @@ function saveTest(id){
   if($("t_due")) data.marksDue = $("t_due").value || "";
   if(!data.name || !data.date || !data.course || !data.subject){ toast("Enter name, date, class and subject"); return; }
   if(!(data.total > 0)){ toast("Enter total marks"); return; }
-  if(IS_TEACHER && data.shift !== "Evening"){ toast("Only the admin can create Morning tests"); return; }
+  if(IS_TEACHER && data.shift !== "Evening" && data.shift !== "Online"){ toast("Only the admin can create Morning tests"); return; }
   if(id){
     const t = DB.tests.find(x=>x.id===id); if(!t) return;
     const over = DB.exams.filter(e=>e.testId===id && +e.obtained > data.total).length;
@@ -7698,7 +7708,8 @@ function openMarks(id){
 function whyNotInTest(st, t){
   const x = stuAt(st, t.date), m = String(t.date||wm()).slice(0,7);
   if(st.status === "Left") return "marked as Left";
-  if(x.shift !== t.shift || !inClass(x, t.course)) return `class on ${fmtD(t.date)} was ${x.course} · ${x.shift}${(st.classHist||[]).length ? " (from the class history)" : ""}`;
+  if(t.shift !== "Online" && isOnline(x) && x.shift === t.shift && inClass(x, t.course) && !t.examId) return "online student — in the 🌐 Online class (not in onsite tests)";
+  if(!inSC(x, t.shift, t.course, true)) return `class on ${fmtD(t.date)} was ${x.course} · ${x.shift}${(st.classHist||[]).length ? " (from the class history)" : ""}`;
   if(!inMonth(st, m, rosterMonths())) return `not on the ${fmtM(m)} class list (join month / monthly roster)`;
   if(!joinedOn(st, t.date)) return `Date of Join is ${fmtD(st.doj)} — after this paper`;
   if(!takesSubject(x, t.subject)) return `${t.subject||"this subject"} is not in the student's subjects${(x.subjects||[]).length ? " (" + x.subjects.map(z=>z.name).join(", ") + ")" : " (none listed)"}`;
@@ -7707,7 +7718,7 @@ function whyNotInTest(st, t){
 function testMissing(t){
   const inL = new Set(testStudents(t).map(x=>x.id));
   return DB.students.filter(st=>st.status !== "Left" && !inL.has(st.id) && (
-      (st.shift === t.shift && inClass(st, t.course)) || ((x=>x.shift === t.shift && inClass(x, t.course))(stuAt(st, t.date)))
+      inSC(st, t.shift, t.course, true) || inSC(stuAt(st, t.date), t.shift, t.course, true) || (t.shift === "Online" && isOnline(st) && inClass(st, t.course))
       || (st.prevClass && st.prevClass.course === t.course) || (st.classHist||[]).some(h=>h.course === t.course && (h.shift||st.shift) === t.shift)))
     .map(st=>({st, why: whyNotInTest(st, t) || "not matched"})).sort((a,b)=>a.st.name.localeCompare(b.st.name));
 }
@@ -8414,7 +8425,7 @@ function renderMyDash(){
   const today0 = new Date().getDay();
   const asg = (me.assignments||[]).filter(a=>teachShifts(me).includes(a.shift)).sort((a,b)=>((slotOf(a,today0)||a).from||"99").localeCompare((slotOf(b,today0)||b).from||"99") || a.course.localeCompare(b.course));
   const today = new Date().getDay(), nowT = new Date().toTimeString().slice(0,5);
-  const forAsg = a => stus.filter(st=>st.shift===a.shift && inClass(st, a.course)
+  const forAsg = a => stus.filter(st=>inSC(st, a.shift, a.course)
     && (!subjWise(a.shift, a.course) || (a.subject ? (st.subjects||[]).some(x=>x.teacherId===MY_TID || (a.shift === "Morning" || !x.teacherId) && subjLike(x.name, a.subject))
       || (a.shift === "Morning" && !(st.subjects||[]).length && st.hasSubj !== true) : teachesStu(st, a.shift+"|"+a.course, subjOf))));
   /* v131: Skill Development group bhi ek period (Morning) */
@@ -8450,8 +8461,8 @@ function renderMyDash(){
   $("mdTitle").textContent = `Welcome, ${me.name || "Teacher"}`;
   $("mdSub").textContent = `${new Date().toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long",year:"numeric"})}${me.online ? " · 🟢 Online teacher" : ""}`;
   $("mdCards").innerHTML = `
-    <div class="card"><div class="k">My classes</div><div class="v">${keys.length}</div><div class="hint">${keys.map(k=>k.split("|").reverse().join(" · ")).join(", ") || "Ask the admin to assign"}</div></div>
-    <div class="card"><div class="k">My students</div><div class="v">${people.length}</div><div class="hint">${fmtM(m)} · Morning O1/O2 & Evening: your subject only · other Morning classes: whole class${people.length < stus.length ? ` · ${stus.length - people.length} repeated counted once` : ""}${wholeCls.length && SERVER ? `<br><span style="color:var(--danger)">Subject not set for ${wholeCls.map(k=>k.split("|").reverse().join(" · ")).join(", ")} — whole class counted. Ask the admin to set your subject (Employees → Edit → Assign).</span>` : ""}</div></div>
+    <div class="card"><div class="k">My classes</div><div class="v">${keys.length}</div><div class="hint">${keys.map(k=>keyLabel(k)).join(", ") || "Ask the admin to assign"}</div></div>
+    <div class="card"><div class="k">My students</div><div class="v">${people.length}</div><div class="hint">${fmtM(m)} · Morning O1/O2, Evening & 🌐 Online: your subject only · other Morning classes: whole class${people.length < stus.length ? ` · ${stus.length - people.length} repeated counted once` : ""}${wholeCls.length && SERVER ? `<br><span style="color:var(--danger)">Subject not set for ${wholeCls.map(k=>keyLabel(k)).join(", ")} — whole class counted. Ask the admin to set your subject (Employees → Edit → Assign).</span>` : ""}</div></div>
     <div class="card"><div class="k">Today's classes</div><div class="v">${todays.length}</div><div class="hint">${todays.length ? todays.map(a=>`${fmtT(a.from)} ${a.course}`).join(", ") : "No class times set for today"}</div></div>
     <div class="card${empLateMonth(MY_TID, m).over ? " late-card" : ""}"><div class="k">My attendance (${fmtM(m)})</div><div class="v ${pct >= 90 || !marked ? "green" : "red"}">${marked ? pct + "%" : "—"}</div><div class="hint">${c.P} present · ${c.L} late · ${c.A} absent · ${c.E} informed leave · ${c.U} uninformed · leaves ${empLeaveDays(MY_TID, m).length}/${EMP_LEAVE_LIMIT} · late ${empLateMonth(MY_TID, m).tot}/${latePolicy().allow} min${empLateMonth(MY_TID, m).ded ? ` · <b style="color:var(--danger)">fine Rs ${empLateMonth(MY_TID, m).ded.toLocaleString("en-US")}</b>` : ""}</div></div>
     <div class="card click" onclick="document.querySelector('#nav button[data-page=tests]').click()"><div class="k">Marks pending</div><div class="v ${pend.length ? "red" : "green"}">${pend.length}</div><div class="hint">papers with incomplete marks</div></div>`;
@@ -8478,7 +8489,7 @@ function renderMyDash(){
       <td><span class="badge ${x.d ? "b-freeze" : "b-unpaid"}">${x.d} / ${x.n}</span></td><td><button class="btn-red btn-sm" onclick="openMarks('${x.t.id}')">✍ Marks</button></td></tr>`).join("")}</tbody></table></div>`
     : `<div class="empty" style="padding:14px">All marks complete ✓</div>`;
   const cs = $("mdCls"), keep = cs.value;
-  cs.innerHTML = `<option value="">All classes</option>` + keys.map(k=>`<option value="${esc(k)}" ${k===keep?"selected":""}>${esc(k.split("|").reverse().join(" · "))}</option>`).join("");
+  cs.innerHTML = `<option value="">All classes</option>` + keys.map(k=>`<option value="${esc(k)}" ${k===keep?"selected":""}>${esc(keyLabel(k))}</option>`).join("");
   const fc = cs.value, q = ($("mdQ").value||"").toLowerCase();
   const myS = new Set(asg.filter(a=>a.subject).map(a=>keyify(a.subject)));
   /* aik bacha = aik row; agar wo Morning aur Evening dono mein hai to dono classes isi row mein */
@@ -8486,7 +8497,7 @@ function renderMyDash(){
     .map(recs=>({st:recs[0], recs})).sort((a,b)=>a.st.course.localeCompare(b.st.course) || a.st.name.localeCompare(b.st.name));
   const subjTxt = st => (st.subjects||[]).map(x=>myS.has(keyify(x.name)) || x.teacherId===MY_TID ? `<b style="color:var(--ink)">${esc(x.name)}</b>` : esc(x.name)).join(", ");
   $("mdStu").innerHTML = L.length ? L.map(({st, recs},i)=>`<tr><td>${i+1}</td><td>${[...new Set(recs.map(r=>r.regNo).filter(Boolean))].map(esc).join(" / ")}</td><td><b>${esc(st.name)}</b></td>
-    <td>${recs.map(r=>esc(classesOf(r).join(" + "))).join("<br>")}</td><td>${recs.map(r=>esc(r.shift)).join("<br>")}</td>
+    <td>${recs.map(r=>esc(classesOf(r).join(" + "))).join("<br>")}</td><td>${recs.map(r=>isOnline(r) ? `<span class="badge b-paid">🌐 Online</span>` : esc(r.shift)).join("<br>")}</td>
     <td class="sub">${recs.map(r=>subjTxt(r) || "—").join("<br>")}</td></tr>`).join("")
     : `<tr><td colspan="6" class="empty">No students</td></tr>`;
 }
@@ -8534,12 +8545,12 @@ function asgBusy(on, msg){
   o.classList.toggle("show", !!on);
 }
 const asgClassKeys = () => IS_TEACHER ? [...myClassKeys()].sort() : classKeysFor("");
-const asgKeyLabel = k => k.split("|").reverse().join(" · ");
+const asgKeyLabel = k => keyLabel(k);
 function asgSubjSuggest(k){
   const [sh, c] = String(k||"").split("|"), set = new Set();
   if(IS_TEACHER){ const s = mySubjMap()(k); (s||[]).forEach(x=>set.add(x)); }
   subjectsForClass(c).forEach(x=>set.add(x.name));
-  DB.students.filter(st=>st.shift===sh && inClass(st, c)).forEach(st=>(st.subjects||[]).forEach(x=>{ if(!IS_TEACHER || !x.teacherId || x.teacherId===MY_TID) set.add(x.name); }));
+  DB.students.filter(st=>inSC(st, sh, c)).forEach(st=>(st.subjects||[]).forEach(x=>{ if(!IS_TEACHER || !x.teacherId || x.teacherId===MY_TID) set.add(x.name); }));
   return dedupeSubj(set);
 }
 function asgStop(){ clearInterval(ASG.poll); ASG.poll = null; }
@@ -9047,46 +9058,50 @@ function asgReset(id){
    Teacher apni class + subject ki attendance lagata hai (DB.classAtt). Main (gate) attendance mein Present / Late
    magar class mein Absent = class bunk. Parents ka chatbot (server) bhi yahi hisaab khud lagata hai. */
 let caDraft = null;
-function caSubjects(c, tid){
+/* v155: class dropdown value "Evening|AS" ya "Online|AS" (purane records sirf "AS" = Evening) */
+const caSplit = v => String(v||"").includes("|") ? String(v).split("|") : ["Evening", String(v||"")];
+const caRid = (date, sh, c, subj) => sh === "Online" ? `${date}|Online|${c}|${keyify(subj)}` : `${date}|${c}|${keyify(subj)}`;
+function caSubjects(c, tid, sh){
   const set = new Set();
-  DB.students.filter(st=>st.shift==="Evening" && inClass(st, c)).forEach(st=>(st.subjects||[]).forEach(x=>{ if(!tid || !x.teacherId || x.teacherId===tid) set.add(x.name); }));
+  DB.students.filter(st=>inSC(st, sh || "Evening", c)).forEach(st=>(st.subjects||[]).forEach(x=>{ if(!tid || !x.teacherId || x.teacherId===tid) set.add(x.name); }));
   return [...set].sort();
 }
-function caStudents(c, subj, date){
-  const m = String(date).slice(0,7), RM = rosterMonths();
-  return DB.students.filter(st=>st.shift==="Evening" && inClass(st, c) && activeIn(st, m, RM)
-    && (!subj || subj==="General" || !(st.subjects||[]).length || st.subjects.some(x=>subjLike(x.name, subj))))
+function caStudents(c, subj, date, sh, keep){
+  const m = String(date).slice(0,7), RM = rosterMonths(); sh = sh || "Evening";
+  return DB.students.filter(st=>(keep && keep[st.id] && inSC(st, sh, c, true)) || (inSC(st, sh, c) && activeIn(st, m, RM)
+    && (!subj || subj==="General" || !(st.subjects||[]).length || st.subjects.some(x=>subjLike(x.name, subj)))
+    && (sh !== "Online" || !IS_TEACHER || (st.subjects||[]).some(x=>x.teacherId===MY_TID))))
     .sort((a,b)=>a.name.localeCompare(b.name));
 }
 function loadClassAtt(){
   if(!$("caDate").value) $("caDate").value = wmDate();
   const date = $("caDate").value;
-  const cs = classKeysFor("Evening").map(k=>k.split("|")[1]), csel = $("caClass"), keepC = csel.value;
-  csel.innerHTML = cs.length ? cs.map(c=>`<option ${c===keepC?"selected":""}>${esc(c)}</option>`).join("") : `<option value="">— no Evening classes —</option>`;
-  const c = csel.value, tsel = $("caTeacher");
+  const cs = [...classKeysFor("Evening"), ...classKeysFor("Online")], csel = $("caClass"), keepC = csel.value.includes("|") || !csel.value ? csel.value : "Evening|" + csel.value;
+  csel.innerHTML = cs.length ? cs.map(k=>`<option value="${esc(k)}" ${k===keepC?"selected":""}>${k.startsWith("Online|") ? "🌐 Online · " : ""}${esc(k.split("|")[1])}</option>`).join("") : `<option value="">— no Evening / Online classes —</option>`;
+  const [csh, c] = caSplit(csel.value), tsel = $("caTeacher");
   if(!IS_TEACHER){
     const keepT = tsel.value;
-    tsel.innerHTML = `<option value="">— select —</option>` + DB.employees.filter(e=>e.category==="Teacher" && e.shift!=="Morning").sort((a,b)=>a.name.localeCompare(b.name))
+    tsel.innerHTML = `<option value="">— select —</option>` + DB.employees.filter(e=>e.category==="Teacher" && (e.shift!=="Morning" || csh === "Online")).sort((a,b)=>a.name.localeCompare(b.name))
       .map(e=>`<option value="${e.id}" ${e.id===keepT?"selected":""}>${esc(e.name)}${e.online?" (Online)":""}</option>`).join("");
   }
-  const subs = caSubjects(c, IS_TEACHER ? MY_TID : ""), ssel = $("caSubject"), keepS = ssel.value;
+  const subs = caSubjects(c, IS_TEACHER ? MY_TID : "", csh), ssel = $("caSubject"), keepS = ssel.value;
   ssel.innerHTML = (subs.length ? subs : ["General"]).map(x=>`<option ${x===keepS?"selected":""}>${esc(x)}</option>`).join("");
-  const subj = ssel.value, rid = `${date}|${c}|${keyify(subj)}`;
+  const subj = ssel.value, rid = caRid(date, csh, c, subj);
   const rec = DB.classAtt.find(r=>r.id===rid);
   if(!IS_TEACHER){
     if(rec) tsel.value = rec.teacherId || "";
     else if(!tsel.value){
-      const st = DB.students.find(x=>x.shift==="Evening" && inClass(x, c) && (x.subjects||[]).some(y=>y.name===subj && y.teacherId));
+      const st = DB.students.find(x=>inSC(x, csh, c) && (x.subjects||[]).some(y=>y.name===subj && y.teacherId));
       if(st) tsel.value = st.subjects.find(y=>y.name===subj && y.teacherId).teacherId;
     }
   }
   const tid = IS_TEACHER ? MY_TID : tsel.value;
-  $("caOnline").checked = rec ? !!rec.online : !!(empById(tid)||{}).online;
-  const stus = c ? caStudents(c, subj, date) : [];
+  $("caOnline").checked = rec ? !!rec.online : csh === "Online" || !!(empById(tid)||{}).online;
+  const stus = c ? caStudents(c, subj, date, csh, rec && rec.marks) : [];
   const main = DB.attendance[date] || {};
-  caDraft = {id:rid, course:c, subject:subj, marks:{}};
+  caDraft = {id:rid, shift:csh, course:c, subject:subj, marks:{}};
   stus.forEach(st=>{ caDraft.marks[st.id] = rec && rec.marks ? (rec.marks[st.id] || null) : null; });
-  $("caWarn").innerHTML = !c ? `<div class="note">${IS_TEACHER ? "No Evening class is assigned to you — ask the admin (Employees → Edit → Assign)." : "Choose an Evening class."}</div>`
+  $("caWarn").innerHTML = !c ? `<div class="note">${IS_TEACHER ? "No Evening or Online class is assigned to you — ask the admin (Employees → Edit → Assign)." : "Choose an Evening class."}</div>`
     : rec ? `<div class="note">This attendance is already saved — ${esc(teacherName(rec.teacherId))}${rec.online ? " · 🟢 Online" : ""} · ${String(rec.savedAt||"").slice(0,16).replace("T"," ")}. You can change it and save again.</div>`
     : isWeekend(date) ? `<div class="note">${fmtD(date)} is a weekend. If a class was held, mark attendance.</div>` : "";
   $("caRows").innerHTML = stus.length ? stus.map(st=>{ const r = caDraft.marks[st.id], mm = main[st.id];
@@ -9114,7 +9129,7 @@ function saveClassAtt(){
   if(!n){ toast("Mark attendance first"); return; }
   const old = DB.classAtt.find(r=>r.id===caDraft.id);
   if(IS_TEACHER && old && old.teacherId !== MY_TID){ toast("Attendance for this class / subject was marked by another teacher"); return; }
-  const rec = {id:caDraft.id, date:$("caDate").value, shift:"Evening", course:caDraft.course, subject:caDraft.subject, teacherId:tid,
+  const rec = {id:caDraft.id, date:$("caDate").value, shift:caDraft.shift || "Evening", course:caDraft.course, subject:caDraft.subject, teacherId:tid,
     online:$("caOnline").checked, marks, savedAt:new Date().toISOString(), by:ROLE_LABEL};
   if(old) Object.assign(old, rec); else DB.classAtt.push(rec);
   save(); renderCaLog(); if(!IS_TEACHER) renderBunks();
@@ -9147,7 +9162,7 @@ function renderCaLog(){
   const m = String($("caDate").value || wmDate()).slice(0,7);
   const L = DB.classAtt.filter(r=>String(r.date).startsWith(m)).sort((a,b)=>String(b.date).localeCompare(String(a.date)) || a.course.localeCompare(b.course));
   $("caLog").innerHTML = L.length ? L.map(r=>{ const v = Object.values(r.marks||{});
-    return `<tr><td>${fmtD(r.date)}</td><td>${esc(r.course)}</td><td>${esc(r.subject)}</td><td>${esc(teacherName(r.teacherId))}</td>
+    return `<tr><td>${fmtD(r.date)}</td><td>${r.shift === "Online" ? "🌐 " : ""}${esc(r.course)}</td><td>${esc(r.subject)}</td><td>${esc(teacherName(r.teacherId))}</td>
       <td>${r.online ? `<span class="online-dot"></span>Online` : "In class"}</td><td>${v.filter(x=>x==="P"||x==="L").length}</td><td>${v.filter(x=>x==="A").length}</td>
       <td><button class="btn-line btn-sm" onclick="caOpen('${esc(r.id)}')">Open</button></td></tr>`; }).join("")
     : `<tr><td colspan="8" class="empty">No class attendance in ${fmtM(m)} yet</td></tr>`;
@@ -9155,7 +9170,8 @@ function renderCaLog(){
 function caOpen(id){
   const r = DB.classAtt.find(x=>x.id===id); if(!r) return;
   $("caDate").value = r.date;
-  $("caClass").innerHTML = `<option>${esc(r.course)}</option>`; $("caClass").value = r.course;
+  const ck = (r.shift === "Online" ? "Online" : "Evening") + "|" + r.course;
+  $("caClass").innerHTML = `<option value="${esc(ck)}">${esc(r.course)}</option>`; $("caClass").value = ck;
   $("caSubject").innerHTML = `<option>${esc(r.subject)}</option>`; $("caSubject").value = r.subject;
   if(!IS_TEACHER){ $("caTeacher").innerHTML = `<option value="${r.teacherId}">x</option>`; $("caTeacher").value = r.teacherId; }
   loadClassAtt(); window.scrollTo(0,0);
@@ -9882,7 +9898,7 @@ function posParts(st, m, marks){
   if(marks === null || marks === undefined) return null;
   const t0 = todayStr();
   let hs = 0, hn = 0;
-  (DB.homework||[]).forEach(h=>{ if(h.shift !== st.shift || !inClass(st, h.course)) return;
+  (DB.homework||[]).forEach(h=>{ if(!inSC(st, h.shift, h.course, true)) return;
     if(h.subject && (st.subjects||[]).length && !(st.subjects||[]).some(x=>subjLike(x.name, h.subject))) return;
     const due = h.dueDate || h.dateGiven || ""; if(!String(due).startsWith(m)) return;
     const d = (h.done||{})[st.id];

@@ -222,14 +222,18 @@ function redacted(role, tid) {
 /* v48: Evening bacha 2 classes mein (course + course2) */
 const O_MORNING = ["O1", "O2"];            // v94: Morning O Levels — subject-wise jaise Evening
 const stuClasses = (st) => [st.course, st.shift === "Evening" ? st.course2 : ""].filter(Boolean);
-const stuIn = (st, sh, c) => st.shift === sh && stuClasses(st).includes(c);
+/* v155: online bacha (mode Online) "Online|class" mein bhi — server ki taraf ijazat khuli rakhi (onsite bhi), list client tay karta hai */
+const isOnlineSt = (st) => !!st && st.mode === "Online";
+const stuIn = (st, sh, c) => (sh === "Online" ? isOnlineSt(st) : st.shift === sh) && stuClasses(st).includes(c);
+const stuKeyShift = (st) => (isOnlineSt(st) ? "Online" : st.shift);
 /* v79: teacher sirf apni shift ki classes — Evening teacher ko Morning ki class kabhi nahi (chahe kisi Morning bache ke subject par
    us ka naam laga ho), aur ulta. Both / Online → dono shifts. */
 const teachShifts = (e) => (!e || !e.shift ? ["Morning", "Evening"] : e.shift === "Morning" ? ["Morning"] : e.shift === "Evening" ? ["Evening"] : ["Morning", "Evening"]);
 function teacherClasses(d, tid) {
   const me = (d.employees || []).find((e) => e.id === tid) || {}, ok = teachShifts(me);
   const cls = new Set((me.assignments || []).filter((a) => ok.includes(a.shift)).map((a) => a.shift + "|" + a.course));
-  (d.students || []).forEach((st) => { if (!ok.includes(st.shift)) return; (st.subjects || []).forEach((x) => { if (x.teacherId === tid) stuClasses(st).forEach((c) => cls.add(st.shift + "|" + c)); }); });
+  (d.students || []).forEach((st) => { const on = isOnlineSt(st); if (!on && !ok.includes(st.shift)) return;
+    (st.subjects || []).forEach((x) => { if (x.teacherId === tid) stuClasses(st).forEach((c) => cls.add((on ? "Online" : st.shift) + "|" + c)); }); });   // v155
   return cls;
 }
 /* v46: teacher ke subjects har class mein — assignment ka subject, student ke subject par laga teacher,
@@ -239,7 +243,7 @@ function teacherSubjects(d, tid, cls) {
   const map = new Map(), all = new Set();
   const add = (k, subj) => { if (!subj || (cls && !cls.has(k))) return; if (!map.has(k)) map.set(k, new Set()); map.get(k).add(keyOf(subj)); };
   (me.assignments || []).forEach((a) => { const k = a.shift + "|" + a.course; if (a.subject) add(k, a.subject); else all.add(k); });
-  (d.students || []).forEach((st) => (st.subjects || []).forEach((x) => { if (x.teacherId === tid) stuClasses(st).forEach((c) => add(st.shift + "|" + c, x.name)); }));
+  (d.students || []).forEach((st) => (st.subjects || []).forEach((x) => { if (x.teacherId === tid) stuClasses(st).forEach((c) => add(stuKeyShift(st) + "|" + c, x.name)); }));
   Object.entries((d.settings || {}).subjTeacher || {}).forEach(([key, t]) => { if (t !== tid) return; const [sh, c, sk] = key.split("|"); add(sh + "|" + c, sk); });
   (d.tests || []).forEach((t) => { if (t.teacherId === tid) add(t.shift + "|" + t.course, t.subject); });
   /* v60: class ke subjects kahin se bhi maloom hon to sirf wohi (bina-subject assignment ab poori class nahi kholti);
@@ -253,8 +257,9 @@ const asgCovers = (me, sh, c, subj) => !!me && (me.assignments || []).some((a) =
   && teachShifts(me).includes(a.shift) && !!a.subject && (!subj || subjHit(new Set([keyOf(a.subject)]), subj)));
 const meOf = (d, tid) => (d.employees || []).find((e) => e.id === tid) || null;
 const testSeen = (t, tid, cls, me) => !!t && cls.has(t.shift + "|" + t.course) && (!t.teacherId || t.teacherId === tid || asgCovers(me, t.shift, t.course, t.subject));
-const testOwn = (t, tid, cls) => !!t && t.by === "teacher" && t.teacherId === tid && t.shift === "Evening" && cls.has("Evening|" + t.course);
-const catOwn = (c, tid, cls) => !!c && c.teacherId === tid && c.shift === "Evening" && cls.has("Evening|" + c.course);
+const OWN_SH = ["Evening", "Online"];                         // v155: teacher apne test / class attendance Evening aur Online classes mein
+const testOwn = (t, tid, cls) => !!t && t.by === "teacher" && t.teacherId === tid && OWN_SH.includes(t.shift) && cls.has(t.shift + "|" + t.course);
+const catOwn = (c, tid, cls) => !!c && c.teacherId === tid && OWN_SH.includes(c.shift || "Evening") && cls.has((c.shift || "Evening") + "|" + c.course);
 /* v69: homework — teacher apni classes ka homework dekhta hai; apna banaya poora badal sakta hai,
    admin wale (bina teacher) mein sirf receival (done) update kar sakta hai, kisi aur teacher ka nahi chhoo sakta */
 /* v70: teacher ko sirf is mahine ke active students — client wala activeIn / inMonth (roster + join + status) */
@@ -304,7 +309,7 @@ function teacherView(d, tid) {
   const s = d.settings || {}, subjOf = teacherSubjects(d, tid, cls);
   /* sirf apne subjects ke students — aur un ke subjects mein se sirf apne */
   /* jin classes mein teacher hai un mein se kisi mein bhi — aur un ke subjects mein se sirf apne */
-  const keys = (st) => stuClasses(st).map((c) => st.shift + "|" + c).filter((k) => cls.has(k));
+  const keys = (st) => stuClasses(st).flatMap((c) => isOnlineSt(st) ? ["Online|" + c, st.shift + "|" + c] : [st.shift + "|" + c]).filter((k) => cls.has(k));   // v155
   /* v70: subject jis par koi aur teacher laga ho wo kabhi nahi; bina-subject class mein baqi sab, warna sirf apne */
   /* v87: bache ke subject par koi aur teacher laga ho magar Employees → Assign mein ye class + subject is teacher ka hai → is ka bhi */
   const mine = (st) => { const sets = keys(st).map(subjOf), L = (st.subjects || []).filter((x) => !x.teacherId || x.teacherId === tid

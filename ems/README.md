@@ -934,3 +934,15 @@ Share → "Add to Home Screen" · Computer Chrome/Edge: the install icon in the 
   - ✓ appears when the server runs a patched release from the October 2026 security advisory: 22.23.4, 24.22.1 or 26.12.1 or newer in the same line.
   - ⚠ appears otherwise, with the steps to redeploy.
 - `/api/version` returns `node` for the Executive. The startup log line on Render also prints the Node.js version.
+
+## v155 — Online students: their own class with subject-wise teachers
+- A student whose **Mode of education** is **Online** now belongs to an **🌐 Online · <class>** class (key `Online|<class>`). Their onsite shift stays as it is for fees and gate attendance.
+- **Subject-wise teachers:** set the teacher on each subject in the admission / edit form, as before. That teacher gets the **🌐 Online · <class>** class, whatever their own shift is, and sees only the online students whose subject they teach.
+- In the teacher portal, online students show separately:
+  - "My classes" lists **🌐 Online · AS**.
+  - In "My students", online students carry a 🌐 Online badge.
+  - Teachers can create **tests**, mark **class attendance** and give **homework** for their Online classes, like Evening classes.
+- Online students no longer appear in onsite class lists (regular tests, class attendance, homework, AI assignments). They are still listed in **exam papers** (term exams), and anywhere they already have marks or homework ticks. Missing-student lists show "online student — in the 🌐 Online class".
+- Admin: Tests / Homework / Class Attendance now offer **🌐 Online** as a shift.
+- Parents' report and chatbot include Online homework for online students.
+- Server: `stuIn` / `teacherClasses` / `teacherSubjects` / `teacherView` know `Online|class`. Teachers may create their own tests and class attendance in Evening **and** Online classes. AI assignments support `Online` classes.
