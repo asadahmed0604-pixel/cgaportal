@@ -905,3 +905,11 @@ Share → "Add to Home Screen" · Computer Chrome/Edge: the install icon in the 
 ## v150 — A Level Urdu in new admissions
 - A Level Urdu now shows in the admission form's subject list for every A Level class (AS, A2, A Levels, Composite), Morning and Evening.
 - If an older "Urdu · A Level" entry was restricted to only some classes (e.g. SAT), it now opens up across all of A Level automatically.
+
+## v151 — Recover missing fee challans
+- Settings → **♻ Recover missing fee challans** (Executive only).
+- **From server backups:** the server keeps the end-of-day data for the last 45 days. The list shows how many challans each day had, month by month, so you can see the day before the challans went missing. Pick that day.
+- **From a backup file:** use a JSON backup you downloaded earlier.
+- Only challans that are **missing now** are added. A challan counts as missing when its id is not in the system and the same student + month + class has no challan. Nothing else changes.
+- Challans of deleted students are skipped. If a challan number is already taken, the restored challan gets a new number.
+- New Executive-only routes: `GET /api/backups` (list with challan counts per month) and `GET /api/backups/file?name=` (strict file-name check).

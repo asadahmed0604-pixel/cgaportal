@@ -629,6 +629,27 @@ function persist(next, label) {
   const imports = old.filter((f) => f.startsWith("before-import-"));
   imports.slice(0, Math.max(0, imports.length - 10)).forEach((f) => fs.unlinkSync(path.join(BACKUP_DIR, f)));
 }
+/* v151: backups ki fehrist — har file mein mahina-war challans ki ginti (file badle baghair dobara nahi parhte) */
+const BACKUP_NAME = /^(db-\d{4}-\d{2}-\d{2}|before-import-[\w-]+)\.json$/;
+const backupInfo = {};
+function backupList() {
+  let names = [];
+  try { names = fs.readdirSync(BACKUP_DIR).filter((f) => BACKUP_NAME.test(f)); } catch (e) { return []; }
+  return names.map((name) => {
+    const f = path.join(BACKUP_DIR, name);
+    let st; try { st = fs.statSync(f); } catch (e) { return null; }
+    const c = backupInfo[name];
+    if (c && c.mtime === st.mtimeMs) return c.row;
+    let row = { name, at: st.mtime.toISOString(), size: st.size, fees: {}, total: 0, students: 0 };
+    try {
+      const j = JSON.parse(fs.readFileSync(f, "utf8")), d = (j && j.data) || j || {};
+      (d.fees || []).forEach((x) => { const m = String((x && x.month) || "?"); row.fees[m] = (row.fees[m] || 0) + 1; });
+      row.total = (d.fees || []).length; row.students = (d.students || []).length; row.updatedAt = j.updatedAt || "";
+    } catch (e) { row.error = "unreadable"; }
+    backupInfo[name] = { mtime: st.mtimeMs, row };
+    return row;
+  }).filter(Boolean).sort((a, b) => b.at.localeCompare(a.at));
+}
 const stamp = () => new Date().toISOString().replace(/[:.]/g, "-");
 
 /* ================= v58: ACTIVITY LOG =================
@@ -1198,6 +1219,17 @@ const server = http.createServer(async (req, res) => {
       const page = String(body.page || "").replace(/[^\p{L}\p{N} /&()·-]/gu, "").slice(0, 60);
       if (page && !tooMany("act:" + (tid || role) + ":" + page + ":" + clientIp(req), 1, 10 * 60e3)) logAct(req, actWho(auth), "Viewed", page);
       return sendJson(res, 200, { ok: true });
+    }
+    /* v151: server ke rozana backups — Executive dekh sakta hai ke kis din kitne challans the, aur ghayab challans wapas la sakta hai */
+    if (p === "/api/backups" && req.method === "GET") {
+      if (role !== "exec") return sendJson(res, 403, { error: "Executive only" });
+      return sendJson(res, 200, { rows: backupList() });
+    }
+    if (p === "/api/backups/file" && req.method === "GET") {
+      if (role !== "exec") return sendJson(res, 403, { error: "Executive only" });
+      const name = String(url.searchParams.get("name") || "");
+      if (!BACKUP_NAME.test(name) || !fs.existsSync(path.join(BACKUP_DIR, name))) return sendJson(res, 404, { error: "Backup not found" });
+      return sendJson(res, 200, fs.readFileSync(path.join(BACKUP_DIR, name), "utf8"));
     }
     if (p === "/api/activity" && req.method === "GET") {
       if (role !== "exec") return sendJson(res, 403, { error: "Executive only" });
