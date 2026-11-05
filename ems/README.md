@@ -946,3 +946,8 @@ Share → "Add to Home Screen" · Computer Chrome/Edge: the install icon in the 
 - Admin: Tests / Homework / Class Attendance now offer **🌐 Online** as a shift.
 - Parents' report and chatbot include Online homework for online students.
 - Server: `stuIn` / `teacherClasses` / `teacherSubjects` / `teacherView` know `Online|class`. Teachers may create their own tests and class attendance in Evening **and** Online classes. AI assignments support `Online` classes.
+
+## v156 — Defaulter list matches the fee ledger
+- Fees → **⚠ Defaulter List**, the Fees page card, the CSV and the PDF print now show **one row per student**, with the amount **actually still due**. Part payments are taken off, and the amount never goes above the student's ledger balance.
+- Before this, the list showed each overdue challan's full amount, even when part of it had been paid. A student who owed Rs 1,500 per the ledger could show the whole challan amount.
+- The row lists every overdue month and the oldest due date. It has **+ Payment** and a **📒 ledger** button.

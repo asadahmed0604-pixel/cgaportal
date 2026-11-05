@@ -1536,7 +1536,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v155 · 27 Oct 2026";
+const BUILD = "v156 · 5 Nov 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -4765,19 +4765,25 @@ function renderFees(){
   $("feeEveHint").textContent = fHint(si.Evening);
   const defs = defaulterList();
   $("feeDefN").textContent = defs.length;
-  $("feeDefAmt").textContent = money(defs.reduce((a,d)=>a+ +d.f.amount,0)) + " overdue · click for list";
+  $("feeDefAmt").textContent = money(defs.reduce((a,d)=>a+d.amt,0)) + " overdue · click for list";
 }
 
 /* ---------- Defaulter list (due date guzar chuki, fee unpaid) ---------- */
+/* v156: defaulter = har student aik row; raqam = jo asal mein baqi hai (qist / partial payment minus), ledger ke balance se zyada nahi.
+   Pehle har challan ki poori raqam dikhti thi — chahe aadhi fee aa chuki ho. */
 function defaulterList(){
-  const t = todayStr();
-  return DB.fees.filter(f=>f.status==="Unpaid" && !f.carriedTo && f.dueDate && f.dueDate < t)
-    .map(f=>{
-      const st = stuById(f.studentId);
-      const days = Math.max(1, Math.round((new Date(t+"T00:00") - new Date(f.dueDate+"T00:00"))/864e5));
-      return {f, st, days};
-    })
-    .sort((a,b)=>b.days-a.days);
+  const t = todayStr(), by = new Map();
+  DB.fees.forEach(f=>{
+    if(f.carriedTo || !f.dueDate || f.dueDate >= t) return;
+    const left = feeOutstanding(f); if(!(left > 0)) return;
+    const o = by.get(f.studentId) || {fs:[], amt:0}; o.fs.push(f); o.amt += left; by.set(f.studentId, o);
+  });
+  return [...by.entries()].map(([sid, o])=>{
+    const st = stuById(sid), fs = o.fs.sort((a,b)=>String(a.dueDate).localeCompare(String(b.dueDate))), f = fs[0];
+    const led = st ? studentLedger(sid) : null, amt = Math.round(led ? Math.min(o.amt, Math.max(0, led.bal)) : o.amt);
+    const days = Math.max(1, Math.round((new Date(t+"T00:00") - new Date(f.dueDate+"T00:00"))/864e5));
+    return {f, fs, st, amt, days, months: fs.map(x=>fmtM(x.month)).join(", ")};
+  }).filter(d=>d.amt > 0).sort((a,b)=>b.days-a.days);
 }
 function defRowsHTML(defs, cell){
   return defs.map((d,i)=>`<tr>
@@ -4785,18 +4791,18 @@ function defRowsHTML(defs, cell){
     <td style="${cell}"><b>${d.st? esc(d.st.name) : "<i>Deleted</i>"}</b></td>
     <td style="${cell}">${d.st? esc(d.st.regNo) : "—"}</td>
     <td style="${cell}">${d.st? esc(d.st.fatherPhone||d.st.phone||"—") : "—"}</td>
-    <td style="${cell}">${fmtM(d.f.month)}</td>
-    <td style="${cell}"><b>${money(d.f.amount)}</b></td>
+    <td style="${cell}">${esc(d.months)}</td>
+    <td style="${cell}"><b>${money(d.amt)}</b></td>
     <td style="${cell};color:#C0392B;font-weight:700">${fmtD(d.f.dueDate)}</td>
     <td style="${cell};text-align:center;color:#C0392B;font-weight:800">${d.days} days</td>
   </tr>`).join("");
 }
 function openDefaulters(){
   const defs = defaulterList();
-  const total = defs.reduce((a,d)=>a+ +d.f.amount,0);
+  const total = defs.reduce((a,d)=>a+d.amt,0);
   openModal(`
     <h3>⚠ Defaulter List</h3>
-    <p class="sub" style="margin-bottom:10px">Students whose challan <b>due date has passed</b> and the fee is still unpaid · Total: <b style="color:var(--red)">${defs.length} defaulters — ${money(total)}</b></p>
+    <p class="sub" style="margin-bottom:10px">Students whose challan <b>due date has passed</b> and fee is still due — amount = what is <b>actually left</b> after any part payments (same as the student's ledger) · Total: <b style="color:var(--red)">${defs.length} defaulters — ${money(total)}</b></p>
     <div class="tbl-wrap"><table>
       <thead><tr><th>#</th><th>Student</th><th>Reg No</th><th>Phone</th><th>Fee Month</th><th>Amount</th><th>Due Date</th><th>Overdue</th><th>Action</th></tr></thead>
       <tbody>${defs.length? defs.map((d,i)=>`<tr>
@@ -4804,11 +4810,11 @@ function openDefaulters(){
         <td><b>${d.st? esc(d.st.name):"<i>Deleted</i>"}</b></td>
         <td>${d.st? esc(d.st.regNo):"—"}</td>
         <td>${d.st? esc(d.st.fatherPhone||d.st.phone||"—"):"—"}</td>
-        <td>${fmtM(d.f.month)}</td>
-        <td><b>${money(d.f.amount)}</b></td>
+        <td>${esc(d.months)}</td>
+        <td><b>${money(d.amt)}</b>${d.fs.some(isPartial) ? `<br><span class="sub">after part payment</span>` : ""}</td>
         <td style="color:var(--red);font-weight:700">${fmtD(d.f.dueDate)}</td>
         <td style="color:var(--red);font-weight:800">${d.days} days</td>
-        <td><button class="btn-black btn-sm" onclick="closeModal();markPaid('${d.f.id}')">Mark Paid</button></td>
+        <td style="white-space:nowrap"><button class="btn-black btn-sm" onclick="closeModal();markPaid('${d.f.id}')">+ Payment</button>${d.st ? `<button class="btn-line btn-sm" title="Student fee ledger" onclick="closeModal();openLedger('${d.st.id}')">📒</button>` : ""}</td>
       </tr>`).join("") : `<tr><td colspan="9" class="empty">No defaulters — all fees on time ✓</td></tr>`}</tbody>
     </table></div>
     <div class="modal-foot">
@@ -4823,10 +4829,10 @@ function exportDefCSV(){
   const csvEsc = v => `"${String(v??"").replace(/"/g,'""')}"`;
   const lines = [["#","Student","Reg No","Father Name","Phone","Class","Shift","Fee Month","Amount (Rs)","Due Date","Days Overdue"].map(csvEsc).join(",")];
   defs.forEach((d,i)=>{
-    lines.push([i+1, d.st?d.st.name:"Deleted", d.st?d.st.regNo:"", d.st?d.st.fatherName:"", d.st?(d.st.fatherPhone||d.st.phone||""):"", d.st?d.st.course:"", d.st?d.st.shift:"", d.f.month, d.f.amount, d.f.dueDate, d.days].map(csvEsc).join(","));
+    lines.push([i+1, d.st?d.st.name:"Deleted", d.st?d.st.regNo:"", d.st?d.st.fatherName:"", d.st?(d.st.fatherPhone||d.st.phone||""):"", d.st?d.st.course:"", d.st?d.st.shift:"", d.months, d.amt, d.f.dueDate, d.days].map(csvEsc).join(","));
   });
   lines.push("");
-  lines.push([`Total Defaulters: ${defs.length}`, "", "", "", "", "", "", "", `Total Due: ${defs.reduce((a,d)=>a+ +d.f.amount,0)}`].map(csvEsc).join(","));
+  lines.push([`Total Defaulters: ${defs.length}`, "", "", "", "", "", "", "", `Total Due: ${defs.reduce((a,d)=>a+d.amt,0)}`].map(csvEsc).join(","));
   const blob = new Blob(["\ufeff"+lines.join("\r\n")],{type:"text/csv;charset=utf-8"});
   downloadFile(`defaulter-list-${todayStr()}.csv`, blob);
   toast("Defaulter list downloaded as Excel (CSV)");
@@ -4840,7 +4846,7 @@ function printDefaulters(){
     <div style="font-size:.85rem">
       <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #174B60;padding-bottom:8px;margin-bottom:12px">
         <div style="display:flex;gap:10px;align-items:center">${A.logo?`<img src="${A.logo}" style="height:44px;width:auto;object-fit:contain">`:""}<div><div style="font-size:1.2rem;font-weight:900">${esc(A.name||"Cambridge Grads Academy")}</div><div style="font-size:.72rem;color:#555">${esc(A.addr||"")} ${A.phone?("· "+esc(A.phone)):""}</div></div></div>
-        <div style="text-align:right"><b style="color:#C0392B">FEE DEFAULTER LIST</b><br><span style="font-size:.75rem;color:#555">As of ${fmtD(todayStr())} · ${defs.length} defaulters · Total due: ${money(defs.reduce((a,d)=>a+ +d.f.amount,0))}</span></div>
+        <div style="text-align:right"><b style="color:#C0392B">FEE DEFAULTER LIST</b><br><span style="font-size:.75rem;color:#555">As of ${fmtD(todayStr())} · ${defs.length} defaulters · Total due: ${money(defs.reduce((a,d)=>a+d.amt,0))}</span></div>
       </div>
       <table style="width:100%;border-collapse:collapse">
         <thead><tr>${["#","Student","Reg No","Phone","Fee Month","Amount","Due Date","Overdue"].map(h=>`<th style="${cell};background:#f0f0f0">${h}</th>`).join("")}</tr></thead>
