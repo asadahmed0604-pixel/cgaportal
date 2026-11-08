@@ -973,7 +973,7 @@ label.chk input{width:auto}
     <div class="field"><label>Exam</label><select id="testFExam" onchange="renderTests()"><option value="">All</option></select></div>
     <div class="field"><label>Shift</label><select id="testFShift" onchange="renderTests()"><option value="">All</option><option>Morning</option><option>Evening</option><option value="Online">🌐 Online</option></select></div>
     <div class="field"><label>Class</label><select id="testFCourse" onchange="renderTests()"><option value="">All classes</option></select></div>
-    <div class="field"><label>Marks</label><select id="testFState" onchange="renderTests()"><option value="">All</option><option value="due">Marks pending</option><option value="done">Complete</option></select></div>
+    <div class="field"><label>Marks</label><select id="testFState" onchange="renderTests()"><option value="">All</option><option value="due">Marks pending</option><option value="done">Complete</option><option value="makeup">📅 Make-up pending (any month)</option></select></div>
   </div>
   <div id="testsNote"></div>
   <div class="tbl-wrap"><table>
@@ -1536,7 +1536,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v156 · 5 Nov 2026";
+const BUILD = "v157 · 8 Nov 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -7389,22 +7389,21 @@ function renderTests(){
   const courses = [...new Set(keys.map(k=>k.split("|")[1]))];
   cSel.innerHTML = `<option value="">All classes</option>` + courses.map(c=>`<option ${c===keep?"selected":""}>${esc(c)}</option>`).join("");
   const fc = cSel.value;
-  /* v83: teacher — exams (exam papers) har mahine ke nazar aate hain; aam tests sirf is mahine ke */
-  if(IS_TEACHER && $("testFMonth").closest(".field")) $("testFMonth").closest(".field").style.display = "none";
+  /* v157: teacher bhi koi bhi mahina chun sakta hai (khali = sab mahine) — pichle mahine ke tests / marks / make-up yahin; exams hamesha */
   const exAll = examGroups(IS_TEACHER ? "" : fm, fs, keys), eSel = $("testFExam"), keepE = eSel.value;
   eSel.innerHTML = `<option value="">All</option>` + exAll.map(g=>`<option value="${g.id}" ${g.id===keepE?"selected":""}>${esc(g.name)}</option>`).join("");
   const fe = eSel.value;
   drawExamGroups(exAll);
-  const monthOk = t => IS_TEACHER ? (!!t.examId || String(t.date).startsWith(thisMonth())) : (!fm || String(t.date).startsWith(fm));
+  const monthOk = t => (IS_TEACHER && !!t.examId) || !fm || String(t.date).startsWith(fm) || (fst === "makeup" && muPending(t).length);
   const rows = DB.tests.filter(t=>monthOk(t) && (!fs || t.shift===fs) && (!fc || t.course===fc)
       && (!fe || t.examId===fe) && (!IS_TEACHER || keys.includes(t.shift+"|"+t.course)))
     .map(t=>({t, n:testStudents(t).length, d:testMarks(t).length}))
-    .filter(r=>!fst || (fst==="due" ? r.d < r.n : r.n && r.d >= r.n))
+    .filter(r=>!fst || (fst==="makeup" ? muPending(r.t).length : fst==="due" ? r.d < r.n : r.n && r.d >= r.n))
     .sort((a,b)=>String(b.t.date).localeCompare(String(a.t.date)) || a.t.course.localeCompare(b.t.course));
-  const dueWarn = IS_TEACHER ? marksDueAlert() : "";
+  const dueWarn = (IS_TEACHER ? marksDueAlert() : "") + makeupAlert(keys);
   $("testsNote").innerHTML = dueWarn + (IS_TEACHER && !keys.length
     ? `<div class="note">No class is assigned to you yet — ask the admin: Employees → your name → Edit → assign class.</div>`
-    : IS_TEACHER ? `<div class="sub" style="margin-bottom:10px">Showing <b>all exams</b> (any month) and <b>${fmtM(thisMonth())}</b> tests. Your classes: ${[...myClassKeys()].map(k=>`<span class="chip">${esc(keyLabel(k))}</span>`).join(" ")}</div>` : "");
+    : IS_TEACHER ? `<div class="sub" style="margin-bottom:10px">Showing <b>all exams</b> (any month) and ${fm ? `<b>${fmtM(fm)}</b> tests — change the <b>Month</b> filter (or clear it) to see other months` : "tests of <b>all months</b>"}. Your classes: ${[...myClassKeys()].map(k=>`<span class="chip">${esc(keyLabel(k))}</span>`).join(" ")}</div>` : "");
   $("testRows").innerHTML = rows.length ? rows.map(({t,n,d})=>{ const av = testAvg(t), te = empById(t.teacherId);
     return `<tr>
       <td>${fmtD(t.date)}</td>
@@ -7680,6 +7679,33 @@ function remarkText(comment, studentName, subject) {
 const MK_REMARKS = ["Excellent — keep it up","Very good","Good effort","Satisfactory","Needs improvement","Needs revision",
   "Careless mistakes — attempt papers carefully","Concepts weak — extra practice","Absent in test","Did not attempt properly"];
 let MK = null;
+/* ================= v157: MAKE-UP TESTS =================
+   Bacha test na de saka (Absent) → make-up ki tareekh (e.makeup.due). Baad mein (kisi bhi mahine) marks daale to
+   absent hat jata hai aur e.makeup.takenOn lag jata hai — report card par asal marks, saath "make-up" likha. */
+const muIsPending = e => !!e && e.absent && !!(e.makeup && e.makeup.due) && !e.makeup.takenOn;
+const muPending = t => testMarks(t).filter(muIsPending);
+function muCell(t, st, e){
+  if(e.makeup && e.makeup.takenOn && !e.absent) return `<span class="chip" title="Took the test later">✓ make-up ${fmtD(e.makeup.takenOn)}</span>`;
+  if(!e.id || !e.absent) return `<span class="sub">—</span>`;
+  const d = (e.makeup && e.makeup.due) || "", late = d && d < todayStr();
+  return `<input type="date" style="min-width:140px${late ? ";border-color:var(--danger)" : ""}" value="${esc(d)}" min="${esc(t.date)}" title="Make-up test date" onchange="muSet('${t.id}','${st.id}',this.value)">${late ? `<br><span class="sub" style="color:var(--danger)">overdue — enter marks</span>` : ""}`;
+}
+function muSet(tid, sid, d){
+  const e = DB.exams.find(x=>x.testId===tid && x.studentId===sid); if(!e) return;
+  if(d) e.makeup = {...(e.makeup||{}), due:d, by: IS_TEACHER ? ((empById(MY_TID)||{}).name || "Teacher") : ROLE_LABEL, setOn: todayStr()};
+  else delete e.makeup;
+  save(); toast(d ? `📅 Make-up set for ${(stuById(sid)||{}).name || "student"} — ${fmtD(d)}` : "Make-up removed");
+}
+/* jin bachon ka make-up baqi hai (kisi bhi mahine ka) — Tests page aur teacher dashboard par */
+function makeupAlert(keys){
+  const L = DB.tests.filter(t=>(!IS_TEACHER || (keys.includes(t.shift+"|"+t.course) && testMine(t))))
+    .flatMap(t=>muPending(t).map(e=>({t, e, st:stuById(e.studentId)}))).filter(x=>x.st)
+    .sort((a,b)=>String(a.e.makeup.due).localeCompare(String(b.e.makeup.due)));
+  if(!L.length) return "";
+  const t0 = todayStr(), od = L.filter(x=>x.e.makeup.due < t0).length;
+  return `<div class="note" style="margin-bottom:12px;border-left-color:${od ? "var(--danger)" : "#2E86AB"}">📅 <b>Make-up tests pending (${L.length})</b>${od ? ` — <b style="color:var(--danger)">${od} overdue</b>` : ""}<br>
+    ${L.slice(0, 10).map(x=>`<a href="#" onclick="openMarks('${x.t.id}');return false"><b>${esc(x.st.name)}</b> — ${esc(x.t.course)} · ${esc(x.t.subject||x.t.name)} (${fmtD(x.t.date)})</a> · make-up <b style="${x.e.makeup.due < t0 ? "color:var(--danger)" : ""}">${fmtD(x.e.makeup.due)}</b>`).join("<br>")}${L.length > 10 ? `<br><span class="sub">+${L.length - 10} more — Marks filter → “Make-up pending”</span>` : ""}</div>`;
+}
 function openMarks(id){
   const t = DB.tests.find(x=>x.id===id); if(!t) return;
   const stus = testStudents(t), ex = new Map(testMarks(t).map(e=>[e.studentId, e]));
@@ -7687,7 +7713,8 @@ function openMarks(id){
   openModal(`
     <h3>✍ Marks — ${esc(t.name)}</h3>
     <p class="sub" style="margin-bottom:8px">${esc(t.course)} · ${t.shift} · <b>${esc(t.subject||"")}</b> · ${fmtD(t.date)} · Total <b>${t.total}</b> · Teacher: ${esc(teacherName(t.teacherId))}</p>
-    <div class="note">A <b>remark is required</b> with every student's marks (or <b>Absent</b>) — it goes on the report card and to the parents' chat. Rows left blank are not saved.</div>
+    <div class="note">A <b>remark is required</b> with every student's marks (or <b>Absent</b>) — it goes on the report card and to the parents' chat. Rows left blank are not saved.
+      Student missed the test? Mark <b>Absent</b>, save, then pick a <b>📅 Make-up</b> date. When they take it, untick Absent and enter the marks — any month later.</div>
     <div class="toolbar" style="align-items:center">
       <button class="btn-black btn-sm" onclick="$('mkFile').click()">⬆ Marks from CSV / Excel sheet</button>
       <input type="file" id="mkFile" accept=".csv,text/csv,.txt" style="display:none" onchange="marksCSV(this)">
@@ -7695,13 +7722,14 @@ function openMarks(id){
       <span class="sub" id="mkCount"></span>
     </div>
     <div id="mkMsg"></div>
-    <div class="tbl-wrap mk-grid"><table><thead><tr><th>#</th><th>Reg No</th><th>Student</th><th style="width:110px">Marks / ${t.total}</th><th>Absent</th><th style="min-width:240px">Remark *</th></tr></thead><tbody>
+    <div class="tbl-wrap mk-grid"><table><thead><tr><th>#</th><th>Reg No</th><th>Student</th><th style="width:110px">Marks / ${t.total}</th><th>Absent</th><th style="min-width:240px">Remark *</th><th>📅 Make-up</th></tr></thead><tbody>
     ${stus.map((st,i)=>{ const e = ex.get(st.id) || {}; return `<tr data-sid="${st.id}">
       <td>${i+1}</td><td>${esc(st.regNo||"")}</td><td><b>${esc(st.name)}</b>${tInc(t, st.id) ? ` <span class="chip" title="Added by hand">added <a href="#" onclick="testUninclude('${id}','${st.id}');return false" title="Remove from this paper's list">✕</a></span>` : ""}</td>
       <td><input type="number" class="mk-m" min="0" max="${t.total}" step="0.5" value="${e.absent ? "" : (e.obtained ?? "")}" oninput="mkCount()"></td>
       <td style="text-align:center"><input type="checkbox" class="mk-a" style="width:auto" ${e.absent?"checked":""} onchange="mkCount()"></td>
-      <td><input class="mk-r" list="mkRemarks" value="${esc(e.comment||"")}" oninput="mkCount()" placeholder="e.g. Good effort / Needs revision"></td></tr>`; }).join("")
-      || `<tr><td colspan="6" class="empty">No students in this class / subject</td></tr>`}
+      <td><input class="mk-r" list="mkRemarks" value="${esc(e.comment||"")}" oninput="mkCount()" placeholder="e.g. Good effort / Needs revision"></td>
+      <td style="white-space:nowrap">${muCell(t, st, e)}</td></tr>`; }).join("")
+      || `<tr><td colspan="7" class="empty">No students in this class / subject</td></tr>`}
     </tbody></table></div>
     <datalist id="mkRemarks">${MK_REMARKS.map(r=>`<option value="${esc(r)}">`).join("")}</datalist>
     ${(miss=>miss.length ? `<details class="note" style="margin-top:10px" ${miss.length <= 3 ? "open" : ""}><summary style="cursor:pointer"><b>👀 Missing a student?</b> ${miss.length} student${miss.length>1?"s":""} of ${esc(t.course)} ${miss.length>1?"are":"is"} not in this list — see why, and add them</summary>
@@ -7776,6 +7804,9 @@ function saveMarks(){
     const rec = {testId:t.id, studentId:o.sid, exam:t.name, subject:t.subject, date:t.date, total:+t.total,
       obtained: o.a ? 0 : o.m, absent:o.a, comment:o.r, by: IS_TEACHER ? MY_TID : "", byName, savedAt:new Date().toISOString(),
       firstAt: (cur && (cur.firstAt || cur.savedAt)) || new Date().toISOString()};            // v93: deadline ke liye pehli entry ka waqt
+    /* v157: absent tha aur ab marks aaye → make-up liya (tareekh ke saath); dobara absent → make-up wahi rahe */
+    if(cur && cur.absent && !o.a) rec.makeup = {...(cur.makeup||{}), takenOn: todayStr()};
+    else if(cur && cur.makeup && o.a) rec.makeup = {...cur.makeup, takenOn: undefined};
     if(cur) Object.assign(cur, rec); else DB.exams.push({id:uid(), ...rec});
     n++;
   });
@@ -8411,7 +8442,7 @@ function myLiveKpi(m){
 function renderMyDash(){
   { const m0 = wm(), K = myLiveKpi(m0), ev = eveTestStatus(m0).filter(x=>x.need);
     $("mdKpiM").textContent = fmtM(m0);
-    $("mdRemind").innerHTML = marksDueAlert() + (ev.length ? `<div class="note" style="margin-bottom:14px;border-left-color:var(--accent-dark,#d9a400);background:#FFF6E0">⏰ <b>Reminder:</b> in the Evening each class needs at least <b>${EVE_TEST_TARGET} tests</b> per month — ${ev.map(x=>`<b>${esc(x.c)}</b>: ${x.n}/${EVE_TEST_TARGET} (${x.need} more)`).join(" · ")}
+    $("mdRemind").innerHTML = marksDueAlert() + makeupAlert([...myClassKeys()]) + (ev.length ? `<div class="note" style="margin-bottom:14px;border-left-color:var(--accent-dark,#d9a400);background:#FFF6E0">⏰ <b>Reminder:</b> in the Evening each class needs at least <b>${EVE_TEST_TARGET} tests</b> per month — ${ev.map(x=>`<b>${esc(x.c)}</b>: ${x.n}/${EVE_TEST_TARGET} (${x.need} more)`).join(" · ")}
       <button class="btn-red btn-sm" style="margin-left:8px" onclick="document.querySelector('#nav button[data-page=tests]').click();setTimeout(()=>openTestForm(),50)">+ Create test</button></div>` : "");
     $("mdKpi").innerHTML = `<div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:10px">
         <div style="font-size:2.2rem;font-weight:900;${scoreColor(K.live)}">${K.live === null ? "—" : K.live + "%"}</div>

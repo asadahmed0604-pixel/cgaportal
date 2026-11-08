@@ -951,3 +951,10 @@ Share → "Add to Home Screen" · Computer Chrome/Edge: the install icon in the 
 - Fees → **⚠ Defaulter List**, the Fees page card, the CSV and the PDF print now show **one row per student**, with the amount **actually still due**. Part payments are taken off, and the amount never goes above the student's ledger balance.
 - Before this, the list showed each overdue challan's full amount, even when part of it had been paid. A student who owed Rs 1,500 per the ledger could show the whole challan amount.
 - The row lists every overdue month and the oldest due date. It has **+ Payment** and a **📒 ledger** button.
+
+## v157 — School-style tests: any month + make-up tests
+- **Any month:** teachers now get the **Month** filter on Tests & Marks, the same as the admin. Pick a past month, or clear it for all months, to see that month's tests and enter or fix marks. Exams always show. Before this, teachers only saw the current month's tests, so last month's tests and marks seemed to disappear when the month changed.
+- **Make-up tests:** a student who missed a test is marked **Absent** and the marks are saved. Then a **📅 Make-up** date is picked in the marks window.
+  - Pending make-ups show on the Tests page and the teacher dashboard (overdue in red), and under the Marks filter "📅 Make-up pending (any month)".
+  - When the student takes it, untick Absent and enter the marks, even in a later month. The record gets **✓ make-up <date>** and the real marks count on the report card for the test's month.
+  - Marks keep their first-entry time, so a make-up entered later does not count as late for the marks deadline KPI.
