@@ -824,6 +824,7 @@ label.chk input{width:auto}
       <button class="btn-black" onclick="openReceiptRegister()">📂 Receipts</button>
       <button class="btn-black" onclick="openImport('fees')">⬆ Import CSV</button>
       <button class="btn-black" onclick="openDefaulters()">⚠ Defaulter List</button>
+      <button class="btn-line" onclick="openCollAsOf()">📈 Collection as of date</button>
       <button class="btn-black" onclick="openBulkChallan()">⚡ Generate All Challans</button>
       <button class="btn-black" onclick="openChallanZip()">🗜 Challans PDF (ZIP)</button>
       <button class="btn-line" onclick="openFeeOnly()" title="Reset unpaid challans to the monthly fee only">🧹 Monthly fee only</button>
@@ -1536,7 +1537,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v157 · 8 Nov 2026";
+const BUILD = "v158 · 9 Nov 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -4771,6 +4772,58 @@ function renderFees(){
 /* ---------- Defaulter list (due date guzar chuki, fee unpaid) ---------- */
 /* v156: defaulter = har student aik row; raqam = jo asal mein baqi hai (qist / partial payment minus), ledger ke balance se zyada nahi.
    Pehle har challan ki poori raqam dikhti thi — chahe aadhi fee aa chuki ho. */
+/* ================= v158: COLLECTION AS OF DATE =================
+   Kisi mahine ke challans ki kitni fee kisi tareekh tak aa chuki thi — Rs aur %, poore paid challans, Morning / Evening.
+   Har qist apni tareekh se ginti hai; challan ki billed raqam (arrears ke baghair) se zyada nahi. */
+function collAsOf(m, d){
+  const shOf = f => { const st = stuById(f.studentId); return f.shift || (st ? st.shift : "") || "Other"; };
+  const z = () => ({n:0, billed:0, got:0, full:0}), out = {All:z(), Morning:z(), Evening:z()};
+  feesBilledIn(m).forEach(f=>{
+    const paid = feePays(f).filter(p=>String(p.date||"").slice(0,10) <= d).reduce((a,p)=>a + (+p.amt||0), 0);
+    const b = feeBilled(f), got = Math.min(b, paid), full = !f.carriedTo && paid >= (+f.amount||0) - 0.5 && (+f.amount||0) > 0;
+    [out.All, out[shOf(f)]].forEach(x=>{ if(!x) return; x.n++; x.billed += b; x.got += got; if(full) x.full++; });
+  });
+  /* is mahine 1 tareekh se d tak jitna paisa aaya (kisi bhi mahine ke challan ka — advance / arrears samait) */
+  const cash = DB.fees.reduce((a,f)=>a + feePays(f).filter(p=>{ const x = String(p.date||"").slice(0,10); return x >= m + "-01" && x <= d; }).reduce((s,p)=>s + (+p.amt||0), 0), 0);
+  return {rows:out, cash};
+}
+function openCollAsOf(){
+  const t = todayStr(), prev = addMonths(t.slice(0,7), -1), day = t.slice(8,10);
+  const dim = m => new Date(+m.slice(0,4), +m.slice(5,7), 0).getDate();
+  const dflt = prev + "-" + String(Math.min(+day, dim(prev))).padStart(2,"0");
+  openModal(`
+    <h3>📈 Fee collection as of a date</h3>
+    <p class="sub" style="margin-bottom:10px">How much of a month's challans had been received by a given date. Each payment counts on its own date (installments too).</p>
+    <div class="grid2">
+      <div class="field"><label>Fee month (challans of)</label><input type="month" id="ca_m" value="${prev}" onchange="collAsOfDraw(true)"></div>
+      <div class="field"><label>Received up to (date)</label><input type="date" id="ca_d" value="${dflt}" onchange="collAsOfDraw()"></div>
+    </div>
+    <div id="ca_out"></div>
+    <div class="modal-foot"><button class="btn-line" onclick="closeModal()">Close</button></div>`, true);
+  collAsOfDraw();
+}
+function collAsOfDraw(monthChanged){
+  const m = $("ca_m").value; if(!m) return;
+  if(monthChanged){ const old = $("ca_d").value, day = old ? +old.slice(8,10) : 10, dim = new Date(+m.slice(0,4), +m.slice(5,7), 0).getDate();
+    $("ca_d").value = m + "-" + String(Math.min(day, dim)).padStart(2,"0"); }
+  const d = $("ca_d").value; if(!d) return;
+  const pc = (a, b) => b ? Math.round(a*1000/b)/10 : 0;
+  const R = collAsOf(m, d);
+  /* muqabla: is mahine ki isi tareekh tak */
+  const tm = thisMonth(), sameDay = tm + "-" + String(Math.min(+d.slice(8,10), new Date(+tm.slice(0,4), +tm.slice(5,7), 0).getDate())).padStart(2,"0");
+  const C = m !== tm ? collAsOf(tm, sameDay <= todayStr() ? sameDay : todayStr()) : null;
+  const row = (k, x) => `<tr><td><b>${k}</b></td><td style="text-align:right">${x.n}</td><td style="text-align:right">${money(x.billed)}</td>
+    <td style="text-align:right"><b>${money(x.got)}</b></td><td style="text-align:right"><b style="${scoreColor(pc(x.got, x.billed))}">${pc(x.got, x.billed)}%</b></td>
+    <td style="text-align:right">${x.full} <span class="sub">(${pc(x.full, x.n)}%)</span></td></tr>`;
+  const A = R.rows.All;
+  $("ca_out").innerHTML = !A.n ? `<div class="note">No challans for ${fmtM(m)}.</div>` : `
+    <div class="cards" style="margin:10px 0"><div class="card"><div class="k">Received by ${fmtD(d)}</div><div class="v" style="${scoreColor(pc(A.got, A.billed))}">${pc(A.got, A.billed)}%</div><div class="hint">${money(A.got)} of ${money(A.billed)} billed (${fmtM(m)})</div></div>
+      <div class="card"><div class="k">Challans fully paid</div><div class="v">${A.full} / ${A.n}</div><div class="hint">${pc(A.full, A.n)}% of challans</div></div>
+      ${C && C.rows.All.n ? `<div class="card"><div class="k">${fmtM(tm)} — same day</div><div class="v" style="${scoreColor(pc(C.rows.All.got, C.rows.All.billed))}">${pc(C.rows.All.got, C.rows.All.billed)}%</div><div class="hint">${money(C.rows.All.got)} of ${money(C.rows.All.billed)} · for comparison</div></div>` : ""}</div>
+    <div class="tbl-wrap"><table><thead><tr><th></th><th style="text-align:right">Challans</th><th style="text-align:right">Billed</th><th style="text-align:right">Received</th><th style="text-align:right">%</th><th style="text-align:right">Fully paid</th></tr></thead>
+      <tbody>${row("All", A)}${R.rows.Morning.n ? row("🌅 Morning", R.rows.Morning) : ""}${R.rows.Evening.n ? row("🌆 Evening", R.rows.Evening) : ""}</tbody></table></div>
+    <p class="sub" style="margin-top:8px">Billed = challan fee without carried arrears. Total cash received 1–${+d.slice(8,10)} ${fmtM(m).split(" ")[0]} from <b>any</b> challans (incl. advance / old dues): <b>${money(R.cash)}</b>.</p>`;
+}
 function defaulterList(){
   const t = todayStr(), by = new Map();
   DB.fees.forEach(f=>{

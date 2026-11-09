@@ -958,3 +958,10 @@ Share → "Add to Home Screen" · Computer Chrome/Edge: the install icon in the 
   - Pending make-ups show on the Tests page and the teacher dashboard (overdue in red), and under the Marks filter "📅 Make-up pending (any month)".
   - When the student takes it, untick Absent and enter the marks, even in a later month. The record gets **✓ make-up <date>** and the real marks count on the report card for the test's month.
   - Marks keep their first-entry time, so a make-up entered later does not count as late for the marks deadline KPI.
+
+## v158 — Fee collection as of a date
+- Fees → **📈 Collection as of date**: pick a fee month and a date, e.g. October and 9 October.
+- It shows how much of that month's challans had been received by that date, in Rs and %. It also shows how many challans were fully paid, with Morning and Evening split.
+- It opens on last month at today's day number, and compares with this month up to the same day.
+- Each installment counts on its own date. "Billed" leaves out carried arrears, and a challan's received amount is capped at its billed amount.
+- It also shows the total cash received from the 1st up to that date from any challans, including advance and old dues.
