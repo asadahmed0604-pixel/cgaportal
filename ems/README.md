@@ -972,3 +972,14 @@ Share → "Add to Home Screen" · Computer Chrome/Edge: the install icon in the 
 - **➕ Post N missing salaries for <month>** adds them, with the same amounts, late / absent deductions and date day, after a confirm.
 - **Re-add** brings back a salary entry that was deleted by mistake.
 - Why October could be missing: auto salary only posts from the **Starting month** onward. If that was set to a later month (or auto was OFF), earlier months never got salary entries.
+
+## v160 — Double periods, public holidays, shift-wise staff absents
+- **Same subject twice a day:** in Employees → Assign, add the same class + subject again with a second time (e.g. 9:00 and 12:00). Only an identical or overlapping time on the same day is refused. Both periods show in the timetable, and Classes taken counts them as 2 periods.
+- **Public holidays:** Settings → **🎉 Public holidays** (date or date range, name, Both / Morning / Evening). On a holiday:
+  - student and staff attendance are not marked (banner shown);
+  - Classes taken lists no classes;
+  - the coordinator checklist skips the day;
+  - the day is not a working day for staff absents or per-day salary;
+  - the attendance report leaves it out.
+  - Teachers see today's and upcoming holidays on their dashboard.
+- **Morning and Evening absents counted separately:** for staff working both shifts, each shift has its own **2 paid leaves**. Absences beyond them are counted per shift. One shift-day's deduction = salary ÷ the month's total shift-days (Morning days + Evening days). The leave counter on the staff attendance page shows the selected shift's leaves.

@@ -359,6 +359,7 @@ function teacherView(d, tid) {
       entries: Object.fromEntries(Object.entries(x.entries || {}).filter(([k]) => k.endsWith("|" + tid))), feedback: {} })),
     /* v106: teacher ke bheje hue student remarks / issues (Executive approve karta hai) — sirf apne */
     stuNotes: (d.stuNotes || []).filter((n) => n && n.tid === tid),
+    holidays: (d.holidays || []).filter((h) => h && h.from),                                            // v160: public holidays (sirf dekhne ko)
     skillGroups: grps,
     syllabus: (d.syllabus || []).filter((x) => x && x.tid === tid),                                     // v143: apne syllabus trackers
     concerns: (d.concerns || []).filter((c) => c && c.assignTo === tid),                                // v134: sirf is teacher ko assign kiye hue                                                                                  // v116
