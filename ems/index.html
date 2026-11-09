@@ -1539,7 +1539,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v164 · 9 Nov 2026";
+const BUILD = "v165 · 9 Nov 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -4129,7 +4129,7 @@ function delOwnTask(id){ DB.staffTasks = (DB.staffTasks||[]).filter(t=>!(t.id===
 
 /* ---------- Executive: 🎯 Staff KPIs & To-do ---------- */
 function renderStaffKpi(){
-  try{ staffFeeKpiSync(); }catch(e){}
+  try{ staffKpiCarry(); staffFeeKpiSync(); }catch(e){}
   if(!$("skMonth").value) $("skMonth").value = wm();
   const m = $("skMonth").value, L = staffPeople();
   $("skList").innerHTML = L.length ? L.map(e=>{
@@ -4252,8 +4252,10 @@ function renderStaffDash(){
   $("sdTitle").textContent = `Welcome, ${me.name || MY_STAFF}`;
   $("sdSub").textContent = `${STAFF_ACCESS[ROLE] || ROLE} · ${new Date().toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long",year:"numeric"})}`;
   const T = tasksOf(MY_SID).sort(taskSort), open = T.filter(t=>!taskDone(t)), late = open.filter(taskLate);
-  const k = kpiOf(MY_SID, m), pct = staffKpiPct(k);
-  $("sdKpiM").textContent = fmtM(m);
+  /* v165: is mahine ki sheet na ho to pichle mahine wali dikhao (label ke saath) — KPIs kabhi ghayab na lagein */
+  const k0 = kpiOf(MY_SID, m), kPrev = k0 ? null : (DB.staffKpis||[]).filter(x=>x.sid===MY_SID && x.month < m).sort((a,b)=>b.month.localeCompare(a.month))[0];
+  const k = k0 || kPrev, pct = staffKpiPct(k);
+  $("sdKpiM").textContent = fmtM(k ? k.month : m) + (kPrev ? ` (${fmtM(m)} not set yet)` : "");
   $("sdKpi").innerHTML = k ? `<div style="display:flex;align-items:center;gap:14px;margin-bottom:8px"><div style="font-size:2rem;font-weight:900;${scoreColor(pct)}">${pct === null ? "—" : pct + "%"}</div>
       <div class="sub">${pct === null ? "Not scored yet — the Executive scores at review" : kpiRating(pct)}</div></div>
     <div class="tbl-wrap"><table><thead><tr><th>KPI</th><th>Target</th><th style="text-align:right">Weight</th><th style="text-align:right">Score</th></tr></thead><tbody>
@@ -4373,6 +4375,19 @@ function feeTrackHTML(m){
       <span><b>Target ${c.pct}% by ${fmtD(c.date)}</b>${c.excl ? ` <span class="sub">(${c.base} challans — except month-end cases)</span>` : ""} — ${c.past ? `${c.p}% received by then` : `${c.p}% so far · ${c.left} day${c.left===1?"":"s"} left`}</span>
       <b style="color:${c.past ? (c.ok ? "#0F7B3D" : "#C0392B") : (c.ok ? "#0F7B3D" : "#A86400")}">${c.past ? (c.ok ? "✓ KPI achieved" : "✗ KPI not achieved") : (c.ok ? "On track ✓" : `Behind — ${c.need} more challans needed`)}</b></div>`).join("")}
     <div class="sub">Counts only — challans of ${fmtM(m)} that are fully paid. The KPI is scored automatically at each date.</div></div>`;
+}
+/* v165: naya mahina — har staff login ki KPI sheet pichle mahine ke KPIs (target, weight) se khud ban jaye; score khali */
+function staffKpiCarry(){
+  if(ROLE !== "exec") return 0;
+  const m = thisMonth(); let n = 0; DB.staffKpis = DB.staffKpis || [];
+  staffPeople().forEach(e=>{
+    if(kpiOf(e.id, m)) return;
+    const prev = DB.staffKpis.filter(x=>x.sid===e.id && x.month < m).sort((a,b)=>b.month.localeCompare(a.month))[0];
+    if(!prev || !(prev.items||[]).length) return;
+    DB.staffKpis.push({id:uid(), sid:e.id, month:m, items:prev.items.map(it=>({...it, id:uid(), score:"", note:""})), review:"", by:"Auto (copied from " + fmtM(prev.month) + ")", savedAt:new Date().toISOString()});
+    n++; });
+  if(n){ staffFeeKpiSync(); save(); }
+  return n;
 }
 /* Executive: staff KPIs ke "fee15 / fee27" items khud score (5 = achieved, 0 = not) */
 function staffFeeKpiSync(){
@@ -14456,7 +14471,7 @@ const modalOpen = () => $("modalOverlay").classList.contains("show");
 const typing = () => { const a = document.activeElement; return !!a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && !!a.closest(".main, .modal"); };
 
 /* v93: guzri hui marks deadlines → KPI (admin / executive ke browser se; har 10 minute aur shuru mein) */
-if(ROLE === "exec") setTimeout(()=>{ try{ staffFeeKpiSync(); }catch(e){} }, 6000);   // v120: staff fee KPIs khud score
+if(ROLE === "exec") setTimeout(()=>{ try{ staffKpiCarry(); staffFeeKpiSync(); }catch(e){} }, 6000);   // v120: staff fee KPIs khud score
 if(!IS_TEACHER) { setTimeout(()=>{ try{ kpiDeadlineSync(); }catch(e){} }, 5000); setInterval(()=>{ try{ kpiDeadlineSync(); }catch(e){} }, 10*60e3); }
 
 /* Server ka naya data screen par lagao (jo page khula hai wahi dobara banao) */
