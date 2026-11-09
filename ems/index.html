@@ -1358,6 +1358,7 @@ label.chk input{width:auto}
     <button class="btn-red" onclick="saveJoinRule()">Save</button>
   </div>
 
+  <div class="panel staff-only" style="max-width:720px" id="holPanel"></div>
   <div class="panel" style="max-width:560px">
     <h3>Which File Is This?</h3>
     <p class="sub" style="margin-bottom:10px">Downloads often collect several copies. If a new feature is not visible, check the version here.</p>
@@ -1537,7 +1538,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v159 · 9 Nov 2026";
+const BUILD = "v160 · 9 Nov 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -1664,6 +1665,7 @@ function studentFee(s){
 }
 
 const DEFAULT_DB = {
+  holidays:[],              // v160: public holidays
   students:[], inquiries:[], fees:[], exams:[], employees:[], txns:[], homework:[], ptms:[], staffKpis:[], staffTasks:[], stuNotes:[], skillDev:[], skillGroups:[], concerns:[], syllabus:[],
   subjects:[],             // [{id, name, level, defaultFee}] — Settings se manage hoti hain
   inventory:[],            // [{id, name, type, qty, unitCost, issuedOpening, date, note}]
@@ -1774,6 +1776,44 @@ const thisMonth = () => todayStr().slice(0,7);
 function fmtD(d){ if(!d) return "—"; const x=new Date(d+"T00:00"); return x.toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"}); }
 function fmtM(m){ if(!m) return "—"; const [y,mo]=m.split("-"); return new Date(y,mo-1,1).toLocaleDateString("en-GB",{month:"long",year:"numeric"}); }
 const isWeekend = d => { const day=new Date(d+"T00:00").getDay(); return day===0||day===6; };
+/* v160: Public holidays — DB.holidays = [{id, from, to, name, shift:"Both"|"Morning"|"Evening"}] */
+const holidayOn = (date, shift) => (DB.holidays||[]).find(h=>h && h.from && date >= h.from && date <= (h.to || h.from) && (!shift || !h.shift || h.shift === "Both" || h.shift === shift)) || null;
+const holTxt = h => `🎉 ${esc(h.name || "Public holiday")}${h.to && h.to !== h.from ? ` (${fmtD(h.from)} – ${fmtD(h.to)})` : ""}${h.shift && h.shift !== "Both" ? ` · ${esc(h.shift)} only` : ""}`;
+/* aaj ki / agle 30 din ki chhuttiyan — teacher dashboard par */
+function holidayNote(){
+  const t0 = todayStr(), lim = new Date(Date.now() + 30*864e5).toISOString().slice(0,10);
+  const L = (DB.holidays||[]).filter(h=>h && (h.to||h.from) >= t0 && h.from <= lim).sort((a,b)=>String(a.from).localeCompare(String(b.from)));
+  if(!L.length) return "";
+  const now = L.filter(h=>h.from <= t0);
+  return `<div class="note" style="margin-bottom:12px;border-left-color:#2E86AB">${now.length ? `<b>Today is a public holiday:</b> ${now.map(holTxt).join(", ")}<br>` : ""}${L.filter(h=>h.from > t0).length ? `<b>Upcoming holidays:</b> ${L.filter(h=>h.from > t0).map(h=>`${fmtD(h.from)} — ${holTxt(h)}`).join(" · ")}` : ""}</div>`;
+}
+function renderHolidays(){
+  const box = $("holPanel"); if(!box) return;
+  const L = (DB.holidays||[]).slice().sort((a,b)=>String(b.from).localeCompare(String(a.from))), t0 = todayStr();
+  box.innerHTML = `<h3>🎉 Public holidays</h3>
+    <p class="sub" style="margin:4px 0 10px">On a holiday: no student or staff attendance is needed, no classes are listed in Classes taken, and the day does not count as a working day (staff absents / per-day salary). Teachers see it on their dashboard.</p>
+    <div class="toolbar" style="align-items:flex-end">
+      <div class="field"><label>From *</label><input type="date" id="hol_from"></div>
+      <div class="field"><label>To (for more days)</label><input type="date" id="hol_to"></div>
+      <div class="field" style="min-width:200px"><label>Name *</label><input id="hol_name" placeholder="e.g. Iqbal Day"></div>
+      <div class="field"><label>Shift</label><select id="hol_shift"><option>Both</option><option>Morning</option><option>Evening</option></select></div>
+      <button class="btn-red" onclick="addHoliday()">+ Add holiday</button></div>
+    <div class="tbl-wrap"><table><thead><tr><th>Date</th><th>Holiday</th><th>Shift</th><th></th></tr></thead><tbody>
+    ${L.length ? L.map(h=>`<tr style="${(h.to||h.from) < t0 ? "opacity:.6" : ""}"><td style="white-space:nowrap">${fmtD(h.from)}${h.to && h.to !== h.from ? " – " + fmtD(h.to) : ""}</td><td><b>${esc(h.name||"")}</b></td><td>${esc(h.shift||"Both")}</td>
+      <td><button class="btn-danger btn-sm" onclick="delHoliday('${h.id}')">✕</button></td></tr>`).join("") : `<tr><td colspan="4" class="empty">No holidays added</td></tr>`}</tbody></table></div>`;
+}
+function addHoliday(){
+  const from = $("hol_from").value, to = $("hol_to").value || from, name = $("hol_name").value.trim();
+  if(!from || !name){ toast("Enter the date and the holiday name"); return; }
+  if(to < from){ toast("'To' date is before 'From'"); return; }
+  DB.holidays = DB.holidays || [];
+  DB.holidays.push({id:uid(), from, to, name, shift:$("hol_shift").value});
+  save(); renderHolidays(); syncSalaries(); toast(`🎉 ${name} added`);
+}
+function delHoliday(id){
+  const h = (DB.holidays||[]).find(x=>x.id===id); if(!h) return;
+  askConfirm("Remove holiday?", `<b>${esc(h.name)}</b> — ${fmtD(h.from)}`, ()=>{ DB.holidays = DB.holidays.filter(x=>x.id!==id); save(); renderHolidays(); syncSalaries(); toast("Holiday removed"); }, "Remove");
+}
 const stuById = id => DB.students.find(s=>s.id===id);
 const empById = id => DB.employees.find(e=>e.id===id);
 const teacherName = id => { const t=empById(id); return t? t.name : "—"; };
@@ -2458,6 +2498,7 @@ function clLiveClasses(m){
 function clRowsFor(date, shift, tidOnly){
   const wd = new Date(date + "T00:00").getDay(), rows = [], seen = new Set(), day = (DB.classLog||{})[date] || {};
   if(date.slice(0,7) !== thisMonth()) return rows;
+  if(holidayOn(date, shift)) return rows;                              // v160: public holiday — koi class nahi
   const live = clLiveClasses(date.slice(0,7));
   DB.employees.forEach(e=>(e.assignments||[]).forEach(a=>{
     /* v98: sirf class + subject wali assignments — bina subject ("whole class") wali row nahi */
@@ -2493,10 +2534,10 @@ function renderClassLog(){
   $("clView").innerHTML = [["subject","Subject-wise"],["class","Class-wise"]].map(([k,l])=>`<button class="${CL.view===k?"on":""}" onclick="CL.view='${k}';renderClassLog()">${l}</button>`).join("");
   const ts = $("clTeacher"), tv = ts.value, live = clLiveClasses(thisMonth()), T = DB.employees.filter(e=>(e.assignments||[]).some(a=>a.shift===CL.shift && String(a.subject||"").trim() && live.has(a.shift+"|"+a.course))).sort((a,b)=>a.name.localeCompare(b.name));
   ts.innerHTML = `<option value="">All teachers</option>` + T.map(e=>`<option value="${e.id}" ${e.id===tv?"selected":""}>${esc(e.name)}</option>`).join("");
-  const rows = clRowsFor(date, CL.shift, ts.value), c = {T:0,N:0,C:0,U:0};
+  const rows = clRowsFor(date, CL.shift, ts.value), c = {T:0,N:0,C:0,U:0}, hol = holidayOn(date, CL.shift);
   rows.forEach(r=>{ const n = (r.rec && +r.rec.of) || r.n || 1;            // v133: periods
     if(!r.rec) c.U += n; else if(r.rec.s === "P"){ c.T += +r.rec.t || 0; c.N += clMissed(r.rec); } else c[r.rec.s] += n; });
-  $("clSum").innerHTML = `<div class="card"><div class="k">${esc(CL.shift)} classes · ${new Date(date+"T00:00").toLocaleDateString("en-GB",{weekday:"long"})}</div><div class="v">${rows.reduce((a,r)=>a + ((r.rec && +r.rec.of) || r.n || 1), 0)}</div><div class="hint">periods scheduled from Employees → Assign${rows.some(r=>(r.n||1) > 1) ? " (double classes count as 2)" : ""}</div></div>
+  $("clSum").innerHTML = (hol ? `<div class="card" style="border-color:#2E86AB"><div class="k">Public holiday</div><div class="v" style="font-size:1.1rem">${holTxt(hol)}</div><div class="hint">No classes on this day</div></div>` : "") + `<div class="card"><div class="k">${esc(CL.shift)} classes · ${new Date(date+"T00:00").toLocaleDateString("en-GB",{weekday:"long"})}</div><div class="v">${rows.reduce((a,r)=>a + ((r.rec && +r.rec.of) || r.n || 1), 0)}</div><div class="hint">periods scheduled from Employees → Assign${rows.some(r=>(r.n||1) > 1) ? " (double classes count as 2)" : ""}</div></div>
     <div class="card"><div class="k">Taken</div><div class="v green">${c.T}</div></div><div class="card"><div class="k">Not taken</div><div class="v ${c.N?"red":""}">${c.N}</div></div>
     <div class="card"><div class="k">Not marked yet</div><div class="v">${c.U}</div><div class="hint">${c.C ? c.C + " cancelled" : ""}</div></div>`;
   /* v138: substitute koi bhi staff ho sakta hai (coordinator / admin bhi) — teachers pehle, phir baqi staff */
@@ -3452,6 +3493,10 @@ function loadAttendance(){
     $("attRows").innerHTML = `<tr><td colspan="5" class="empty">Off day — no attendance</td></tr>`;
     attDraft = null; return;
   }
+  { const h = holidayOn(date, shift); if(h){
+    warn.innerHTML = `<div class="note" style="border-left-color:#2E86AB"><b>${fmtD(date)}</b> — ${holTxt(h)}. Public holiday: attendance is not marked on this day (Settings → Public holidays).</div>`;
+    $("attRows").innerHTML = `<tr><td colspan="5" class="empty">Public holiday — no attendance</td></tr>`;
+    attDraft = null; return; } }
   warn.innerHTML = "";
   /* v36: us mahine ki (ya aakhri) student list se — jo us mahine active hain */
   const RM = rosterMonths(), am = date.slice(0,7);
@@ -3754,7 +3799,7 @@ function attReportData(){
   const days = [];
   for(let d=1; d<=daysInMonth; d++){
     const ds = m + "-" + String(d).padStart(2,"0");
-    if(!isWeekend(ds)) days.push(ds);   // sirf working days (Mon–Fri)
+    if(!isWeekend(ds) && !holidayOn(ds, sh || undefined)) days.push(ds);   // sirf working days (Mon–Fri) · v160: public holiday nahi
   }
   const RM = rosterMonths();
   const stus = DB.students.filter(s=>(!sh || s.shift===sh) && inMonth(s, m, RM)).sort((a,b)=>a.regNo.localeCompare(b.regNo));
@@ -4317,7 +4362,7 @@ function staffFeeKpiSync(){
 }
 /* ---- coordinator checklist (shift-wise): attendance, staff attendance, classes taken, homework, homework checking, audits, inquiries ---- */
 function coordChecks(sh){
-  const t0 = todayStr(), m = thisMonth(), wd = !isWeekend(t0), act = DB.students.filter(x=>x.status==="Active" && x.shift===sh);
+  const t0 = todayStr(), m = thisMonth(), wd = !isWeekend(t0) && !holidayOn(t0, sh), act = DB.students.filter(x=>x.status==="Active" && x.shift===sh);
   const day = (DB.attendance||{})[t0] || {}, sMarked = act.filter(x=>day[x.id]).length;
   const emps = DB.employees.filter(e=>empWorksOn(e, sh, t0)), eday = (DB.empAttendance||{})[t0] || {}, eMarked = emps.filter(e=>empRecs(eday, e.id, sh).length).length;
   const rows = typeof clRowsFor === "function" ? clRowsFor(t0, sh) : [], clU = rows.filter(r=>!r.rec).length;
@@ -8495,7 +8540,7 @@ function myLiveKpi(m){
 function renderMyDash(){
   { const m0 = wm(), K = myLiveKpi(m0), ev = eveTestStatus(m0).filter(x=>x.need);
     $("mdKpiM").textContent = fmtM(m0);
-    $("mdRemind").innerHTML = marksDueAlert() + makeupAlert([...myClassKeys()]) + (ev.length ? `<div class="note" style="margin-bottom:14px;border-left-color:var(--accent-dark,#d9a400);background:#FFF6E0">⏰ <b>Reminder:</b> in the Evening each class needs at least <b>${EVE_TEST_TARGET} tests</b> per month — ${ev.map(x=>`<b>${esc(x.c)}</b>: ${x.n}/${EVE_TEST_TARGET} (${x.need} more)`).join(" · ")}
+    $("mdRemind").innerHTML = holidayNote() + marksDueAlert() + makeupAlert([...myClassKeys()]) + (ev.length ? `<div class="note" style="margin-bottom:14px;border-left-color:var(--accent-dark,#d9a400);background:#FFF6E0">⏰ <b>Reminder:</b> in the Evening each class needs at least <b>${EVE_TEST_TARGET} tests</b> per month — ${ev.map(x=>`<b>${esc(x.c)}</b>: ${x.n}/${EVE_TEST_TARGET} (${x.need} more)`).join(" · ")}
       <button class="btn-red btn-sm" style="margin-left:8px" onclick="document.querySelector('#nav button[data-page=tests]').click();setTimeout(()=>openTestForm(),50)">+ Create test</button></div>` : "");
     $("mdKpi").innerHTML = `<div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:10px">
         <div style="font-size:2.2rem;font-weight:900;${scoreColor(K.live)}">${K.live === null ? "—" : K.live + "%"}</div>
@@ -10223,23 +10268,32 @@ const latePolicy = () => ({allow:45, rate:250, ...((DB.settings||{}).latePolicy|
    Aik din ki salary = mahine ki salary ÷ us mahine ke kaam ke din (employee ke schedule se). Default: sirf teachers. */
 const absPolicy = () => ({on:true, free:EMP_LEAVE_LIMIT, who:"Teacher", div:"work", ...((DB.settings||{}).absPolicy||{})});
 const absApplies = e => { const p = absPolicy(); return !!e && p.on && (p.who === "All" || e.category === "Teacher"); };
-function empWorkDays(e, m){
+function empWorkDays(e, m, shift){            // v160: shift di ho to sirf us shift ke din; public holidays nahi gine jate
   const [y, mo] = m.split("-").map(Number), n = new Date(y, mo, 0).getDate(); let w = 0;
-  for(let i = 1; i <= n; i++){ const d = `${m}-${String(i).padStart(2,"0")}`; if(empShiftsOf(e).some(sh=>empWorksOn(e, sh, d))) w++; }
+  for(let i = 1; i <= n; i++){ const d = `${m}-${String(i).padStart(2,"0")}`; if((shift ? [shift] : empShiftsOf(e)).some(sh=>empWorksOn(e, sh, d) && !holidayOn(d, sh))) w++; }
   return w;
 }
+/* v160: Morning aur Evening ki chhuttiyan / absents ALAG — har shift mein ${free} paid, us ke baad har shift-din ki katauti.
+   Aik shift-din ki raqam = salary ÷ mahine ke kul shift-din (dono shift wale ke liye Morning ke din + Evening ke din). Public holiday nahi ginta. */
 function empAbsentMonth(eid, m, baseAmt){
-  const e = empById(eid), p = absPolicy(), out = {off:0, free:0, unpaid:0, days:[], perDay:0, ded:0, applies:absApplies(e)};
+  const e = empById(eid), p = absPolicy(), out = {off:0, free:0, unpaid:0, days:[], perDay:0, ded:0, applies:absApplies(e), by:{}};
   if(!e) return out;
+  const shs = empShiftsOf(e);
+  shs.forEach(sh=>{ out.by[sh] = {off:0, free:0, unpaid:0}; });
   Object.keys(DB.empAttendance||{}).filter(d=>d.startsWith(m)).sort().forEach(d=>{
-    const rs = empRecs(DB.empAttendance[d], eid); if(!rs.length) return;
-    const v = rs.reduce((a,x)=>a + (["A","E","U"].includes(x.s) ? 1 : x.s === "H" ? 0.5 : 0), 0) / rs.length;   // dono shift ho to har shift aadha din
-    if(v > 0){ out.off += v; out.days.push({d, v, s:rs.map(x=>x.s).join("/")}); } });
-  out.free = Math.min(out.off, +p.free || 0); out.unpaid = Math.max(0, Math.round((out.off - out.free)*2)/2);
+    empRecs(DB.empAttendance[d], eid).forEach(x=>{
+      if(holidayOn(d, x.shift)) return;
+      const v = ["A","E","U"].includes(x.s) ? 1 : x.s === "H" ? 0.5 : 0; if(!v) return;
+      const b = out.by[x.shift] = out.by[x.shift] || {off:0, free:0, unpaid:0};
+      b.off += v; out.days.push({d, v, s:x.s, shift:x.shift}); }); });
+  Object.values(out.by).forEach(b=>{ b.free = Math.min(b.off, +p.free || 0); b.unpaid = Math.max(0, Math.round((b.off - b.free)*2)/2);
+    out.off += b.off; out.free += b.free; out.unpaid += b.unpaid; });
   if(out.applies && out.unpaid){
-    const base = baseAmt !== undefined ? +baseAmt || 0 : (salaryOf(e).amt || 0), div = p.div === "30" ? 30 : (empWorkDays(e, m) || 26);
+    const base = baseAmt !== undefined ? +baseAmt || 0 : (salaryOf(e).amt || 0), nS = Math.max(1, Object.keys(out.by).length);
+    const div = p.div === "30" ? 30 * nS : (Object.keys(out.by).reduce((a,sh)=>a + empWorkDays(e, m, sh), 0) || 26 * nS);
     out.perDay = Math.round(base / div); out.ded = Math.round(out.unpaid * base / div); out.div = div;
   }
+  out.txt = shs.length > 1 ? Object.entries(out.by).map(([sh,b])=>`${sh} ${leaveFmt(b.off)}${b.unpaid ? ` (${leaveFmt(b.unpaid)} unpaid)` : ""}`).join(" · ") : "";
   return out;
 }
 const empSched = (e, shift) => { const sc = e && e.schedule && e.schedule[shift]; return sc && Object.keys(sc).length ? sc : null; };
@@ -10281,10 +10335,12 @@ function empLeaveDays(eid, m, exceptDate){
   return Object.keys(DB.empAttendance||{}).filter(d=>d.startsWith(m) && d !== exceptDate && empRecs(DB.empAttendance[d], eid).some(x=>x.s==="E" || x.s==="U")).sort();
 }
 /* v138: leave ki ginti — E / U = 1 din, H (half leave) = ½ din; har din zyada se zyada 1 */
-function empLeaveUsed(eid, m, exceptDate){
+/* v160: shift di ho to sirf us shift ki chhuttiyan (Morning aur Evening ki alag 2 / 2) */
+function empLeaveUsed(eid, m, exceptDate, shift){
   let n = 0;
   Object.keys(DB.empAttendance||{}).forEach(d=>{ if(!d.startsWith(m) || d === exceptDate) return;
-    const rs = empRecs(DB.empAttendance[d], eid); n += rs.some(x=>x.s==="E" || x.s==="U") ? 1 : rs.some(x=>x.s==="H") ? 0.5 : 0; });
+    const rs = empRecs(DB.empAttendance[d], eid, shift).filter(x=>!holidayOn(d, x.shift));
+    n += shift ? rs.reduce((a,x)=>a + leaveCost(x.s), 0) : rs.some(x=>x.s==="E" || x.s==="U") ? 1 : rs.some(x=>x.s==="H") ? 0.5 : 0; });
   return n;
 }
 const leaveCost = st => st === "H" ? 0.5 : (st === "E" || st === "U") ? 1 : 0;
@@ -10307,6 +10363,10 @@ function loadEmpAttendance(){
   /* v57: sirf wo staff jin ka is din (aur is shift mein) kaam hai — baqi din ginti mein hi nahi */
   const emps = [...DB.employees].filter(e=>empWorksOn(e, sh, date)).sort((a,b)=>a.name.localeCompare(b.name));
   const offToday = [...DB.employees].filter(e=>empShiftsOf(e).includes(sh) && !empWorksOn(e, sh, date));
+  { const h = holidayOn(date, sh); if(h){
+    warn.innerHTML = `<div class="note" style="border-left-color:#2E86AB"><b>${fmtD(date)}</b> — ${holTxt(h)}. Public holiday: staff attendance is not marked and the day does not count as a working day.</div>`;
+    $("empAttRows").innerHTML = `<tr><td colspan="8" class="empty">Public holiday — no attendance</td></tr>`;
+    empAttDraft = null; return; } }
   if(!emps.length){
     warn.innerHTML = `<div class="note"><b>${fmtD(date)}</b> (${WEEK[wdOf(date)]}) — no ${sh} staff is scheduled to work on this day${isWeekend(date) ? " (weekend)" : ""}. Nothing to mark.</div>`;
     $("empAttRows").innerHTML = `<tr><td colspan="8" class="empty">Off day — no attendance</td></tr>`;
@@ -10318,7 +10378,7 @@ function loadEmpAttendance(){
   emps.forEach(e=>{ const r = empRecs(day, e.id, sh)[0], sl = empSlot(e, sh, date);
     empAttDraft[e.id] = r ? {s:r.s, t:r.t} : {s:null, t:(sl && sl.from) || (sh === "Evening" ? "15:00" : "09:00")}; });
   $("empAttRows").innerHTML = emps.length? emps.map((e,i)=>{
-    const r = empAttDraft[e.id], used = empLeaveUsed(e.id, m, date), block = used >= EMP_LEAVE_LIMIT, sl = empSlot(e, sh, date), lt = empLateMonth(e.id, m);
+    const r = empAttDraft[e.id], used = empLeaveUsed(e.id, m, date, sh), block = used >= EMP_LEAVE_LIMIT, sl = empSlot(e, sh, date), lt = empLateMonth(e.id, m);
     return `<tr>
       <td><b>${i+1}</b></td>
       <td>${avatarHTML(e)}</td>
@@ -10329,7 +10389,7 @@ function loadEmpAttendance(){
       </div></td>
       <td style="max-width:120px"><input type="time" value="${r.t||"09:00"}" onchange="empSetTime('${e.id}',this.value)"></td>
       <td id="elate_${e.id}" style="min-width:150px">${empLateCell(e, sh, date, r)}<br>${empLateLine(e.id, m)}</td>
-      <td><span class="badge ${block ? "b-unpaid" : "b-freeze"}" title="Leave days this month (both shifts) — half leave counts ½">${leaveFmt(used)} / ${EMP_LEAVE_LIMIT}</span>${block ? `<br><span class="sub" style="color:var(--danger)">limit reached — Absent</span>` : ""}${(ab=>ab.applies && ab.unpaid ? `<br><span class="sub" style="color:var(--danger)" title="Days off beyond the ${absPolicy().free} paid leaves this month">✂ ${leaveFmt(ab.unpaid)} unpaid day${ab.unpaid===1?"":"s"}${ab.ded ? ` · Rs ${ab.ded.toLocaleString("en-US")}` : ""}</span>` : "")(empAbsentMonth(e.id, m))}</td>
+      <td><span class="badge ${block ? "b-unpaid" : "b-freeze"}" title="${esc(sh)} leave days this month — Morning and Evening are counted separately · half leave counts ½">${leaveFmt(used)} / ${EMP_LEAVE_LIMIT}${empShiftsOf(e).length > 1 ? ` <small>${sh === "Morning" ? "🌅" : "🌆"}</small>` : ""}</span>${block ? `<br><span class="sub" style="color:var(--danger)">limit reached — Absent</span>` : ""}${(ab=>ab.applies && ab.unpaid ? `<br><span class="sub" style="color:var(--danger)" title="Days off beyond the ${absPolicy().free} paid leaves this month${ab.txt ? " — " + ab.txt : ""}">✂ ${leaveFmt(ab.unpaid)} unpaid ${ab.txt ? "shift-" : ""}day${ab.unpaid===1?"":"s"}${ab.ded ? ` · Rs ${ab.ded.toLocaleString("en-US")}` : ""}</span>` : "")(empAbsentMonth(e.id, m))}</td>
     </tr>`;
   }).join("") : `<tr><td colspan="8" class="empty">No ${sh} staff</td></tr>`;
 }
@@ -10442,8 +10502,8 @@ function saveLatePolicy(){
 function empMark(eid, st){
   if(!empAttDraft || !empAttDraft[eid]) return;
   const date = $("empAttDate").value;
-  if(leaveCost(st) && empLeaveUsed(eid, date.slice(0,7), date) + leaveCost(st) > EMP_LEAVE_LIMIT){
-    toast(`${EMP_LEAVE_LIMIT} leaves already used this month — marked Absent`); st = "A";
+  if(leaveCost(st) && empLeaveUsed(eid, date.slice(0,7), date, EMP_ATT_SHIFT) + leaveCost(st) > EMP_LEAVE_LIMIT){
+    toast(`${EMP_LEAVE_LIMIT} ${EMP_ATT_SHIFT} leaves already used this month — marked Absent`); st = "A";
   }
   empAttDraft[eid].s = st;
   const box = $("eopt_"+eid).querySelectorAll("button");
@@ -10572,7 +10632,7 @@ function saveEmpAttendance(){
   let n = 0, forced = 0;
   for(const eid in empAttDraft){
     const r = empAttDraft[eid]; if(!r.s) continue;
-    if(leaveCost(r.s) && empLeaveUsed(eid, m, date) + leaveCost(r.s) > EMP_LEAVE_LIMIT && !empRecs(day, eid, sh).some(x=>x.s === r.s)){ r.s = "A"; forced++; }
+    if(leaveCost(r.s) && empLeaveUsed(eid, m, date, sh) + leaveCost(r.s) > EMP_LEAVE_LIMIT && !empRecs(day, eid, sh).some(x=>x.s === r.s)){ r.s = "A"; forced++; }
     /* purana {s,t} record naye shift-wise format mein */
     const old = day[eid], rec = old && !old.s ? {...old} : {};
     if(old && old.s){ const e = empById(eid); rec[e && e.shift === "Evening" ? "Evening" : "Morning"] = {s:old.s, t:old.t}; }
@@ -10697,6 +10757,7 @@ function openEmpForm(id){
         <button class="btn-black" onclick="addAsg()">+ Assign</button>
       </div>
       <label class="chk" style="margin:-6px 0 6px"><input type="checkbox" id="m_aper" onchange="drawSlots()"> ⏱ Different time on each day</label>
+      <p class="sub" style="margin:-4px 0 8px">Same subject <b>twice on a day</b> (e.g. 9:00 and 12:00)? Assign the class + subject again with the second time — both periods show in the timetable and in Classes taken.</p>
       <div id="m_aslots" class="daypick" style="gap:8px;margin-bottom:10px"></div>
       <div>
       </div>
@@ -10787,7 +10848,6 @@ function daysLabel(list){
 const asgDays = a => (a.dayList && a.dayList.length) ? a.dayList : (DAY_SET[a.days] || DAY_SET["Mon–Fri"]);
 function addAsg(){
   const c=$("m_ac").value, s=$("m_as").value, sub=$("m_asub").value.trim(), from=$("m_afrom").value, to=$("m_ato").value, dl=pickedDays();
-  if(asgDraft.some(a=>a.course===c && a.shift===s && keyify(a.subject||"")===keyify(sub) && (a.from||"")===from && daysLabel(asgDays(a))===daysLabel(dl.length ? dl : asgDays({})))){ toast("This assignment already exists"); return; }
   if(from && to && to <= from){ toast("'To' time must be after 'From' time"); return; }
   if(to && !from){ toast("Enter the 'From' time too"); return; }
   let slots = null;
@@ -10800,6 +10860,15 @@ function addAsg(){
       slots[d] = {from:f, to:t}; }
   }
   const fr = slots ? Object.values(slots).map(x=>x.from).sort()[0] : from, tt = slots ? Object.values(slots).map(x=>x.to||"").sort().pop() : to;
+  /* v160: wohi class + subject aik din mein do mukhtalif waqt par ho sakta hai (double period) — sirf wohi / takrata waqt mana */
+  { const nw = {from:fr, to:tt, ...(slots ? {slots} : {}), ...(dl.length ? {dayList:dl} : {})}, mn = t => ttMin(t);
+    const span = (a, d) => { const sl = slotOf(a, d); if(!sl || !sl.from) return null; const f = mn(sl.from), t = mn(sl.to); return [f, t !== null && t > f ? t : f + 60]; };
+    for(const a of asgDraft){
+      if(a.course !== c || a.shift !== s || keyify(a.subject||"") !== keyify(sub)) continue;
+      if(!fr && !a.from && daysLabel(asgDays(a)) === daysLabel(dl.length ? dl : asgDays({}))){ toast("This assignment already exists"); return; }
+      const hit = asgDays(nw).find(d=>{ const x = span(a, d), y = span(nw, d); return x && y && x[0] < y[1] && y[0] < x[1]; });
+      if(hit !== undefined){ toast(`${c} ${sub || ""} is already assigned at this time on ${WEEK[hit]} — pick a different time for the 2nd period`); return; }
+    } }
   asgDraft.push({course:c, shift:s, ...(sub ? {subject:sub} : {}), ...(fr ? {from:fr, to:tt} : {}), ...(slots ? {slots} : {}), ...(dl.length ? {dayList:dl, days:daysLabel(dl)} : fr ? {days:"Mon–Fri"} : {})});
   $("m_asub").value = ""; $("m_afrom").value = ""; $("m_ato").value = ""; if($("m_aper")) $("m_aper").checked = false; SLOT_DRAFT = {}; pickDays([]); drawAsg();
 }
@@ -13142,6 +13211,7 @@ function disableAdmin(){
   }, "Yes, block");
 }
 function loadSettings(){
+  renderHolidays();
   renderLogins();
   $("setName").value = DB.settings.name||"";
   $("setAddr").value = DB.settings.addr||"";
