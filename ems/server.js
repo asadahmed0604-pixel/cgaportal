@@ -181,7 +181,8 @@ function withStaff(text, sid) {
   if (!text.startsWith("{") || text === "{}") return text;
   const d = dbNow() || {};
   /* v120: apne kaam + jo kaam is ne doosron ko diye (from) */
-  const k = sid ? (d.staffKpis || []).filter((x) => x && x.sid === sid) : [], t = sid ? (d.staffTasks || []).filter((x) => x && (x.sid === sid || x.from === sid)) : [];
+  /* v164: naam wale staff login ko saare staff ke KPIs (sirf dekhne ko — badalna sirf Executive, keepProtected) */
+  const k = sid ? (d.staffKpis || []).filter((x) => x && x.sid) : [], t = sid ? (d.staffTasks || []).filter((x) => x && (x.sid === sid || x.from === sid)) : [];
   return text.slice(0, -1) + `,"staffKpis":${JSON.stringify(k)},"staffTasks":${JSON.stringify(t)},"feeStats":${JSON.stringify(feeStatsFor(d))}}`;
 }
 function dataFor(role, tid, sid) {

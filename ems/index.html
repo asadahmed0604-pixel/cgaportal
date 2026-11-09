@@ -776,6 +776,7 @@ label.chk input{width:auto}
     <div class="panel"><h3>✅ My to-do list</h3><div id="sdTasks"></div></div>
     <div class="panel"><h3>🎯 My KPIs — <span id="sdKpiM"></span></h3><div id="sdKpi"></div></div>
   </div>
+  <div class="panel" style="margin-top:16px" id="sdTeamKpiP"><h3>👥 Other staff KPIs — <span id="sdTeamKpiM"></span></h3><div id="sdTeamKpi"></div></div>
   <div class="panel" style="margin-top:16px" id="sdDelegP"><h3>📤 Tasks I assigned</h3><div id="sdDeleg"></div></div>
   <div class="panel" style="margin-top:16px"><h3 id="sdWorkH">📋 Today's work</h3><div id="sdWork"></div></div>
 </section>
@@ -1538,7 +1539,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v162 · 9 Nov 2026";
+const BUILD = "v164 · 9 Nov 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -4260,6 +4261,18 @@ function renderStaffDash(){
       <td style="text-align:right">${it.score === "" || it.score === undefined ? `<span class="sub">—</span>` : `<b style="${scoreColor(+it.score*20)}">${it.score} / 5</b>`}</td></tr>`).join("")}</tbody></table></div>
     ${k.review ? `<div class="note" style="margin-top:8px"><b>Executive:</b> ${esc(k.review)}</div>` : ""}`
     : `<p class="sub">Your KPIs for ${fmtM(m)} have not been set yet.</p>`;
+  /* v164: doosre admin / fee admin ke KPIs — sirf dekhne ko */
+  { const O = staffPeople().filter(e=>e.id !== MY_SID).map(e=>({e, k:kpiOf(e.id, m)}));
+    $("sdTeamKpiM").textContent = fmtM(m);
+    $("sdTeamKpiP").style.display = O.length ? "" : "none";
+    $("sdTeamKpi").innerHTML = O.map(({e, k})=>{ const p = staffKpiPct(k);
+      return `<details style="border:1px solid var(--line);border-radius:10px;padding:8px 12px;margin-bottom:8px"><summary style="cursor:pointer;display:flex;justify-content:space-between;gap:10px;align-items:center">
+          <span><b>${esc(e.name)}</b> <span class="sub">${esc(STAFF_ACCESS[e.access]||"")}${e.scope ? " · " + esc(e.scope) : ""}</span></span>
+          <span>${k ? `<b style="font-size:1.2rem;${scoreColor(p)}">${p === null ? "—" : p + "%"}</b> <span class="sub">${p === null ? "not scored yet" : kpiRating(p)}</span>` : `<span class="sub">KPIs not set for ${fmtM(m)}</span>`}</span></summary>
+        ${k ? `<div class="tbl-wrap" style="margin-top:8px"><table><thead><tr><th>KPI</th><th>Target</th><th style="text-align:right">Weight</th><th style="text-align:right">Score</th></tr></thead><tbody>
+          ${(k.items||[]).map(it=>`<tr><td><b>${esc(it.title)}</b>${it.note ? `<br><span class="sub">${esc(it.note)}</span>` : ""}</td><td class="sub">${esc(it.target||"—")}</td><td style="text-align:right">${+it.weight||0}</td>
+            <td style="text-align:right">${it.score === "" || it.score === undefined ? `<span class="sub">—</span>` : `<b style="${scoreColor(+it.score*20)}">${it.score} / 5</b>`}</td></tr>`).join("")}</tbody></table></div>` : ""}</details>`; }).join("")
+      + (O.length ? `<p class="sub">View only — KPIs are set and scored by the Executive.</p>` : ""); }
   $("sdTasks").innerHTML = T.length ? T.slice(0, 30).map(t=>taskRow(t, true, false)).join("") : `<p class="sub">Nothing on your list — add your own with “+ Add my to-do”.</p>`;
   /* kaam ke hisaab se aaj ki cheezein */
   const act = DB.students.filter(st=>st.status === "Active"), day = (DB.attendance||{})[t0] || {};
@@ -9474,13 +9487,16 @@ function syStats(x, m){
   return {n:T.length, pct:T.length ? Math.round(cov(T)*100/T.length) : 0, onTrack:due.length ? Math.round(cov(due)*100/due.length) : null, due:due.length, done:T.filter(t=>t.s==="done").length};
 }
 function syMine(){ return IS_TEACHER ? syList().filter(x=>x.tid===MY_TID) : syList(); }
-/* teacher: apni Morning classes + subjects (assignments se) */
+/* v163: Morning AUR Evening — class + subject: Employees → Assign se, aur Evening mein bache ke subject par laga teacher bhi */
 function syChoices(){
-  if(IS_TEACHER){ const me = empById(MY_TID) || {}; return (me.assignments||[]).filter(a=>a.shift === "Morning" && String(a.subject||"").trim()).map(a=>({shift:a.shift, course:a.course, subject:a.subject, tid:MY_TID}))
-    .filter((v, i, L)=>L.findIndex(w=>w.course===v.course && keyify(w.subject)===keyify(v.subject))===i); }
-  const out = []; DB.employees.forEach(e=>(e.assignments||[]).forEach(a=>{ if(a.shift === "Morning" && String(a.subject||"").trim() && !out.some(w=>w.course===a.course && keyify(w.subject)===keyify(a.subject) && w.tid===e.id)) out.push({shift:a.shift, course:a.course, subject:a.subject, tid:e.id}); }));
-  return out.sort((a,b)=>classSort(a.course, b.course) || a.subject.localeCompare(b.subject));
+  const out = [], add = (sh, c, sub, tid) => { if(!["Morning","Evening"].includes(sh) || !String(sub||"").trim() || !tid) return;
+    if(!out.some(w=>w.shift===sh && w.course===c && keyify(w.subject)===keyify(sub) && w.tid===tid)) out.push({shift:sh, course:c, subject:sub, tid}); };
+  DB.employees.forEach(e=>{ if(IS_TEACHER && e.id !== MY_TID) return; (e.assignments||[]).forEach(a=>add(a.shift, a.course, a.subject, e.id)); });
+  DB.students.forEach(st=>{ if(st.shift !== "Evening" || st.status === "Left") return;
+    (st.subjects||[]).forEach(x=>{ if(x.teacherId && (!IS_TEACHER || x.teacherId === MY_TID)) classesOf(st).forEach(c=>add("Evening", c, x.name, x.teacherId)); }); });
+  return out.sort((a,b)=>(a.shift === b.shift ? 0 : a.shift === "Morning" ? -1 : 1) || classSort(a.course, b.course) || a.subject.localeCompare(b.subject));
 }
+const syShiftTxt = x => (x.shift || "Morning") === "Evening" ? "🌆 Evening" : "🌅 Morning";
 function renderSyllabus(){
   if($("syr_t") && !(window._sy||{}).resFresh) syResGrab();   // v145: adha bhara form na mite
   if(window._sy) window._sy.resFresh = false;
@@ -9488,17 +9504,17 @@ function renderSyllabus(){
   const L = syMine().slice().sort((a,b)=>classSort(a.course, b.course) || a.subject.localeCompare(b.subject));
   if(st.id && !L.some(x=>x.id===st.id)) st.id = "";
   const head = `<div class="toolbar" style="align-items:flex-end">
-      ${L.length ? `<div class="field" style="min-width:260px"><label>Tracker</label><select onchange="window._sy.id=this.value;renderSyllabus()"><option value="">${IS_TEACHER ? "— my trackers —" : "📊 Overview — all teachers"}</option>${L.map(x=>`<option value="${x.id}" ${x.id===st.id?"selected":""}>${esc(x.course)} · ${esc(x.subject)}${IS_TEACHER ? "" : " — " + esc(x.tname||"")}</option>`).join("")}</select></div>` : ""}
+      ${L.length ? `<div class="field" style="min-width:260px"><label>Tracker</label><select onchange="window._sy.id=this.value;renderSyllabus()"><option value="">${IS_TEACHER ? "— my trackers —" : "📊 Overview — all teachers"}</option>${L.map(x=>`<option value="${x.id}" ${x.id===st.id?"selected":""}>${(x.shift||"Morning") === "Evening" ? "🌆" : "🌅"} ${esc(x.course)} · ${esc(x.subject)}${IS_TEACHER ? "" : " — " + esc(x.tname||"")}</option>`).join("")}</select></div>` : ""}
       <button class="btn-red" style="margin-left:auto" onclick="syNew()">+ New tracker</button></div>`;
   if(!st.id){
     $("syBody").innerHTML = head + (L.length ? `<div class="tbl-wrap"><table><thead><tr><th>Class</th><th>Subject</th>${IS_TEACHER ? "" : "<th>Teacher</th>"}<th style="text-align:right">Topics</th><th style="text-align:right">Books / notes</th><th>Covered</th><th style="text-align:right">On track (planned till ${fmtM(thisMonth())})</th><th>${fmtM(thisMonth())} target</th><th></th></tr></thead><tbody>
       ${L.map(x=>{ const k = syStats(x), tg = (x.targets||{})[thisMonth()];
-        return `<tr><td><b>${esc(x.course)}</b></td><td>${esc(x.subject)}</td>${IS_TEACHER ? "" : `<td>${esc(x.tname||"—")}</td>`}<td style="text-align:right">${k.n}</td><td style="text-align:right">${(x.resources||[]).length || "—"}</td>
+        return `<tr><td><b>${esc(x.course)}</b> <span class="sub">${syShiftTxt(x)}</span></td><td>${esc(x.subject)}</td>${IS_TEACHER ? "" : `<td>${esc(x.tname||"—")}</td>`}<td style="text-align:right">${k.n}</td><td style="text-align:right">${(x.resources||[]).length || "—"}</td>
           <td style="min-width:150px"><div class="att-bar"><i style="width:${k.pct}%"></i></div><span class="sub">${k.pct}% · ${k.done} done</span></td>
           <td style="text-align:right">${k.onTrack === null ? `<span class="sub">—</span>` : `<span class="badge ${k.onTrack>=90?"b-paid":k.onTrack>=70?"b-freeze":"b-left"}">${k.onTrack}%</span>`}</td>
           <td>${tg && tg.text ? `<span class="badge b-paid">✓ set</span>` : `<span class="badge b-unpaid">not set</span>`}</td>
           <td><button class="btn-line btn-sm" onclick="window._sy.id='${x.id}';renderSyllabus()">Open →</button></td></tr>`; }).join("")}</tbody></table></div>`
-      : `<div class="note">No syllabus tracker yet. Press <b>+ New tracker</b>, choose ${IS_TEACHER ? "your" : "a"} Morning class &amp; subject, then add the yearly planner (topics by month), the monthly target, and tick what has been covered. Parents see the coverage in the app.</div>`);
+      : `<div class="note">No syllabus tracker yet. Press <b>+ New tracker</b>, choose ${IS_TEACHER ? "your" : "a"} class &amp; subject (Morning or Evening), then add the yearly planner (topics by month), the monthly target, and tick what has been covered. Parents see the coverage in the app.</div>`);
     return;
   }
   const x = L.find(y=>y.id===st.id), k = syStats(x), M = syMonths(x.year), m = M.includes(st.m) ? st.m : (M.includes(thisMonth()) ? thisMonth() : M[0]); st.m = m;
@@ -9513,7 +9529,7 @@ function renderSyllabus(){
         ${t.d ? `<span class="sub" style="align-self:center">on ${fmtD(t.d)}</span>` : ""}</div>
       <input placeholder="Comment — e.g. finished exercise 4.2; test next week / not covered because of holidays" value="${esc(t.c||"")}" onchange="sySet(${i},'c',this.value)" style="margin-top:6px;width:100%"></div>`;
   $("syBody").innerHTML = head + `<div class="panel">
-      <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center"><div><h3 style="margin:0">${esc(x.course)} · ${esc(x.subject)}</h3><div class="sub">${esc(x.tname||"")} · Morning · year ${esc(x.year||"")} · ${k.n} topics</div></div>
+      <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center"><div><h3 style="margin:0">${esc(x.course)} · ${esc(x.subject)}</h3><div class="sub">${esc(x.tname||"")} · ${syShiftTxt(x)} · year ${esc(x.year||"")} · ${k.n} topics</div></div>
         <div style="display:flex;gap:16px;align-items:center"><div><b style="font-size:1.5rem">${k.pct}%</b><br><span class="sub">syllabus covered</span></div>
           <div><b style="font-size:1.5rem;${k.onTrack === null ? "" : k.onTrack>=90 ? "color:var(--ok)" : k.onTrack>=70 ? "color:#A86400" : "color:var(--danger)"}">${k.onTrack === null ? "—" : k.onTrack + "%"}</b><br><span class="sub">of topics planned till ${fmtM(thisMonth())}</span></div>
           <button class="btn-line btn-sm" onclick="syRemove()">🗑 Delete tracker</button></div></div>
@@ -9581,17 +9597,17 @@ function syResSave(){
 function syResEdit(i){ const x = syCur(), r = x && (x.resources||[])[i]; if(!r) return; window._sy.res = {...structuredClone(r), i}; window._sy.resFresh = true; renderSyllabus(); const t = $("syr_t"); if(t) t.scrollIntoView({block:"center"}); }
 function syResDel(i){ const x = syCur(), r = x && (x.resources||[])[i]; if(!r || !confirm(`Delete "${r.title}"?`)) return; x.resources.splice(i, 1); save(); renderSyllabus(); }
 function syNew(){
-  const C = syChoices().filter(c=>!syList().some(x=>x.course===c.course && keyify(x.subject)===keyify(c.subject) && x.tid===c.tid));
-  if(!C.length){ toast(IS_TEACHER ? "Every Morning class & subject assigned to you already has a tracker (or none is assigned — ask the admin: Employees → Edit → Assign)" : "No Morning class & subject assignments without a tracker"); return; }
+  const C = syChoices().filter(c=>!syList().some(x=>(x.shift||"Morning")===c.shift && x.course===c.course && keyify(x.subject)===keyify(c.subject) && x.tid===c.tid));
+  if(!C.length){ toast(IS_TEACHER ? "Every class & subject assigned to you already has a tracker (or none is assigned — ask the admin: Employees → Edit → Assign)" : "No class & subject assignments without a tracker"); return; }
   openModal(`<h3>📚 New syllabus tracker</h3>
-    <div class="field"><label>Class · subject${IS_TEACHER ? "" : " · teacher"}</label><select id="sy_new">${C.map((c,i)=>`<option value="${i}">${esc(c.course)} · ${esc(c.subject)}${IS_TEACHER ? "" : " — " + esc((empById(c.tid)||{}).name||"")}</option>`).join("")}</select></div>
+    <div class="field"><label>Class · subject${IS_TEACHER ? "" : " · teacher"}</label><select id="sy_new">${C.map((c,i)=>`<option value="${i}">${c.shift === "Evening" ? "🌆" : "🌅"} ${esc(c.course)} · ${esc(c.subject)} (${c.shift})${IS_TEACHER ? "" : " — " + esc((empById(c.tid)||{}).name||"")}</option>`).join("")}</select></div>
     <div class="field"><label>Academic year</label><input id="sy_yr" value="${syYearNow()}" style="max-width:120px"></div>
     <div class="modal-foot"><button class="btn-line" onclick="closeModal()">Cancel</button><button class="btn-red" onclick="syCreate()">Create</button></div>`);
   window._syC = C;
 }
 function syCreate(){
   const c = window._syC[+$("sy_new").value]; if(!c) return;
-  const x = {id:uid(), tid:c.tid, tname:(empById(c.tid)||{}).name || "", shift:"Morning", course:c.course, subject:c.subject, year:$("sy_yr").value.trim() || syYearNow(), planFiles:[], targets:{}, topics:[]};
+  const x = {id:uid(), tid:c.tid, tname:(empById(c.tid)||{}).name || "", shift:c.shift || "Morning", course:c.course, subject:c.subject, year:$("sy_yr").value.trim() || syYearNow(), planFiles:[], targets:{}, topics:[]};
   syList().push(x); save(); closeModal(); window._sy = {id:x.id, m:thisMonth(), all:false}; renderSyllabus(); toast("Tracker created — add the yearly planner topics");
 }
 function syMonthOf(line, x, fallback){
@@ -14534,7 +14550,7 @@ if(IS_ADMIN){
   if(IS_TEACHER){ document.body.classList.add("role-teacher"); const me = empById(MY_TID); if(me) ROLE_LABEL = "Teacher · " + me.name;
     document.querySelector('#nav button[data-page="mydash"]').style.display = "";
     if(!(DB.skillGroups||[]).some(g=>g.tid===MY_TID)) document.querySelector('#nav button[data-page="skilldev"]').style.display = "none";
-    if(!syChoices().length && !syMine().length) document.querySelector('#nav button[data-page="syllabus"]').style.display = "none";   // v143: sirf Morning teacher   // v116: sirf skill group ka teacher
+    if(!syChoices().length && !syMine().length) document.querySelector('#nav button[data-page="syllabus"]').style.display = "none";   // v143 / v163: jis teacher ki Morning ya Evening class + subject ho   // v116: sirf skill group ka teacher
     setTimeout(()=>{ const ev = eveTestStatus(wm()).filter(x=>x.need); if(ev.length) toast(`⏰ This month ${ev.map(x=>`${x.c}: ${x.n}/${EVE_TEST_TARGET} tests`).join(", ")} — take 2 tests in every Evening class`); }, 1200); }
   if(MY_SID) document.querySelector('#nav button[data-page="staffdash"]').style.display = "";
   if(MY_SCOPE === "Morning"){ const b = document.querySelector('#nav button[data-page="classatt"]'); if(b) b.style.display = "none"; }   // v105: Evening class attendance

@@ -997,3 +997,12 @@ Share → "Add to Home Screen" · Computer Chrome/Edge: the install icon in the 
 - **Highlighted month-end case:** student form → under Monthly Fee, tick **🟡 Pays at month end**. These students show a 🟡 month-end badge in the student list and the defaulter list. They are left out of the 20th target only; they still count in the 15th and 27th targets.
 - Staff KPI sheets for the current and later months get the new "by the 20th" item automatically, and the 15th item's target text is updated. Scoring stays automatic (5 = achieved).
 - `feeCountStats` (`fee-stats.js` plus its copy in `index.html`) now also counts `issued20` / `by20`. The server passes the month-end flags, so admins without fee access still see the counts.
+
+## v163 — Syllabus tracker for Evening teachers
+- The **Syllabus Tracker** now works for **Evening** classes too, not only Morning.
+- A teacher can create a tracker for any class + subject assigned to them, from Employees → Assign or, in the Evening, from the student subjects they are set as teacher on. They then add the yearly planner, monthly targets, coverage ticks and books / topicals / notes, the same as for Morning.
+- Trackers show 🌅 Morning or 🌆 Evening. Evening students' parents see the coverage in the app for their class and subjects.
+
+## v164 — Staff can see each other's KPIs
+- Named staff logins (Admin / Fee Admin) now see an **👥 Other staff KPIs** panel on their dashboard. It lists every other staff member's KPI score for the month (%, rating). Each person opens up to show their KPI items and scores.
+- View only: KPIs are still set and scored only by the Executive. The server ignores any change a staff login makes to KPIs (`keepProtected`).
