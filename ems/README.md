@@ -965,3 +965,10 @@ Share → "Add to Home Screen" · Computer Chrome/Edge: the install icon in the 
 - It opens on last month at today's day number, and compares with this month up to the same day.
 - Each installment counts on its own date. "Billed" leaves out carried arrears, and a challan's received amount is capped at its billed amount.
 - It also shows the total cash received from the 1st up to that date from any challans, including advance and old dues.
+
+## v159 — Post missing salaries for any month
+- Income / Expense → **💼 Salaries → Expense** now has a **Show month** picker. It opens on the working month.
+- For past months, each employee shows **✓ Posted** or **Missing**, with the reason. The reason can be: before the Starting month, auto salary OFF, deleted by you, salary 0, or a manual entry already exists.
+- **➕ Post N missing salaries for <month>** adds them, with the same amounts, late / absent deductions and date day, after a confirm.
+- **Re-add** brings back a salary entry that was deleted by mistake.
+- Why October could be missing: auto salary only posts from the **Starting month** onward. If that was set to a later month (or auto was OFF), earlier months never got salary entries.

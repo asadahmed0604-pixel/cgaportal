@@ -1537,7 +1537,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v158 · 9 Nov 2026";
+const BUILD = "v159 · 9 Nov 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -1915,7 +1915,7 @@ function syncWMFilters(){
     : "Every page shows this month's records — pick an earlier month to view or enter its records";
 }
 function setWM(m){
-  DASH_ALL = false;
+  DASH_ALL = false; window._salM = "";
   WM = m || thisMonth();
   syncWMFilters();
   const cur = document.querySelector("#nav button.active");
@@ -14196,6 +14196,28 @@ function syncSalaries(){
   if(changed) save();
   return changed;
 }
+/* v159: kisi mahine ki chhooti hui salaries haath se post (starting month se pehle, ya auto OFF ho to bhi) */
+function salPostOne(e, m, x, cfg){
+  const day = String(Math.min(28, Math.max(1, +cfg.day||1))).padStart(2,"0");
+  DB.txns.push({id:uid(), type:"Expense", category:"Salary & Wages", desc:salDesc(e,m), amount:x.s.amt,
+    status:cfg.status||"Paid", date:`${m}-${day}`, note:`Auto · ${x.s.src} · posted ${todayStr()}`, autoKey:x.key});
+}
+function salPostMonth(m){
+  const cfg = salCfg(), L = DB.employees.map(e=>({e, x:salState(e, m, cfg)})).filter(r=>r.x.st==="due");
+  if(!L.length){ toast("Nothing missing for " + fmtM(m)); return; }
+  askConfirm(`Post ${L.length} salaries for ${fmtM(m)}?`, `${money(L.reduce((a,r)=>a+r.x.s.amt,0))} will be added to ${fmtM(m)}'s expenses as "Salary & Wages" (${cfg.status||"Paid"}).`, ()=>{
+    L.forEach(r=>salPostOne(r.e, m, r.x, cfg)); save(); renderSalPanel(); renderFinance(); renderDashboard();
+    toast(`✓ ${L.length} salaries added to ${fmtM(m)}`);
+  }, "Post salaries");
+}
+function salReAdd(m, eid){
+  const cfg = salCfg(), e = empById(eid); if(!e) return;
+  cfg.skip = cfg.skip.filter(k=>k !== salKey(m, eid));
+  const x = salState(e, m, cfg);
+  if(x.st === "due") salPostOne(e, m, x, cfg);
+  save(); renderSalPanel(); renderFinance(); renderDashboard();
+  toast(x.st === "due" ? `✓ ${e.name}'s ${fmtM(m)} salary added` : `${e.name}: ${x.st}`);
+}
 function saveSalCfg(){
   const cfg = salCfg();
   cfg.userSet = true;
@@ -14209,13 +14231,15 @@ function saveSalCfg(){
 function renderSalPanel(){
   const box = $("salPanel"); if(!box) return;
   if(IS_ADMIN){ box.style.display = "none"; return; }          // v44: Fee Admin ko salaries nahi
-  const cfg = salCfg(), m = thisMonth();
-  const LBL = {posted:["✓ Posted","b-paid"], due:["Will post","b-freeze"], zero:["Salary 0 — skip","b-freeze"], manual:["Manual entry exists","b-freeze"],
+  /* v159: koi bhi mahina dekh sakte hain — pichle mahine ki chhooti hui salaries yahin se post */
+  const cfg = salCfg(), m = (window._salM && /^\d{4}-\d{2}$/.test(window._salM) ? window._salM : wm());
+  const before = m < (cfg.from || thisMonth()), past = m < thisMonth();
+  const LBL = {posted:["✓ Posted","b-paid"], due:[before || !cfg.on ? "Missing — not posted" : past ? "Missing — post below" : "Will post","b-freeze"], zero:["Salary 0 — skip","b-freeze"], manual:["Manual entry exists","b-freeze"],
                deleted:["Deleted by you — skip","b-freeze"], notJoined:["Not joined yet","b-freeze"]};
   const list = DB.employees.map(e=>({e, x:salState(e, m, cfg)})).filter(r=>r.x.st!=="notEligible")
                  .sort((a,b)=>b.x.s.amt-a.x.s.amt || a.e.name.localeCompare(b.e.name));
   const tot = list.filter(r=>r.x.st==="posted"||r.x.st==="due").reduce((a,r)=>a+r.x.s.amt,0);
-  const zero = list.filter(r=>r.x.st==="zero").length;
+  const zero = list.filter(r=>r.x.st==="zero").length, dueN = list.filter(r=>r.x.st==="due"), delN = list.filter(r=>r.x.st==="deleted");
   box.innerHTML = `
     <h3>💼 Salaries → Expense (automatic)</h3>
     <p class="sub" style="margin:4px 0 12px">When ON, each ${cfg.who==="All"?"employee":"teacher"}'s salary is added automatically every month as a <b>"Salary & Wages"</b> expense — also in the P&L and monthly report. Amount: per-class teacher pay if set, otherwise the salary in Employees.</p>
@@ -14227,6 +14251,13 @@ function renderSalPanel(){
       <div class="field"><label>Entry status</label><select id="salStatus"><option ${cfg.status==="Paid"?"selected":""}>Paid</option><option ${cfg.status==="Unpaid"?"selected":""}>Unpaid</option></select></div>
       <button class="btn-red" onclick="saveSalCfg()">Save & sync</button>
     </div>
+    <div class="toolbar" style="align-items:flex-end;margin-top:6px">
+      <div class="field"><label>Show month</label><input type="month" id="salM" value="${m}" max="${thisMonth()}" onchange="window._salM=this.value;renderSalPanel()"></div>
+      ${dueN.length ? `<button class="btn-red" onclick="salPostMonth('${m}')">➕ Post ${dueN.length} missing salar${dueN.length===1?"y":"ies"} for ${fmtM(m)} (${money(dueN.reduce((a,r)=>a+r.x.s.amt,0))})</button>` : ""}
+    </div>
+    ${before ? `<div class="note" style="border-left-color:var(--danger)"><b>${fmtM(m)} is before the starting month (${fmtM(cfg.from)})</b> — salaries were never added automatically for it. Press <b>➕ Post missing salaries</b> above, or set an earlier Starting month and Save & sync.</div>` : ""}
+    ${!cfg.on ? `<div class="note" style="border-left-color:var(--danger)"><b>Auto salary expense is OFF</b> — new months get no salary entries. Tick it ON and press Save & sync, or post a month by hand above.</div>` : ""}
+    ${delN.length ? `<div class="note">${delN.length} entr${delN.length===1?"y was":"ies were"} deleted for ${fmtM(m)}, so ${delN.length===1?"it is":"they are"} not added again — use <b>Re-add</b> in the list if that was a mistake.</div>` : ""}
     ${cfg.status==="Unpaid" ? `<div class="note">Unpaid entries count as expenses only when you press <b>Mark Paid</b> in the list — i.e. when the salary is actually paid.</div>` : ""}
     ${zero ? `<div class="note"><b>${zero} ${cfg.who==="All"?"employees":"teachers"} have a salary of 0</b> — no entry will be created for them. Set the salary on the Employees page, or set ✎ Teacher pay in Business Reports → Teachers & Class Profit.</div>` : ""}
     <div class="tbl-wrap"><table>
@@ -14234,9 +14265,9 @@ function renderSalPanel(){
       <tbody>${list.length ? list.map(({e,x})=>`<tr>
         <td><b>${esc(e.name)}</b></td><td>${esc(e.category)}</td><td class="sub">${x.s.src}</td>
         <td style="text-align:right"><b>${money(x.posted? x.posted.amount : x.s.amt)}</b></td>
-        <td><span class="badge ${LBL[x.st][1]}">${cfg.on || x.st==="posted" ? LBL[x.st][0] : (x.st==="due"?"OFF — will not post":LBL[x.st][0])}</span></td></tr>`).join("")
+        <td><span class="badge ${LBL[x.st][1]}">${LBL[x.st][0]}</span>${x.st==="deleted" ? ` <button class="btn-line btn-sm" onclick="salReAdd('${m}','${e.id}')">Re-add</button>` : ""}</td></tr>`).join("")
         : `<tr><td colspan="5" class="empty">No ${cfg.who==="All"?"employees":"teachers"}</td></tr>`}</tbody>
-      <tfoot><tr style="background:var(--soft)"><td colspan="3"><b>Salary expense this month</b></td><td style="text-align:right"><b>${money(tot)}</b></td><td></td></tr></tfoot>
+      <tfoot><tr style="background:var(--soft)"><td colspan="3"><b>Salary expense — ${fmtM(m)}</b></td><td style="text-align:right"><b>${money(tot)}</b></td><td></td></tr></tfoot>
     </table></div>`;
 }
 function toggleTxnStatus(id){
