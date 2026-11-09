@@ -1006,3 +1006,7 @@ Share → "Add to Home Screen" · Computer Chrome/Edge: the install icon in the 
 ## v164 — Staff can see each other's KPIs
 - Named staff logins (Admin / Fee Admin) now see an **👥 Other staff KPIs** panel on their dashboard. It lists every other staff member's KPI score for the month (%, rating). Each person opens up to show their KPI items and scores.
 - View only: KPIs are still set and scored only by the Executive. The server ignores any change a staff login makes to KPIs (`keepProtected`).
+
+## v165 — Staff KPIs always show
+- **New month → KPI sheet made automatically:** when the Executive opens the app, every staff login without a sheet for the current month gets one. It is copied from their last month: the same KPIs, targets and weights, with scores blank. The fee KPIs are added and scored automatically as before.
+- **Staff dashboard:** if this month's sheet still doesn't exist, "My KPIs" shows the last month's sheet, labelled "(November 2026 not set yet)", instead of looking empty.
