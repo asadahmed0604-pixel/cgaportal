@@ -987,3 +987,13 @@ Share → "Add to Home Screen" · Computer Chrome/Edge: the install icon in the 
 ## v161 — Morning teachers can create tests
 - Teachers can now create, and edit, their own tests for their **Morning** classes too, not only Evening and 🌐 Online. They then enter the marks as usual. Exam papers are still created by the admin.
 - Server: `testOwn` accepts Morning, Evening and Online (`TEST_SH`). Class attendance stays Evening and Online.
+
+## v162 — Fee collection KPI: 75% by the 15th, 100% by the 20th
+- From **November 2026**, the staff fee-collection targets are:
+  - **75%** of challans fully received by the **15th** (was 65%);
+  - **new: 100% by the 20th**, counting every student **except highlighted month-end cases**;
+  - **98% by the 27th** (unchanged).
+- Earlier months keep the old targets, so past KPI scores don't change.
+- **Highlighted month-end case:** student form → under Monthly Fee, tick **🟡 Pays at month end**. These students show a 🟡 month-end badge in the student list and the defaulter list. They are left out of the 20th target only; they still count in the 15th and 27th targets.
+- Staff KPI sheets for the current and later months get the new "by the 20th" item automatically, and the 15th item's target text is updated. Scoring stays automatic (5 = achieved).
+- `feeCountStats` (`fee-stats.js` plus its copy in `index.html`) now also counts `issued20` / `by20`. The server passes the month-end flags, so admins without fee access still see the counts.

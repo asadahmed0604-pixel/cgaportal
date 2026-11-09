@@ -174,7 +174,8 @@ const { feeCountStats } = require("./fee-stats");
 function feeStatsFor(d) {
   const today = pktToday(), cur = today.slice(0, 7), [y, mo] = cur.split("-").map(Number), prev = mo === 1 ? `${y - 1}-12` : `${y}-${String(mo - 1).padStart(2, "0")}`;
   const sm = new Map((d.students || []).map((st) => [st.id, st.shift]));
-  return { [cur]: feeCountStats(d.fees, (id) => sm.get(id), cur, today), [prev]: feeCountStats(d.fees, (id) => sm.get(id), prev, today) };
+  const endP = new Set((d.students || []).filter((st) => st && st.feeMonthEnd).map((st) => st.id)), isEnd = (id) => endP.has(id);   // v162
+  return { [cur]: feeCountStats(d.fees, (id) => sm.get(id), cur, today, isEnd), [prev]: feeCountStats(d.fees, (id) => sm.get(id), prev, today, isEnd) };
 }
 function withStaff(text, sid) {
   if (!text.startsWith("{") || text === "{}") return text;

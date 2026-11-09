@@ -1538,7 +1538,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v161 · 9 Nov 2026";
+const BUILD = "v162 · 9 Nov 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -2883,7 +2883,7 @@ function renderStudents(){
       <td><b>${i+1}</b></td>
       <td>${avatarHTML(s)}</td>
       <td><b>${esc(s.regNo)}</b></td>
-      <td>${esc(s.name)}${s.mode==="Online" ? ` <span class="badge b-paid">Online</span>` : ""}${(t=>t ? ` <span class="badge b-freeze" title="Also studies in the ${t.shift} shift — ${esc(t.course)}">🌗 + ${t.shift} ${esc(t.course)}</span>` : "")(twinOf(s))}</td>
+      <td>${esc(s.name)}${s.mode==="Online" ? ` <span class="badge b-paid">Online</span>` : ""}${s.feeMonthEnd ? ` <span class="badge b-freeze fee-only" title="Pays at month end — not counted in the 'fee 100% by the 20th' KPI">🟡 month-end</span>` : ""}${(t=>t ? ` <span class="badge b-freeze" title="Also studies in the ${t.shift} shift — ${esc(t.course)}">🌗 + ${t.shift} ${esc(t.course)}</span>` : "")(twinOf(s))}</td>
       <td>${esc(s.fatherName)}</td>
       <td>${esc(classLabelOf(s))}</td>
       <td>${esc(s.shift)}</td>
@@ -2929,7 +2929,8 @@ function openStudentForm(id, prefill){
       <div class="field" id="f_c2Wrap" style="display:${(s.shift||"Morning")==="Evening"?"block":"none"}"><label>2nd class (Evening — optional)</label><select id="f_course2" onchange="subjModeSync()" data-cur="${esc(s.course2||"")}"></select></div>
       ${s.id ? "" : `<div class="field fee-only"><label>Registration fee (Rs) — only on the ${fmtM(wm())} challan</label><input type="number" id="f_reg" placeholder="e.g. 5000"></div>`}
       <div class="field"><label>Mode of education</label><select id="f_mode">${["Onsite","Online"].map(x=>`<option ${(s.mode||"Onsite")===x?"selected":""}>${x}</option>`).join("")}</select></div>
-      <div class="field fee-only" id="f_feeWrap"><label id="f_feeLbl">Monthly Fee (Rs)</label><input type="number" id="f_fee" value="${s.monthlyFee||""}" placeholder="e.g. 3000"></div>
+      <div class="field fee-only" id="f_feeWrap"><label id="f_feeLbl">Monthly Fee (Rs)</label><input type="number" id="f_fee" value="${s.monthlyFee||""}" placeholder="e.g. 3000">
+        <label class="chk" style="margin-top:6px" title="Highlighted case — not counted in the 'fee 100% by the 20th' staff KPI"><input type="checkbox" id="f_feeEnd" ${s.feeMonthEnd ? "checked" : ""}> 🟡 Pays at month end</label></div>
       <div class="field"><label>Class Teacher (overall)</label><select id="f_teacher"><option value="">— No teacher —</option>${teachers.map(t=>`<option value="${t.id}" ${s.teacherId===t.id?"selected":""}>${esc(t.name)}</option>`).join("")}</select></div>
       <div class="field"><label>Status</label><select id="f_status">${["Active","Graduate","Left","Freeze"].map(x=>`<option ${s.status===x?"selected":""}>${x}</option>`).join("")}</select></div>
       <div class="field"><label>Student Photo</label><input type="file" id="f_photo" accept="image/*" onchange="pickPhoto(this)"><div id="photoPrev" style="margin-top:6px">${photoTemp?`<img class="avatar-lg" src="${photoTemp}">`:""}</div></div>
@@ -3143,7 +3144,7 @@ function saveStudent(id){
     education:$("f_edu").value.trim(), prevInst:$("f_prev").value.trim(),
     course:$("f_course").value, shift:$("f_shift").value,
     course2: $("f_shift").value === "Evening" && $("f_course2") && $("f_course2").value !== $("f_course").value ? $("f_course2").value : "",
-    monthlyFee:$("f_fee").value||0, teacherId:$("f_teacher").value,
+    monthlyFee:$("f_fee").value||0, feeMonthEnd: !!($("f_feeEnd") && $("f_feeEnd").checked), teacherId:$("f_teacher").value,
     subjects: subjDraft.map(x=>({...x})), groupOverride: grpOverride, mode:$("f_mode").value,
     status:$("f_status").value, photo:photoTemp
   };
@@ -4069,13 +4070,15 @@ function saveHwRcv(){
    Server har staff ko sirf us ke apne KPIs / kaam bhejta hai aur KPIs sirf Executive badal sakta hai. */
 const STAFF_ACCESS = {admin:"Admin", feeadmin:"Fee Admin"};
 const staffPeople = () => DB.employees.filter(e=>STAFF_ACCESS[e.access]).sort((a,b)=>a.name.localeCompare(b.name));
+/* v162: 15 tak 75% · 20 tak 100% (month-end wale highlighted bachon ke ilawa) · 27 tak 98% */
+const FEE_KPI_TPL = [["Fee collection by the 15th","75% of challans received","fee15"],["Fee collection by the 20th","100% of challans received (except month-end cases)","fee20"],["Fee collection by the 27th","98% of challans received","fee27"]];
 const KPI_TPL = {
   admin: [["Daily attendance marked on time","Morning & Evening by 9:30 AM"],["Inquiry follow-ups on time","No overdue follow-ups"],["Parent messages answered","Within 24 hours"],
           ["Student records up to date","Profiles, phones, subjects complete"],["Homework / exams / PTM data entered","On the day"],
-          ["Fee collection by the 15th","65% of challans received","fee15"],["Fee collection by the 27th","98% of challans received","fee27"]],
+          ...FEE_KPI_TPL],
   feeadmin: [["Challans generated on time","By the 1st of the month"],["Fee collection","90% of the month's billing"],["Parents' app receipts verified","Within 24 hours"],
              ["Defaulter follow-ups","All defaulters called every week"],["Daily cash / bank reconciliation","Every working day"],
-             ["Fee collection by the 15th","65% of challans received","fee15"],["Fee collection by the 27th","98% of challans received","fee27"]]
+             ...FEE_KPI_TPL]
 };
 const kpiOf = (sid, m) => (DB.staffKpis||[]).find(k=>k.sid===sid && k.month===m);
 function staffKpiPct(k){
@@ -4298,15 +4301,17 @@ function renderStaffDash(){
 }
 
 /* ================= v120: staff dashboard — fee collection (ginti), coordinator checklist, Evening tests, delegation ================= */
-function feeCountStats(fees, shiftOf, m, today) {
+function feeCountStats(fees, shiftOf, m, today, isMonthEnd) {
   const has = (v) => v !== undefined && v !== null && v !== "";
   const out = {};
   const day = (n) => m + "-" + String(n).padStart(2, "0");
   (fees || []).forEach((f) => {
     if (!f || f.month !== m || !((+f.amount || 0) - (+f.arrears || 0) > 0)) return;
     const sh = f.shift || shiftOf(f.studentId) || "Morning";
-    const o = out[sh] || (out[sh] = { issued: 0, now: 0, by15: 0, by27: 0 });
+    const o = out[sh] || (out[sh] = { issued: 0, now: 0, by15: 0, by27: 0, issued20: 0, by20: 0 });
+    const late = !!(isMonthEnd && isMonthEnd(f.studentId));      // v162: mahine ke aakhir mein dene wale — 20 tareekh wale target mein nahi
     o.issued++;
+    if (!late) o.issued20++;
     const got = has(f.paidAmount) ? +f.paidAmount || 0 : f.status === "Paid" ? +f.amount || 0 : 0;
     const left = f.carriedTo ? 1 : has(f.balance) ? Math.max(0, +f.balance || 0) : f.status === "Unpaid" ? +f.amount || 0 : 0;
     if (left > 0 || !(got > 0 || f.status === "Paid")) return;
@@ -4314,23 +4319,33 @@ function feeCountStats(fees, shiftOf, m, today) {
     const on = pays.map((p) => String(p.date || "")).sort().pop() || m + "-01";
     if (on <= today) o.now++;
     if (on <= day(15)) o.by15++;
+    if (!late && on <= day(20)) o.by20++;
     if (on <= day(27)) o.by27++;
   });
   return out;
 }
 /* fee ki ginti: Executive / khula Fee Admin khud hisaab lagate hain; baqi staff ko server ginti bhejta hai (raqam nahi) */
 function feeStatsOf(m){
-  if(ROLE === "exec" || (ROLE === "feeadmin" && feeOpen() && (DB.fees||[]).length)){ const sm = new Map(DB.students.map(x=>[x.id, x.shift])); return feeCountStats(DB.fees, id=>sm.get(id), m, todayStr()); }
+  if(ROLE === "exec" || (ROLE === "feeadmin" && feeOpen() && (DB.fees||[]).length)){ const sm = new Map(DB.students.map(x=>[x.id, x.shift])); return feeCountStats(DB.fees, id=>sm.get(id), m, todayStr(), id=>!!(stuById(id)||{}).feeMonthEnd); }
   return (DB.feeStats||{})[m] || null;
 }
-const FEE_CP = [{k:"fee15", day:15, pct:65}, {k:"fee27", day:27, pct:98}];
+/* v162 (Nov 2026 se): 15 tak 75% · 20 tak 100% (mahine ke aakhir wale highlighted bachon ke ilawa) · 27 tak 98%. Pehle ke mahine purane qaide par. */
+const FEE_CP_FROM = "2026-11";
+const feeCP = m => m >= FEE_CP_FROM
+  ? [{k:"fee15", day:15, pct:75}, {k:"fee20", day:20, pct:100, excl:true}, {k:"fee27", day:27, pct:98}]
+  : [{k:"fee15", day:15, pct:65}, {k:"fee27", day:27, pct:98}];
 function feeTrack(m, shifts){
   const S = feeStatsOf(m); if(!S) return null;
-  const sum = {issued:0, now:0, by15:0, by27:0}; shifts.forEach(sh=>{ const o = S[sh]; if(o) Object.keys(sum).forEach(k=>sum[k] += o[k]); });
+  const sum = {issued:0, now:0, by15:0, by27:0, issued20:0, by20:0}; shifts.forEach(sh=>{ const o = S[sh]; if(o) Object.keys(sum).forEach(k=>sum[k] += (+o[k] || 0)); });
   const t0 = todayStr(), pc = (a, b) => b ? Math.round(a*100/b) : 0;
-  const cps = FEE_CP.map(c=>{ const d = m + "-" + String(c.day).padStart(2,"0"), past = t0 > d, got = c.day === 15 ? sum.by15 : sum.by27, p = past ? pc(got, sum.issued) : pc(sum.now, sum.issued);
+  /* abhi tak: 20 wale target mein highlighted (mahine ke aakhir) bache nahi — un ke ilawa kitne poore aaye, aaj tak */
+  const now20 = (()=>{ if(ROLE === "exec" || (ROLE === "feeadmin" && feeOpen() && (DB.fees||[]).length)){ const sm = new Map(DB.students.map(x=>[x.id, x.shift]));
+      const T = feeCountStats(DB.fees, id=>sm.get(id), m, t0 < m + "-20" ? t0 : m + "-20", id=>!!(stuById(id)||{}).feeMonthEnd); return shifts.reduce((a,sh)=>a + ((T[sh]||{}).by20 || 0), 0); }
+    return sum.by20; })();
+  const cps = feeCP(m).map(c=>{ const d = m + "-" + String(c.day).padStart(2,"0"), past = t0 > d, base = c.excl ? sum.issued20 : sum.issued;
+    const got = c.day === 15 ? sum.by15 : c.day === 20 ? sum.by20 : sum.by27, cur = c.excl ? now20 : sum.now, p = past ? pc(got, base) : pc(cur, base);
     const left = Math.round((new Date(d+"T00:00") - new Date(t0+"T00:00"))/864e5);
-    return {...c, date:d, past, p, ok: p >= c.pct, left, need: Math.max(0, Math.ceil(sum.issued*c.pct/100) - (past ? got : sum.now))}; });
+    return {...c, base, date:d, past, p, ok: p >= c.pct, left, need: Math.max(0, Math.ceil(base*c.pct/100) - (past ? got : cur))}; });
   return {...sum, pct: pc(sum.now, sum.issued), cps};
 }
 function feeTrackHTML(m){
@@ -4342,7 +4357,7 @@ function feeTrackHTML(m){
       <div class="card"><div class="k">Received (fully paid)</div><div class="v green">${F.now}</div><div class="hint">${F.issued - F.now} still unpaid</div></div>
       <div class="card"><div class="k">Collection</div><div class="v" style="${scoreColor(F.pct)}">${F.pct}%</div><div class="hint">of challans received</div></div></div>
     ${F.cps.map(c=>`<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:8px 10px;border-radius:8px;margin-bottom:6px;background:${c.past ? (c.ok ? "#E3F4EA" : "#FBE3E0") : (c.ok ? "#E3F4EA" : "#FFF6E0")}">
-      <span><b>Target ${c.pct}% by ${fmtD(c.date)}</b> — ${c.past ? `${c.p}% received by then` : `${c.p}% so far · ${c.left} day${c.left===1?"":"s"} left`}</span>
+      <span><b>Target ${c.pct}% by ${fmtD(c.date)}</b>${c.excl ? ` <span class="sub">(${c.base} challans — except month-end cases)</span>` : ""} — ${c.past ? `${c.p}% received by then` : `${c.p}% so far · ${c.left} day${c.left===1?"":"s"} left`}</span>
       <b style="color:${c.past ? (c.ok ? "#0F7B3D" : "#C0392B") : (c.ok ? "#0F7B3D" : "#A86400")}">${c.past ? (c.ok ? "✓ KPI achieved" : "✗ KPI not achieved") : (c.ok ? "On track ✓" : `Behind — ${c.need} more challans needed`)}</b></div>`).join("")}
     <div class="sub">Counts only — challans of ${fmtM(m)} that are fully paid. The KPI is scored automatically at each date.</div></div>`;
 }
@@ -4352,10 +4367,14 @@ function staffFeeKpiSync(){
   let ch = 0; const cm = thisMonth();
   DB.staffKpis.forEach(k=>{ const e = empById(k.sid); if(!e || !STAFF_ACCESS[e.access]) return;
     k.items = k.items || [];
-    if(k.month >= cm) (KPI_TPL[e.access]||KPI_TPL.admin).filter(x=>x[2]).forEach(([title,target,auto])=>{ if(!k.items.some(it=>it.auto===auto)){ k.items.push({id:uid(), title, target, weight:10, score:"", note:"", auto}); ch++; } });
+    if(k.month >= cm) (KPI_TPL[e.access]||KPI_TPL.admin).filter(x=>x[2] && feeCP(k.month).some(c=>c.k===x[2])).forEach(([title,target,auto])=>{
+      const old = k.items.find(it=>it.auto===auto);
+      if(!old){ k.items.push({id:uid(), title, target, weight:10, score:"", note:"", auto}); ch++; }
+      else if(old.target !== target && k.month >= FEE_CP_FROM){ old.target = target; old.title = title; ch++; } });
     const F = k.items.some(it=>it.auto) ? feeTrack(k.month, e.scope ? [e.scope] : ["Morning","Evening"]) : null;
     k.items.filter(it=>it.auto).forEach(it=>{ const c = F && F.issued ? F.cps.find(x=>x.k===it.auto) : null; if(!c) return;
-      const score = c.past ? (c.ok ? 5 : 0) : "", note = c.past ? `Auto — ${c.p}% of challans received by ${fmtD(c.date)} (target ${c.pct}%)` : `Auto — ${c.p}% so far, checked on ${fmtD(c.date)}`;
+      const ex = c.excl ? " (month-end cases not counted)" : "";
+      const score = c.past ? (c.ok ? 5 : 0) : "", note = c.past ? `Auto — ${c.p}% of challans received by ${fmtD(c.date)} (target ${c.pct}%)${ex}` : `Auto — ${c.p}% so far, checked on ${fmtD(c.date)}${ex}`;
       if(it.score !== score || it.note !== note){ it.score = score; it.note = note; ch++; } }); });
   if(ch) save();
   return ch;
@@ -4905,7 +4924,7 @@ function openDefaulters(){
       <thead><tr><th>#</th><th>Student</th><th>Reg No</th><th>Phone</th><th>Fee Month</th><th>Amount</th><th>Due Date</th><th>Overdue</th><th>Action</th></tr></thead>
       <tbody>${defs.length? defs.map((d,i)=>`<tr>
         <td><b>${i+1}</b></td>
-        <td><b>${d.st? esc(d.st.name):"<i>Deleted</i>"}</b></td>
+        <td><b>${d.st? esc(d.st.name):"<i>Deleted</i>"}</b>${d.st && d.st.feeMonthEnd ? ` <span class="badge b-freeze" title="Pays at month end">🟡 month-end</span>` : ""}</td>
         <td>${d.st? esc(d.st.regNo):"—"}</td>
         <td>${d.st? esc(d.st.fatherPhone||d.st.phone||"—"):"—"}</td>
         <td>${esc(d.months)}</td>
