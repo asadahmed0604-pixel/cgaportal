@@ -258,7 +258,8 @@ const asgCovers = (me, sh, c, subj) => !!me && (me.assignments || []).some((a) =
 const meOf = (d, tid) => (d.employees || []).find((e) => e.id === tid) || null;
 const testSeen = (t, tid, cls, me) => !!t && cls.has(t.shift + "|" + t.course) && (!t.teacherId || t.teacherId === tid || asgCovers(me, t.shift, t.course, t.subject));
 const OWN_SH = ["Evening", "Online"];                         // v155: teacher apne test / class attendance Evening aur Online classes mein
-const testOwn = (t, tid, cls) => !!t && t.by === "teacher" && t.teacherId === tid && OWN_SH.includes(t.shift) && cls.has(t.shift + "|" + t.course);
+const TEST_SH = ["Morning", "Evening", "Online"];             // v161: Morning teachers bhi apne test bana sakte hain
+const testOwn = (t, tid, cls) => !!t && t.by === "teacher" && t.teacherId === tid && TEST_SH.includes(t.shift) && cls.has(t.shift + "|" + t.course);
 const catOwn = (c, tid, cls) => !!c && c.teacherId === tid && OWN_SH.includes(c.shift || "Evening") && cls.has((c.shift || "Evening") + "|" + c.course);
 /* v69: homework — teacher apni classes ka homework dekhta hai; apna banaya poora badal sakta hai,
    admin wale (bina teacher) mein sirf receival (done) update kar sakta hai, kisi aur teacher ka nahi chhoo sakta */

@@ -1538,7 +1538,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v160 · 9 Nov 2026";
+const BUILD = "v161 · 9 Nov 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -7453,7 +7453,7 @@ function saveExamDeadline(examId){
 /* v87: paper / homework mera? — bina teacher, mere naam ka, ya Employees → Assign mein ye class + subject mujhe diya hai */
 const asgMine = (sh, c, subj) => ((empById(MY_TID)||{}).assignments||[]).some(a=>a.shift===sh && a.course===c && a.subject && (!subj || subjLike(a.subject, subj)));
 const testMine = t => !t.teacherId || t.teacherId===MY_TID || asgMine(t.shift, t.course, t.subject);
-const canEditTest = t => !IS_TEACHER || (t.by==="teacher" && t.teacherId===MY_TID && (t.shift==="Evening" || t.shift==="Online"));
+const canEditTest = t => !IS_TEACHER || (t.by==="teacher" && t.teacherId===MY_TID && ["Morning","Evening","Online"].includes(t.shift));   // v161: Morning bhi
 /* v97: Morning — jo bacha ye subject nahi leta (subjects darj hain aur ye un mein nahi) us ke marks na gine jate hain na dikhte hain */
 const morningSkip = (st, subject) => !!st && st.shift === "Morning" && !!subject && !takesSubject(st, subject);
 const tInc = (t, sid) => !!t && Array.isArray(t.include) && t.include.includes(sid);          // v144: haath se list mein dala gaya bacha
@@ -7523,11 +7523,11 @@ function renderTests(){
 function openTestForm(id){
   const t = id ? DB.tests.find(x=>x.id===id) : {};
   if(id && (!t || !canEditTest(t))) return;
-  if(IS_TEACHER && !classKeysFor("Evening").length && !classKeysFor("Online").length){ toast("Morning tests are created by the admin — you have no Evening or Online class assigned"); return; }
-  const shifts = IS_TEACHER ? ["Evening","Online"].filter(x=>classKeysFor(x).length) : ["Morning","Evening","Online"];
+  if(IS_TEACHER && !classKeysFor("").length){ toast("No class is assigned to you yet — ask the admin (Employees → Edit → Assign)"); return; }
+  const shifts = IS_TEACHER ? ["Morning","Evening","Online"].filter(x=>classKeysFor(x).length) : ["Morning","Evening","Online"];
   openModal(`
     <h3>${id ? "Edit test" : "🧪 Create Test"}</h3>
-    ${IS_TEACHER ? `<div class="note">You can create basic tests only for your <b>Evening</b> and <b>🌐 Online</b> classes. Morning tests are created by the admin — you enter marks and remarks in them.</div>` : ""}
+    ${IS_TEACHER ? `<div class="note">You can create tests for your own classes (Morning, Evening and 🌐 Online) and enter the marks. Exam papers are still created by the admin.</div>` : ""}
     <div class="grid2">
       <div class="field"><label>Test name *</label><input id="t_name" value="${esc(t.name||"")}" placeholder="e.g. Weekly Test 1 / Monthly Test"></div>
       <div class="field"><label>Date *</label><input type="date" id="t_date" value="${t.date||wmDate()}"></div>
@@ -7569,7 +7569,7 @@ function saveTest(id){
   if($("t_due")) data.marksDue = $("t_due").value || "";
   if(!data.name || !data.date || !data.course || !data.subject){ toast("Enter name, date, class and subject"); return; }
   if(!(data.total > 0)){ toast("Enter total marks"); return; }
-  if(IS_TEACHER && data.shift !== "Evening" && data.shift !== "Online"){ toast("Only the admin can create Morning tests"); return; }
+  if(IS_TEACHER && !classKeysFor(data.shift).includes(data.shift + "|" + data.course)){ toast("You can only create tests for your own classes"); return; }
   if(id){
     const t = DB.tests.find(x=>x.id===id); if(!t) return;
     const over = DB.exams.filter(e=>e.testId===id && +e.obtained > data.total).length;

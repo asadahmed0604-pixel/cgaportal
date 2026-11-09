@@ -983,3 +983,7 @@ Share → "Add to Home Screen" · Computer Chrome/Edge: the install icon in the 
   - the attendance report leaves it out.
   - Teachers see today's and upcoming holidays on their dashboard.
 - **Morning and Evening absents counted separately:** for staff working both shifts, each shift has its own **2 paid leaves**. Absences beyond them are counted per shift. One shift-day's deduction = salary ÷ the month's total shift-days (Morning days + Evening days). The leave counter on the staff attendance page shows the selected shift's leaves.
+
+## v161 — Morning teachers can create tests
+- Teachers can now create, and edit, their own tests for their **Morning** classes too, not only Evening and 🌐 Online. They then enter the marks as usual. Exam papers are still created by the admin.
+- Server: `testOwn` accepts Morning, Evening and Online (`TEST_SH`). Class attendance stays Evening and Online.
