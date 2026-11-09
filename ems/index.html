@@ -776,6 +776,7 @@ label.chk input{width:auto}
     <div class="panel"><h3>✅ My to-do list</h3><div id="sdTasks"></div></div>
     <div class="panel"><h3>🎯 My KPIs — <span id="sdKpiM"></span></h3><div id="sdKpi"></div></div>
   </div>
+  <div class="panel" style="margin-top:16px" id="sdTeamKpiP"><h3>👥 Other staff KPIs — <span id="sdTeamKpiM"></span></h3><div id="sdTeamKpi"></div></div>
   <div class="panel" style="margin-top:16px" id="sdDelegP"><h3>📤 Tasks I assigned</h3><div id="sdDeleg"></div></div>
   <div class="panel" style="margin-top:16px"><h3 id="sdWorkH">📋 Today's work</h3><div id="sdWork"></div></div>
 </section>
@@ -1538,7 +1539,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v163 · 9 Nov 2026";
+const BUILD = "v164 · 9 Nov 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -4260,6 +4261,18 @@ function renderStaffDash(){
       <td style="text-align:right">${it.score === "" || it.score === undefined ? `<span class="sub">—</span>` : `<b style="${scoreColor(+it.score*20)}">${it.score} / 5</b>`}</td></tr>`).join("")}</tbody></table></div>
     ${k.review ? `<div class="note" style="margin-top:8px"><b>Executive:</b> ${esc(k.review)}</div>` : ""}`
     : `<p class="sub">Your KPIs for ${fmtM(m)} have not been set yet.</p>`;
+  /* v164: doosre admin / fee admin ke KPIs — sirf dekhne ko */
+  { const O = staffPeople().filter(e=>e.id !== MY_SID).map(e=>({e, k:kpiOf(e.id, m)}));
+    $("sdTeamKpiM").textContent = fmtM(m);
+    $("sdTeamKpiP").style.display = O.length ? "" : "none";
+    $("sdTeamKpi").innerHTML = O.map(({e, k})=>{ const p = staffKpiPct(k);
+      return `<details style="border:1px solid var(--line);border-radius:10px;padding:8px 12px;margin-bottom:8px"><summary style="cursor:pointer;display:flex;justify-content:space-between;gap:10px;align-items:center">
+          <span><b>${esc(e.name)}</b> <span class="sub">${esc(STAFF_ACCESS[e.access]||"")}${e.scope ? " · " + esc(e.scope) : ""}</span></span>
+          <span>${k ? `<b style="font-size:1.2rem;${scoreColor(p)}">${p === null ? "—" : p + "%"}</b> <span class="sub">${p === null ? "not scored yet" : kpiRating(p)}</span>` : `<span class="sub">KPIs not set for ${fmtM(m)}</span>`}</span></summary>
+        ${k ? `<div class="tbl-wrap" style="margin-top:8px"><table><thead><tr><th>KPI</th><th>Target</th><th style="text-align:right">Weight</th><th style="text-align:right">Score</th></tr></thead><tbody>
+          ${(k.items||[]).map(it=>`<tr><td><b>${esc(it.title)}</b>${it.note ? `<br><span class="sub">${esc(it.note)}</span>` : ""}</td><td class="sub">${esc(it.target||"—")}</td><td style="text-align:right">${+it.weight||0}</td>
+            <td style="text-align:right">${it.score === "" || it.score === undefined ? `<span class="sub">—</span>` : `<b style="${scoreColor(+it.score*20)}">${it.score} / 5</b>`}</td></tr>`).join("")}</tbody></table></div>` : ""}</details>`; }).join("")
+      + (O.length ? `<p class="sub">View only — KPIs are set and scored by the Executive.</p>` : ""); }
   $("sdTasks").innerHTML = T.length ? T.slice(0, 30).map(t=>taskRow(t, true, false)).join("") : `<p class="sub">Nothing on your list — add your own with “+ Add my to-do”.</p>`;
   /* kaam ke hisaab se aaj ki cheezein */
   const act = DB.students.filter(st=>st.status === "Active"), day = (DB.attendance||{})[t0] || {};
