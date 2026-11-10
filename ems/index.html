@@ -1539,7 +1539,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v165 · 9 Nov 2026";
+const BUILD = "v166 · 10 Nov 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -8571,6 +8571,7 @@ function myLiveKpi(m){
   const rows = [
     ["📝 Marks entry", n ? Math.round(d*100/n) : null, n ? `Marks for ${d} / ${n} students (${tests.length} tests)` : "No tests this month"],
     (()=>{ const ds = deadlineStats(MY_TID, m, testMine); return ["⏰ Marks by deadline", ds.pct, ds.papers ? `${ds.ok} / ${ds.n} students' marks entered before the deadline (${ds.papers} paper${ds.papers>1?"s":""})` : "No marks deadline passed this month"]; })(),
+    (()=>{ const H = hwRcvStats(MY_TID, m); return ["📥 Homework receival", H.pct, H.due ? `${H.rcv} / ${H.due} homework (due date passed) received & checked${H.miss.length ? ` · ${H.miss.length} pending — open Homework → ✓ Receival` : ""}` : H.given ? `${H.given} given — none due yet` : "No homework this month"]; })(),
     ["💬 Remarks", recs.length ? Math.round(recs.filter(e=>String(e.comment||"").trim().length >= 2).length*100/recs.length) : null, recs.length ? `${recs.filter(e=>String(e.comment||"").trim().length>=2).length} / ${recs.length} marks with a remark` : "—"],
     ...(ev.length ? [["🧪 Evening tests (2 / class)", Math.round(ev.reduce((a,x)=>a+Math.min(x.n, EVE_TEST_TARGET),0)*100/(ev.length*EVE_TEST_TARGET)), ev.map(x=>`${x.c}: ${x.n}/${EVE_TEST_TARGET}`).join(" · ")]] : []),
     ["🗓 My attendance", days.length ? Math.round(pres*100/days.length) : null, days.length ? `Present ${pres} / ${days.length} days` : "Not marked yet"],
@@ -10961,8 +10962,60 @@ function delEmp(id){
       save(); renderEmployees(); renderStudents(); toast(`"${e.name}" deleted`);
     });
 }
-function openEmpProfile(id){
-  const e = empById(id);
+/* ================= v166: TEACHER PERFORMANCE (profile) + homework receival KPI ================= */
+/* teacher ka homework: us ne diya (teacherId) ya bina teacher wala jo us ki assignment (class + subject) mein aata ho */
+function teacherHw(tid, m){
+  const e = empById(tid) || {}, t0 = todayStr();
+  const covers = h => (e.assignments||[]).some(a=>a.shift===h.shift && a.course===h.course && (!h.subject || !a.subject || subjLike(a.subject, h.subject)));
+  return (DB.homework||[]).filter(h=>h && (h.teacherId === tid || (!h.teacherId && covers(h))) && String(h.dateGiven || h.dueDate || "").startsWith(m))
+    .map(h=>{ const due = hwDue(h), past = !!due && due < t0, rcv = !!h.checkedOn || Object.keys(h.done||{}).length + Object.keys(h.absent||{}).length > 0;
+      return {h, due, past, rcv}; }).sort((a,b)=>String(b.h.dateGiven).localeCompare(String(a.h.dateGiven)));
+}
+function hwRcvStats(tid, m){
+  const L = teacherHw(tid, m), D = L.filter(x=>x.past), R = D.filter(x=>x.rcv);
+  return {L, given:L.length, due:D.length, rcv:R.length, pct: D.length ? Math.round(R.length*100/D.length) : null, miss:D.filter(x=>!x.rcv)};
+}
+/* classes li / nahi li — is mahine schedule se (unmarked samait); pichle mahine sirf darj records se */
+function tClassStats(tid, m){
+  if(m === thisMonth()){ const o = classLogMonth(m, tid).find(x=>x.tid===tid); return o ? {...o, live:true} : {sch:0, T:0, N:0, C:0, U:0, S:0, list:[], live:true}; }
+  const o = {sch:0, T:0, N:0, C:0, U:0, S:0, list:[], live:false};
+  Object.entries(DB.classLog||{}).forEach(([d, day])=>{ if(!d.startsWith(m)) return;
+    Object.entries(day||{}).forEach(([k, r])=>{ const p = k.split("|"); if(p[3] !== tid || !r) return; const n = +r.of || 1;
+      o.sch += n; if(r.s === "P"){ o.T += +r.t || 0; o.N += clMissed(r); } else o[r.s] = (o[r.s]||0) + n; if(r.sub && clMissed(r)) o.S += clMissed(r);
+      o.list.push({d, shift:p[0], course:p[1], subject:r.subject || p[2], rec:r}); }); });
+  return o;
+}
+function teacherPerfHTML(id, m){
+  const e = empById(id), pc = (a, b) => b ? Math.round(a*100/b) : null, bar = p => p === null ? `<span class="sub">—</span>` : `<b style="${scoreColor(p)}">${p}%</b>`;
+  const ac = empAttCount(id, d=>d.startsWith(m)), lt = empLateMonth(id, m), ab = empAbsentMonth(id, m);
+  const C = tClassStats(id, m), held = C.T + C.N, clP = pc(C.T, held);
+  const H = hwRcvStats(id, m);
+  const tests = DB.tests.filter(t=>String(t.date).startsWith(m) && (t.teacherId === id || (!t.teacherId && (e.assignments||[]).some(a=>a.shift===t.shift && a.course===t.course && (!a.subject || subjLike(a.subject, t.subject||""))))))
+    .map(t=>({t, n:testStudents(t).length, d:testMarks(t).length}));
+  const tn = tests.reduce((a,x)=>a+x.n,0), td = tests.reduce((a,x)=>a+Math.min(x.d, x.n),0);
+  const SY = syList().filter(x=>x.tid === id).map(x=>({x, k:syStats(x, m), tg:((x.targets||{})[m]||{}).text}));
+  const card = (k, v, h) => `<div class="card"><div class="k">${k}</div><div class="v" style="font-size:1.5rem">${v}</div><div class="hint">${h}</div></div>`;
+  return `<div class="cards" style="margin:8px 0 12px">
+      ${card("🗓 Attendance", bar(ac.marked ? ac.pct : null), ac.marked ? `P ${ac.P} · L ${ac.L} · A ${ac.A} · leave ${ac.E + ac.U}${ac.H ? " · ½ " + ac.H : ""}${lt.tot ? ` · late ${lt.tot} min` : ""}${ab.unpaid ? ` · <b style="color:var(--danger)">${leaveFmt(ab.unpaid)} unpaid</b>` : ""}` : "Not marked")}
+      ${card("✅ Classes taken", bar(clP), C.sch ? `${C.T} taken · <b style="${C.N ? "color:var(--danger)" : ""}">${C.N} not taken</b>${C.S ? ` (${C.S} covered by substitute)` : ""} · ${C.C} cancelled${C.live && C.U ? ` · ${C.U} unmarked` : ""}` : "No classes recorded")}
+      ${card("📥 Homework receival", bar(H.pct), H.given ? `${H.given} given · ${H.rcv}/${H.due} due received${H.miss.length ? ` · <b style="color:var(--danger)">${H.miss.length} not checked</b>` : ""}` : "No homework given")}
+      ${card("📝 Marks entry", bar(pc(td, tn)), tests.length ? `${td}/${tn} marks · ${tests.length} test${tests.length>1?"s":""}` : "No tests")}
+      ${card("📚 Syllabus", bar(SY.length ? Math.round(SY.reduce((a,y)=>a + (y.k.onTrack ?? y.k.pct), 0)/SY.length) : null), SY.length ? `${SY.length} tracker${SY.length>1?"s":""} · on-track avg · ${SY.filter(y=>y.tg).length}/${SY.length} monthly targets set` : "No tracker")}
+    </div>
+    <details class="note" style="margin-bottom:8px"><summary style="cursor:pointer"><b>✅ Classes not taken (${C.N})</b></summary>
+      ${C.list.filter(r=>clMissed(r.rec)).map(r=>`<div>${fmtD(r.d)} · ${esc(r.shift)} · <b>${esc(r.course)} ${esc(r.subject)}</b> — ${clLab(r.rec)}${r.rec.sub ? ` · substitute ${esc(r.rec.subName || (empById(r.rec.sub)||{}).name || "")}` : ""}${r.rec.note ? ` · <i>${esc(r.rec.note)}</i>` : ""}</div>`).join("") || `<span class="sub">None ✓</span>`}</details>
+    <details class="note" style="margin-bottom:8px" ${H.miss.length ? "open" : ""}><summary style="cursor:pointer"><b>📥 Homework (${H.given})</b>${H.miss.length ? ` — <b style="color:var(--danger)">${H.miss.length} past due, receival not done</b>` : ""}</summary>
+      <table style="margin-top:6px"><tbody>${H.L.map(x=>{ const L2 = hwStudents(x.h), sub = L2.filter(st=>(x.h.done||{})[st.id]).length;
+        return `<tr><td style="white-space:nowrap">${fmtD(x.h.dateGiven)}</td><td><b>${esc(x.h.title)}</b> <span class="sub">${esc(x.h.course)} · ${esc(x.h.shift)}${x.h.subject ? " · " + esc(x.h.subject) : ""}</span></td>
+          <td class="sub">due ${fmtD(x.due)}</td><td>${!x.past ? `<span class="badge b-freeze">not due yet</span>` : x.rcv ? `<span class="badge b-paid">✓ received ${sub}/${L2.length}</span>` : `<span class="badge b-unpaid">✗ receival not done</span>`}</td></tr>`; }).join("") || `<tr><td class="sub">No homework in ${fmtM(m)}</td></tr>`}</tbody></table></details>
+    <details class="note" style="margin-bottom:8px"><summary style="cursor:pointer"><b>📝 Tests (${tests.length})</b></summary>
+      ${tests.map(x=>`<div>${fmtD(x.t.date)} · <b>${esc(x.t.course)} ${esc(x.t.subject||"")}</b> — ${esc(x.t.name)} · marks ${x.d}/${x.n}${x.d < x.n ? ` <span style="color:var(--danger)">(${x.n - x.d} pending)</span>` : " ✓"}</div>`).join("") || `<span class="sub">No tests</span>`}</details>
+    <details class="note" style="margin-bottom:14px" ${SY.length ? "open" : ""}><summary style="cursor:pointer"><b>📚 Syllabus tracker (${SY.length})</b></summary>
+      ${SY.map(y=>`<div style="margin:4px 0"><b>${esc(y.x.course)} · ${esc(y.x.subject)}</b> <span class="sub">${syShiftTxt(y.x)}</span> — covered <b>${y.k.pct}%</b> · on track ${y.k.onTrack === null ? "—" : `<b style="${scoreColor(y.k.onTrack)}">${y.k.onTrack}%</b>`} (topics planned till ${fmtM(m)})
+        · ${fmtM(m)} target: ${y.tg ? `<span class="badge b-paid">set</span> <span class="sub">${esc(String(y.tg).slice(0,120))}</span>` : `<span class="badge b-unpaid">not set</span>`}</div>`).join("") || `<span class="sub">No syllabus tracker</span>`}</details>`;
+}
+function openEmpProfile(id, pm){
+  const e = empById(id), PM = /^\d{4}-\d{2}$/.test(pm||"") ? pm : wm();
   const myStu = DB.students.filter(s=>s.teacherId===id);
   const ea = empAttSummary(id, e.doj);
   const eaRows = Object.keys(DB.empAttendance).filter(d=>empRecs(DB.empAttendance[d], id).length).sort().reverse().slice(0,30)
@@ -10983,6 +11036,10 @@ function openEmpProfile(id){
         </div>
       </div>
     </div>
+    ${e.category === "Teacher" ? `<div class="panel" style="padding:12px 14px;margin-bottom:14px"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+        <h3 style="margin:0">📊 Performance — ${fmtM(PM)}</h3>
+        <input type="month" value="${PM}" max="${thisMonth()}" style="width:auto" onchange="openEmpProfile('${id}', this.value)"></div>
+      ${teacherPerfHTML(id, PM)}</div>` : ""}
     <div class="stat-row" style="margin-bottom:14px">
       <div class="stat"><b>${ea.P}</b><span>Present</span></div>
       <div class="stat"><b>${ea.L}</b><span>Late</span></div>

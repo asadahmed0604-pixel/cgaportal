@@ -1010,3 +1010,13 @@ Share → "Add to Home Screen" · Computer Chrome/Edge: the install icon in the 
 ## v165 — Staff KPIs always show
 - **New month → KPI sheet made automatically:** when the Executive opens the app, every staff login without a sheet for the current month gets one. It is copied from their last month: the same KPIs, targets and weights, with scores blank. The fee KPIs are added and scored automatically as before.
 - **Staff dashboard:** if this month's sheet still doesn't exist, "My KPIs" shows the last month's sheet, labelled "(November 2026 not set yet)", instead of looking empty.
+
+## v166 — Homework receival KPI + teacher performance in the employee profile
+- **Teacher live KPI** (teacher dashboard) has a new row, **📥 Homework receival**. It is the share of the teacher's homework whose due date has passed and whose receival was done (ticked / checked). Pending ones are named, so the teacher knows to open Homework → ✓ Receival. It also counts in the live KPI average.
+- **Employee profile → 📊 Performance** for teachers, with a month picker:
+  - **Attendance:** present / late / absent / leave, late minutes and unpaid days.
+  - **Classes taken:** taken vs not taken, substitutes, cancelled and unmarked, plus a list of the classes not taken with their notes.
+  - **Homework receival:** every homework with ✓ received N/M, ✗ receival not done, or not due yet.
+  - **Marks entry:** the teacher's tests with marks entered vs pending.
+  - **Syllabus tracker:** each tracker's coverage, on-track %, and whether the month's target is set.
+- Classes taken for past months come from the saved class records. For the current month, unmarked classes are counted too.
