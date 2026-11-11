@@ -1317,6 +1317,25 @@ const server = http.createServer(async (req, res) => {
         return sendJson(res, 200, out);
       } catch (e) { return sendJson(res, 502, { error: ai.friendly(e), manual: true }); }
     }
+    /* v168: Morning timetable (PDF / photos, pehle /api/files se upload) — Claude se har period: teacher, class, subject, din, waqt */
+    if (p === "/api/tt/read" && req.method === "POST") {
+      if (role !== "exec") return sendJson(res, 403, { error: "Executive only" });
+      if (!sameOrigin(req)) return sendJson(res, 403, { error: "origin" });
+      const body = JSON.parse((await readBody(req)) || "{}");
+      const list = (Array.isArray(body.files) ? body.files : []).slice(0, 10).map((u) => String(u || "").match(/^\/files\/([a-f0-9]{24})\.(jpg|png|webp|pdf)$/)).filter(Boolean);
+      if (!list.length) return sendJson(res, 400, { error: "Upload the timetable first." });
+      const ai = require("./ai");
+      if (!ai.ready()) return sendJson(res, 503, { error: "Auto-read is not available: " + ai.whyNot() });
+      const files = list.map((m) => path.join(FILES_DIR, `${m[1]}.${m[2]}`)).filter((f) => fs.existsSync(f)).map((f) => ({ type: EXT_TYPES[f.split(".").pop()], data: fs.readFileSync(f).toString("base64") }));
+      if (!files.length) return sendJson(res, 404, { error: "File not found" });
+      const d = dbNow() || {}, teachers = (d.employees || []).filter((e) => e && e.category === "Teacher").map((e) => String(e.name || "").slice(0, 80));
+      const classes = (Array.isArray(body.classes) ? body.classes : []).map((c) => String(c || "").slice(0, 40)).slice(0, 40);
+      try {
+        const out = await ai.readTimetable(files, teachers, classes);
+        logAct(req, actWho(auth), "Read timetable", `${(out.periods || []).length} periods from ${files.length} file(s)`);
+        return sendJson(res, 200, out);
+      } catch (e) { return sendJson(res, 502, { error: ai.friendly(e) }); }
+    }
     /* v43: parents ki fee receipts — sirf Executive aur Fee Admin */
     const frm = p.match(/^\/fee-receipts\/([a-f0-9]{24})\.(jpg|png|webp|pdf)$/);
     if (frm && req.method === "GET") {

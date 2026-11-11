@@ -121,13 +121,13 @@ function block(file) {
     : { type: "image", source: { type: "base64", media_type: file.type, data: file.data } };
 }
 
-async function callJSON(system, content, schema) {
+async function callJSON(system, content, schema, maxTokens) {
   if (!client) throw Object.assign(new Error(loadError || "AI is not available."), { ai: true });
   /* Streaming: bade max_tokens par SDK non-streaming request khud rok deta hai ("streaming is required") —
      finalMessage() poora jawab ikattha kar ke deta hai */
   const response = await client.beta.messages.stream({
     model: MODEL,
-    max_tokens: 32000,
+    max_tokens: maxTokens || 32000,
     betas: ["server-side-fallback-2026-07-01"],
     fallbacks: "default",
     thinking: { type: "adaptive" },
@@ -271,4 +271,29 @@ function readReceipt(file) {
   return callJSON(RECEIPT_SYSTEM, [block(file), { type: "text", text: "Read this payment proof." }], RECEIPT);
 }
 
-module.exports = { ready, whyNot, generate, extract, check, friendly, readReceipt, MODEL };
+/* v168: school ka Morning timetable (PDF / photo) parh kar har period: teacher, class, subject, din, waqt */
+const TT = {
+  type: "object", additionalProperties: false, required: ["periods", "notes"],
+  properties: {
+    periods: { type: "array", items: { type: "object", additionalProperties: false, required: ["teacher", "class", "subject", "day", "from", "to"],
+      properties: {
+        teacher: { type: "string" }, class: { type: "string" }, subject: { type: "string" },
+        day: { type: "string", enum: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] },
+        from: { type: "string" }, to: { type: "string" },
+      } } },
+    notes: { type: "string" },
+  },
+};
+const TT_SYSTEM = `You read a school's Morning timetable (a PDF or photos — teacher-wise or class-wise grids) and list every teaching period.
+For each period return: teacher, class, subject, day (Mon–Sun) and the start / end time as 24-hour HH:MM (school hours are roughly 07:30–15:00, so "1:15" means 13:15).
+- If the grid shows a period number instead of a time, take the time from the timetable's bell / period-timing row.
+- Use the class and teacher names given below when one clearly matches (spelling, initials, short forms like "FT1" / "Foundation 1", "Mr. Ali" / "Ali Raza"); otherwise copy the name exactly as printed.
+- A period spanning two slots (double period) is ONE entry from the first start to the last end. The same subject twice on a day at different times is two entries.
+- Skip breaks, assembly, lunch, free / vacant periods and anything that is not a lesson.
+- Never invent periods. If something is unreadable, leave it out and say so in notes (one short paragraph). Empty notes if all is clear.`;
+function readTimetable(files, teachers, classes) {
+  const ctx = `Known teachers: ${teachers.join(", ") || "(none)"}\nKnown Morning classes: ${classes.join(", ") || "(none)"}\n\nList every lesson period in this timetable.`;
+  return callJSON(TT_SYSTEM, [...files.map(block), { type: "text", text: ctx }], TT, 64000);
+}
+
+module.exports = { ready, whyNot, generate, extract, check, friendly, readReceipt, readTimetable, MODEL };
