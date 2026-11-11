@@ -995,6 +995,8 @@ label.chk input{width:auto}
     <div class="field"><label>Shift</label><div class="mchips" id="ttShift" style="margin:0"></div></div>
     <div class="field"><label>Class</label><select id="ttClass" onchange="renderTimetable()"></select></div>
     <div class="field"><label>Only</label><label class="chk" style="margin-top:8px"><input type="checkbox" id="ttOnlyClash" onchange="renderTimetable()"> show clashes only</label></div>
+    <button class="btn-red exec-only" style="margin-left:auto;align-self:flex-end" onclick="document.getElementById('ttImpFile').click()" title="Upload the Morning timetable (PDF or photos) — teacher times are read and updated automatically">📄 Import Morning timetable (PDF)</button>
+    <input type="file" id="ttImpFile" multiple accept="application/pdf,image/*" style="display:none" onchange="ttImportFiles(this)">
   </div>
   <div id="ttClashes"></div>
   <div id="ttGrid"></div>
@@ -1540,7 +1542,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v167 · 11 Nov 2026";
+const BUILD = "v168 · 11 Nov 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -2448,6 +2450,99 @@ function ttClashes(shift){
     const o = {kind, a, b, why, days:[a.d]}; seen.set(key, o); list.push(o);
   }
   return {S, list};
+}
+/* ================= v168: MORNING TIMETABLE IMPORT (PDF / photos → Claude) =================
+   Executive timetable upload karta hai; har period (teacher, class, subject, din, waqt) parh kar teacher ki Morning
+   assignments (Employees → Assign) us se badal jati hain — preview mein naam milao, phir Apply. Evening assignments wahi rehti hain. */
+let TTI = null;
+const TT_DAYS = {Mon:1, Tue:2, Wed:3, Thu:4, Fri:5, Sat:6, Sun:0};
+const hhmm = t => { const m = /^(\d{1,2})[:.](\d{2})/.exec(String(t||"").trim()); return m && +m[1] < 24 && +m[2] < 60 ? String(+m[1]).padStart(2,"0") + ":" + m[2] : ""; };
+const normCls = c => String(c||"").toLowerCase().replace(/[^a-z0-9]/g, "");
+function ttClassMatch(raw){
+  const n = normCls(raw), L = CLASSES_BY_SHIFT.Morning || [];
+  return L.find(c=>normCls(c) === n) || L.find(c=>n && (normCls(c).startsWith(n) || n.startsWith(normCls(c)))) || "";
+}
+function ttTeacherMatch(raw){
+  let best = "", sc = 0;
+  DB.employees.filter(e=>e.category === "Teacher").forEach(e=>{ const v = nameScore(raw, e.name); if(v > sc){ sc = v; best = e.id; } });
+  return sc >= 0.5 ? best : "";
+}
+async function ttImportFiles(inp){
+  const files = [...(inp.files||[])]; inp.value = ""; if(!files.length) return;
+  if(!SERVER){ toast("Timetable import works on the online version only"); return; }
+  openModal(`<h3>📄 Reading the timetable…</h3><p class="sub">Uploading ${files.length} file${files.length>1?"s":""} and reading every period with AI — this can take a minute or two for a full school timetable.</p>`);
+  try{
+    const urls = []; for(const f of files) urls.push(await storeReceipt(f));
+    const r = await fetch("/api/tt/read", {method:"POST", headers:{"Content-Type":"application/json"}, credentials:"same-origin", body:JSON.stringify({files:urls, classes:CLASSES_BY_SHIFT.Morning || []})});
+    const j = await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(j.error || ("server error " + r.status));
+    ttImportShow(j);
+  }catch(e){ openModal(`<h3>📄 Timetable import</h3><div class="note" style="border-left-color:var(--danger)">Could not read the timetable — ${esc(e.message)}</div><div class="modal-foot"><button class="btn-line" onclick="closeModal()">Close</button></div>`); }
+}
+function ttImportShow(j){
+  const P = (j.periods||[]).map(p=>({teacher:String(p.teacher||"").trim(), cls:String(p.class||"").trim(), subject:String(p.subject||"").trim(), d:TT_DAYS[p.day], from:hhmm(p.from), to:hhmm(p.to)}))
+    .filter(p=>p.teacher && p.cls && p.d !== undefined && p.from);
+  const tmap = {}, cmap = {};
+  [...new Set(P.map(p=>p.teacher))].forEach(t=>{ tmap[t] = ttTeacherMatch(t); });
+  [...new Set(P.map(p=>p.cls))].forEach(c=>{ cmap[c] = ttClassMatch(c); });
+  TTI = {P, tmap, cmap, notes:j.notes || ""};
+  ttImportDraw();
+}
+/* aik teacher ke periods → assignments: class + subject ke hisaab se; har din ka k-wan period alag assignment (double period) */
+function ttBuildAsg(L){
+  const groups = new Map();
+  L.forEach(p=>{ const k = p.course + "|" + keyify(p.subject); if(!groups.has(k)) groups.set(k, {course:p.course, subject:p.subject, days:new Map()});
+    const g = groups.get(k); if(!g.days.has(p.d)) g.days.set(p.d, []); g.days.get(p.d).push({from:p.from, to:p.to}); });
+  const out = [];
+  groups.forEach(g=>{ g.days.forEach(v=>v.sort((a,b)=>a.from.localeCompare(b.from)));
+    const max = Math.max(...[...g.days.values()].map(v=>v.length));
+    for(let k = 0; k < max; k++){
+      const sl = {}; g.days.forEach((v, d)=>{ if(v[k]) sl[d] = {from:v[k].from, to:v[k].to}; });
+      const dl = Object.keys(sl).map(Number).sort((a,b)=>((a+6)%7)-((b+6)%7)), V = Object.values(sl), same = V.every(x=>x.from === V[0].from && x.to === V[0].to);
+      out.push({course:g.course, shift:"Morning", ...(g.subject ? {subject:g.subject} : {}), dayList:dl, days:daysLabel(dl),
+        ...(same ? {from:V[0].from, to:V[0].to} : {from:V.map(x=>x.from).sort()[0], to:V.map(x=>x.to||"").sort().pop(), slots:sl})});
+    } });
+  return out.sort((a,b)=>a.course.localeCompare(b.course) || String(a.subject||"").localeCompare(String(b.subject||"")) || a.from.localeCompare(b.from));
+}
+function ttImportPlan(){
+  const by = new Map(), skipped = [];
+  TTI.P.forEach(p=>{ const tid = TTI.tmap[p.teacher], course = TTI.cmap[p.cls];
+    if(!tid || !course){ skipped.push(p); return; }
+    if(!by.has(tid)) by.set(tid, []); by.get(tid).push({...p, course}); });
+  return {plan:[...by.entries()].map(([tid, L])=>({e:empById(tid), asg:ttBuildAsg(L), n:L.length})).filter(x=>x.e), skipped};
+}
+function ttImportDraw(){
+  const {plan, skipped} = ttImportPlan(), T = DB.employees.filter(e=>e.category === "Teacher").sort((a,b)=>a.name.localeCompare(b.name));
+  const tNames = Object.keys(TTI.tmap).sort(), cBad = Object.keys(TTI.cmap).filter(c=>!ttClassMatch(c)).sort();
+  openModal(`<h3>📄 Morning timetable — ${TTI.P.length} periods read</h3>
+    ${TTI.notes ? `<div class="note" style="border-left-color:#E0A800"><b>AI note:</b> ${esc(TTI.notes)}</div>` : ""}
+    <div class="note">Check the names below, then <b>Apply</b>. Each matched teacher's <b>Morning</b> class times (Employees → Assign) are replaced with the timetable's; Evening times and teachers not in the timetable stay as they are.</div>
+    <h3 style="font-size:.95rem;margin-top:10px">👩‍🏫 Teachers in the timetable</h3>
+    <div class="tbl-wrap"><table><thead><tr><th>Name in timetable</th><th style="text-align:right">Periods</th><th>Teacher in EMS</th></tr></thead><tbody>
+      ${tNames.map(t=>`<tr><td><b>${esc(t)}</b></td><td style="text-align:right">${TTI.P.filter(p=>p.teacher===t).length}</td>
+        <td><select onchange="TTI.tmap[${esc(JSON.stringify(t))}]=this.value;ttImportDraw()"><option value="">— skip —</option>${T.map(e=>`<option value="${e.id}" ${TTI.tmap[t]===e.id?"selected":""}>${esc(e.name)}</option>`).join("")}</select></td></tr>`).join("")}</tbody></table></div>
+    ${cBad.length ? `<h3 style="font-size:.95rem;margin-top:10px">🏫 Classes not recognised</h3><div class="tbl-wrap"><table><tbody>${cBad.map(c=>`<tr><td><b>${esc(c)}</b> <span class="sub">${TTI.P.filter(p=>p.cls===c).length} periods</span></td>
+      <td><select onchange="TTI.cmap[${esc(JSON.stringify(c))}]=this.value;ttImportDraw()"><option value="">— skip —</option>${(CLASSES_BY_SHIFT.Morning||[]).map(x=>`<option ${TTI.cmap[c]===x?"selected":""}>${esc(x)}</option>`).join("")}</select></td></tr>`).join("")}</tbody></table></div>` : ""}
+    <h3 style="font-size:.95rem;margin-top:10px">✅ New Morning times (${plan.length} teacher${plan.length===1?"":"s"})</h3>
+    <div style="max-height:34vh;overflow:auto">${plan.map(x=>{ const old = (x.e.assignments||[]).filter(a=>a.shift==="Morning");
+      return `<div style="border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin-bottom:6px"><b>${esc(x.e.name)}</b> <span class="sub">${x.n} periods · now ${old.length} Morning assignment${old.length===1?"":"s"} → ${x.asg.length}</span>
+        <div class="chips" style="margin-top:4px">${x.asg.map(a=>`<span class="chip">${esc(asgLabel(a))}</span>`).join("")}</div></div>`; }).join("") || `<p class="sub">No teacher matched yet — pick them above.</p>`}</div>
+    ${skipped.length ? `<p class="sub" style="margin-top:6px">${skipped.length} period${skipped.length>1?"s":""} skipped (teacher or class not matched).</p>` : ""}
+    <div class="modal-foot"><button class="btn-line" onclick="closeModal()">Cancel</button>${plan.length ? `<button class="btn-red" onclick="ttImportApply()">Apply to ${plan.length} teacher${plan.length===1?"":"s"}</button>` : ""}</div>`, true);
+}
+function ttImportApply(){
+  const {plan} = ttImportPlan(); if(!plan.length) return;
+  plan.forEach(({e, asg})=>{
+    e.assignments = (e.assignments||[]).filter(a=>a.shift !== "Morning").concat(asg);
+    if(e.shift === "Evening") e.shift = "Both";
+    if(e.schedAuto !== false){                    // check-in / check-out = din ka pehla period → aakhri period
+      const sc = {}; asg.forEach(a=>asgDays(a).forEach(d=>{ const sl = slotOf(a, d); if(!sl || !sl.from) return; const w = sc[d] = sc[d] || {from:sl.from, to:sl.to||""};
+        if(sl.from < w.from) w.from = sl.from; if((sl.to||"") > w.to) w.to = sl.to; }));
+      e.schedule = {...(e.schedule||{}), Morning:sc};
+    }
+  });
+  save(); closeModal(); TT.shift = "Morning"; renderTimetable(); try{ syncSalaries(); }catch(err){}
+  toast(`✓ Morning timetable applied — ${plan.length} teachers updated`);
 }
 function renderTimetable(){
   $("ttShift").innerHTML = ["Evening","Morning"].map(x=>`<button class="${TT.shift===x?"on":""}" onclick="TT.shift='${x}';$('ttClass').value='';renderTimetable()">${x==="Morning"?"🌅":"🌆"} ${x}${x==="Evening"?" — Academy":""}</button>`).join("");

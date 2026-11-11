@@ -1026,3 +1026,12 @@ Share → "Add to Home Screen" · Computer Chrome/Edge: the install icon in the 
 - **🔍 Audit this class** opens the audit form already filled in: date, period, class, subject and teacher.
 - **My timetable** (saved on this device): if the Executive also teaches, pick your name. The panel then shows "You are teaching now … until X" during your own periods, and lists **your free windows today** that have un-audited classes running.
 - **Alerts:** while the app is open, once a minute it checks whether you're free and an un-audited Morning class is running. If so, you get a toast and, after pressing 🔔 Enable alerts, a browser notification. It fires once per class period. Public holidays are skipped.
+
+## v168 — Import the Morning timetable from a PDF
+- Timetable → **📄 Import Morning timetable (PDF)** (Executive). Upload the teacher-wise or class-wise timetable as a PDF or photos, up to 10 files. Claude reads every lesson period: teacher, class, subject, day, start and end time. Breaks and free periods are skipped; a period number is converted to time using the bell row.
+- **Preview before anything changes:**
+  - each name in the timetable is matched to an EMS teacher (best name match; change it or skip it);
+  - classes are matched to the Morning class list; unrecognised ones can be picked or skipped;
+  - each teacher's new Morning times are shown, along with the AI's note on anything unreadable.
+- **Apply** replaces each matched teacher's **Morning** assignments (Employees → Assign). Two periods of the same subject on one day become two assignments, and different times on different days are kept per day. The teacher's Morning check-in / check-out times are also updated from the first and last period of each day (auto schedule). Evening assignments and teachers who are not in the timetable are untouched.
+- Server: `POST /api/tt/read` (Executive only) → `ai.readTimetable()` with structured output.
