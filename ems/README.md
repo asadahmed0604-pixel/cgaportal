@@ -1020,3 +1020,9 @@ Share → "Add to Home Screen" · Computer Chrome/Edge: the install icon in the 
   - **Marks entry:** the teacher's tests with marks entered vs pending.
   - **Syllabus tracker:** each tracker's coverage, on-track %, and whether the month's target is set.
 - Classes taken for past months come from the saved class records. For the current month, unmarked classes are counted too.
+
+## v167 — Audit now (Executive)
+- The Executive dashboard has a **🔍 Audit now — Morning classes** panel. It shows the Morning classes running right now, from the timetable in Employees → Assign. Each shows the teacher, when they were last audited, and a badge: **teacher not audited** this month, **class not audited**, or **audited this month**. The least-audited come first.
+- **🔍 Audit this class** opens the audit form already filled in: date, period, class, subject and teacher.
+- **My timetable** (saved on this device): if the Executive also teaches, pick your name. The panel then shows "You are teaching now … until X" during your own periods, and lists **your free windows today** that have un-audited classes running.
+- **Alerts:** while the app is open, once a minute it checks whether you're free and an un-audited Morning class is running. If so, you get a toast and, after pressing 🔔 Enable alerts, a browser notification. It fires once per class period. Public holidays are skipped.

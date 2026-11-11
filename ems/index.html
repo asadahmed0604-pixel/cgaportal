@@ -568,6 +568,7 @@ label.chk input{width:auto}
   <div class="page-head"><div><h2>Dashboard</h2><div class="sub" id="todayLine"></div></div>
     <button class="btn-line" id="actJump" style="display:none" onclick="document.getElementById('actPanel').scrollIntoView({behavior:'smooth'})">🕵 Activity log</button></div>
   <div class="mchips" id="dChips"></div>
+  <div class="panel exec-only" id="audNowPanel" style="display:none;margin-bottom:16px"></div>
   <div class="cards">
     <div class="card"><div class="k">Active Students</div><div class="v" id="dActive">0</div><div class="hint" id="dTotal"></div></div>
     <div class="card"><div class="k">🌅 Morning Students</div><div class="v" id="dMornStu">0</div><div class="hint" id="dMornStuT"></div></div>
@@ -1539,7 +1540,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v166 · 10 Nov 2026";
+const BUILD = "v167 · 11 Nov 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -2259,6 +2260,7 @@ async function loadActivity(reset){
   $("actSum").innerHTML = `Showing ${ACT.rows.length} of ${ACT.total||0} entries · Today: ${today.filter(x=>x.action==="Saved changes").length} saves, ${today.filter(x=>/Failed/.test(x.action)).length} failed logins${people.length ? ` · logged in today: ${people.map(esc).join(", ")}` : ""}`;
 }
 function renderDashboard(){
+  try{ renderAudNow(); }catch(e){}
   if(SERVER && ROLE === "exec" && $("actPanel")){ $("actPanel").style.display = ""; $("actJump").style.display = ""; if(!ACT.rows.length) loadActivity(true); }
   if(IS_ADMIN) return;
   syncSalaries();
@@ -7235,8 +7237,76 @@ function renderAudit(){
     : `<tr><td colspan="9" class="empty">No audits in ${period}</td></tr>`;
 }
 
-function openAuditForm(id){
-  const a = id ? DB.audits.find(x=>x.id===id) : {shift:"Morning", scores:{}};
+/* ================= v167: AUDIT NOW — Executive free hai to kaunsi Morning class audit kare =================
+   Timetable (Employees → Assign) se abhi chalne wali Morning classes; is mahine jis teacher / class ka audit nahi hua wo pehle.
+   Executive apne aap ko kisi employee se jor sakta hai (is device par) — us ke apne period ke waqt "busy". Free + un-audited class = notification. */
+const AUDN = {notified:new Set(), timer:null};
+const audMe = () => { try{ return localStorage.getItem("ems_execEmp") || ""; }catch(e){ return ""; } };
+const nowMinutes = () => { const d = new Date(); return d.getHours()*60 + d.getMinutes(); };
+const minTxt = n => fmtT(`${String(Math.floor(n/60)).padStart(2,"0")}:${String(n%60).padStart(2,"0")}`);
+function audNowData(){
+  const t0 = todayStr(), wd = new Date().getDay(), now = nowMinutes(), m = thisMonth();
+  if(holidayOn(t0, "Morning")) return {holiday:holidayOn(t0, "Morning"), S:[], running:[], busy:null, windows:[]};
+  const S = ttSlots("Morning").filter(x=>x.d === wd && !x.skill);
+  const aud = (DB.audits||[]).filter(a=>a.shift === "Morning" && String(a.date||"").startsWith(m));
+  const tA = new Set(aud.map(a=>a.teacherId)), cA = new Set(aud.map(a=>a.course + "|" + keyify(a.subject||"")));
+  const rank = x => (tA.has(x.tid) ? 0 : 2) + (cA.has(x.course + "|" + keyify(x.subject)) ? 0 : 1);       // 3 = teacher + class dono baqi
+  S.forEach(x=>{ x.rank = rank(x); x.last = (DB.audits||[]).filter(a=>a.teacherId === x.tid && a.shift === "Morning").map(a=>a.date).sort().pop() || ""; });
+  const me = audMe(), e = me ? empById(me) : null;
+  const mine = e ? (e.assignments||[]).flatMap(a=>{ const sl = slotOf(a, wd); if(!sl || !sl.from) return []; const f = ttMin(sl.from); let t = ttMin(sl.to); if(t === null || t <= f) t = f + 60; return [{f, t, course:a.course, subject:a.subject||"", shift:a.shift}]; }) : [];
+  const busy = mine.find(b=>b.f <= now && now < b.t) || null;
+  const running = S.filter(x=>x.f <= now && now < x.t && x.tid !== me).sort((a,b)=>b.rank - a.rank || a.course.localeCompare(b.course));
+  /* aaj ki aage ki free windows (Morning ke waqt mein) jin mein koi un-audited class chal rahi ho */
+  const windows = [];
+  if(S.length){ const end = Math.max(...S.map(x=>x.t)); let cur = null;
+    for(let t = Math.max(now, Math.min(...S.map(x=>x.f))); t < end; t += 5){
+      const free = !mine.some(b=>b.f <= t && t < b.t), cls = S.filter(x=>x.f <= t && t < x.t && x.tid !== me && x.rank > 0);
+      if(free && cls.length){ if(!cur){ cur = {f:t, t:t+5, cls:new Map()}; windows.push(cur); } cur.t = t + 5; cls.forEach(x=>cur.cls.set(x.id, x)); } else cur = null; } }
+  return {S, running, busy, windows:windows.filter(w=>w.f > now || w.t > now).slice(0, 4), me:e, now, audN:aud.length, teachersLeft:[...new Set(S.map(x=>x.tid))].filter(t=>!tA.has(t)).length};
+}
+function renderAudNow(){
+  const box = $("audNowPanel"); if(!box) return;
+  if(ROLE !== "exec"){ box.style.display = "none"; return; }
+  const D = audNowData(), me = audMe();
+  box.style.display = "";
+  const rk = x => x.rank >= 2 ? `<span class="badge b-unpaid" title="This teacher has not been audited this month">teacher not audited</span>` : x.rank === 1 ? `<span class="badge b-freeze">class not audited</span>` : `<span class="badge b-paid">audited this month</span>`;
+  const btn = x => `<button class="btn-red btn-sm" onclick="audStart('${x.tid}','${esc(x.course)}','${esc(x.subject)}','${x.from}')">🔍 Audit this class</button>`;
+  const emps = DB.employees.slice().sort((a,b)=>a.name.localeCompare(b.name));
+  box.innerHTML = `<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center">
+      <h3 style="margin:0">🔍 Audit now — Morning classes</h3>
+      <span style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><label class="sub" style="margin:0">My timetable:</label>
+        <select style="width:auto" onchange="audSetMe(this.value)"><option value="">— I don't teach —</option>${emps.map(e=>`<option value="${e.id}" ${e.id===me?"selected":""}>${esc(e.name)}</option>`).join("")}</select>
+        ${"Notification" in window && Notification.permission !== "granted" ? `<button class="btn-line btn-sm" onclick="audNotifyAsk()">🔔 Enable alerts</button>` : ""}</span></div>
+    <p class="sub" style="margin:4px 0 10px">${fmtM(thisMonth())}: ${D.audN || 0} Morning audit${D.audN === 1 ? "" : "s"} done${D.teachersLeft ? ` · <b style="color:var(--danger)">${D.teachersLeft} teacher${D.teachersLeft>1?"s":""} with classes today not audited yet</b>` : ""}.</p>
+    ${D.holiday ? `<div class="note">${holTxt(D.holiday)} — no classes today.</div>` : !D.S.length ? `<div class="note">No Morning classes in the timetable today.</div>`
+      : `${D.busy ? `<div class="note" style="border-left-color:#E0A800">You are teaching now (${esc(D.busy.course)} ${esc(D.busy.subject)}) until <b>${minTxt(D.busy.t)}</b>.</div>`
+          : D.running.length ? `<div class="note" style="border-left-color:var(--ok)"><b>You're free now</b> — ${D.running.length} Morning class${D.running.length>1?"es":""} running.</div>`
+          : `<div class="note">No Morning class is running right now (${fmtT(new Date().toTimeString().slice(0,5))}).</div>`}
+        ${D.running.length ? `<div class="tbl-wrap"><table><thead><tr><th>Time</th><th>Class</th><th>Teacher</th><th>Audit</th><th></th></tr></thead><tbody>
+          ${D.running.map(x=>`<tr><td style="white-space:nowrap">${fmtT(x.from)}${x.to ? "–" + fmtT(x.to) : ""}</td><td><b>${esc(x.course)}</b> ${esc(x.subject)}</td><td>${esc(x.teacher)}<br><span class="sub">last audit ${x.last ? fmtD(x.last) : "never"}</span></td><td>${rk(x)}</td><td>${D.busy ? "" : btn(x)}</td></tr>`).join("")}</tbody></table></div>` : ""}
+        ${D.windows.length ? `<div class="sub" style="margin-top:8px"><b>Your free windows today with un-audited classes:</b> ${D.windows.map(w=>`<span class="chip">${minTxt(w.f)}–${minTxt(w.t)}: ${[...w.cls.values()].sort((a,b)=>b.rank-a.rank).slice(0,3).map(x=>esc(x.course + " " + x.subject + " (" + x.teacher + ")")).join(", ")}</span>`).join(" ")}</div>` : ""}`}`;
+}
+function audStart(tid, course, subject, from){
+  openAuditForm("", {shift:"Morning", course, subject, teacherId:tid, period:from ? fmtT(from) : "", date:todayStr()});
+  if($("au_subject")) $("au_subject").value = subject;
+}
+function audSetMe(v){ try{ localStorage.setItem("ems_execEmp", v); }catch(e){} renderAudNow(); }
+function audNotifyAsk(){ try{ Notification.requestPermission().then(()=>renderAudNow()); }catch(e){ toast("This browser does not support notifications"); } }
+/* har minute: free + un-audited class chal rahi ho → aik dafa (har period) toast + browser notification */
+function audNowTick(){
+  if(ROLE !== "exec") return;
+  try{
+    if($("page-dashboard") && $("page-dashboard").classList.contains("show") && !modalOpen()) renderAudNow();
+    const D = audNowData(); if(D.busy || !D.running.length) return;
+    const top = D.running.filter(x=>x.rank > 0); if(!top.length) return;
+    const key = todayStr() + "|" + top[0].id + "|" + top[0].from; if(AUDN.notified.has(key)) return; AUDN.notified.add(key);
+    const msg = `You're free — ${top.length} Morning class${top.length>1?"es":""} not audited is running: ${top.slice(0,3).map(x=>`${x.course} ${x.subject} (${x.teacher})`).join(", ")}`;
+    toast("🔍 " + msg);
+    if("Notification" in window && Notification.permission === "granted"){ const n = new Notification("🔍 Audit time", {body:msg, tag:"ems-audit"}); n.onclick = ()=>{ window.focus(); document.querySelector('#nav button[data-page=dashboard]').click(); }; }
+  }catch(e){}
+}
+function openAuditForm(id, preset){
+  const a = id ? DB.audits.find(x=>x.id===id) : {shift:"Morning", scores:{}, ...(preset||{})};
   const teachers = DB.employees.filter(e=>e.category==="Teacher").sort((x,y)=>x.name.localeCompare(y.name));
   openModal(`
     <h3>${id?"Edit Audit":"🔍 New Class Audit"}</h3>
@@ -14528,7 +14598,8 @@ const modalOpen = () => $("modalOverlay").classList.contains("show");
 const typing = () => { const a = document.activeElement; return !!a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && !!a.closest(".main, .modal"); };
 
 /* v93: guzri hui marks deadlines → KPI (admin / executive ke browser se; har 10 minute aur shuru mein) */
-if(ROLE === "exec") setTimeout(()=>{ try{ staffKpiCarry(); staffFeeKpiSync(); }catch(e){} }, 6000);   // v120: staff fee KPIs khud score
+if(ROLE === "exec") setTimeout(()=>{ try{ staffKpiCarry(); staffFeeKpiSync(); }catch(e){} }, 6000);
+if(ROLE === "exec"){ setTimeout(audNowTick, 8000); AUDN.timer = setInterval(audNowTick, 60e3); }   // v167: audit-now alerts   // v120: staff fee KPIs khud score
 if(!IS_TEACHER) { setTimeout(()=>{ try{ kpiDeadlineSync(); }catch(e){} }, 5000); setInterval(()=>{ try{ kpiDeadlineSync(); }catch(e){} }, 10*60e3); }
 
 /* Server ka naya data screen par lagao (jo page khula hai wahi dobara banao) */
