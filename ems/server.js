@@ -854,6 +854,25 @@ function ptmsFor(db, kids) {
   return out.sort((a, b) => b.date.localeCompare(a.date));
 }
 const childView = (st) => ({ id: st.id, name: st.name, course: st.course, shift: st.shift, regNo: st.regNo });
+/* v171: bache ki class ka timetable (Employees → Assign) — parents app. Ek waqt par kai subjects (Chemistry / Business) ho to sirf jo bacha leta hai */
+const TT_DAY_SET = { "Mon–Fri": [1, 2, 3, 4, 5], "Mon–Sat": [1, 2, 3, 4, 5, 6], "Mon, Wed, Fri": [1, 3, 5], "Tue, Thu, Sat": [2, 4, 6], "Sat–Sun": [6, 0], "Daily": [0, 1, 2, 3, 4, 5, 6] };
+function timetableFor(d, st) {
+  const sh = st.shift, cls = stuClasses(st), days = {};
+  const subjOk = (name) => { const L = (st.subjects || []).map((x) => keyOf(x.name)).filter(Boolean), k = keyOf(name); return !L.length || !k || L.some((x) => x === k || x.includes(k) || k.includes(x)); };
+  (d.employees || []).forEach((e) => (e.assignments || []).forEach((a) => {
+    if (!a || a.shift !== sh || !cls.includes(a.course)) return;
+    const dl = Array.isArray(a.dayList) && a.dayList.length ? a.dayList : TT_DAY_SET[a.days] || TT_DAY_SET["Mon–Fri"];
+    dl.forEach((wd) => { const sl = a.slots && a.slots[wd] ? a.slots[wd] : a.from ? { from: a.from, to: a.to || "" } : null; if (!sl || !sl.from) return;
+      (days[wd] = days[wd] || []).push({ from: sl.from, to: sl.to || "", subject: a.subject || "", teacher: String(e.name || "").split(" ")[0], course: a.course }); });
+  }));
+  Object.keys(days).forEach((wd) => {
+    const L = days[wd], byT = new Map();
+    L.forEach((x) => { if (!byT.has(x.from)) byT.set(x.from, []); byT.get(x.from).push(x); });
+    days[wd] = [...byT.values()].flatMap((G) => { if (G.length < 2) return G; const mine = G.filter((x) => subjOk(x.subject)); return mine.length ? mine : G; })
+      .sort((a, b) => a.from.localeCompare(b.from));
+  });
+  return { course: cls.join(" + "), shift: sh, days };
+}
 /* v169: is ghar ke bachon ke liye chalu notices (shift / class ke hisaab se), naye pehle */
 function noticesFor(d, kids, key) {
   const t0 = pktToday();
@@ -1081,6 +1100,12 @@ const server = http.createServer(async (req, res) => {
       }
       /* v92: PTM — Morning bachon ki class ki PTM; parent feedback likhe (PTM se 7 din baad tak) */
       if (p === "/parent/api/ptm" && req.method === "GET") return sendJson(res, 200, ptmsFor(who.db, kids));
+      /* v171: bache ka class timetable */
+      if (p === "/parent/api/timetable" && req.method === "GET") {
+        const child = kids.find((k) => k.id === url.searchParams.get("studentId")) || (kids.length === 1 ? kids[0] : null);
+        if (!child) return sendJson(res, 400, { error: "Choose a child first." });
+        return sendJson(res, 200, timetableFor(who.db, child));
+      }
       if (req.method !== "POST") return send(res, 404, "Not found");
       if (!sameOrigin(req)) return sendJson(res, 403, { error: "origin" });
       const body = JSON.parse((await readBody(req)) || "{}");

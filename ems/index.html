@@ -995,8 +995,8 @@ label.chk input{width:auto}
     <div class="field"><label>Shift</label><div class="mchips" id="ttShift" style="margin:0"></div></div>
     <div class="field"><label>Class</label><select id="ttClass" onchange="renderTimetable()"></select></div>
     <div class="field"><label>Only</label><label class="chk" style="margin-top:8px"><input type="checkbox" id="ttOnlyClash" onchange="renderTimetable()"> show clashes only</label></div>
-    <button class="btn-red exec-only" style="margin-left:auto;align-self:flex-end" onclick="document.getElementById('ttImpFile').click()" title="Upload the Morning timetable (PDF or photos) — teacher times are read and updated automatically">📄 Import Morning timetable (PDF)</button>
-    <input type="file" id="ttImpFile" multiple accept="application/pdf,image/*" style="display:none" onchange="ttImportFiles(this)">
+    <button class="btn-red exec-only" style="margin-left:auto;align-self:flex-end" onclick="document.getElementById('ttImpFile').click()" title="Upload the Morning timetable (PDF or photos, or a prepared timetable .json file) — teacher times are read and updated automatically">📄 Import Morning timetable (PDF)</button>
+    <input type="file" id="ttImpFile" multiple accept="application/pdf,image/*,.json,application/json" style="display:none" onchange="ttImportFiles(this)">
   </div>
   <div id="ttClashes"></div>
   <div id="ttGrid"></div>
@@ -1543,7 +1543,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v170 · 12 Nov 2026";
+const BUILD = "v171 · 12 Nov 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -2504,6 +2504,10 @@ function ttTeacherMatch(raw){
 }
 async function ttImportFiles(inp){
   const files = [...(inp.files||[])]; inp.value = ""; if(!files.length) return;
+  /* v171: tayyar timetable file (.json — periods: teacher, class, subject, day, from, to) — AI ke baghair seedha preview */
+  const jf = files.find(f=>/\.json$/i.test(f.name) || f.type === "application/json");
+  if(jf){ try{ const j = JSON.parse(await jf.text()); if(!Array.isArray(j.periods)) throw new Error("no periods in this file"); ttImportShow(j); }
+    catch(e){ toast("This timetable file could not be read — " + e.message); } return; }
   if(!SERVER){ toast("Timetable import works on the online version only"); return; }
   openModal(`<h3>📄 Reading the timetable…</h3><p class="sub">Uploading ${files.length} file${files.length>1?"s":""} and reading every period with AI — this can take a minute or two for a full school timetable.</p>`);
   try{

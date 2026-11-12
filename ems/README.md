@@ -1055,3 +1055,7 @@ Share → "Add to Home Screen" · Computer Chrome/Edge: the install icon in the 
   - **🎯 What to improve**.
 - The teacher presses **✓ I have read this**, and the date is saved. The Class Audit list shows **👁 read <date>** or **⏳ not read yet** under the teacher's name.
 - Only audits from the last 30 days pop up, so older audits don't flood teachers after this update. The teacher can't change anything in the audit: the server only accepts the "read" date.
+
+## v171 — Class timetable in the parents' app + import from a prepared file
+- **Parents' app → 🗓 Timetable:** shows the child's class timetable, built from Employees → Assign. Today's lessons come first, then the whole week, each with its time, subject and teacher's first name. Where two subjects run at the same time (e.g. Chemistry / Business), only the one the child takes is shown. If the child takes neither, both show.
+- **Timetable import** now also accepts a prepared timetable **.json** file (`periods`: teacher, class, subject, day, from, to). The file goes straight to the same preview / Apply screen, without the AI.
