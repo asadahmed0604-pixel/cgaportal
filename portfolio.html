@@ -181,6 +181,18 @@ figure{margin:0}
 .levels dd{margin:0;display:flex;flex-wrap:wrap;gap:8px}
 .chip{font-size:.88rem;font-weight:600;padding:5px 12px;border-radius:999px;border:1px solid var(--line-hi);color:var(--ink);background:var(--surface)}
 
+/* extra programmes */
+.extras{display:grid;gap:12px;margin-top:8px}
+@media(min-width:640px){.extras{grid-template-columns:repeat(2,minmax(0,1fr))}.extras .wide{grid-column:span 2}}
+@media(min-width:1000px){.extras{grid-template-columns:repeat(4,minmax(0,1fr))}}
+.extras li{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:18px 20px;display:grid;gap:6px;align-content:start}
+.extras h4{margin:0;font-family:var(--display);font-weight:700;font-size:1.2rem;line-height:1.12;color:var(--ink)}
+.extras p{font-size:.92rem}
+.extras .wide{background:var(--ink);border-color:var(--ink)}
+.extras .wide h4{color:var(--bg);font-size:1.5rem}
+.extras .wide p{color:var(--bg);opacity:.85}
+.extras .wide .tag{color:var(--yellow)}
+
 /* LUMS NOP */
 .nop{margin-top:40px;background:var(--band);color:var(--band-body);border-radius:22px;padding:clamp(24px,4vw,44px);display:grid;gap:28px;align-items:center}
 @media(min-width:880px){.nop{grid-template-columns:minmax(0,1.15fr) minmax(0,.85fr);gap:48px}}
@@ -484,12 +496,23 @@ footer.end .wrap{display:flex;flex-wrap:wrap;gap:8px 24px;justify-content:space-
 <section id="modules" class="tinted"><div class="wrap">
   <div class="head"><span class="eyebrow">Major modules offered</span><h2>Nine ways in. <em>One standard.</em></h2><p class="lede">The modules our students are in favour of learning currently — each with its own calendar, checkpoints and reporting rhythm.</p></div>
   <ul class="mods"><li class="mod"><span class="dur">2 Years</span><h3>Fast Track Pre O Levels</h3><p>Grade 6 to 8 compressed into two years — entry test, MBTI and career counselling, two-weekly testing and seven promotional exams.</p></li><li class="mod"><span class="dur">2 Years</span><h3>Private O Levels</h3><p>A controlled two-year run to CAIEs: notes and topicals handed over on day one, mocks in March, support right up to exam day.</p></li><li class="mod"><span class="dur">2 Years</span><h3>Private A Levels</h3><p>AS then A2, same rhythm — two-weekly testing, yearlies, intensive past-paper prep leave and online support until the last paper.</p></li><li class="mod"><span class="dur">5 Months</span><h3>Evening O/A Level Course</h3><p>July to December, starting from scratch. Updated notes, targeted topicals, exam-style questions and one-on-one attention.</p></li><li class="mod"><span class="dur">3 Months</span><h3>Evening Crash Course</h3><p>July–Sep or Jan–Apr. Fast-pace coverage for students who need the whole syllabus tightened before the exam.</p></li><li class="mod"><span class="dur">One on one</span><h3>Helping Cubicles</h3><p>Customised, student-wise plans for those who need special attention — digging into the loopholes and rebuilding confidence.</p></li><li class="mod"><span class="dur">2 Months</span><h3>Entry Test Preps</h3><p>SAT, IELTS, MDCAT, NET and NTS — university selection, admission criteria, deadlines, mock tests and placements.</p></li><li class="mod"><span class="dur">3 Months</span><h3>Life Skills &amp; Self Defence</h3><p>A weekend programme built into the curriculum: gym and martial arts, leadership workshops and community service.</p></li><li class="mod"><span class="dur">Professional</span><h3>ACCA</h3><p>Preparation for the ACCA (Association of Chartered Certified Accountants) qualification. Message us for the papers offered, batch timings and fee.</p></li></ul>
+  <h3 class="sub" style="margin-top:44px">Test prep, placements and technology</h3>
+  <p class="subnote">Alongside the main modules, these programmes run at CGA.</p>
+  <ul class="extras">
+    <li><span class="tag">School entry</span><h4>Aitchison School entry prep</h4></li>
+    <li><span class="tag">Entry test</span><h4>SAT prep</h4></li>
+    <li><span class="tag">Entry test</span><h4>NET prep</h4></li>
+    <li><span class="tag">Entry test</span><h4>ECAT &amp; MCAT prep</h4></li>
+    <li><span class="tag">Language test</span><h4>IELTS prep</h4></li>
+    <li><span class="tag">Guidance</span><h4>Career counselling &amp; university placements</h4></li>
+    <li class="wide"><span class="tag">Technology</span><h4>AI &amp; Robotics</h4><p>In collaboration with Aero Pakistan and Mechabotics.</p></li>
+  </ul>
   <dl class="levels">
     <dt>Levels</dt><dd><span class="chip">Fast Track Pre O Level</span><span class="chip">Fast Track Morning O Level</span><span class="chip">O Level</span><span class="chip">IGCSE</span><span class="chip">AS Level</span><span class="chip">A2 Level</span><span class="chip">ACCA</span></dd>
     <dt>Subjects taught</dt><dd><span class="chip">Mathematics</span><span class="chip">Additional Maths</span><span class="chip">Physics</span><span class="chip">Chemistry</span><span class="chip">Biology</span><span class="chip">Computer Science</span><span class="chip">ICT</span><span class="chip">English</span><span class="chip">Urdu</span><span class="chip">Islamiyat</span><span class="chip">Pakistan Studies</span><span class="chip">Business</span><span class="chip">Economics</span><span class="chip">Accounting</span><span class="chip">Commerce</span><span class="chip">Law</span><span class="chip">Sociology</span><span class="chip">Psychology</span></dd>
-    <dt>Entry tests</dt><dd><span class="chip">SAT</span><span class="chip">IELTS</span><span class="chip">MDCAT</span><span class="chip">NET</span><span class="chip">NTS</span></dd>
-    <dt>University access</dt><dd><span class="chip">LUMS NOP mentorship</span><span class="chip">Support for underprivileged students</span></dd>
-    <dt>Beyond academics</dt><dd><span class="chip">Gym &amp; Martial Arts</span><span class="chip">Leadership Workshops</span><span class="chip">Community Service</span></dd>
+    <dt>Entry tests</dt><dd><span class="chip">SAT</span><span class="chip">IELTS</span><span class="chip">MDCAT</span><span class="chip">NET</span><span class="chip">NTS</span><span class="chip">ECAT</span><span class="chip">MCAT</span><span class="chip">Aitchison School entry</span></dd>
+    <dt>University access</dt><dd><span class="chip">Career counselling</span><span class="chip">University placements</span><span class="chip">LUMS NOP mentorship</span><span class="chip">Support for underprivileged students</span></dd>
+    <dt>Beyond academics</dt><dd><span class="chip">AI &amp; Robotics</span><span class="chip">Gym &amp; Martial Arts</span><span class="chip">Leadership Workshops</span><span class="chip">Community Service</span></dd>
   </dl>
   <article class="nop" id="nop">
     <div>
