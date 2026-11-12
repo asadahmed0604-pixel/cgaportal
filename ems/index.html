@@ -1543,7 +1543,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v169 · 12 Nov 2026";
+const BUILD = "v170 · 12 Nov 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -2054,6 +2054,39 @@ function renderPage(p){
     finance:renderFinance, reports:renderReport, biz:renderBiz, audit:renderAudit, parents:renderParents,
     tests:renderTests, classatt:loadClassAtt, classlog:renderClassLog, timetable:renderTimetable, mydash:renderMyDash, assign:()=>{ if(SERVER) renderAssign(); },
     settings:loadSettings}[p]||(()=>{}))();
+  if(IS_TEACHER) setTimeout(audPopupCheck, 400);           // v170: naya class audit → teacher ko pop-up
+}
+/* ================= v170: CLASS AUDIT → TEACHER POP-UP =================
+   Teacher ki kisi class ka audit hua aur us ne abhi dekha nahi (a.seenByTeacher) → report pop-up mein; "I have read this" par server tareekh likhta hai. */
+const AUDP = {shown:new Set()};
+function audReportHTML(a){
+  const sc = audScore(a);
+  return `<div class="cards" style="margin:6px 0 10px"><div class="card"><div class="k">Audit score</div><div class="v" style="${scoreColor(sc)}">${pctTxt(sc)}</div><div class="hint">${esc(a.auditor || "")}</div></div>
+      <div class="card"><div class="k">Class</div><div class="v" style="font-size:1.1rem">${esc(a.course)} · ${esc(a.subject||"")}</div><div class="hint">${fmtD(a.date)}${a.period ? " · " + esc(a.period) : ""} · ${esc(a.shift||"")}</div></div></div>
+    <table><tbody>${AUD_CRIT.map(([k,l])=>{ const v = +((a.scores||{})[k])||0;
+      return `<tr><td>${esc(l)}</td><td style="white-space:nowrap;text-align:right">${v ? `<b style="${scoreColor(v*20)}">${v} / 5</b> ${"★".repeat(v)}<span style="opacity:.25">${"★".repeat(5-v)}</span>` : `<span class="sub">—</span>`}</td></tr>`; }).join("")}
+      ${a.topic ? `<tr><td>Topic</td><td style="text-align:right">${esc(a.topic)}</td></tr>` : ""}
+      ${a.plan ? `<tr><td>As per lesson plan</td><td style="text-align:right">${esc(a.plan)}</td></tr>` : ""}
+      ${a.strength || a.present ? `<tr><td>Students present</td><td style="text-align:right">${esc(a.present||"—")} / ${esc(a.strength||"—")}</td></tr>` : ""}
+      ${a.homework ? `<tr><td>Homework given / checked</td><td style="text-align:right">${esc(a.homework)}</td></tr>` : ""}</tbody></table>
+    ${a.remarks ? `<div class="note" style="margin-top:10px"><b>Remarks:</b> ${esc(a.remarks)}</div>` : ""}
+    ${a.action ? `<div class="note" style="margin-top:8px;border-left-color:var(--danger)"><b>🎯 What to improve:</b> ${esc(a.action)}${a.actionDone ? ` <span class="badge b-paid">done</span>` : ""}</div>` : ""}`;
+}
+function audPopupCheck(){
+  if(!IS_TEACHER || modalOpen()) return;
+  const since = new Date(Date.now() - 30*864e5).toISOString().slice(0,10);      // purane audits (feature se pehle ke) pop-up nahi
+  const a = (DB.audits||[]).filter(x=>x && x.teacherId === MY_TID && !x.seenByTeacher && !AUDP.shown.has(x.id) && String(x.date||"") >= since).sort((x,y)=>String(y.date).localeCompare(String(x.date)))[0];
+  if(!a) return;
+  AUDP.shown.add(a.id);
+  openModal(`<h3>🔍 Your class was audited</h3>
+    <p class="sub" style="margin-bottom:6px">Here is the audit report. Please read it and work on the points below.</p>
+    ${audReportHTML(a)}
+    <div class="modal-foot"><button class="btn-red" onclick="audSeen('${a.id}')">✓ I have read this</button></div>`);
+}
+function audSeen(id){
+  const a = (DB.audits||[]).find(x=>x.id===id);
+  if(a){ a.seenByTeacher = todayStr(); save(); }
+  closeModal(); setTimeout(audPopupCheck, 300);
 }
 
 /* ================= DASHBOARD ================= */
@@ -7375,7 +7408,7 @@ function renderAudit(){
   /* --- entries --- */
   $("auRows").innerHTML = list.length ? list.map(a=>{ const sc = audScore(a); return `<tr>
       <td>${fmtD(a.date)}</td><td><b>${esc(a.course)}</b> · ${esc(a.subject)}<br><span class="sub">${esc(a.shift)}${a.period?` · ${esc(a.period)}`:""}</span></td>
-      <td>${esc(teacherName(a.teacherId))}</td><td class="sub" style="max-width:200px">${esc(a.topic||"—")}${a.plan?`<br>Plan: ${esc(a.plan)}`:""}</td>
+      <td>${esc(teacherName(a.teacherId))}<br><span class="sub" title="The teacher sees the report as a pop-up in their portal">${a.seenByTeacher ? `👁 read ${fmtD(a.seenByTeacher)}` : "⏳ not read yet"}</span></td><td class="sub" style="max-width:200px">${esc(a.topic||"—")}${a.plan?`<br>Plan: ${esc(a.plan)}`:""}</td>
       <td style="text-align:right">${+a.strength ? `${+a.present||0}/${+a.strength}` : "—"}</td>
       <td style="text-align:right"><b style="${scoreColor(sc)}">${pctTxt(sc)}</b></td>
       <td style="max-width:220px">${a.action ? `${a.actionDone?"✓ ":"⏳ "}${esc(a.action)}` : "—"}</td>
