@@ -1035,3 +1035,13 @@ Share → "Add to Home Screen" · Computer Chrome/Edge: the install icon in the 
   - each teacher's new Morning times are shown, along with the AI's note on anything unreadable.
 - **Apply** replaces each matched teacher's **Morning** assignments (Employees → Assign). Two periods of the same subject on one day become two assignments, and different times on different days are kept per day. The teacher's Morning check-in / check-out times are also updated from the first and last period of each day (auto schedule). Evening assignments and teachers who are not in the timetable are untouched.
 - Server: `POST /api/tt/read` (Executive only) → `ai.readTimetable()` with structured output.
+
+## v169 — Notices to the parents' app
+- Parents page → **📢 Notices to parents → + New notice**:
+  - title and message;
+  - who it goes to: all parents, Morning or Evening, optionally only certain classes;
+  - show from / until dates;
+  - **⚠ Important**.
+- In the **parents' app**, important notices pop up at the top of the chat as soon as the parent opens the app. Every notice for the family's children is under a **📢 Notices (n new)** button.
+- The office list shows how many families have **read** each notice. Notices can be edited or removed; a removed or expired notice disappears from the app.
+- Server: `/parent/api/me` returns the family's active notices, filtered by each child's shift and class. `/parent/api/notice-seen` records reads.

@@ -1068,6 +1068,7 @@ label.chk input{width:auto}
     </div>
   </div>
   <div id="parOffline"></div>
+  <div class="panel" id="noticePanel" style="margin-bottom:16px"></div>
   <div class="cards">
     <div class="card"><div class="k">Families (phone number)</div><div class="v" id="parFam">0</div><div class="hint" id="parFamHint"></div></div>
     <div class="card"><div class="k">Access given (PIN)</div><div class="v green" id="parAcc">0</div><div class="hint" id="parAccHint"></div></div>
@@ -1542,7 +1543,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v168 · 11 Nov 2026";
+const BUILD = "v169 · 12 Nov 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -1670,6 +1671,7 @@ function studentFee(s){
 
 const DEFAULT_DB = {
   holidays:[],              // v160: public holidays
+  notices:[],               // v169: parents app ke notices
   students:[], inquiries:[], fees:[], exams:[], employees:[], txns:[], homework:[], ptms:[], staffKpis:[], staffTasks:[], stuNotes:[], skillDev:[], skillGroups:[], concerns:[], syllabus:[],
   subjects:[],             // [{id, name, level, defaultFee}] — Settings se manage hoti hain
   inventory:[],            // [{id, name, type, qty, unitCost, issuedOpening, date, note}]
@@ -6760,7 +6762,59 @@ function families(){
 }
 const accessOf = k => (DB.parentAccess||[]).find(a=>a.phone === k);
 
+/* ================= v169: NOTICES → PARENTS APP =================
+   DB.notices = [{id, title, text, important, shift:"All"|"Morning"|"Evening", classes:[], from, to, at, by, seen:{phoneKey: date}}]
+   Parents app kholte hi naya important notice sab se upar; "📢 Notices" button par sab. Server parhne ki tareekh (seen) likhta hai. */
+function renderNotices(){
+  const box = $("noticePanel"); if(!box) return;
+  DB.notices = DB.notices || [];
+  const t0 = todayStr(), L = DB.notices.slice().sort((a,b)=>String(b.at).localeCompare(String(a.at)));
+  const live = n => (!n.from || n.from <= t0) && (!n.to || n.to >= t0);
+  const aud = n => (n.shift && n.shift !== "All" ? n.shift : "All parents") + ((n.classes||[]).length ? " · " + n.classes.join(", ") : "");
+  box.innerHTML = `<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center"><h3 style="margin:0">📢 Notices to parents</h3>
+      <button class="btn-red btn-sm" onclick="openNotice()">+ New notice</button></div>
+    <p class="sub" style="margin:4px 0 10px">Shows in the parents' app. <b>Important</b> notices pop up at the top as soon as parents open the app; all notices are under “📢 Notices”.</p>
+    ${L.length ? `<div class="tbl-wrap"><table><thead><tr><th>Date</th><th>Notice</th><th>For</th><th>Showing</th><th style="text-align:right">Read by</th><th></th></tr></thead><tbody>
+      ${L.slice(0, 30).map(n=>`<tr style="${live(n) ? "" : "opacity:.55"}"><td style="white-space:nowrap">${fmtD(String(n.at).slice(0,10))}</td>
+        <td>${n.important ? `<span class="badge b-unpaid">Important</span> ` : ""}<b>${esc(n.title)}</b><br><span class="sub">${esc(String(n.text||"").slice(0,140))}${String(n.text||"").length > 140 ? "…" : ""}</span></td>
+        <td class="sub">${esc(aud(n))}</td><td class="sub">${live(n) ? `till ${n.to ? fmtD(n.to) : "removed"}` : n.from > t0 ? "from " + fmtD(n.from) : "ended"}</td>
+        <td style="text-align:right"><b>${Object.keys(n.seen||{}).length}</b> <span class="sub">families</span></td>
+        <td style="white-space:nowrap"><button class="btn-line btn-sm" onclick="openNotice('${n.id}')">Edit</button><button class="btn-danger btn-sm" onclick="delNotice('${n.id}')">✕</button></td></tr>`).join("")}</tbody></table></div>`
+      : `<p class="sub">No notices yet.</p>`}`;
+}
+function openNotice(id){
+  const n = id ? (DB.notices||[]).find(x=>x.id===id) : {important:true, shift:"All", classes:[], from:todayStr(), to:""};
+  if(!n) return;
+  const C = [...new Set([...(CLASSES_BY_SHIFT.Morning||[]), ...(CLASSES_BY_SHIFT.Evening||[])])];
+  openModal(`<h3>${id ? "Edit notice" : "📢 New notice for parents"}</h3>
+    <div class="field"><label>Title *</label><input id="nt_title" value="${esc(n.title||"")}" placeholder="e.g. School closed on Friday"></div>
+    <div class="field"><label>Message *</label><textarea id="nt_text" rows="5" placeholder="Write the full notice…">${esc(n.text||"")}</textarea></div>
+    <div class="grid2">
+      <div class="field"><label>Send to</label><select id="nt_shift">${["All","Morning","Evening"].map(x=>`<option ${n.shift===x?"selected":""} value="${x}">${x === "All" ? "All parents" : x + " parents"}</option>`).join("")}</select></div>
+      <div class="field"><label>Only these classes (optional)</label><select id="nt_cls" multiple size="4">${C.map(c=>`<option ${(n.classes||[]).includes(c)?"selected":""}>${esc(c)}</option>`).join("")}</select><span class="sub">Ctrl / long-press to pick more than one; none = all classes</span></div>
+      <div class="field"><label>Show from</label><input type="date" id="nt_from" value="${esc(n.from||todayStr())}"></div>
+      <div class="field"><label>Show until (optional)</label><input type="date" id="nt_to" value="${esc(n.to||"")}"></div>
+    </div>
+    <label class="chk"><input type="checkbox" id="nt_imp" ${n.important ? "checked" : ""}> ⚠ Important — pop up at the top when parents open the app</label>
+    <div class="modal-foot"><button class="btn-line" onclick="closeModal()">Cancel</button><button class="btn-red" onclick="saveNotice('${id||""}')">${id ? "Save" : "📢 Send to parents"}</button></div>`);
+}
+function saveNotice(id){
+  const title = $("nt_title").value.trim(), text = $("nt_text").value.trim();
+  if(!title || !text){ toast("Write the title and the message"); return; }
+  const from = $("nt_from").value || todayStr(), to = $("nt_to").value || "";
+  if(to && to < from){ toast("'Show until' is before 'Show from'"); return; }
+  const data = {title:title.slice(0,120), text:text.slice(0,3000), shift:$("nt_shift").value, classes:[...$("nt_cls").selectedOptions].map(o=>o.value), from, to, important:$("nt_imp").checked};
+  DB.notices = DB.notices || [];
+  if(id){ const n = DB.notices.find(x=>x.id===id); if(n) Object.assign(n, data); }
+  else DB.notices.push({id:uid(), ...data, at:new Date().toISOString(), by:myName() || ROLE_LABEL, seen:{}});
+  save(); closeModal(); renderNotices(); toast(id ? "Notice updated" : "📢 Notice sent — parents see it in the app");
+}
+function delNotice(id){
+  const n = (DB.notices||[]).find(x=>x.id===id); if(!n) return;
+  askConfirm("Remove notice?", `<b>${esc(n.title)}</b> — it will disappear from the parents' app.`, ()=>{ DB.notices = DB.notices.filter(x=>x.id!==id); save(); renderNotices(); toast("Notice removed"); }, "Remove");
+}
 function renderParents(){
+  renderNotices();
   if(!DB.parentAccess) DB.parentAccess = [];
   if(!DB.parentMsgs) DB.parentMsgs = [];
   $("parOffline").innerHTML = SERVER ? "" : `<div class="note" style="border-left-color:var(--danger)"><b>Parents chat only works on the online version (Render link).</b> This file is open locally — PINs cannot be created here.</div>`;
