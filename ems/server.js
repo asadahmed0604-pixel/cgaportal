@@ -851,6 +851,15 @@ function ptmsFor(db, kids) {
   return out.sort((a, b) => b.date.localeCompare(a.date));
 }
 const childView = (st) => ({ id: st.id, name: st.name, course: st.course, shift: st.shift, regNo: st.regNo });
+/* v169: is ghar ke bachon ke liye chalu notices (shift / class ke hisaab se), naye pehle */
+function noticesFor(d, kids, key) {
+  const t0 = pktToday();
+  const fits = (n, st) => (!n.shift || n.shift === "All" || n.shift === st.shift || (n.shift === "Online" && st.mode === "Online"))
+    && (!(n.classes || []).length || stuClasses(st).some((c) => n.classes.includes(c)));
+  return (d.notices || []).filter((n) => n && n.title && (!n.from || n.from <= t0) && (!n.to || n.to >= t0) && kids.some((k) => fits(n, k)))
+    .sort((a, b) => String(b.at).localeCompare(String(a.at))).slice(0, 30)
+    .map((n) => ({ id: n.id, title: n.title, text: n.text, important: !!n.important, date: String(n.at || "").slice(0, 10), seen: !!(n.seen && n.seen[key]) }));
+}
 const escHtml = (x) => String(x).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
 /* v61: assignments — AI generator / checker aur student portal (/student). Data DATA_DIR/asg mein, db.json se alag. */
@@ -1064,7 +1073,7 @@ const server = http.createServer(async (req, res) => {
       if (p === "/parent/api/me" && req.method === "GET") {
         const replies = (who.db.parentMsgs || []).filter((m) => m.phone === who.key && m.reply).length;
         const ptm = ptmsFor(who.db, kids);
-        return sendJson(res, 200, { school: schoolName(who.db), children: kids.map(childView), menu: bot.MENU, replies,
+        return sendJson(res, 200, { school: schoolName(who.db), children: kids.map(childView), menu: bot.MENU, replies, notices: noticesFor(who.db, kids, who.key),
           ptm: { count: ptm.length, next: ptm.filter((x) => x.date >= pktToday()).sort((a, b) => a.date.localeCompare(b.date))[0] || null } });
       }
       /* v92: PTM — Morning bachon ki class ki PTM; parent feedback likhe (PTM se 7 din baad tak) */
@@ -1078,6 +1087,13 @@ const server = http.createServer(async (req, res) => {
         if (tooMany("chat:" + who.key, 40, 60e3)) return sendJson(res, 429, { error: "Please wait a moment and ask again." });
         const r = bot.reply(who.db, child, String(body.text || "").slice(0, 300), who.key, pktToday());
         return sendJson(res, 200, { ...r, child: childView(child) });
+      }
+      /* v169: parent ne notice dekh liya */
+      if (p === "/parent/api/notice-seen") {
+        const ids = new Set(noticesFor(who.db, kids, who.key).filter((n) => !n.seen).map((n) => n.id));
+        const want = (Array.isArray(body.ids) ? body.ids : []).map(String).filter((id) => ids.has(id));
+        if (want.length) mutateDb((d) => { (d.notices || []).forEach((n) => { if (want.includes(n.id)) { n.seen = n.seen || {}; n.seen[who.key] = pktToday(); } }); });
+        return sendJson(res, 200, { ok: true, n: want.length });
       }
       if (p === "/parent/api/receipt") {
         const m = String(body.file || "").match(/^data:(image\/jpeg|image\/png|image\/webp|application\/pdf);base64,([A-Za-z0-9+/=]+)$/);

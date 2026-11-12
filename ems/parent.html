@@ -303,6 +303,7 @@ function drawQuick(){
   const box = $("quick"); box.innerHTML = "";
   ME.menu.forEach(m=>{ const b = el("button", m.id === "receipt" ? "hl" : "", m.label); b.type = "button"; b.onclick = ()=>pick(m); box.appendChild(b); });
   if(ME.ptm && ME.ptm.count){ const b = el("button", "hl", "🤝 PTM"); b.type = "button"; b.onclick = openPtm; box.insertBefore(b, box.firstChild); }
+  if((ME.notices||[]).length){ const nw = ME.notices.filter(n=>!n.seen).length, b = el("button", "hl", `📢 Notices${nw ? ` (${nw} new)` : ""}`); b.type = "button"; b.onclick = ()=>showNotices(ME.notices); box.insertBefore(b, box.firstChild); }
 }
 function setMode(m){
   MODE = m;
@@ -479,6 +480,14 @@ $("rcGo").onclick = async ()=>{
   finally{ $("rcGo").disabled = false; $("rcGo").textContent = "Send receipt"; }
 };
 
+/* v169: school ke notices — important wale app kholte hi upar */
+function showNotices(L){
+  setMode("chat");
+  if(!L.length){ bot([{t:"p", text:"No notices from the school right now."}]); return; }
+  L.slice().reverse().forEach(n=>bot([{t:"h", text:`📢 ${n.important ? "Important — " : ""}${n.title}`}, {t:"p", text:n.text}, {t:"p", text:`School notice · ${fmtD(n.date)}`}], n.important ? "warn" : "note"));
+  const ids = L.filter(n=>!n.seen).map(n=>n.id);
+  if(ids.length){ api("/parent/api/notice-seen", {ids}).catch(()=>{}); L.forEach(n=>{ n.seen = true; }); drawQuick(); }
+}
 async function start(){
   ME = await api("/parent/api/me");
   $("login").style.display = "none"; $("app").style.display = "flex";
@@ -494,6 +503,7 @@ async function start(){
        {t:"p", text: ME.children.length > 1 ? `Your ${ME.children.length} children: ${ME.children.map(k=>k.name).join(", ")}. Choose a child above.` : `What would you like to see about ${KID.name} (${KID.course}, ${KID.shift})?`},
        ...(ME.replies ? [{t:"p", text:`The school has replied to ${ME.replies} of your message${ME.replies>1?"s":""} — tap "Teacher Remarks".`}] : []),
        ...(ME.ptm && ME.ptm.next ? [{t:"p", text:`🤝 Parent-Teacher Meeting on ${fmtD(ME.ptm.next.date)}${ME.ptm.next.from ? " at " + fmtT(ME.ptm.next.from) : ""} — tap "🤝 PTM" below for details and to send your feedback.`}] : [])], "", tiles());
+  { const imp = (ME.notices||[]).filter(n=>n.important && !n.seen); if(imp.length) showNotices(imp); }
 }
 start().catch(()=> showLogin());
 </script>
