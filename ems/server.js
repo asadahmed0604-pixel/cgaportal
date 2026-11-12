@@ -474,7 +474,10 @@ function teacherMerge(data, tid) {
   const curSy = arr(cur.syllabus), newSy = new Map(arr(data.syllabus).filter((x) => x && x.id).map((x) => [x.id, x]));
   const syllabus = curSy.filter((x) => x.tid !== tid || newSy.has(x.id)).map((x) => (x.tid === tid ? cleanSyllabus(newSy.get(x.id), tid, me) : x)).filter(Boolean);
   newSy.forEach((x, id) => { if (!curSy.some((y) => y.id === id) && cls.has(String(x.shift) + "|" + String(x.course))) { const c = cleanSyllabus(x, tid, me); if (c) syllabus.push(c); } });
-  return Object.assign(cur, { tests, exams, classAtt, homework, ptms, stuNotes, skillDev, skillGroups, concerns, syllabus });
+  /* v170: teacher apne audit par sirf "parh liya" (seenByTeacher) likh sakta hai — baqi audit server wala hi */
+  const seenA = new Map(arr(data.audits).filter((x) => x.teacherId === tid && /^\d{4}-\d{2}-\d{2}$/.test(String(x.seenByTeacher || ""))).map((x) => [x.id, x.seenByTeacher]));
+  const audits = arr(cur.audits).map((x) => (x.teacherId === tid && !x.seenByTeacher && seenA.has(x.id) ? { ...x, seenByTeacher: seenA.get(x.id) } : x));
+  return Object.assign(cur, { tests, exams, classAtt, homework, ptms, stuNotes, skillDev, skillGroups, concerns, syllabus, audits });
 }
 /* Admin ke save mein chhupaye hue hisse server wale hi rehte hain */
 const SALARY_CAT = "Salary & Wages";

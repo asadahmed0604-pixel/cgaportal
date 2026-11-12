@@ -1045,3 +1045,13 @@ Share → "Add to Home Screen" · Computer Chrome/Edge: the install icon in the 
 - In the **parents' app**, important notices pop up at the top of the chat as soon as the parent opens the app. Every notice for the family's children is under a **📢 Notices (n new)** button.
 - The office list shows how many families have **read** each notice. Notices can be edited or removed; a removed or expired notice disappears from the app.
 - Server: `/parent/api/me` returns the family's active notices, filtered by each child's shift and class. `/parent/api/notice-seen` records reads.
+
+## v170 — Class audit report pops up for the teacher
+- When one of a teacher's classes is audited, the report **pops up in the teacher's portal**. This happens as soon as they open it or, if already open, within a few seconds of the audit being saved. The pop-up shows:
+  - the audit score;
+  - every criterion with stars (weak ones in red);
+  - topic, lesson plan, students present and homework;
+  - the auditor's remarks;
+  - **🎯 What to improve**.
+- The teacher presses **✓ I have read this**, and the date is saved. The Class Audit list shows **👁 read <date>** or **⏳ not read yet** under the teacher's name.
+- Only audits from the last 30 days pop up, so older audits don't flood teachers after this update. The teacher can't change anything in the audit: the server only accepts the "read" date.
