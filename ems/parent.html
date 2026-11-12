@@ -303,6 +303,7 @@ function drawQuick(){
   const box = $("quick"); box.innerHTML = "";
   ME.menu.forEach(m=>{ const b = el("button", m.id === "receipt" ? "hl" : "", m.label); b.type = "button"; b.onclick = ()=>pick(m); box.appendChild(b); });
   if(ME.ptm && ME.ptm.count){ const b = el("button", "hl", "🤝 PTM"); b.type = "button"; b.onclick = openPtm; box.insertBefore(b, box.firstChild); }
+  { const b = el("button", "", "🗓 Timetable"); b.type = "button"; b.onclick = showTimetable; box.insertBefore(b, box.firstChild); }
   if((ME.notices||[]).length){ const nw = ME.notices.filter(n=>!n.seen).length, b = el("button", "hl", `📢 Notices${nw ? ` (${nw} new)` : ""}`); b.type = "button"; b.onclick = ()=>showNotices(ME.notices); box.insertBefore(b, box.firstChild); }
 }
 function setMode(m){
@@ -480,6 +481,18 @@ $("rcGo").onclick = async ()=>{
   finally{ $("rcGo").disabled = false; $("rcGo").textContent = "Send receipt"; }
 };
 
+/* v171: bache ki class ka timetable — aaj ka din pehle */
+async function showTimetable(){
+  setMode("chat");
+  let T;
+  try{ T = await api("/parent/api/timetable?studentId=" + encodeURIComponent(KID.id)); }catch(err){ if(err.message !== "login") bot([{t:"p", text:err.message}], "warn"); return; }
+  const DN = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"], today = new Date().getDay();
+  const order = [1,2,3,4,5,6,0].filter(d=>(T.days[d]||[]).length);
+  if(!order.length){ bot([{t:"p", text:`The timetable for ${KID.name}'s class has not been set yet.`}]); return; }
+  const rows = d => T.days[d].map(x=>[`${fmtT(x.from)}${x.to ? "–" + fmtT(x.to) : ""}`, `${x.subject || "Lesson"}${x.teacher ? " · " + x.teacher : ""}`]);
+  if(T.days[today] && T.days[today].length) bot([{t:"h", text:`🗓 Today (${DN[today]}) — ${KID.name}, ${T.course}`}, {t:"kv", rows:rows(today)}], "note");
+  bot([{t:"h", text:`🗓 Weekly timetable — ${T.course} (${T.shift})`}, ...order.flatMap(d=>[{t:"p", text:`— ${DN[d]} —`}, {t:"kv", rows:rows(d)}])]);
+}
 /* v169: school ke notices — important wale app kholte hi upar */
 function showNotices(L){
   setMode("chat");
