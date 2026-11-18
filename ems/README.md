@@ -1059,3 +1059,9 @@ Share → "Add to Home Screen" · Computer Chrome/Edge: the install icon in the 
 ## v171 — Class timetable in the parents' app + import from a prepared file
 - **Parents' app → 🗓 Timetable:** shows the child's class timetable, built from Employees → Assign. Today's lessons come first, then the whole week, each with its time, subject and teacher's first name. Where two subjects run at the same time (e.g. Chemistry / Business), only the one the child takes is shown. If the child takes neither, both show.
 - **Timetable import** now also accepts a prepared timetable **.json** file (`periods`: teacher, class, subject, day, from, to). The file goes straight to the same preview / Apply screen, without the AI.
+
+## v172 — 4 paid leaves for staff in both shifts
+- Staff who work **both Morning and Evening** now get **4 paid leaves a month in total**, shared across both shifts and counted in shift-days. Before, they got 2 in each shift separately.
+- After the 4 are used, every further absent or leave shift-day cuts that shift-day's salary: salary ÷ the month's Morning + Evening working days.
+- The staff attendance page shows the shared count, e.g. "1 / 4 🌅+🌆", and blocks further informed leave once 4 are used (it becomes Absent). The teacher's dashboard shows "4 paid leave days a month (Morning + Evening together)".
+- Single-shift staff are unchanged: 2 a month.
