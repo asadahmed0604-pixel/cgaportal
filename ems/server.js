@@ -411,17 +411,23 @@ function teacherMerge(data, tid) {
   const keepOut = (h, cleaned, old) => { const ok = inCls(h), out = { ...cleaned };
     if (old && typeof old === "object") for (const k of Object.keys(old)) if (!ok.has(k) && old[k]) out[k] = old[k];
     return out; };
+  /* v173: quality — sirf jama shuda bachon ki, sirf maloom codes */
+  const HWQ = new Set(["good", "incomplete", "poor", "messy", "copied"]);
+  const cleanQ = (h, q, done) => { const ok = inCls(h), out = {};
+    if (q && typeof q === "object") for (const k of Object.keys(q)) if (ok.has(k) && done[k] && HWQ.has(q[k])) out[k] = q[k];
+    return out; };
+  const withQ = (o, h, n, old) => { const q = keepOut(h, cleanQ(h, n.quality, o.done), old); if (Object.keys(q).length) o.quality = q; else delete o.quality; return o; };
   const curHw = arr(cur.homework), newHw = new Map(arr(data.homework).map((h) => [h.id, h]));
   const homework = [];
   curHw.forEach((h) => {
     if (!hwSeen(h, tid, cls, me)) return homework.push(h);
     const n = newHw.get(h.id);
     if (!n) { if (h.teacherId !== tid) homework.push(h); return; }               // apna hi delete ho sakta hai
-    if (h.teacherId === tid && hwSeen(n, tid, cls)) return homework.push({ ...n, teacherId: tid, by: "teacher", done: keepOut(n, cleanDone(n, n.done), h.done), absent: keepOut(n, cleanDone(n, n.absent), h.absent) });
-    homework.push({ ...h, done: keepOut(h, cleanDone(h, n.done), h.done), absent: keepOut(h, cleanDone(h, n.absent), h.absent), checkedOn: n.checkedOn || h.checkedOn });   // sirf receival (v132: + absent)
+    if (h.teacherId === tid && hwSeen(n, tid, cls)) return homework.push(withQ({ ...n, teacherId: tid, by: "teacher", done: keepOut(n, cleanDone(n, n.done), h.done), absent: keepOut(n, cleanDone(n, n.absent), h.absent) }, n, n, h.quality));
+    homework.push(withQ({ ...h, done: keepOut(h, cleanDone(h, n.done), h.done), absent: keepOut(h, cleanDone(h, n.absent), h.absent), checkedOn: n.checkedOn || h.checkedOn }, h, n, h.quality));   // sirf receival (v132: + absent)
   });
   const curIds = new Set(curHw.map((h) => h.id));
-  newHw.forEach((n) => { if (!curIds.has(n.id) && hwSeen({ ...n, teacherId: tid }, tid, cls)) homework.push({ ...n, teacherId: tid, by: "teacher", done: cleanDone(n, n.done), absent: cleanDone(n, n.absent) }); });
+  newHw.forEach((n) => { if (!curIds.has(n.id) && hwSeen({ ...n, teacherId: tid }, tid, cls)) homework.push(withQ({ ...n, teacherId: tid, by: "teacher", done: cleanDone(n, n.done), absent: cleanDone(n, n.absent) }, n, n, null)); });
   /* v92: PTM — teacher sirf apni entries ("<studentId>|<tid>") apni Morning classes ke bachon ke liye; PTM khud admin ka */
   const newPtm = new Map(arr(data.ptms).map((x) => [x.id, x]));
   const ptms = arr(cur.ptms).map((x) => {

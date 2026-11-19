@@ -1065,3 +1065,12 @@ Share → "Add to Home Screen" · Computer Chrome/Edge: the install icon in the 
 - After the 4 are used, every further absent or leave shift-day cuts that shift-day's salary: salary ÷ the month's Morning + Evening working days.
 - The staff attendance page shows the shared count, e.g. "1 / 4 🌅+🌆", and blocks further informed leave once 4 are used (it becomes Absent). The teacher's dashboard shows "4 paid leave days a month (Morning + Evening together)".
 - Single-shift staff are unchanged: 2 a month.
+
+## v173 — Homework quality
+- Homework → **✓ Receival** has a new **Quality** column for each student: ✅ Good, ⚠ Incomplete, 👎 Poor work, ✏ Bad presentation, 📋 Copied.
+  - Choosing a quality also ticks the student as submitted. Unticking a student clears their quality.
+  - The summary line counts quality issues.
+- Student profile → Homework tab: the quality can also be changed next to a submitted homework.
+- **📊 Homework submission report** has a **Quality issues** column, also in the CSV.
+- Parents and students see the quality in the app (homework list and My Report) and in the parents' chat homework answer.
+- Data: `homework.quality = {studentId: code}`, kept only for submitted students. On a teacher save the server keeps only known codes, only for students in the class who submitted, and keeps other classes' entries.
