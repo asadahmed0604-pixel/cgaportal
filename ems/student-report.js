@@ -10,6 +10,8 @@ const classesOf = (st) => [st.course, st.shift === "Evening" ? st.course2 : ""].
 const asgDays = (a) => (a.dayList && a.dayList.length ? a.dayList : DAY_SET[a.days] || (a.from ? DAY_SET["Mon–Fri"] : []));
 const slotOf = (a, wd) => (!asgDays(a).includes(wd) ? null : a.slots && a.slots[wd] ? a.slots[wd] : a.from ? { from: a.from, to: a.to || "" } : null);
 const okT = (t) => /^([01]?\d|2[0-3]):[0-5]\d$/.test(String(t || ""));        // "HH:MM" — ghalat waqt timetable mein nahi
+/* v173: homework quality (teacher receival mein chunti hai) */
+const HW_QUALITY = { good: "Good", incomplete: "Incomplete", poor: "Poor work", messy: "Bad presentation", copied: "Copied" };
 const pct = (n, d) => (d ? Math.round((n * 100) / d) : null);
 const ATT_KEYS = ["P", "L", "A", "E"];
 
@@ -178,7 +180,8 @@ function studentReport(db, st, today) {
         const d = (h.done || {})[st.id], due = h.dueDate || "";
         return { id: h.id, title: h.title || "", subject: h.subject || "", detail: h.detail || "", given: h.dateGiven || "", due,
           teacher: h.teacherId ? ((db.employees || []).find((e) => e.id === h.teacherId) || {}).name || "" : "",
-          state: d ? (typeof d === "string" && due && d > due ? "late" : "done") : (h.absent || {})[st.id] ? "absent" : due && due < today ? "missed" : "pending", on: typeof d === "string" ? d : "" };
+          state: d ? (typeof d === "string" && due && d > due ? "late" : "done") : (h.absent || {})[st.id] ? "absent" : due && due < today ? "missed" : "pending", on: typeof d === "string" ? d : "",
+          quality: d ? HW_QUALITY[(h.quality || {})[st.id]] || "" : "" };
       }),
     /* v106: warning letters (Behaviour & discipline) */
     warnings: (st.warnings || []).filter((w) => w && w.parentVisible !== false).sort((a, b) => String(b.d).localeCompare(String(a.d))).slice(0, 10)
@@ -217,4 +220,5 @@ function studentReport(db, st, today) {
   };
 }
 
-module.exports = { studentReport, classesFor, homeworkOf, takesSubj, classPosition, resultsHold };
+module.exports = {
+  HW_QUALITY, studentReport, classesFor, homeworkOf, takesSubj, classPosition, resultsHold };

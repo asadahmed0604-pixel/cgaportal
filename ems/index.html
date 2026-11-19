@@ -1545,7 +1545,7 @@ const seedSubjects = () => DEFAULT_SUBJECTS.map(([name,level,k,only],i)=>
 
 /* Kaunsi file chal rahi hai — Downloads mein kai copies jama ho jati hain, ye batata hai
    ke ye nayi hai ya purani. Sidebar ke neeche aur Settings mein likha aata hai. */
-const BUILD = "v172 · 18 Nov 2026";
+const BUILD = "v173 · 19 Nov 2026";
 
 /* ---------- Expense categories ---------- */
 const EXPENSE_CATS = ["Utility Bill","Maintenance & Repair","Development","Marketing",
@@ -3413,7 +3413,7 @@ function openProfile(id){
         <option value="" ${!done&&!(h.absent||{})[id]?"selected":""}>Pending</option>
         <option value="1" ${done?"selected":""}>Submitted ✓</option>
         <option value="A" ${!done&&(h.absent||{})[id]?"selected":""}>Absent</option>
-      </select></td>
+      </select>${done ? ` <select onchange="hwSetQ('${h.id}','${id}',this.value)" style="width:auto;padding:5px 8px">${hwQOpts(hwQ(h, id))}</select>` : ""}</td>
     </tr>`;
   }).join("");
   const attRows = Object.keys(DB.attendance).filter(d=>DB.attendance[d][id]).sort().reverse().slice(0,60)
@@ -3501,7 +3501,13 @@ function hwToggle(hwId, sid, val){
   if(!h.done) h.done = {};
   if(val === "A"){ delete h.done[sid]; h.absent = {...(h.absent||{}), [sid]: todayStr()}; }          // v132
   else { if(val) h.done[sid] = todayStr(); else delete h.done[sid]; if(h.absent){ delete h.absent[sid]; if(!Object.keys(h.absent).length) delete h.absent; } }
+  if(!h.done[sid] && h.quality){ delete h.quality[sid]; if(!Object.keys(h.quality).length) delete h.quality; }
   save(); toast(val === "A" ? "Marked absent" : val ? "Homework submitted ✓" : "Marked pending");
+}
+function hwSetQ(hwId, sid, v){
+  const h = DB.homework.find(x=>x.id===hwId); if(!h || !(h.done||{})[sid]) return;
+  if(v && HW_Q[v]) h.quality = {...(h.quality||{}), [sid]: v}; else if(h.quality){ delete h.quality[sid]; if(!Object.keys(h.quality).length) delete h.quality; }
+  save(); toast(v ? "Quality: " + HW_Q[v] : "Quality cleared");
 }
 function swTab(btn,id){
   btn.parentElement.querySelectorAll("button").forEach(b=>b.classList.remove("on"));
@@ -4024,6 +4030,12 @@ const hwDue = h => h.dueDate || h.dateGiven || "";
 /* v132: h.absent[sid] — bacha us din absent tha (receival mein mark) → "not submitted" mein nahi ginta */
 const hwState = (h, sid) => { const d = (h.done||{})[sid];
   return d ? (typeof d === "string" && h.dueDate && d > h.dueDate ? "late" : "ok") : (h.absent||{})[sid] ? "absent" : (hwDue(h) && hwDue(h) < todayStr() ? "miss" : "pending"); };
+/* v173: jama shuda homework ki quality — h.quality = {studentId: code} */
+const HW_Q = {good:"✅ Good", incomplete:"⚠ Incomplete", poor:"👎 Poor work", messy:"✏ Bad presentation", copied:"📋 Copied"};
+const HW_Q_BAD = {incomplete:1, poor:1, messy:1, copied:1};
+const hwQ = (h, sid) => { const q = (h.quality||{})[sid]; return (h.done||{})[sid] && HW_Q[q] ? q : ""; };
+const hwQBadge = q => q ? `<span class="badge ${HW_Q_BAD[q] ? "b-freeze" : "b-paid"}" style="margin-left:4px">${HW_Q[q]}</span>` : "";
+const hwQOpts = q => `<option value="">— Quality —</option>` + Object.entries(HW_Q).map(([k,v])=>`<option value="${k}" ${q===k?"selected":""}>${v}</option>`).join("");
 /* v90: portal se bheja hua kaam (photos / PDF) — {hwId: [studentIds]}; server se, 30 second mein dobara */
 let HW_SENT = {}, HW_SENT_AT = 0;
 function loadHwSent(force){
@@ -4133,21 +4145,22 @@ let HW_RCV = null;
 function openHwRcv(id){
   const h = DB.homework.find(x=>x.id===id); if(!h) return;
   const L = hwStudents(h);
-  HW_RCV = {id, done:{...(h.done||{})}, abs:{...(h.absent||{})}, subs:{}};
+  HW_RCV = {id, done:{...(h.done||{})}, abs:{...(h.absent||{})}, q:{...(h.quality||{})}, subs:{}};
   openModal(`
     <h3>✓ Homework receival — ${esc(h.title)}</h3>
-    <p class="sub" style="margin-bottom:10px">${esc(h.course)} · ${h.shift}${h.subject?" · "+esc(h.subject):""} · given ${fmtD(h.dateGiven)}${h.dueDate?` · due <b>${fmtD(h.dueDate)}</b>`:""}. Tick the students who handed it in, or mark <b>Absent</b> if the student was absent (absent is not counted as "not submitted") — the date is saved (after the due date = late). Handed in on paper earlier and not ticked in time? Pick the real day under <b>Submitted on</b>. Work sent from the student / parents' app shows under <b>Sent work</b> — check it and tick to confirm; the app then shows <b>✓ Checked</b>.</p>
+    <p class="sub" style="margin-bottom:10px">${esc(h.course)} · ${h.shift}${h.subject?" · "+esc(h.subject):""} · given ${fmtD(h.dateGiven)}${h.dueDate?` · due <b>${fmtD(h.dueDate)}</b>`:""}. Tick the students who handed it in, or mark <b>Absent</b> if the student was absent (absent is not counted as "not submitted") — the date is saved (after the due date = late). Handed in on paper earlier and not ticked in time? Pick the real day under <b>Submitted on</b>. Work sent from the student / parents' app shows under <b>Sent work</b> — check it and tick to confirm; the app then shows <b>✓ Checked</b>. Pick the <b>Quality</b> of each submitted homework (Good / Incomplete / Poor work / Bad presentation / Copied) — parents see it in the app.</p>
     <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:10px">
       <div class="field" style="margin:0"><label>Received on</label><input type="date" id="hr_date" value="${todayStr()}"></div>
       <button class="btn-line btn-sm" onclick="hwRcvAll(true)">✓ All submitted</button><button class="btn-line btn-sm" onclick="hwRcvAll(false)">Clear all</button>
       <button class="btn-black btn-sm" id="hr_sentAll" style="display:none" onclick="hwRcvSent()">✓ Confirm all who sent work</button>
       <span class="sub" id="hr_sum" style="margin-left:auto"></span></div>
-    <div class="tbl-wrap" style="max-height:52vh;overflow:auto"><table class="ptm-tbl"><thead><tr><th>Student</th><th>Status</th><th>Sent work</th><th style="text-align:center">Submitted</th><th style="text-align:center">Absent</th><th>Submitted on</th></tr></thead>
+    <div class="tbl-wrap" style="max-height:52vh;overflow:auto"><table class="ptm-tbl"><thead><tr><th>Student</th><th>Status</th><th>Sent work</th><th style="text-align:center">Submitted</th><th style="text-align:center">Absent</th><th>Submitted on</th><th>Quality</th></tr></thead>
       <tbody>${L.length ? L.map(st=>`<tr><td><b>${esc(st.name)}</b><br><span class="sub">${esc(st.regNo||"")}</span></td><td id="hr_s_${st.id}"></td><td id="hr_f_${st.id}" class="sub">${SERVER ? "…" : "—"}</td>
         <td style="text-align:center"><input type="checkbox" id="hr_${st.id}" style="width:22px;height:22px" ${HW_RCV.done[st.id]?"checked":""} onchange="hwRcvSet('${st.id}',this.checked)"></td>
         <td style="text-align:center"><input type="checkbox" id="hra_${st.id}" style="width:22px;height:22px;accent-color:#6B7C85" ${!HW_RCV.done[st.id] && HW_RCV.abs[st.id]?"checked":""} onchange="hwRcvAbs('${st.id}',this.checked)"></td>
-        <td><input type="date" id="hrd_${st.id}" style="min-width:140px" min="${esc(h.dateGiven||"")}" max="${todayStr()}" onchange="hwRcvDate('${st.id}',this.value)" title="Day the student actually handed it in"></td></tr>`).join("")
-        : `<tr><td colspan="6" class="empty">No students in this class${h.subject?" / subject":""}</td></tr>`}</tbody></table></div>
+        <td><input type="date" id="hrd_${st.id}" style="min-width:140px" min="${esc(h.dateGiven||"")}" max="${todayStr()}" onchange="hwRcvDate('${st.id}',this.value)" title="Day the student actually handed it in"></td>
+        <td><select id="hrq_${st.id}" style="width:auto;padding:5px 8px" onchange="hwRcvQ('${st.id}',this.value)">${hwQOpts(HW_RCV.q[st.id])}</select></td></tr>`).join("")
+        : `<tr><td colspan="7" class="empty">No students in this class${h.subject?" / subject":""}</td></tr>`}</tbody></table></div>
     <div class="modal-foot">
       <button class="btn-line" onclick="closeModal()">Cancel</button>
       <button class="btn-red" onclick="saveHwRcv()">Save receival</button>
@@ -4180,6 +4193,10 @@ function hwRcvAbs(sid, on){ if(!HW_RCV) return;
   else delete HW_RCV.abs[sid];
   hwRcvDraw(); if(HW_RCV.subs) hwRcvFiles(); }
 function hwRcvAll(on){ const h = DB.homework.find(x=>x.id===HW_RCV.id); hwStudents(h).forEach(st=>{ if(on){ if(!HW_RCV.done[st.id]) HW_RCV.done[st.id] = $("hr_date").value || todayStr(); } else delete HW_RCV.done[st.id]; const cb = $("hr_"+st.id); if(cb) cb.checked = on; }); hwRcvDraw(); }
+function hwRcvQ(sid, v){ if(!HW_RCV) return;
+  if(v){ HW_RCV.q[sid] = v; if(!HW_RCV.done[sid]){ HW_RCV.done[sid] = (HW_RCV.subs && HW_RCV.subs[sid] && String(HW_RCV.subs[sid].at||"").slice(0,10)) || $("hr_date").value || todayStr(); const cb = $("hr_"+sid); if(cb) cb.checked = true; } }
+  else delete HW_RCV.q[sid];
+  hwRcvDraw(); if(HW_RCV.subs) hwRcvFiles(); }
 /* v101: bache ne kaam jis din asal mein diya (teacher ne baad mein tick kiya) — wohi tareekh; late ka hisaab isi se */
 function hwRcvDate(sid, v){
   if(!HW_RCV) return;
@@ -4193,13 +4210,16 @@ function hwRcvDraw(){
   const tmp2 = {...tmp, absent:HW_RCV.abs};
   const lab = {ok:`<span class="badge b-paid">Submitted</span>`, late:`<span class="badge b-freeze">Late</span>`, miss:`<span class="badge b-left">Not submitted</span>`, pending:`<span class="badge b-unpaid">Pending</span>`, absent:`<span class="badge" style="background:#EEF1F3;color:#4A5A62">Absent</span>`};
   L.forEach(st=>{ const c = $("hr_s_"+st.id), d = HW_RCV.done[st.id], ab = $("hra_"+st.id); if(ab) ab.checked = !d && !!HW_RCV.abs[st.id]; if(c){ c.innerHTML = lab[hwState(tmp2, st.id)] + (typeof d === "string" ? ` <span class="sub">${fmtD(d)}</span>` : ""); }
-    const di = $("hrd_"+st.id); if(di) di.value = typeof d === "string" ? d : ""; });
+    const di = $("hrd_"+st.id); if(di) di.value = typeof d === "string" ? d : "";
+    const qi = $("hrq_"+st.id); if(qi) qi.value = d ? (HW_RCV.q[st.id]||"") : ""; const cb = $("hr_"+st.id); if(cb) cb.checked = !!d; });          // quality chunne se "submitted" khud tick
   const n = L.filter(st=>HW_RCV.done[st.id]).length, a = L.filter(st=>!HW_RCV.done[st.id] && HW_RCV.abs[st.id]).length;
-  $("hr_sum").textContent = `${n} / ${L.length} submitted${a ? ` · ${a} absent` : ""}`;
+  const bq = L.filter(st=>HW_RCV.done[st.id] && HW_Q_BAD[HW_RCV.q[st.id]]).length;
+  $("hr_sum").textContent = `${n} / ${L.length} submitted${a ? ` · ${a} absent` : ""}${bq ? ` · ${bq} quality issue${bq>1?"s":""}` : ""}`;
 }
 function saveHwRcv(){
   const h = DB.homework.find(x=>x.id===HW_RCV.id); if(!h) return;
   h.done = HW_RCV.done; h.absent = Object.fromEntries(Object.entries(HW_RCV.abs).filter(([sid])=>!h.done[sid])); if(!Object.keys(h.absent).length) delete h.absent;
+  h.quality = Object.fromEntries(Object.entries(HW_RCV.q).filter(([sid, q])=>h.done[sid] && HW_Q[q])); if(!Object.keys(h.quality).length) delete h.quality;
   h.checkedOn = todayStr(); h.checkedBy = IS_TEACHER ? teacherName(MY_TID) : (myName() || ROLE_LABEL);
   save(); closeModal(); renderHomework(); toast(`Receival saved — ${Object.keys(h.done).length} submitted${h.absent ? ` · ${Object.keys(h.absent).length} absent` : ""}`);
 }
@@ -4915,8 +4935,8 @@ function ptmCSV(id){
 function hwReportRows(m, c){
   const keys = hwKeys(), L = DB.homework.filter(h=>String(hwDue(h)).startsWith(m) && (!c || h.shift+"|"+h.course===c) && (!keys || keys.includes(h.shift+"|"+h.course)));
   const by = new Map();
-  L.forEach(h=>hwStudents(h).forEach(st=>{ const r = by.get(st.id) || {st, given:0, ok:0, late:0, miss:0, pending:0, absent:0, missed:[]}; by.set(st.id, r);
-    r.given++; const k = hwState(h, st.id); r[k]++; if(k==="miss") r.missed.push(h); }));
+  L.forEach(h=>hwStudents(h).forEach(st=>{ const r = by.get(st.id) || {st, given:0, ok:0, late:0, miss:0, pending:0, absent:0, missed:[], bad:[]}; by.set(st.id, r);
+    r.given++; const k = hwState(h, st.id); r[k]++; if(k==="miss") r.missed.push(h); const q = hwQ(h, st.id); if(HW_Q_BAD[q]) r.bad.push({h, q}); }));
   return {L, rows:[...by.values()].sort((a,b)=>(b.miss - a.miss) || a.st.name.localeCompare(b.st.name))};
 }
 function openHwReport(){
@@ -4928,7 +4948,7 @@ function openHwReport(){
       <div class="field" style="margin:0"><label>Class</label><select id="hrp_c" onchange="drawHwReport()"><option value="">All${IS_TEACHER?" my":""} classes</option>${keys.sort().map(k=>{ const [sh,c]=k.split("|"); return `<option value="${esc(k)}">${esc(c)} · ${sh}</option>`; }).join("")}</select></div>
       <button class="btn-line btn-sm" onclick="hwReportCSV()">⬇ CSV</button></div>
     <p class="sub" id="hrp_sub"></p>
-    <div class="tbl-wrap" style="max-height:58vh;overflow:auto"><table><thead><tr><th>Student</th><th>Class</th><th style="text-align:right">Given</th><th style="text-align:right">Submitted</th><th style="text-align:right">Late</th><th style="text-align:right">Not submitted</th><th style="text-align:right">%</th><th>Missing homework</th></tr></thead><tbody id="hrp_rows"></tbody></table></div>
+    <div class="tbl-wrap" style="max-height:58vh;overflow:auto"><table><thead><tr><th>Student</th><th>Class</th><th style="text-align:right">Given</th><th style="text-align:right">Submitted</th><th style="text-align:right">Late</th><th style="text-align:right">Not submitted</th><th style="text-align:right">%</th><th>Missing homework</th><th>Quality issues</th></tr></thead><tbody id="hrp_rows"></tbody></table></div>
     <div class="modal-foot"><button class="btn-line" onclick="closeModal()">Close</button></div>`, true);
   drawHwReport();
 }
@@ -4941,13 +4961,14 @@ function drawHwReport(){
       <td style="text-align:right">${r.given}${r.absent ? `<br><span class="sub">${r.absent} absent</span>` : ""}</td><td style="text-align:right">${r.ok}</td><td style="text-align:right">${r.late||"—"}</td>
       <td style="text-align:right">${r.miss ? `<b style="color:var(--danger)">${r.miss}</b>` : "—"}</td>
       <td style="text-align:right"><span class="badge ${p>=80?"b-paid":p>=50?"b-freeze":"b-left"}">${p}%</span></td>
-      <td class="sub" style="max-width:260px">${r.missed.map(h=>`${esc(h.title)}${h.subject?` (${esc(h.subject)})`:""}`).join(", ") || "—"}</td></tr>`; }).join("")
-    : `<tr><td colspan="8" class="empty">No homework due in ${fmtM(m)}</td></tr>`;
+      <td class="sub" style="max-width:260px">${r.missed.map(h=>`${esc(h.title)}${h.subject?` (${esc(h.subject)})`:""}`).join(", ") || "—"}</td>
+      <td class="sub" style="max-width:240px">${r.bad.map(x=>`${esc(x.h.title)}: <b>${HW_Q[x.q]}</b>`).join("<br>") || "—"}</td></tr>`; }).join("")
+    : `<tr><td colspan="9" class="empty">No homework due in ${fmtM(m)}</td></tr>`;
 }
 function hwReportCSV(){
   const m = $("hrp_m").value || wm(), {rows} = hwReportRows(m, $("hrp_c").value);
-  downloadCSV(`Homework submissions ${fmtM(m)}.csv`, [["Reg No","Name","Class","Shift","Given","Submitted","Late","Not submitted","Pending","Absent","%","Missing homework"],
-    ...rows.map(r=>[r.st.regNo||"", r.st.name, classLabelOf(r.st), r.st.shift, r.given, r.ok, r.late, r.miss, r.pending, r.absent, r.given - r.absent ? Math.round((r.ok + r.late) * 100 / (r.given - r.absent)) : 0, r.missed.map(h=>h.title).join("; ")])]);
+  downloadCSV(`Homework submissions ${fmtM(m)}.csv`, [["Reg No","Name","Class","Shift","Given","Submitted","Late","Not submitted","Pending","Absent","%","Missing homework","Quality issues"],
+    ...rows.map(r=>[r.st.regNo||"", r.st.name, classLabelOf(r.st), r.st.shift, r.given, r.ok, r.late, r.miss, r.pending, r.absent, r.given - r.absent ? Math.round((r.ok + r.late) * 100 / (r.given - r.absent)) : 0, r.missed.map(h=>h.title).join("; "), r.bad.map(x=>x.h.title+": "+HW_Q[x.q].replace(/^\S+ /,"")).join("; ")])]);
 }
 
 /* ================= FEES ================= */

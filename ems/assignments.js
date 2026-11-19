@@ -10,7 +10,7 @@ const path = require("path");
 const crypto = require("crypto");
 const ai = require("./ai");
 const { buildDiagram, cleanGrid, gridSvg, diagramText } = require("./diagram");
-const { studentReport, homeworkOf } = require("./student-report");
+const { studentReport, homeworkOf, HW_QUALITY } = require("./student-report");
 const { feeSummary } = require("./parent-bot");
 
 const GRACE_MS = 90e3;                        // timer khatam hone ke baad network ke liye thori mohlat
@@ -660,7 +660,7 @@ module.exports = function setup(ctx) {
         return { id: h.id, title: h.title || "", subject: h.subject || "", detail: h.detail || "", given: h.dateGiven || "", due,
           teacher: h.teacherId ? (emps.find((e) => e.id === h.teacherId) || {}).name || "" : "",
           state: d ? (typeof d === "string" && due && d > due ? "late" : "done") : files.length ? "submitted" : (h.absent || {})[st.id] ? "absent" : due && due < today ? "missed" : "pending",
-          checkedOn: typeof d === "string" ? d : "", submittedAt: (sub && sub.at) || "",
+          checkedOn: typeof d === "string" ? d : "", quality: d ? HW_QUALITY[(h.quality || {})[st.id]] || "" : "", submittedAt: (sub && sub.at) || "",
           files: files.map((f) => ({ file: f.file, type: f.type, name: f.name })) };
       });
       return sendJson(res, 200, list);
